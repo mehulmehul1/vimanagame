@@ -596,6 +596,51 @@ class LightManager {
   }
 
   /**
+   * Update lights based on game state - creates/removes lights with criteria
+   * @param {Object} gameState - Current game state
+   */
+  updateLightsForState(gameState) {
+    if (!gameState) return;
+
+    // Check all lights in the data
+    for (const [key, config] of Object.entries(lights)) {
+      const lightId = config.id;
+      const exists = this.lights.has(lightId) || this.splatLayers.has(lightId);
+
+      // Check if criteria are met
+      if (config.criteria) {
+        const criteriaMet = checkCriteria(gameState, config.criteria);
+
+        // If criteria met and light doesn't exist, create it
+        if (criteriaMet && !exists) {
+          console.log(
+            `🔦 LightManager: Creating light "${lightId}" (criteria now met)`
+          );
+          try {
+            if (config.type === "SplatLight") {
+              this.createSplatLight(config);
+            } else {
+              this.createLight(config);
+            }
+          } catch (error) {
+            console.error(
+              `❌ LightManager: Error creating light "${lightId}":`,
+              error
+            );
+          }
+        }
+        // If criteria not met and light exists, remove it
+        else if (!criteriaMet && exists) {
+          console.log(
+            `🔦 LightManager: Removing light "${lightId}" (criteria no longer met)`
+          );
+          this.removeLight(lightId);
+        }
+      }
+    }
+  }
+
+  /**
    * Update all audio-reactive lights
    * Call this in your animation loop
    * @param {number} dt - Delta time (not used, but kept for consistency)

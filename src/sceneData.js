@@ -136,6 +136,18 @@ export const sceneObjects = {
     ],
   },
 
+  carTestSplat: {
+    id: "carTestSplat",
+    type: "splat",
+    path: "/car-test.sog",
+    description: "Car test splat - positioned at origin for testing",
+    position: { x: 8.42, y: -0.37, z: 32.46 },
+    rotation: { x: -2.6226, y: 1.2478, z: -0.5263 },
+    scale: { x: 2.92, y: 2.92, z: 2.92 },
+    loadByDefault: true,
+    priority: 100,
+  },
+
   //   firstPersonBody: {
   //     id: "firstPersonBody",
   //     type: "gltf",

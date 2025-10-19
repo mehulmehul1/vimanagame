@@ -181,6 +181,34 @@ class SceneManager {
       this.loadingPromises.delete(id);
       console.log(`SceneManager: Loaded "${id}" (${type})`);
 
+      // Handle parenting if specified
+      if (objectData.parent) {
+        const parentId = objectData.parent;
+        let parentObject = this.objects.get(parentId);
+
+        // Wait for parent if it's still loading
+        if (!parentObject && this.loadingPromises.has(parentId)) {
+          console.log(
+            `SceneManager: Waiting for parent "${parentId}" to load...`
+          );
+          parentObject = await this.loadingPromises.get(parentId);
+        }
+
+        if (parentObject) {
+          // Remove from scene if it was added there
+          if (object.parent === this.scene) {
+            this.scene.remove(object);
+          }
+          // Add to parent
+          parentObject.add(object);
+          console.log(`SceneManager: Parented "${id}" to "${parentId}"`);
+        } else {
+          console.warn(
+            `SceneManager: Parent "${parentId}" not found for "${id}"`
+          );
+        }
+      }
+
       // Register with gizmo manager if gizmo flag is set
       if (objectData.gizmo && this.gizmoManager && object) {
         this.gizmoManager.registerObject(object, id, type);

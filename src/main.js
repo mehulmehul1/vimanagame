@@ -315,6 +315,11 @@ characterController.setSceneManager(sceneManager); // For first-person body atta
 musicManager.setGameManager(gameManager);
 sfxManager.setGameManager(gameManager);
 
+// Set up light manager state change listener to dynamically load/unload lights based on criteria
+gameManager.on("state:changed", (newState, oldState) => {
+  lightManager.updateLightsForState(newState);
+});
+
 // Initialize UI components (idleHelper, fullscreenButton, splatCounter)
 uiManager.initializeComponents({
   dialogManager,
