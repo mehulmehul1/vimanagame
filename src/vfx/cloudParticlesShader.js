@@ -11,25 +11,25 @@ class CloudParticlesShader {
   constructor(scene, camera = null) {
     this.scene = scene;
     this.camera = camera;
-    this.spawnPosition = null;
+    this.spawnPosition = new THREE.Vector3(0, 0, 40);
 
     // Fog settings - edit these directly
-    this.particleCount = 16000;
-    this.cloudSize = 80;
-    this.particleSize = 2;
+    this.particleCount = 20000;
+    this.cloudSize = 40;
+    this.particleSize = 1.5;
     this.particleSizeMin = 0.75;
     this.particleSizeMax = 1.5;
     this.windSpeed = -0.5;
-    this.opacity = 0.03;
+    this.opacity = 0.01;
     this.color = 0xffffff;
     this.fluffiness = 8;
     this.turbulence = 3;
     this.groundLevel = -1;
-    this.fogHeight = 7.0;
+    this.fogHeight = 10.0;
     this.fogFalloff = 2;
 
     // Gust model (analytic, avoids reversal/jumps)
-    this.gustAmplitude = 0.3; // speed variation amplitude
+    this.gustAmplitude = 0.4; // speed variation amplitude
     this.gustPeriod = 12.0; // seconds per full cycle
 
     this.splatMesh = null;
@@ -66,7 +66,7 @@ class CloudParticlesShader {
     // Wind variation state
     this.baseWindSpeed = this.windSpeed; // Store initial wind speed
     this.windVariationEnabled = false; // Can be enabled - set to true to enable automatic wind shifts
-    this.windVariationMin = -1.0; // Minimum wind speed (more negative = stronger wind)
+    this.windVariationMin = -1.5; // Minimum wind speed (more negative = stronger wind)
     this.windVariationMax = -0.3; // Maximum wind speed (less negative = weaker wind)
     this.windTransitionDurationMin = 8; // Min seconds for wind transition
     this.windTransitionDurationMax = 12; // Max seconds for wind transition
@@ -153,22 +153,22 @@ class CloudParticlesShader {
         this.handleOpacityVariation(time);
 
         // Debug: log effective wind speed once per second
-        const logSec = Math.floor(time);
-        if (logSec !== this._lastWindLogSecond) {
-          this._lastWindLogSecond = logSec;
-          const omega = (Math.PI * 2) / Math.max(this.gustPeriod, 0.1);
-          const effectiveWind =
-            this.windSpeed + this.gustAmplitude * Math.sin(omega * time);
-          console.log(
-            `🌬️ wind(t=${logSec}s): base=${this.windSpeed.toFixed(
-              2
-            )}, gustAmp=${this.gustAmplitude.toFixed(
-              2
-            )}, period=${this.gustPeriod.toFixed(
-              1
-            )}s, effective=${effectiveWind.toFixed(2)}`
-          );
-        }
+        // const logSec = Math.floor(time);
+        // if (logSec !== this._lastWindLogSecond) {
+        //   this._lastWindLogSecond = logSec;
+        //   const omega = (Math.PI * 2) / Math.max(this.gustPeriod, 0.1);
+        //   const effectiveWind =
+        //     this.windSpeed + this.gustAmplitude * Math.sin(omega * time);
+        //   console.log(
+        //     `🌬️ wind(t=${logSec}s): base=${this.windSpeed.toFixed(
+        //       2
+        //     )}, gustAmp=${this.gustAmplitude.toFixed(
+        //       2
+        //     )}, period=${this.gustPeriod.toFixed(
+        //       1
+        //     )}s, effective=${effectiveWind.toFixed(2)}`
+        //   );
+        // }
 
         // For objectModifier with position changes, we need updateVersion()
         mesh.updateVersion();
@@ -384,8 +384,8 @@ class CloudParticlesShader {
             vec3 cameraPos = vec3(${inputs.cameraX}, ${inputs.cameraY}, ${inputs.cameraZ});
             float distToCamera = length(worldPos - cameraPos);
             
-            // Fade out particles near camera (0 opacity within 2 units, full opacity beyond 4 units)
-            float nearCameraFade = smoothstep(3.0, 5.0, distToCamera);
+            // Fade out particles near camera (hard cutoff at 4m, fade over 2m to full opacity at 6m)
+            float nearCameraFade = smoothstep(4.0, 6.0, distToCamera);
             
             // Update opacity with near-camera fade
             ${outputs.gsplat}.rgba.a = baseOpacity * ${inputs.opacity} / 0.035 * nearCameraFade;
@@ -631,6 +631,23 @@ class CloudParticlesShader {
 
   setSize(size) {
     this.particleSize = size;
+  }
+
+  /**
+   * Force the fog to rebuild its shader to pick up new SplatEdit layers
+   * Call this when new splat lights are added to the scene
+   */
+  rebuild() {
+    if (this.splatMesh) {
+      console.log("🌫️ Rebuilding fog shader to pick up new splat lights...");
+      // Force the SplatMesh to rebuild its shader to detect new SplatEdit layers
+      this.splatMesh.updateGenerator();
+
+      // Also try calling updateVersion in case that helps
+      this.splatMesh.updateVersion();
+
+      console.log("🌫️ Fog rebuild complete");
+    }
   }
 
   dispose() {

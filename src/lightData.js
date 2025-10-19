@@ -59,41 +59,27 @@ export const lights = {
   },
 
   // Car headlights (parented to GLTF node "Old_Car_01" inside scene object id "car")
-  carHeadlightL: {
-    id: "car-headlight-L",
+  // Scene splats have editable:false, so this only affects fog
+  carHeadlight: {
+    id: "car-headlight",
     type: "SplatLight",
     splatType: "INFINITE_CONE",
     color: { r: 0.9, g: 0.9, b: 0.9 },
-    // Attach under the car's GLTF root so lights move with the car animation
     attachTo: { objectId: "car", childName: "Old_Car_01" },
-    // Local offsets from car origin (origin is ground center per your screenshot)
-    position: { x: 0, y: 1, z: 0 },
-    // Aim forward and downward (x: -0.26 ≈ -15° down, y: forward with slight outward angle)
-    rotation: { x: 0.12, y: Math.PI + 0.06, z: -1 },
-    radius: 0.25,
-    opacity: 0.00000005, // Extremely subtle
+    position: { x: 0, y: 1, z: 1 },
+    rotation: { x: 0.12, y: Math.PI + 0.06, z: -2 },
+    radius: 0.2,
+    opacity: 0.4, // Can be high since scene splats are protected
     rgbaBlendMode: "ADD_RGBA",
-    softEdge: 2.5,
-    // Add Two Three.js lights: PointLight for backlight, SpotLight for dramatic cone
-    threeLightDuplicate: [
-      {
-        type: "PointLight",
-        intensity: 200,
-        distance: 50,
-        castShadow: false,
-        position: { x: 0, y: 0.7, z: 3 },
-      },
-      {
-        type: "SpotLight",
-        intensity: 3000,
-        distance: 100,
-        angle: Math.PI / 6, // 30 degree cone
-        penumbra: 0.1,
-        decay: 2,
-        castShadow: true,
-        position: { x: 0, y: 1, z: 4 },
-      },
-    ],
+    softEdge: 0.75,
+    threeLightDuplicate: {
+      type: "PointLight",
+      intensity: 100,
+      distance: 20,
+      castShadow: false,
+      position: { x: 0, y: 2, z: 3 },
+      gizmo: true, // Enable gizmo for positioning
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.DRIVE_BY_PREAMBLE,

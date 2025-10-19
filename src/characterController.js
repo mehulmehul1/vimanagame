@@ -816,6 +816,12 @@ class CharacterController {
       this.moveToTargetPitch = this.pitch;
     }
 
+    // Normalize the yaw difference to ensure shortest rotation path
+    // This prevents "unwinding" when yaw has accumulated over time
+    let yawDiff = this.moveToTargetYaw - this.moveToStartYaw;
+    yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff)); // Normalize to [-π, π]
+    this.moveToTargetYaw = this.moveToStartYaw + yawDiff; // Adjust target to shortest path
+
     console.log(
       `CharacterController: Moving to position (${targetPosition.x.toFixed(
         2
@@ -1256,34 +1262,45 @@ class CharacterController {
    * @param {number} dt - Delta time
    */
   updateDepthOfField(dt) {
-    if (!this.sparkRenderer || !this.dofEnabled) return;
-
-    // Handle DoF hold timer
+    // Handle DoF/zoom hold timer (runs even if DOF is disabled, for zoom-only lookats)
     if (this.dofHoldTimer > 0) {
       this.dofHoldTimer -= dt;
       if (this.dofHoldTimer <= 0) {
         // Hold period over, start transitioning back to base
         this.dofHoldTimer = 0;
-        this.targetFocalDistance = this.baseFocalDistance;
-        this.targetApertureSize = this.baseApertureSize;
-        this.lookAtDofActive = false;
-        this.dofTransitioning = true;
-        this.dofTransitionProgress = 0; // Reset for return transition
 
-        // Also return zoom to base
-        this.startFov = this.currentFov; // Capture current FOV as start
-        this.targetFov = this.baseFov;
-        this.lookAtZoomActive = false;
-        this.zoomTransitioning = true;
-        this.zoomTransitionProgress = 0; // Reset for return transition
+        const wasDofActive = this.lookAtDofActive;
+        const wasZoomActive = this.lookAtZoomActive;
+
+        // Return DoF to base if it was active
+        if (this.lookAtDofActive) {
+          this.targetFocalDistance = this.baseFocalDistance;
+          this.targetApertureSize = this.baseApertureSize;
+          this.lookAtDofActive = false;
+          this.dofTransitioning = true;
+          this.dofTransitionProgress = 0; // Reset for return transition
+        }
+
+        // Return zoom to base if it was active
+        if (this.lookAtZoomActive) {
+          this.startFov = this.currentFov; // Capture current FOV as start
+          this.targetFov = this.baseFov;
+          this.lookAtZoomActive = false;
+          this.zoomTransitioning = true;
+          this.zoomTransitionProgress = 0; // Reset for return transition
+        }
 
         console.log(
-          `CharacterController: Hold complete, returning DoF and zoom to base - Aperture: ${this.baseApertureSize.toFixed(
-            3
-          )}`
+          `CharacterController: Hold complete, returning ${
+            wasDofActive ? "DoF" : ""
+          }${wasDofActive && wasZoomActive ? " and " : ""}${
+            wasZoomActive ? "zoom" : ""
+          } to base`
         );
       }
     }
+
+    if (!this.sparkRenderer || !this.dofEnabled) return;
 
     if (!this.dofTransitioning) return;
 
@@ -1562,26 +1579,39 @@ class CharacterController {
           );
 
           // Start DoF/zoom reset immediately (so they return to normal as camera returns)
-          if (this.sparkRenderer && this.lookAtDofActive) {
-            // Manually trigger the reset transition
+          if (this.lookAtDofActive || this.lookAtZoomActive) {
             this.dofHoldTimer = 0;
-            this.targetFocalDistance = this.baseFocalDistance;
-            this.targetApertureSize = this.baseApertureSize;
-            this.lookAtDofActive = false;
-            this.dofTransitioning = true;
-            this.dofTransitionProgress = 0; // Reset for return transition
 
-            // Also reset zoom
-            this.startFov = this.currentFov; // Capture current FOV for smooth transition
-            this.targetFov = this.baseFov;
-            this.zoomTransitioning = true;
-            this.zoomTransitionProgress = 0; // Reset zoom progress
+            const wasDofActive = this.lookAtDofActive;
+            const wasZoomActive = this.lookAtZoomActive;
+
+            // Reset DOF if it was active
+            if (this.sparkRenderer && this.lookAtDofActive) {
+              this.targetFocalDistance = this.baseFocalDistance;
+              this.targetApertureSize = this.baseApertureSize;
+              this.lookAtDofActive = false;
+              this.dofTransitioning = true;
+              this.dofTransitionProgress = 0; // Reset for return transition
+            }
+
+            // Reset zoom if it was active
+            if (this.lookAtZoomActive) {
+              this.startFov = this.currentFov; // Capture current FOV for smooth transition
+              this.targetFov = this.baseFov;
+              this.lookAtZoomActive = false;
+              this.zoomTransitioning = true;
+              this.zoomTransitionProgress = 0; // Reset zoom progress
+            }
 
             // Override transition duration to match return duration
             this.returnTransitionDuration = this.lookAtReturnDuration;
 
             console.log(
-              `CharacterController: Starting DoF/zoom reset during return (${this.lookAtReturnDuration}s)`
+              `CharacterController: Starting ${wasDofActive ? "DoF" : ""}${
+                wasDofActive && wasZoomActive ? "/" : ""
+              }${wasZoomActive ? "zoom" : ""} reset during return (${
+                this.lookAtReturnDuration
+              }s)`
             );
           }
 
@@ -1606,17 +1636,30 @@ class CharacterController {
           this.currentZoomConfig?.transitionStart ||
           this.dofTransitionStartProgress;
         if (
-          this.lookAtDofActive &&
+          (this.lookAtDofActive || this.lookAtZoomActive) &&
           !this.dofTransitioning &&
+          !this.zoomTransitioning &&
           this.lookAtProgress >= transitionStart
         ) {
-          this.dofTransitioning = true;
-          this.startFov = this.currentFov; // Capture current FOV as start for zoom
-          this.zoomTransitioning = true;
+          // Start DOF transition if DOF is active
+          if (this.lookAtDofActive) {
+            this.dofTransitioning = true;
+          }
+          // Start zoom transition if zoom is active
+          if (this.lookAtZoomActive) {
+            this.startFov = this.currentFov; // Capture current FOV as start for zoom
+            this.zoomTransitioning = true;
+          }
           console.log(
-            `CharacterController: Starting DoF and zoom transitions at ${(
-              this.lookAtProgress * 100
-            ).toFixed(0)}% (threshold: ${(transitionStart * 100).toFixed(0)}%)`
+            `CharacterController: Starting ${
+              this.lookAtDofActive ? "DoF" : ""
+            }${this.lookAtDofActive && this.lookAtZoomActive ? " and " : ""}${
+              this.lookAtZoomActive ? "zoom" : ""
+            } transition${
+              this.lookAtDofActive && this.lookAtZoomActive ? "s" : ""
+            } at ${(this.lookAtProgress * 100).toFixed(0)}% (threshold: ${(
+              transitionStart * 100
+            ).toFixed(0)}%)`
           );
         }
       }
@@ -1643,26 +1686,39 @@ class CharacterController {
             );
 
             // Start DoF/zoom reset immediately (so they return to normal as camera returns)
-            if (this.sparkRenderer && this.lookAtDofActive) {
-              // Manually trigger the reset transition
+            if (this.lookAtDofActive || this.lookAtZoomActive) {
               this.dofHoldTimer = 0;
-              this.targetFocalDistance = this.baseFocalDistance;
-              this.targetApertureSize = this.baseApertureSize;
-              this.lookAtDofActive = false;
-              this.dofTransitioning = true;
-              this.dofTransitionProgress = 0; // Reset for return transition
 
-              // Also reset zoom
-              this.startFov = this.currentFov; // Capture current FOV for smooth transition
-              this.targetFov = this.baseFov;
-              this.zoomTransitioning = true;
-              this.zoomTransitionProgress = 0; // Reset zoom progress
+              const wasDofActive = this.lookAtDofActive;
+              const wasZoomActive = this.lookAtZoomActive;
+
+              // Reset DOF if it was active
+              if (this.sparkRenderer && this.lookAtDofActive) {
+                this.targetFocalDistance = this.baseFocalDistance;
+                this.targetApertureSize = this.baseApertureSize;
+                this.lookAtDofActive = false;
+                this.dofTransitioning = true;
+                this.dofTransitionProgress = 0; // Reset for return transition
+              }
+
+              // Reset zoom if it was active
+              if (this.lookAtZoomActive) {
+                this.startFov = this.currentFov; // Capture current FOV for smooth transition
+                this.targetFov = this.baseFov;
+                this.lookAtZoomActive = false;
+                this.zoomTransitioning = true;
+                this.zoomTransitionProgress = 0; // Reset zoom progress
+              }
 
               // Override transition duration to match return duration
               this.returnTransitionDuration = this.lookAtReturnDuration;
 
               console.log(
-                `CharacterController: Starting DoF/zoom reset during return (${this.lookAtReturnDuration}s)`
+                `CharacterController: Starting ${wasDofActive ? "DoF" : ""}${
+                  wasDofActive && wasZoomActive ? "/" : ""
+                }${wasZoomActive ? "zoom" : ""} reset during return (${
+                  this.lookAtReturnDuration
+                }s)`
               );
             }
 
@@ -1687,15 +1743,18 @@ class CharacterController {
           // Start DoF/zoom reset timer (only if NOT returning to original view)
           // If returnToOriginalView was true, the reset already happened during the return phase
           if (
-            this.sparkRenderer &&
-            this.lookAtDofActive &&
-            !this.lookAtReturnToOriginalView
+            !this.lookAtReturnToOriginalView &&
+            (this.lookAtDofActive || this.lookAtZoomActive)
           ) {
             const resetDuration =
               this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
             this.dofHoldTimer = resetDuration;
             console.log(
-              `CharacterController: Holding DoF for ${resetDuration}s before resetting`
+              `CharacterController: Holding ${
+                this.lookAtDofActive ? "DoF" : ""
+              }${this.lookAtDofActive && this.lookAtZoomActive ? "/" : ""}${
+                this.lookAtZoomActive ? "zoom" : ""
+              } for ${resetDuration}s before resetting`
             );
           }
 

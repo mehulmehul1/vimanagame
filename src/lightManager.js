@@ -93,6 +93,8 @@ class LightManager {
   _tryResolvePendingAttachments() {
     if (!this.sceneManager || this.pendingAttachments.size === 0) return;
 
+    let splatLightReattached = false;
+
     for (const [id, entry] of Array.from(this.pendingAttachments.entries())) {
       const { object3D, config } = entry;
       const parent = this._resolveParent(config);
@@ -104,9 +106,24 @@ class LightManager {
         parent.add(object3D);
         this.pendingAttachments.delete(id);
         console.log(
-          `✅ LightManager: Reattached "${id}" under resolved parent`
+          `✅ LightManager: Reattached "${id}" under resolved parent (type: ${object3D.constructor.name})`
         );
+
+        // Check if this is a splat light layer (SplatEdit)
+        // Check both the constructor name and if it's stored in splatLayers
+        const isSplatLight =
+          this.splatLayers.has(id) || object3D.constructor.name === "SplatEdit";
+        if (isSplatLight) {
+          splatLightReattached = true;
+          console.log(`  → This is a splat light, will rebuild fog`);
+        }
       }
+    }
+
+    // Rebuild fog if any splat lights were reattached
+    if (splatLightReattached && window.cloudParticles) {
+      console.log("🌫️ Rebuilding fog after splat light reattachment...");
+      window.cloudParticles.rebuild();
     }
 
     // Log pending attachments for debugging
@@ -190,6 +207,12 @@ class LightManager {
       sdfSmooth: config.sdfSmooth ?? 0.1,
       softEdge: config.softEdge ?? 1.2,
     });
+
+    // Set render order if specified (for controlling which objects are affected)
+    if (config.renderOrder !== undefined) {
+      layer.renderOrder = config.renderOrder;
+    }
+
     const parent = this._resolveParent(config);
     parent.add(layer);
     this._maybeTrackPendingAttachment(config.id, layer, config, parent);
@@ -228,36 +251,34 @@ class LightManager {
       this.splatLayers.set(config.id, layer);
     }
 
-    // Create Three.js light duplicate(s) if requested
+    // Create Three.js light duplicate if requested
     if (config.threeLightDuplicate) {
-      // Support both single object and array of objects
-      const duplicates = Array.isArray(config.threeLightDuplicate)
-        ? config.threeLightDuplicate
-        : [config.threeLightDuplicate];
-
-      duplicates.forEach((dupConfig, index) => {
-        this.createThreeLightDuplicate(config, dupConfig, index);
-      });
+      this.createThreeLightDuplicate(config);
     }
 
     console.log(
       `LightManager: Created splat light "${config.id}" at (${config.position.x}, ${config.position.y}, ${config.position.z})`
     );
+
+    // Rebuild fog to pick up new splat light
+    if (window.cloudParticles) {
+      window.cloudParticles.rebuild();
+    }
+
     return layer;
   }
 
   /**
    * Create a Three.js light duplicate for a splat light
    * @param {Object} config - Splat light configuration
-   * @param {Object} duplicateConfig - Duplicate light configuration
-   * @param {number} index - Index of this duplicate (for unique ID)
    * @returns {THREE.Light|null}
    */
-  createThreeLightDuplicate(config, duplicateConfig = {}, index = 0) {
-    // Handle boolean true case
-    if (duplicateConfig === true) {
-      duplicateConfig = {};
-    }
+  createThreeLightDuplicate(config) {
+    // Get duplicate configuration (can be boolean true or an object with overrides)
+    const duplicateConfig =
+      typeof config.threeLightDuplicate === "object"
+        ? config.threeLightDuplicate
+        : {};
 
     // Convert splat color to hex
     const colorHex = new THREE.Color(
@@ -271,7 +292,7 @@ class LightManager {
 
     // Build Three.js light config
     const threeLightConfig = {
-      id: `${config.id}-three-duplicate${index > 0 ? `-${index}` : ""}`,
+      id: `${config.id}-three-duplicate`,
       type: lightType,
       color: duplicateConfig.color ?? colorHex,
       intensity: duplicateConfig.intensity ?? 1.0,
@@ -280,15 +301,6 @@ class LightManager {
       decay: duplicateConfig.decay ?? 2,
       castShadow: duplicateConfig.castShadow ?? false,
     };
-
-    // Add SpotLight-specific parameters
-    if (lightType === "SpotLight") {
-      threeLightConfig.angle = duplicateConfig.angle ?? Math.PI / 3;
-      threeLightConfig.penumbra = duplicateConfig.penumbra ?? 0;
-      if (duplicateConfig.target) {
-        threeLightConfig.target = duplicateConfig.target;
-      }
-    }
 
     // Propagate parenting so the duplicate attaches to the same parent
     if (config.parentId) threeLightConfig.parentId = config.parentId;
@@ -300,8 +312,13 @@ class LightManager {
 
     if (light) {
       console.log(
-        `LightManager: Created Three.js duplicate light for "${config.id}" (${lightType})`
+        `LightManager: Created Three.js duplicate light for "${config.id}"`
       );
+
+      // If gizmo is requested on the duplicate, register it
+      if (duplicateConfig.gizmo && window.gizmoManager) {
+        window.gizmoManager.registerLight(light, threeLightConfig.id);
+      }
     }
 
     return light;

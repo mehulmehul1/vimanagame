@@ -93,7 +93,7 @@ export const cameraAnimations = {
       maxAperture: 0.35,
       transitionStart: 0.7,
       transitionDuration: 2.0,
-      holdDuration: 3.25,
+      holdDuration: 2.9,
     },
     criteria: { heardCat: true },
     playOnce: true,

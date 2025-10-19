@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
 import { checkCriteria } from "./criteriaHelper.js";
+import { createHeadlightBeamShader } from "./vfx/shaders/headlightBeamShader.js";
 
 /**
  * SceneManager - Manages scene objects (splats, GLTF models, etc.)
@@ -209,6 +210,7 @@ class SceneManager {
 
     const splatMesh = new SplatMesh({
       url: path,
+      editable: false, // Don't apply SplatEdit operations to scene splats (only fog)
       onProgress: (progress) => {
         // Progress is a number between 0 and 1
         if (this.loadingScreen) {
@@ -289,7 +291,27 @@ class SceneManager {
           model.traverse((child) => {
             if (child.isMesh) {
               if (child.material) {
-                child.material.needsUpdate = true;
+                // Handle arrays of materials
+                const materials = Array.isArray(child.material)
+                  ? child.material
+                  : [child.material];
+
+                materials.forEach((material, index) => {
+                  // Special handling for headlight beams - custom shader with Z-based fade
+                  if (material.name === "headlightbeams") {
+                    const customMaterial = createHeadlightBeamShader(material);
+                    // Replace the material on this mesh
+                    if (Array.isArray(child.material)) {
+                      child.material[index] = customMaterial;
+                    } else {
+                      child.material = customMaterial;
+                    }
+                    // Set render order to ensure it renders after splats (SparkRenderer is 9998)
+                    child.renderOrder = 9999;
+                  } else {
+                    material.needsUpdate = true;
+                  }
+                });
               }
             }
             // Collect lights to remove (can't remove during traversal)
