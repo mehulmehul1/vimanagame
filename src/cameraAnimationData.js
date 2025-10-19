@@ -77,6 +77,9 @@ import { checkCriteria } from "./criteriaHelper.js";
 import { videos } from "./videoData.js";
 import { sceneObjects } from "./sceneData.js";
 
+// Debug logging toggle - set to false to disable console logs
+export const DEBUG_CAMERA_ANIMATIONS = false;
+
 export const cameraAnimations = {
   catLookat: {
     id: "catLookat",
@@ -313,45 +316,50 @@ export function getCameraAnimationsForState(
     (a, b) => (b.priority || 0) - (a.priority || 0)
   );
 
-  console.log(
-    `CameraAnimationData: Checking ${animations.length} animations for state:`,
-    gameState
-  );
+  if (DEBUG_CAMERA_ANIMATIONS)
+    console.log(
+      `CameraAnimationData: Checking ${animations.length} animations for state:`,
+      gameState
+    );
 
   const matchingAnimations = [];
 
   // Find all animations matching criteria that haven't been played yet
   for (const animation of animations) {
     if (!animation.criteria) {
-      console.log(
-        `CameraAnimationData: Animation '${animation.id}' has no criteria, skipping`
-      );
+      if (DEBUG_CAMERA_ANIMATIONS)
+        console.log(
+          `CameraAnimationData: Animation '${animation.id}' has no criteria, skipping`
+        );
       continue;
     }
 
     const matches = checkCriteria(gameState, animation.criteria);
-    console.log(
-      `CameraAnimationData: Animation '${animation.id}' criteria:`,
-      animation.criteria,
-      `matches:`,
-      matches
-    );
+    if (DEBUG_CAMERA_ANIMATIONS)
+      console.log(
+        `CameraAnimationData: Animation '${animation.id}' criteria:`,
+        animation.criteria,
+        `matches:`,
+        matches
+      );
 
     if (matches) {
       // Check playOnce - skip if already played
       if (animation.playOnce && playedAnimations.has(animation.id)) {
-        console.log(
-          `CameraAnimationData: Animation '${animation.id}' matches but already played (playOnce), skipping...`
-        );
+        if (DEBUG_CAMERA_ANIMATIONS)
+          console.log(
+            `CameraAnimationData: Animation '${animation.id}' matches but already played (playOnce), skipping...`
+          );
         continue;
       }
       matchingAnimations.push(animation);
     }
   }
 
-  console.log(
-    `CameraAnimationData: Found ${matchingAnimations.length} matching animation(s)`
-  );
+  if (DEBUG_CAMERA_ANIMATIONS)
+    console.log(
+      `CameraAnimationData: Found ${matchingAnimations.length} matching animation(s)`
+    );
   return matchingAnimations;
 }
 

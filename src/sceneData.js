@@ -44,7 +44,7 @@ export const sceneObjects = {
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior.sog",
+    path: "/exterior-edit.sog",
     description: "Main exterior environment splat mesh",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
@@ -144,6 +144,18 @@ export const sceneObjects = {
     position: { x: 8.42, y: -0.37, z: 32.46 },
     rotation: { x: -2.6226, y: 1.2478, z: -0.5263 },
     scale: { x: 2.92, y: 2.92, z: 2.92 },
+    loadByDefault: true,
+    priority: 100,
+  },
+
+  stairsAndGreenRoom: {
+    id: "stairsAndGreenRoom",
+    type: "splat",
+    path: "/stairs-and-green-room.sog",
+    description: "Stairs and green room splat",
+    position: { x: 5.554, y: 0, z: 78.198 },
+    rotation: { x: Math.PI, y: -Math.PI / 2, z: 0 }, // 180°, -68.08°, 0°
+    scale: 1,
     loadByDefault: true,
     priority: 100,
   },

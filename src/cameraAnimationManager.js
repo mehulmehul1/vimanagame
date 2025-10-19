@@ -19,6 +19,9 @@ class CameraAnimationManager {
     this.gameManager = gameManager;
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
 
+    // Debug logging toggle - set to false to disable console logs
+    this.debug = false;
+
     // Playback state
     this.isPlaying = false;
     this.currentAnimation = null;
@@ -88,7 +91,10 @@ class CameraAnimationManager {
       // Listen for camera:animation events
       this.gameManager.on("camera:animation", async (data) => {
         const { animation, onComplete } = data;
-        console.log(`CameraAnimationManager: Playing animation: ${animation}`);
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Playing animation: ${animation}`
+          );
 
         // Load animation if not already loaded
         if (!this.getAnimationNames().includes(animation)) {
@@ -104,15 +110,17 @@ class CameraAnimationManager {
 
         // Play animation
         this.play(animation, () => {
-          console.log(
-            `CameraAnimationManager: Animation complete: ${animation}`
-          );
+          if (this.debug)
+            console.log(
+              `CameraAnimationManager: Animation complete: ${animation}`
+            );
           if (onComplete) onComplete(true);
         });
       });
     }
 
-    console.log("CameraAnimationManager: Initialized with event listeners");
+    if (this.debug)
+      console.log("CameraAnimationManager: Initialized with event listeners");
   }
 
   /**
@@ -140,9 +148,10 @@ class CameraAnimationManager {
       } else {
         deferredAnimations.push(anim);
         this.deferredAnimations.set(anim.id, anim);
-        console.log(
-          `CameraAnimationManager: Deferred loading for animation "${anim.id}"`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Deferred loading for animation "${anim.id}"`
+          );
       }
     }
 
@@ -153,18 +162,20 @@ class CameraAnimationManager {
     await Promise.all(loadPromises);
 
     const nonJsonCount = animations.length - animationsToLoad.length;
-    console.log(
-      `CameraAnimationManager: Loaded ${preloadAnimations.length} JSON animations from data (${deferredAnimations.length} deferred, ${nonJsonCount} lookats/moveTos)`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Loaded ${preloadAnimations.length} JSON animations from data (${deferredAnimations.length} deferred, ${nonJsonCount} lookats/moveTos)`
+      );
   }
 
   /**
    * Load deferred animations (called after loading screen)
    */
   async loadDeferredAnimations() {
-    console.log(
-      `CameraAnimationManager: Loading ${this.deferredAnimations.size} deferred animations`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Loading ${this.deferredAnimations.size} deferred animations`
+      );
     const loadPromises = [];
     for (const [id, anim] of this.deferredAnimations) {
       loadPromises.push(this.loadAnimation(id, anim.path, false));
@@ -178,10 +189,11 @@ class CameraAnimationManager {
    * @param {Object} newState - New game state
    */
   onStateChanged(newState) {
-    console.log(
-      `CameraAnimationManager: State changed, checking for animations...`,
-      newState
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: State changed, checking for animations...`,
+        newState
+      );
 
     // Get all animations that should play for this state (pass playedAnimations for playOnce filtering)
     const animations = getCameraAnimationsForState(
@@ -189,14 +201,18 @@ class CameraAnimationManager {
       this.playedAnimations
     );
     if (!animations || animations.length === 0) {
-      console.log(`CameraAnimationManager: No animations match current state`);
+      if (this.debug)
+        console.log(
+          `CameraAnimationManager: No animations match current state`
+        );
       return;
     }
 
-    console.log(
-      `CameraAnimationManager: Found ${animations.length} animation(s) for state:`,
-      animations.map((a) => a.id)
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Found ${animations.length} animation(s) for state:`,
+        animations.map((a) => a.id)
+      );
 
     // Process each matching animation
     for (const animData of animations) {
@@ -205,9 +221,10 @@ class CameraAnimationManager {
 
       // Don't interrupt currently playing animation or pre-slerp phase (unless it's a fade)
       if (!isFadeAnimation && (this.isPlaying || this.isPreSlerping)) {
-        console.log(
-          `CameraAnimationManager: Animation already playing or pre-slerping, skipping non-fade animation '${animData.id}'`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Animation already playing or pre-slerping, skipping non-fade animation '${animData.id}'`
+          );
         continue;
       }
 
@@ -219,9 +236,10 @@ class CameraAnimationManager {
         this.scheduleDelayedAnimation(animData, delay);
       } else {
         // Play immediately (playOnce check already handled in getCameraAnimationsForState)
-        console.log(
-          `CameraAnimationManager: State changed, playing '${animData.id}'`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: State changed, playing '${animData.id}'`
+          );
         this.playFromData(animData);
       }
     }
@@ -234,9 +252,10 @@ class CameraAnimationManager {
    * @private
    */
   scheduleDelayedAnimation(animData, delay) {
-    console.log(
-      `CameraAnimationManager: Scheduling animation "${animData.id}" with ${delay}s delay`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Scheduling animation "${animData.id}" with ${delay}s delay`
+      );
 
     this.pendingAnimations.set(animData.id, {
       animData,
@@ -251,9 +270,10 @@ class CameraAnimationManager {
    */
   cancelDelayedAnimation(animId) {
     if (this.pendingAnimations.has(animId)) {
-      console.log(
-        `CameraAnimationManager: Cancelled delayed animation "${animId}"`
-      );
+      if (this.debug)
+        console.log(
+          `CameraAnimationManager: Cancelled delayed animation "${animId}"`
+        );
       this.pendingAnimations.delete(animId);
     }
   }
@@ -263,9 +283,10 @@ class CameraAnimationManager {
    */
   cancelAllDelayedAnimations() {
     if (this.pendingAnimations.size > 0) {
-      console.log(
-        `CameraAnimationManager: Cancelling ${this.pendingAnimations.size} pending animation(s)`
-      );
+      if (this.debug)
+        console.log(
+          `CameraAnimationManager: Cancelling ${this.pendingAnimations.size} pending animation(s)`
+        );
       this.pendingAnimations.clear();
     }
   }
@@ -369,7 +390,8 @@ class CameraAnimationManager {
    * @param {Object} fadeData - Fade data from cameraAnimationData.js
    */
   playFade(fadeData) {
-    console.log(`CameraAnimationManager: Playing fade '${fadeData.id}'`);
+    if (this.debug)
+      console.log(`CameraAnimationManager: Playing fade '${fadeData.id}'`);
 
     // Mark as played if playOnce
     if (fadeData.playOnce) {
@@ -396,9 +418,10 @@ class CameraAnimationManager {
     cube.material.color.setRGB(color.r, color.g, color.b);
     cube.material.opacity = 0;
 
-    console.log(
-      `CameraAnimationManager: Fade '${fadeData.id}' - in:${this.fadeData.fadeInTime}s hold:${this.fadeData.holdTime}s out:${this.fadeData.fadeOutTime}s`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Fade '${fadeData.id}' - in:${this.fadeData.fadeInTime}s hold:${this.fadeData.holdTime}s out:${this.fadeData.fadeOutTime}s`
+      );
   }
 
   /**
@@ -406,7 +429,8 @@ class CameraAnimationManager {
    * @param {Object} lookAtData - Lookat data from cameraAnimationData.js
    */
   playLookat(lookAtData) {
-    console.log(`CameraAnimationManager: Playing lookat '${lookAtData.id}'`);
+    if (this.debug)
+      console.log(`CameraAnimationManager: Playing lookat '${lookAtData.id}'`);
 
     // Mark as played if playOnce
     if (lookAtData.playOnce) {
@@ -445,23 +469,25 @@ class CameraAnimationManager {
         // When returning to original view, zoom/DoF resets during the return animation
         // So we need to wait for the return animation to complete
         delayAfterLookat = returnTransitionTime;
-        console.log(
-          `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom with return. ` +
-            `Will restore control ${delayAfterLookat.toFixed(
-              2
-            )}s after lookat completes ` +
-            `(return transition: ${returnTransitionTime}s)`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom with return. ` +
+              `Will restore control ${delayAfterLookat.toFixed(
+                2
+              )}s after lookat completes ` +
+              `(return transition: ${returnTransitionTime}s)`
+          );
       } else {
         // When not returning to original view, wait for zoom hold + zoom-out transition
         delayAfterLookat = holdDuration + zoomTransitionDuration;
-        console.log(
-          `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
-            `Will restore control ${delayAfterLookat.toFixed(
-              2
-            )}s after lookat completes ` +
-            `(hold: ${holdDuration}s + zoom-out: ${zoomTransitionDuration}s)`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
+              `Will restore control ${delayAfterLookat.toFixed(
+                2
+              )}s after lookat completes ` +
+              `(hold: ${holdDuration}s + zoom-out: ${zoomTransitionDuration}s)`
+          );
       }
 
       // Provide onComplete that schedules delayed restoration and calls user callback
@@ -480,9 +506,10 @@ class CameraAnimationManager {
       onComplete = () => {
         if (this.characterController) {
           this.characterController.enableInput();
-          console.log(
-            `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input restored`
-          );
+          if (this.debug)
+            console.log(
+              `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input restored`
+            );
         }
         // Call user-defined callback if provided
         if (userOnComplete) {
@@ -492,9 +519,10 @@ class CameraAnimationManager {
     } else {
       // Don't restore input - just call user callback if provided
       onComplete = () => {
-        console.log(
-          `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
-        );
+        if (this.debug)
+          console.log(
+            `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
+          );
         // Call user-defined callback if provided
         if (userOnComplete) {
           userOnComplete(this.gameManager);
@@ -527,7 +555,8 @@ class CameraAnimationManager {
    * @param {Object} moveToData - MoveTo data from cameraAnimationData.js
    */
   playMoveTo(moveToData) {
-    console.log(`CameraAnimationManager: Playing moveTo '${moveToData.id}'`);
+    if (this.debug)
+      console.log(`CameraAnimationManager: Playing moveTo '${moveToData.id}'`);
 
     // Mark as played if playOnce
     if (moveToData.playOnce) {
@@ -614,11 +643,12 @@ class CameraAnimationManager {
 
       const duration = frames[frames.length - 1].t;
       this.animations.set(name, { frames, duration });
-      console.log(
-        `CameraAnimationManager: Loaded '${name}' (${
-          frames.length
-        } frames, ${duration.toFixed(2)}s)`
-      );
+      if (this.debug)
+        console.log(
+          `CameraAnimationManager: Loaded '${name}' (${
+            frames.length
+          } frames, ${duration.toFixed(2)}s)`
+        );
 
       // Mark as complete in loading screen if preloading
       if (this.loadingScreen && isPreload) {
@@ -676,9 +706,10 @@ class CameraAnimationManager {
     this.onComplete = onComplete;
     this.isPlaying = false; // Not playing actual animation yet
 
-    console.log(
-      `CameraAnimationManager: Pre-slerping to zero pitch (keeping yaw) before playing '${name}'`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Pre-slerping to zero pitch (keeping yaw) before playing '${name}'`
+      );
     return true;
   }
 
@@ -699,11 +730,12 @@ class CameraAnimationManager {
     // Get Y-axis scale from animation data (default to 1.0)
     this.scaleY = this.currentAnimationData?.scaleY ?? 1.0;
 
-    console.log(
-      `CameraAnimationManager: Starting animation playback from level horizon (pitch=0)${
-        this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
-      }`
-    );
+    if (this.debug)
+      console.log(
+        `CameraAnimationManager: Starting animation playback from level horizon (pitch=0)${
+          this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
+        }`
+      );
   }
 
   /**
@@ -790,13 +822,15 @@ class CameraAnimationManager {
       // Only restore input if configured
       if (restoreInput) {
         this.characterController.enableInput();
-        console.log("CameraAnimationManager: Stopped, input restored");
+        if (this.debug)
+          console.log("CameraAnimationManager: Stopped, input restored");
       } else {
         // If not restoring input, disable camera sync to leave camera frozen
         this.characterController.disableCameraSync();
-        console.log(
-          "CameraAnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
-        );
+        if (this.debug)
+          console.log(
+            "CameraAnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
+          );
       }
     }
   }
@@ -864,7 +898,7 @@ class CameraAnimationManager {
             callback();
           }
 
-          console.log(`CameraAnimationManager: Fade complete`);
+          if (this.debug) console.log(`CameraAnimationManager: Fade complete`);
         }
 
         cube.material.opacity = opacity;
@@ -883,11 +917,12 @@ class CameraAnimationManager {
           (isFadeAnimation || (!this.isPlaying && !this.isPreSlerping));
 
         if (canPlay) {
-          console.log(
-            `CameraAnimationManager: Playing delayed animation "${animId}"${
-              isFadeAnimation ? " (fade)" : ""
-            }`
-          );
+          if (this.debug)
+            console.log(
+              `CameraAnimationManager: Playing delayed animation "${animId}"${
+                isFadeAnimation ? " (fade)" : ""
+              }`
+            );
           this.pendingAnimations.delete(animId);
           this.playFromData(pending.animData);
           break; // Only play one animation per frame
@@ -903,11 +938,12 @@ class CameraAnimationManager {
         // Restore input after delay
         if (this.characterController) {
           this.characterController.enableInput();
-          console.log(
-            `CameraAnimationManager: Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
-              2
-            )}s delay)`
-          );
+          if (this.debug)
+            console.log(
+              `CameraAnimationManager: Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
+                2
+              )}s delay)`
+            );
         }
         this.pendingInputRestore = null;
       }
