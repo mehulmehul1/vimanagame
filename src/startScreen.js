@@ -44,8 +44,8 @@ export class StartScreen {
     this.initialLookDirection = null; // Camera's look direction when unified path starts
     this.pathInitialTangent = null; // Path's tangent at start
     this.rotationTransitionTime = 0; // Elapsed time for rotation transition
-    this.previousTangent = null;
-    this.smoothedTangent = null; // For smoothing tangent changes
+    this.previousTangent = null; // For smoothing tangent changes
+    this.smoothedTangent = null; // Smoothed tangent to reduce sudden rotations
 
     // Pre-start animation smoothing
     this.smoothedForward = null; // Smoothed forward vector for pre-start GLB animation
@@ -717,18 +717,15 @@ export class StartScreen {
           rawForward.applyQuaternion(spinQuat);
         }
 
-        // Check if this is the first time initializing smoothedForward
-        const isInitializing = !this.smoothedForward;
-
         // Initialize smoothed forward if not set
-        if (isInitializing) {
+        if (!this.smoothedForward) {
           this.smoothedForward = rawForward.clone();
-        } else {
-          // Smooth the forward direction to reduce sudden rotation changes
-          // Use a very low smoothing factor (0.04) for extremely gradual changes
-          const smoothingFactor = 0.04;
-          this.smoothedForward.lerp(rawForward, smoothingFactor);
         }
+
+        // Smooth the forward direction to reduce sudden rotation changes
+        // Use a very low smoothing factor (0.04) for extremely gradual changes
+        const smoothingFactor = 0.04;
+        this.smoothedForward.lerp(rawForward, smoothingFactor);
         this.smoothedForward.normalize();
 
         // Calculate a look-at target point using smoothed forward

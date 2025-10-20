@@ -241,7 +241,7 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
     transitionDuration: 8.0,
     uiManager: uiManager,
     sceneManager: sceneManager,
-    glbAnimationStartProgress: 0.5, // Optional: Start at 50% through the GLB animation (0-1)
+    glbAnimationStartProgress: 0.55, // Optional: Start at 50% through the GLB animation (0-1)
   });
 }
 
