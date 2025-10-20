@@ -49,6 +49,15 @@ export class StartScreen {
 
     // Pre-start animation smoothing
     this.smoothedForward = null; // Smoothed forward vector for pre-start GLB animation
+    this.smoothedTiltAxis = null; // Smoothed tilt axis for unified path tilt
+
+    // Procedural path phase timing
+    this.phase3StartT = 0.6; // Start of final turn to player view (as fraction of path), default 60%
+    this.smoothedTiltAxis = null; // Smoothed tilt axis for unified path (reduces dramatic roll)
+
+    // Speed transition tracking (GLB -> unified path)
+    this.initialAnimSpeed = 0; // Units per second at START (from GLB anim)
+    this.targetPathSpeed = 0; // Units per second to traverse unified path over dialog duration
 
     // GLB animation start position (0 to 1, where 0 is start, 1 is end)
     this.glbAnimationStartProgress =
@@ -347,6 +356,35 @@ export class StartScreen {
         this.isSpinning = goingToStart;
         this.cameraSpinProgress = 0;
 
+        // Estimate current speed on the GLB animation path (sample two close frames)
+        const speedSampleDt = 0.016; // ~16ms
+        const time1 = Math.max(0, currentTime - speedSampleDt);
+        const time2 = currentTime;
+
+        action.time = time1;
+        const mixer = this.sceneManager.animationMixers.get("coneCurve");
+        if (mixer) mixer.update(0);
+        const pos1 = new THREE.Vector3();
+        this.coneAnimatedMesh.getWorldPosition(pos1);
+
+        action.time = time2;
+        if (mixer) mixer.update(0);
+        const pos2 = new THREE.Vector3();
+        this.coneAnimatedMesh.getWorldPosition(pos2);
+
+        const distanceTraveled = pos1.distanceTo(pos2);
+        const actualTimeDiff = time2 - time1;
+        const rawSpeed =
+          actualTimeDiff > 0 ? distanceTraveled / actualTimeDiff : 0;
+        const timeScale = action.timeScale || 1.0; // account for slow playback
+        this.initialAnimSpeed = rawSpeed * timeScale;
+
+        console.log(
+          `StartScreen: GLB speed ≈ ${this.initialAnimSpeed.toFixed(
+            2
+          )} u/s (raw ${rawSpeed.toFixed(2)}, ts ${timeScale})`
+        );
+
         // Sample points from animation curve
         const pathPoints = [];
         const numSamples = 20; // Number of points to sample from animation
@@ -411,6 +449,18 @@ export class StartScreen {
         }
 
         this.unifiedPathDuration = dialogDuration; // Total time for entire journey
+
+        // Compute target path speed so we can ease from GLB speed to this speed
+        const pathLength = this.unifiedPath.getLength();
+        this.targetPathSpeed =
+          pathLength > 0 ? pathLength / dialogDuration : 1.0;
+        console.log(
+          `StartScreen: Target path speed ≈ ${this.targetPathSpeed.toFixed(
+            2
+          )} u/s (length ${pathLength.toFixed(2)}, dur ${dialogDuration.toFixed(
+            2
+          )})`
+        );
         this.isFollowingUnifiedPath = true;
 
         // Capture current camera look direction
@@ -426,6 +476,15 @@ export class StartScreen {
         this.previousTangent = this.pathInitialTangent.clone();
         // Initialize smoothed tangent to current look direction to match Phase 1 start
         this.smoothedTangent = currentLook.clone();
+
+        // Set when Phase 3 (turn to player view) begins based on GLB progress at START
+        // Farther from origin (closer to 0.5) → later turn (80%); closer to origin → earlier (50%)
+        // Map distanceFromOrigin in [0..0.5] to phase start in [0.5..0.8]
+        const distanceFromOrigin = goingToStart ? progress : 1.0 - progress; // 0..0.5
+        const tMin = 0.5;
+        const tMax = 0.75;
+        const normalized = Math.min(0.5, Math.max(0, distanceFromOrigin)) / 0.5; // 0..1
+        this.phase3StartT = tMin + (tMax - tMin) * normalized;
 
         // Set spin duration if reversing
         if (this.isSpinning) {
@@ -489,8 +548,24 @@ export class StartScreen {
 
     // Follow unified path after START is clicked
     if (this.isFollowingUnifiedPath && this.unifiedPath) {
-      // Advance along the path
-      this.unifiedPathProgress += dt / this.unifiedPathDuration;
+      // Advance along the path using speed easing from GLB speed -> target path speed
+      const speedRampDuration = 1.5; // seconds to complete acceleration blend
+      const rampT = Math.min(
+        1.0,
+        this.rotationTransitionTime / speedRampDuration
+      );
+      const rampEased = rampT * rampT; // ease-in quadratic
+      const currentSpeed = THREE.MathUtils.lerp(
+        this.initialAnimSpeed || 0,
+        this.targetPathSpeed || 1.0,
+        rampEased
+      );
+      const pathLength = this.unifiedPath.getLength();
+      const progressDelta =
+        pathLength > 0
+          ? (currentSpeed * dt) / pathLength
+          : dt / this.unifiedPathDuration;
+      this.unifiedPathProgress += progressDelta;
       this.rotationTransitionTime += dt;
 
       if (this.unifiedPathProgress >= 1.0) {
@@ -605,12 +680,13 @@ export class StartScreen {
           .normalize();
       }
       // Phase 2: Follow tangent for most of journey
-      else if (t < 0.6) {
+      else if (t < this.phase3StartT) {
         lookDirection = tangent;
       }
-      // Phase 3: Rotate from tangent to final spawn orientation (last 40%)
+      // Phase 3: Rotate from tangent to final spawn orientation (final portion)
       else {
-        const finalRotProgress = (t - 0.6) / 0.4; // 0 to 1 over last 40%
+        const remaining = Math.max(0.001, 1.0 - this.phase3StartT);
+        const finalRotProgress = (t - this.phase3StartT) / remaining; // 0..1 over last portion
         const eased = 1 - Math.pow(1 - finalRotProgress, 4); // Ease out quartic (slower)
 
         // Decompose direction vectors into yaw and pitch for controlled rotation
@@ -648,18 +724,25 @@ export class StartScreen {
       lookTarget.copy(position).add(lookDirection.multiplyScalar(5));
       this.camera.lookAt(lookTarget);
 
-      // Apply camera tilt/roll for unsteady flight effect
+      // Apply camera tilt/roll for unsteady flight effect (smoothed axis to avoid overdramatic tilt)
+      if (!this.smoothedTiltAxis) {
+        this.smoothedTiltAxis = lookDirection.clone();
+      }
+      const tiltAxisSmoothing = 0.08; // slightly faster than pre-start 0.04 to stay responsive
+      this.smoothedTiltAxis.lerp(lookDirection, tiltAxisSmoothing);
+      this.smoothedTiltAxis.normalize();
       // Lerp tilt to 0 during Phase 3 (final rotation to player view)
       let tiltMultiplier = 1.0;
-      if (t >= 0.6) {
-        // Reduce tilt during final 40% of journey
-        const fadeProgress = (t - 0.6) / 0.4; // 0 to 1 over last 40%
+      if (t >= this.phase3StartT) {
+        // Reduce tilt during final portion
+        const remaining = Math.max(0.001, 1.0 - this.phase3StartT);
+        const fadeProgress = (t - this.phase3StartT) / remaining; // 0..1
         tiltMultiplier = 1.0 - fadeProgress; // 1.0 to 0
       }
 
       const rollAngle = this.calculateCameraTilt() * tiltMultiplier;
       const rollQuat = new THREE.Quaternion();
-      rollQuat.setFromAxisAngle(lookDirection, rollAngle);
+      rollQuat.setFromAxisAngle(this.smoothedTiltAxis, rollAngle);
       this.camera.quaternion.multiply(rollQuat);
 
       return true;
@@ -811,28 +894,51 @@ export class StartScreen {
         sfxManager.play("city-ambiance");
       }
 
-      // Make text visible before starting sequence
-      this.title.mesh.visible = true;
-      this.byline.mesh.visible = true;
+      // Defer title particle sequence until INTRO_COMPLETE game state
+      const startTitleSequence = () => {
+        // Make text visible just before starting sequence
+        this.title.mesh.visible = true;
+        this.byline.mesh.visible = true;
 
-      this.titleSequence = new TitleSequence([this.title, this.byline], {
-        introDuration: 4.0,
-        staggerDelay: 3.0,
-        holdDuration: 4.0,
-        outroDuration: 2.0,
-        disperseDistance: 5.0,
-        onComplete: () => {
-          console.log("Title sequence complete");
-          gameManager.setState({
-            currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
-          });
-        },
-      });
+        this.titleSequence = new TitleSequence([this.title, this.byline], {
+          introDuration: 3.0,
+          staggerDelay: 2.0,
+          holdDuration: 3.0,
+          outroDuration: 2.0,
+          disperseDistance: 5.0,
+          onComplete: () => {
+            console.log("Title sequence complete");
+            gameManager.setState({
+              currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+            });
+          },
+        });
 
-      // Update game state - intro is ending, transitioning to gameplay
-      gameManager.setState({
-        currentState: GAME_STATES.TITLE_SEQUENCE,
-      });
+        // Update game state - intro is ending, transitioning to gameplay
+        gameManager.setState({
+          currentState: GAME_STATES.TITLE_SEQUENCE,
+        });
+      };
+
+      // Drive by game state: wait for INTRO_COMPLETE then trigger
+      const gm = this.uiManager && this.uiManager.gameManager;
+      if (gm && typeof gm.on === "function") {
+        const onStateChanged = (newState, oldState) => {
+          if (
+            newState &&
+            newState.currentState === GAME_STATES.INTRO_COMPLETE
+          ) {
+            if (typeof gm.off === "function") {
+              gm.off("state:changed", onStateChanged);
+            }
+            startTitleSequence();
+          }
+        };
+        gm.on("state:changed", onStateChanged);
+      } else {
+        // Fallback if gameManager not available
+        startTitleSequence();
+      }
     }
   }
 

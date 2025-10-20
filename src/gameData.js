@@ -10,9 +10,9 @@
  */
 export const GAME_STATES = {
   START_SCREEN: 0, // Game has loaded, START and OPTIONS buttons available, fullscreen available, camera animation plays
-  TITLE_SEQUENCE: 1, // Title sequence plays, camera animation plays
-  TITLE_SEQUENCE_COMPLETE: 2, // Title sequence completes, intro narration starts, player starts
-  INTRO_COMPLETE: 3,
+  INTRO_COMPLETE: 1,
+  TITLE_SEQUENCE: 2, // Title sequence plays, camera animation plays
+  TITLE_SEQUENCE_COMPLETE: 3, // Title sequence completes, intro narration starts, player starts
   CAT_DIALOG_CHOICE: 4, // Player chooses reaction to cat
   NEAR_RADIO: 5, // Player approaches the radio (triggers radio audio)
   PHONE_BOOTH_RINGING: 6,
@@ -21,10 +21,10 @@ export const GAME_STATES = {
   DRIVE_BY_PREAMBLE: 9,
   DRIVE_BY: 10,
   POST_DRIVE_BY: 11,
-  SHOULDER_TAP: 12,
-  PUNCH_OUT: 13,
-  FALLEN: 14,
-  OFFICE_INTERIOR: 15,
+  OFFICE_INTERIOR: 12,
+  SHOULDER_TAP: 13,
+  PUNCH_OUT: 14,
+  FALLEN: 15,
 };
 
 export const DIALOG_RESPONSE_TYPES = {
