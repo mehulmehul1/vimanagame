@@ -148,16 +148,33 @@ export const sceneObjects = {
     priority: 100,
   },
 
-  stairsAndGreenRoom: {
-    id: "stairsAndGreenRoom",
-    type: "splat",
-    path: "/stairs-and-green-room.sog",
-    description: "Stairs and green room splat",
-    position: { x: 5.554, y: 0, z: 78.198 },
-    rotation: { x: Math.PI, y: -Math.PI / 2, z: 0 }, // 180°, -68.08°, 0°
-    scale: 1,
-    loadByDefault: true,
+  coneCurve: {
+    id: "coneCurve",
+    type: "gltf",
+    path: "/gltf/ConeCurve.glb",
+    description: "Camera curve animation for start screen",
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+    },
+    criteria: {
+      currentState: GAME_STATES.START_SCREEN,
+    },
     priority: 100,
+    animations: [
+      {
+        id: "coneCurve-anim",
+        clipName: null, // Use first animation clip
+        loop: true,
+        autoPlay: true,
+        timeScale: 0.15,
+        criteria: {
+          currentState: GAME_STATES.START_SCREEN,
+        },
+      },
+    ],
   },
 
   //   firstPersonBody: {

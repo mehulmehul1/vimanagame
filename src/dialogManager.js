@@ -619,6 +619,55 @@ class DialogManager {
   }
 
   /**
+   * Get the duration of a dialog audio file
+   * @param {string} dialogId - Dialog ID to get duration for
+   * @returns {number} Duration in seconds, or 0 if not available
+   */
+  getDialogDuration(dialogId) {
+    // Check if audio is preloaded
+    if (this.preloadedAudio.has(dialogId)) {
+      const howl = this.preloadedAudio.get(dialogId);
+      const duration = howl.duration();
+      console.log(`DialogManager: Dialog "${dialogId}" duration: ${duration}s`);
+      return duration || 0;
+    }
+
+    // Check if it's a deferred dialog
+    if (this.deferredDialogs.has(dialogId)) {
+      console.warn(
+        `DialogManager: Dialog "${dialogId}" is deferred and not yet loaded, cannot get duration`
+      );
+      return 0;
+    }
+
+    console.warn(`DialogManager: Dialog "${dialogId}" not found`);
+    return 0;
+  }
+
+  /**
+   * Get the total duration of a dialog including captions
+   * @param {Object} dialogData - Dialog data object
+   * @returns {number} Total duration in seconds
+   */
+  getTotalDialogDuration(dialogData) {
+    // If there's audio, use audio duration
+    if (dialogData.audio && this.preloadedAudio.has(dialogData.id)) {
+      return this.getDialogDuration(dialogData.id);
+    }
+
+    // Otherwise, sum caption durations
+    if (dialogData.captions && dialogData.captions.length > 0) {
+      const captionDuration = dialogData.captions.reduce(
+        (total, caption) => total + (caption.duration || 0),
+        0
+      );
+      return captionDuration;
+    }
+
+    return 0;
+  }
+
+  /**
    * Add event listener
    * @param {string} event - Event name
    * @param {function} callback - Callback function

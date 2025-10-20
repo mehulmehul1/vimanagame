@@ -78,7 +78,7 @@ export const dialogTracks = {
     // No audio - the radio SFX plays independently with reactive light
     captions: [
       { text: '[Duke Ellington\'s "The Mooche" plays]', duration: 2.75 },
-      { text: "Czar strikes again!", duration: 1.5 },
+      { text: "The Czar strikes again!", duration: 1.5 },
       { text: "Brazen brute bashes bank!", duration: 2.0 },
       { text: "Czar's zealots embezzle zillions!", duration: 2.25 },
       { text: "Cops can't quell criminal caper!", duration: 2.0 },

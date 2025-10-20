@@ -15,6 +15,8 @@ export class StartScreen {
     this.hasStarted = false;
     this.transitionProgress = 0;
     this.uiManager = options.uiManager || null;
+    this.sceneManager = options.sceneManager || null;
+    this.dialogManager = options.dialogManager || null;
 
     // Additional state
     this.introStartTriggered = false;
@@ -22,7 +24,28 @@ export class StartScreen {
     this.title = null;
     this.byline = null;
 
-    // Circle animation settings
+    // Animation tracking
+    this.coneCurveObject = null;
+    this.coneAnimatedMesh = null;
+    this.isLoadingAnimation = false;
+    this.animationCompleteTime = null; // Set when START is clicked
+    this.animationDirection = 1; // 1 for forward, -1 for reverse
+    this.animationSpeed = 1; // Speed multiplier for animation
+    this.cameraSpinProgress = 0; // 0 to 1 for 180-degree spin when reversing
+    this.cameraSpinDuration = 1.0; // 1 second for spin
+    this.isSpinning = false; // True when camera is spinning around
+    this.lerpToSpawnDuration = 8.0; // Duration for lerp from animation end to spawn (set dynamically)
+
+    // Unified path approach
+    this.unifiedPath = null; // CatmullRomCurve3 that combines animation + path to spawn
+    this.unifiedPathProgress = 0; // 0 to 1 along the unified path
+    this.unifiedPathDuration = 0; // Total time to traverse the unified path
+    this.isFollowingUnifiedPath = false; // True when following the combined path
+    this.initialLookDirection = null; // Camera's look direction when unified path starts
+    this.pathInitialTangent = null; // Path's tangent at start
+    this.rotationTransitionTime = 0; // Elapsed time for rotation transition
+
+    // Circle animation settings (fallback if GLB doesn't load)
     this.circleCenter = options.circleCenter || new THREE.Vector3(0, 0, 0);
     this.circleRadius = options.circleRadius || 15;
     this.circleHeight = options.circleHeight || 10;
@@ -51,6 +74,76 @@ export class StartScreen {
     const { title, byline } = this.createTitleText();
     this.title = title;
     this.byline = byline;
+
+    // Load the camera curve animation
+    this.loadCameraAnimation();
+  }
+
+  /**
+   * Load the camera curve animation from ConeCurve.glb
+   */
+  async loadCameraAnimation() {
+    if (!this.sceneManager) {
+      console.warn(
+        "StartScreen: No sceneManager provided, using fallback circle animation"
+      );
+      return;
+    }
+
+    this.isLoadingAnimation = true;
+
+    try {
+      // Get the coneCurve object (should be loaded by gameManager)
+      this.coneCurveObject = this.sceneManager.getObject("coneCurve");
+
+      if (!this.coneCurveObject) {
+        console.warn(
+          "StartScreen: coneCurve object not loaded yet, will retry"
+        );
+        // Retry after a short delay
+        setTimeout(() => this.loadCameraAnimation(), 100);
+        return;
+      }
+
+      // Find the "Cone" object within the loaded GLTF
+      // Note: It doesn't have to be a mesh, just an Object3D that's being animated
+      this.coneCurveObject.traverse((child) => {
+        if (child.name === "Cone") {
+          this.coneAnimatedMesh = child;
+          console.log("StartScreen: Found Cone object, type:", child.type);
+        }
+
+        // Hide all meshes - we only need this for camera tracking
+        if (child.isMesh) {
+          child.visible = false;
+        }
+      });
+
+      if (!this.coneAnimatedMesh) {
+        console.warn(
+          "StartScreen: Could not find 'Cone' mesh in ConeCurve.glb, using fallback"
+        );
+        this.isLoadingAnimation = false;
+        return;
+      }
+
+      console.log("StartScreen: Camera animation loaded successfully");
+      console.log(
+        "StartScreen: Found animated mesh:",
+        this.coneAnimatedMesh.name
+      );
+
+      // Manually trigger the animation to play
+      if (this.sceneManager) {
+        console.log("StartScreen: Manually playing coneCurve-anim");
+        this.sceneManager.playAnimation("coneCurve-anim");
+      }
+
+      this.isLoadingAnimation = false;
+    } catch (error) {
+      console.error("StartScreen: Error loading camera animation:", error);
+      this.isLoadingAnimation = false;
+    }
   }
 
   /**
@@ -181,27 +274,128 @@ export class StartScreen {
   }
 
   /**
-   * Start the game - begin transition
+   * Start the game - create unified path from current position to spawn
    */
   startGame() {
     if (this.hasStarted) return;
 
     this.hasStarted = true;
 
-    // Flip high-level state from startScreen -> titleSequence
-    if (this.uiManager && this.uiManager.gameManager) {
-      this.uiManager.gameManager.setState({
-        currentState: GAME_STATES.TITLE_SEQUENCE,
-      });
+    // Create unified path: sample animation curve + extend to spawn
+    if (this.sceneManager && this.coneAnimatedMesh) {
+      const action = this.sceneManager.animationActions.get("coneCurve-anim");
+      if (action) {
+        const clip = action.getClip();
+        const duration = clip.duration;
+        const currentTime = action.time;
+        const progress = currentTime / duration;
+
+        console.log(
+          `StartScreen: Creating unified path from ${(progress * 100).toFixed(
+            1
+          )}% of animation`
+        );
+
+        // Determine which end of animation to head to
+        const goingToStart = progress < 0.5;
+        const targetTime = goingToStart ? 0 : duration;
+
+        this.animationDirection = goingToStart ? -1 : 1;
+        this.isSpinning = goingToStart;
+        this.cameraSpinProgress = 0;
+
+        // Sample points from animation curve
+        const pathPoints = [];
+        const numSamples = 20; // Number of points to sample from animation
+
+        // Sample from current position to target (start or end)
+        for (let i = 0; i <= numSamples; i++) {
+          const t = i / numSamples;
+          const sampleTime = THREE.MathUtils.lerp(currentTime, targetTime, t);
+
+          // Set animation to this time and get position
+          action.time = sampleTime;
+          const mixer = this.sceneManager.animationMixers.get("coneCurve");
+          if (mixer) {
+            mixer.update(0); // Update to apply the time change
+          }
+
+          // Get world position at this time
+          const worldPos = new THREE.Vector3();
+          this.coneAnimatedMesh.getWorldPosition(worldPos);
+          pathPoints.push(worldPos.clone());
+        }
+
+        // Add points extending to player spawn
+        const lastAnimPoint = pathPoints[pathPoints.length - 1];
+        const spawnPoint = this.targetPosition;
+
+        // Add intermediate points for smooth curve to spawn
+        const numSpawnPoints = 8;
+        for (let i = 1; i <= numSpawnPoints; i++) {
+          const t = i / numSpawnPoints;
+          const point = new THREE.Vector3().lerpVectors(
+            lastAnimPoint,
+            spawnPoint,
+            t
+          );
+          pathPoints.push(point);
+        }
+
+        // Create smooth Catmull-Rom curve through all points
+        this.unifiedPath = new THREE.CatmullRomCurve3(pathPoints);
+        this.unifiedPathProgress = 0;
+
+        // Set duration based on intro dialog length
+        let dialogDuration = 8.0; // Default fallback
+        if (this.dialogManager) {
+          const introDuration = this.dialogManager.getDialogDuration("intro");
+          if (introDuration > 0) {
+            dialogDuration = introDuration;
+            console.log(
+              `StartScreen: Using intro dialog duration: ${dialogDuration}s`
+            );
+          } else {
+            console.warn(
+              `StartScreen: Could not get intro dialog duration, using fallback: ${dialogDuration}s`
+            );
+          }
+        }
+
+        this.unifiedPathDuration = dialogDuration; // Total time for entire journey
+        this.isFollowingUnifiedPath = true;
+
+        // Capture current camera look direction
+        const currentLook = new THREE.Vector3(0, 0, -1);
+        currentLook.applyQuaternion(this.camera.quaternion);
+        this.initialLookDirection = currentLook.clone();
+
+        // Get initial tangent of the unified path
+        this.pathInitialTangent = this.unifiedPath.getTangentAt(0).normalize();
+
+        // Reset rotation transition time
+        this.rotationTransitionTime = 0;
+
+        // Set spin duration if reversing
+        if (this.isSpinning) {
+          this.cameraSpinDuration = 1.0;
+        }
+
+        // Pause the original animation
+        action.paused = true;
+
+        // Flip high-level state from startScreen -> titleSequence
+        if (this.uiManager && this.uiManager.gameManager) {
+          this.uiManager.gameManager.setState({
+            currentState: GAME_STATES.TITLE_SEQUENCE,
+          });
+        }
+
+        console.log(
+          `StartScreen: Created unified path with ${pathPoints.length} points over ${this.unifiedPathDuration}s`
+        );
+      }
     }
-
-    // Store current camera position as transition start
-    this.startPosition.copy(this.camera.position);
-
-    // Calculate where camera is currently looking
-    const lookDirection = new THREE.Vector3(0, 0, -1);
-    lookDirection.applyQuaternion(this.camera.quaternion);
-    this.startLookAt.copy(this.camera.position).add(lookDirection);
 
     // Immediately fade out start menu
     this.overlay.style.opacity = "0";
@@ -215,7 +409,7 @@ export class StartScreen {
   }
 
   /**
-   * Update camera position for circling or transition
+   * Update camera position for circling or unified path
    * @param {number} dt - Delta time in seconds
    * @returns {boolean} - True if still active, false if complete
    */
@@ -228,50 +422,29 @@ export class StartScreen {
       this.textCamera.updateProjectionMatrix();
     }
 
-    if (!this.hasStarted) {
-      // Circle animation
-      this.circleTime += dt * this.circleSpeed;
+    // Follow unified path after START is clicked
+    if (this.isFollowingUnifiedPath && this.unifiedPath) {
+      // Advance along the path
+      this.unifiedPathProgress += dt / this.unifiedPathDuration;
+      this.rotationTransitionTime += dt;
 
-      const x =
-        this.circleCenter.x + Math.cos(this.circleTime) * this.circleRadius;
-      const z =
-        this.circleCenter.z + Math.sin(this.circleTime) * this.circleRadius;
-      const y = this.circleHeight;
+      if (this.unifiedPathProgress >= 1.0) {
+        // Reached the end - finish
+        this.isActive = false;
+        this.cleanup();
+        return false;
+      }
 
-      this.camera.position.set(x, y, z);
+      // Get position on the curve
+      const t = Math.min(1.0, this.unifiedPathProgress);
+      const position = this.unifiedPath.getPointAt(t);
+      this.camera.position.copy(position);
 
-      // Calculate forward direction (tangent to circle)
-      // Derivative of circle: dx/dt = -sin(t), dz/dt = cos(t)
-      const forwardX = -Math.sin(this.circleTime);
-      const forwardZ = Math.cos(this.circleTime);
+      // Get tangent (forward direction) on the curve
+      const tangent = this.unifiedPath.getTangentAt(t).normalize();
 
-      // Look forward along the circular path
-      const lookTarget = new THREE.Vector3(
-        x + forwardX,
-        y, // Same height
-        z + forwardZ
-      );
-      this.camera.lookAt(lookTarget);
-
-      return true;
-    } else if (this.transitionProgress < 1.0) {
-      // Transition from circle to start position
-      this.transitionProgress += dt / this.transitionDuration;
-      const t = Math.min(this.transitionProgress, 1.0);
-
-      // Smooth easing (ease-in-out)
-      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-      // Interpolate position
-      this.camera.position.lerpVectors(
-        this.startPosition,
-        this.targetPosition,
-        eased
-      );
-
-      // Interpolate look direction
-      const currentLookAt = new THREE.Vector3();
-      const targetLookDirection = new THREE.Vector3(0, 0, -1).applyEuler(
+      // Calculate final look direction at spawn
+      const finalLookDirection = new THREE.Vector3(0, 0, -1).applyEuler(
         new THREE.Euler(
           this.targetRotation.pitch,
           this.targetRotation.yaw,
@@ -279,22 +452,175 @@ export class StartScreen {
           "YXZ"
         )
       );
-      const targetLookAt = this.targetPosition.clone().add(targetLookDirection);
 
-      currentLookAt.lerpVectors(this.startLookAt, targetLookAt, eased);
-      this.camera.lookAt(currentLookAt);
+      let lookDirection = tangent.clone();
 
-      if (this.transitionProgress >= 1.0) {
-        this.isActive = false;
-        this.cleanup();
-        return false;
+      // Phase 1: Transition from initial look direction to path tangent (first 3 seconds)
+      const initialTransitionDuration = 3.0;
+
+      if (this.rotationTransitionTime < initialTransitionDuration) {
+        // Smoothly rotate from initial direction to path tangent
+        const transitionProgress =
+          this.rotationTransitionTime / initialTransitionDuration; // 0 to 1
+        const eased = 1 - Math.pow(1 - transitionProgress, 3); // Ease out cubic
+
+        // Decompose direction vectors into yaw and pitch for controlled rotation
+        // Initial look direction
+        const initialYaw = Math.atan2(
+          this.initialLookDirection.x,
+          this.initialLookDirection.z
+        );
+        const initialPitch = Math.asin(-this.initialLookDirection.y);
+
+        // Tangent direction
+        const tangentYaw = Math.atan2(tangent.x, tangent.z);
+        const tangentPitch = Math.asin(-tangent.y);
+
+        // Interpolate yaw and pitch separately
+        // Handle yaw wrap-around (shortest rotation path)
+        let yawDiff = tangentYaw - initialYaw;
+        if (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
+        if (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
+
+        const interpolatedYaw = initialYaw + yawDiff * eased;
+        const interpolatedPitch =
+          initialPitch + (tangentPitch - initialPitch) * eased;
+
+        // Reconstruct look direction from interpolated angles
+        lookDirection = new THREE.Vector3(
+          Math.sin(interpolatedYaw) * Math.cos(interpolatedPitch),
+          -Math.sin(interpolatedPitch),
+          Math.cos(interpolatedYaw) * Math.cos(interpolatedPitch)
+        ).normalize();
       }
+      // Phase 2: Follow tangent for most of journey
+      else if (t < 0.6) {
+        lookDirection = tangent;
+      }
+      // Phase 3: Rotate from tangent to final spawn orientation (last 40%)
+      else {
+        const finalRotProgress = (t - 0.6) / 0.4; // 0 to 1 over last 40%
+        const eased = 1 - Math.pow(1 - finalRotProgress, 4); // Ease out quartic (slower)
+
+        // Decompose direction vectors into yaw and pitch for controlled rotation
+        // Current tangent direction
+        const tangentYaw = Math.atan2(tangent.x, tangent.z);
+        const tangentPitch = Math.asin(-tangent.y);
+
+        // Final spawn direction
+        const finalYaw = Math.atan2(finalLookDirection.x, finalLookDirection.z);
+        const finalPitch = Math.asin(-finalLookDirection.y);
+
+        // Interpolate yaw and pitch separately
+        // Handle yaw wrap-around (shortest rotation path)
+        let yawDiff = finalYaw - tangentYaw;
+        if (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
+        if (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
+
+        const interpolatedYaw = tangentYaw + yawDiff * eased;
+        const interpolatedPitch =
+          tangentPitch + (finalPitch - tangentPitch) * eased;
+
+        // Reconstruct look direction from interpolated angles
+        lookDirection = new THREE.Vector3(
+          Math.sin(interpolatedYaw) * Math.cos(interpolatedPitch),
+          -Math.sin(interpolatedPitch),
+          Math.cos(interpolatedYaw) * Math.cos(interpolatedPitch)
+        ).normalize();
+      }
+
+      // Look in the calculated direction
+      const lookTarget = new THREE.Vector3();
+      lookTarget.copy(position).add(lookDirection.multiplyScalar(5));
+      this.camera.lookAt(lookTarget);
 
       return true;
     }
 
-    this.isActive = false;
-    return false;
+    // Pre-start: follow original GLB animation
+    if (!this.hasStarted) {
+      if (this.coneAnimatedMesh) {
+        // Get the world position and rotation of the animated cone
+        const worldPosition = new THREE.Vector3();
+        const worldQuaternion = new THREE.Quaternion();
+        const worldScale = new THREE.Vector3();
+
+        this.coneAnimatedMesh.getWorldPosition(worldPosition);
+        this.coneAnimatedMesh.getWorldQuaternion(worldQuaternion);
+        this.coneAnimatedMesh.getWorldScale(worldScale);
+
+        // Debug: Log position occasionally
+        if (Math.random() < 0.01) {
+          console.log("StartScreen: Cone position:", worldPosition.toArray());
+          if (this.sceneManager) {
+            const isPlaying =
+              this.sceneManager.isAnimationPlaying("coneCurve-anim");
+            console.log("StartScreen: Animation playing?", isPlaying);
+          }
+        }
+
+        // Set camera to match the cone's position
+        this.camera.position.copy(worldPosition);
+
+        // Calculate the forward direction from the cone's rotation
+        // Use the cone's local -Z axis as forward (standard Three.js convention)
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(worldQuaternion);
+
+        // Apply camera spin if reversing (180-degree rotation)
+        if (this.animationDirection === -1) {
+          let spinAngle;
+
+          if (this.cameraSpinProgress < 1.0) {
+            // Initial spin - ease the spin progress for smooth rotation
+            const eased =
+              this.cameraSpinProgress < 0.5
+                ? 2 * this.cameraSpinProgress * this.cameraSpinProgress
+                : 1 - Math.pow(-2 * this.cameraSpinProgress + 2, 2) / 2;
+            spinAngle = eased * Math.PI; // 0 to PI radians
+          } else {
+            // After spin completes, keep the 180-degree rotation for entire journey
+            spinAngle = Math.PI;
+          }
+
+          // Rotate forward vector around Y axis
+          const spinQuat = new THREE.Quaternion();
+          spinQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), spinAngle);
+          forward.applyQuaternion(spinQuat);
+        }
+
+        // Calculate a look-at target point
+        const lookTarget = new THREE.Vector3();
+        lookTarget.copy(worldPosition).add(forward);
+
+        // Use lookAt to orient the camera (this handles all rotation axes correctly)
+        this.camera.lookAt(lookTarget);
+
+        return true;
+      } else {
+        // Fallback: Circle animation
+        this.circleTime += dt * this.circleSpeed;
+
+        const x =
+          this.circleCenter.x + Math.cos(this.circleTime) * this.circleRadius;
+        const z =
+          this.circleCenter.z + Math.sin(this.circleTime) * this.circleRadius;
+        const y = this.circleHeight;
+
+        this.camera.position.set(x, y, z);
+
+        // Calculate forward direction (tangent to circle)
+        const forwardX = -Math.sin(this.circleTime);
+        const forwardZ = Math.cos(this.circleTime);
+
+        const lookTarget = new THREE.Vector3(x + forwardX, y, z + forwardZ);
+        this.camera.lookAt(lookTarget);
+
+        return true;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -310,6 +636,12 @@ export class StartScreen {
   cleanup() {
     if (this.overlay && this.overlay.parentNode) {
       this.overlay.parentNode.removeChild(this.overlay);
+    }
+
+    // Hide or remove the camera curve object
+    if (this.coneCurveObject && this.sceneManager) {
+      this.scene.remove(this.coneCurveObject);
+      console.log("StartScreen: Removed camera curve object");
     }
   }
 

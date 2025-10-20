@@ -240,6 +240,7 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
     },
     transitionDuration: 8.0,
     uiManager: uiManager,
+    sceneManager: sceneManager,
   });
 }
 
@@ -276,6 +277,11 @@ dialogManager.preloadDialogs(dialogTracks);
 
 // Link dialog manager to choice UI
 dialogChoiceUI.dialogManager = dialogManager;
+
+// Link dialog manager to start screen for timing
+if (startScreen) {
+  startScreen.dialogManager = dialogManager;
+}
 
 // Register dialog manager with SFX manager
 sfxManager.registerDialogManager(dialogManager);
@@ -480,6 +486,9 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Always update scene manager (handles GLTF animations)
   sceneManager.update(dt);
+
+  // Update scene animations based on game state
+  sceneManager.updateAnimationsForState(gameManager.state);
 
   // Always update game manager (handles receiver lerp, etc.)
   gameManager.update(dt);
