@@ -444,6 +444,7 @@ class CharacterController {
       const zoomOptions = data.zoomOptions || {};
       const returnToOriginalView = data.returnToOriginalView || false;
       const returnDuration = data.returnDuration || data.duration;
+      const holdDuration = data.holdDuration || 0;
 
       this.lookAt(
         targetPos,
@@ -453,7 +454,8 @@ class CharacterController {
         zoomOptions,
         true, // Always disable input during lookat
         returnToOriginalView,
-        returnDuration
+        returnDuration,
+        holdDuration
       );
     });
 
@@ -557,6 +559,7 @@ class CharacterController {
    * @param {boolean} disableInput - Whether to disable input during lookAt (default: true)
    * @param {boolean} returnToOriginalView - If true, return to original view before restoring control (default: false)
    * @param {number} returnDuration - Duration of the return animation in seconds (default: same as duration)
+   * @param {number} holdDuration - How long to hold at target before returning or completing (default: 0)
    */
   lookAt(
     targetPosition,
@@ -566,7 +569,8 @@ class CharacterController {
     zoomOptions = {},
     disableInput = true,
     returnToOriginalView = false,
-    returnDuration = null
+    returnDuration = null,
+    holdDuration = 0
   ) {
     this.isLookingAt = true;
     this.lookAtTarget = targetPosition.clone();
@@ -587,14 +591,16 @@ class CharacterController {
       maxAperture = 0.35, // Maximum aperture (more blur close-up)
       transitionStart = 0.8, // When to start DoF transition (0-1)
       transitionDuration = 2.0, // How long the DoF transition takes
-      holdDuration = 2.0, // How long to hold DoF after look-at completes (or before return if returnToOriginal)
+      holdDuration: zoomHoldDuration = 2.0, // How long to hold DoF after look-at completes (or before return if returnToOriginal)
     } = zoomOptions;
 
-    // If returning to original view, use holdDuration to pause before returning
-    if (returnToOriginalView && enableZoom) {
-      this.lookAtHoldDuration = holdDuration;
+    // Use the passed holdDuration parameter, or fallback to zoom holdDuration for backwards compatibility
+    // If returning to original view, hold before returning; otherwise hold is at the end
+    if (returnToOriginalView) {
+      this.lookAtHoldDuration =
+        holdDuration || (enableZoom ? zoomHoldDuration : 0);
     } else {
-      this.lookAtHoldDuration = 0;
+      this.lookAtHoldDuration = holdDuration || 0;
     }
 
     // Store zoom config for this look-at
@@ -604,7 +610,7 @@ class CharacterController {
       maxAperture,
       transitionStart,
       transitionDuration,
-      holdDuration,
+      holdDuration: zoomHoldDuration,
     };
 
     // Only disable input if requested (e.g., if not being managed by moveTo)

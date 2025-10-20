@@ -85,10 +85,6 @@ class MusicManager {
 
     this.gameManager = null;
 
-    // Track original volume for radio proximity fading
-    this.originalVolume = this.defaultVolume;
-    this.isNearRadio = false;
-
     // Store pending loads for deferred assets
     this.deferredTracks = new Map(); // Store track data for later loading
   }
@@ -114,27 +110,6 @@ class MusicManager {
               `MusicManager: Changing music to "${track.id}" (${track.description})`
             );
             this.changeMusic(track.id, track.fadeTime || 0);
-          }
-
-          // Handle nearRadio boolean state for volume ducking
-          if (
-            newState.nearRadio !== undefined &&
-            newState.nearRadio !== this.isNearRadio
-          ) {
-            this.isNearRadio = newState.nearRadio;
-
-            if (this.isNearRadio) {
-              // Store current volume and fade to 5%
-              this.originalVolume = this.defaultVolume;
-              console.log(`MusicManager: Near radio, fading music to 5%`);
-              this.setVolume(0.05, 2.5); // Fade to 5% over 2.5 seconds
-            } else {
-              // Restore original volume
-              console.log(
-                `MusicManager: Leaving radio area, restoring music volume to ${this.originalVolume}`
-              );
-              this.setVolume(this.originalVolume, 2.5); // Fade back over 2.5 seconds
-            }
           }
         });
 

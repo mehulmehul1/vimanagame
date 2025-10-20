@@ -12,6 +12,7 @@ export class TitleSequence {
     this.staggerDelay = options.staggerDelay || 1.0; // delay between texts
     this.disperseDistance = options.disperseDistance || 5.0;
     this.onComplete = options.onComplete || null; // Callback when sequence completes
+    this.basePointSize = options.basePointSize || 0.22; // Larger default for visibility
 
     this.time = 0;
     this.completed = false; // Track if completion callback has been called
@@ -31,6 +32,14 @@ export class TitleSequence {
     this.texts.forEach((text, i) => {
       text._startTime = i * this.staggerDelay;
       text._textIndex = i;
+
+      // Ensure particles start hidden to avoid initial flash
+      if (text.particles) {
+        text.particles.forEach((p) => {
+          p.opacity = 0.0;
+          p.scale = 0.2;
+        });
+      }
 
       // Pre-calculate random values for each particle
       if (text.particles) {
@@ -226,7 +235,7 @@ export class TitleSequence {
         positions.array[i * 3 + 1] = particle.position.y;
         positions.array[i * 3 + 2] = particle.position.z;
 
-        sizes.array[i] = 0.15 * particle.scale;
+        sizes.array[i] = this.basePointSize * particle.scale;
         opacities.array[i] = particle.opacity;
       });
 
@@ -279,7 +288,7 @@ export class TitleSequence {
         positions.array[i * 3 + 1] = particle.position.y;
         positions.array[i * 3 + 2] = particle.position.z;
 
-        sizes.array[i] = 0.15 * particle.scale;
+        sizes.array[i] = this.basePointSize * particle.scale;
         opacities.array[i] = particle.opacity;
       });
 

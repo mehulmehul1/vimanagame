@@ -8,11 +8,14 @@
  * - Track choice history
  */
 
+import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
+
 class DialogChoiceUI {
   constructor(options = {}) {
     this.gameManager = options.gameManager || null;
     this.dialogManager = options.dialogManager || null;
     this.sfxManager = options.sfxManager || null;
+    this.inputManager = options.inputManager || null;
     this.container = null;
     this.currentChoices = null;
     this.isVisible = false;
@@ -23,6 +26,15 @@ class DialogChoiceUI {
     this.createUI();
     this.applyStyles();
     this.setupKeyboardListeners();
+
+    // Setup gamepad navigation
+    this.gamepadNav = new GamepadMenuNavigation({
+      inputManager: this.inputManager,
+      sfxManager: this.sfxManager,
+      onNavigateUp: () => this.moveSelection(-1),
+      onNavigateDown: () => this.moveSelection(1),
+      onConfirm: () => this.confirmSelection(),
+    });
 
     // Setup state listener if gameManager is available
     if (this.gameManager) {
@@ -124,7 +136,7 @@ class DialogChoiceUI {
       .dialog-choices-container {
         position: fixed;
         bottom: 5%;
-        right: 5%;
+        left: 5%;
         width: auto;
         max-width: 500px;
         min-width: 300px;
@@ -141,8 +153,8 @@ class DialogChoiceUI {
       }
 
       .dialog-choices-prompt {
-        font-family: 'LePorsche', Arial, sans-serif;
-        font-size: 24px;
+        font-family: 'PXCountryTypewriter', Arial, sans-serif;
+        font-size: 32px;
         color: rgba(0, 0, 0, 0.8);
         text-align: left;
         padding: 12px 16px;
@@ -158,8 +170,8 @@ class DialogChoiceUI {
       }
 
       .dialog-choice-button {
-        font-family: 'LePorsche', Arial, sans-serif;
-        font-size: 18px;
+        font-family: 'PXCountryTypewriter', Arial, sans-serif;
+        font-size: 24px;
         padding: 14px 20px;
         background: transparent;
         color: rgba(0, 0, 0, 0.5);
@@ -467,6 +479,16 @@ class DialogChoiceUI {
   }
 
   /**
+   * Update gamepad navigation (call in main update loop)
+   * @param {number} dt - Delta time in seconds
+   */
+  update(dt) {
+    if (this.isVisible && this.gamepadNav) {
+      this.gamepadNav.update(dt);
+    }
+  }
+
+  /**
    * Hide the choice UI
    */
   hide() {
@@ -476,6 +498,11 @@ class DialogChoiceUI {
     this.selectedIndex = 0;
     this.choiceButtons = [];
     this.choicesElement.innerHTML = "";
+
+    // Reset gamepad navigation state
+    if (this.gamepadNav) {
+      this.gamepadNav.reset();
+    }
   }
 
   /**

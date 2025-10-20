@@ -5,6 +5,22 @@
   font-style: normal;
 }
 
+@font-face {
+  font-family: "PXCountryTypewriter";
+  src: url("/fonts/PxCountryTypewriterRegular-2vGmK.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Voltaire";
+  src: url("/fonts/Voltaire-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

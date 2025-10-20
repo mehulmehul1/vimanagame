@@ -135,6 +135,7 @@ export function createParticleText(scene, options = {}) {
     transparent: true,
     vertexColors: true,
     depthWrite: false,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
   });
 
@@ -156,6 +157,181 @@ export function createParticleText(scene, options = {}) {
       points.position.y = position.y + 0.1 * Math.sin(time / 500);
 
       // Gentle rotation
+      points.rotation.y = 0.2 * Math.sin(time / 1000);
+    },
+  };
+}
+
+/**
+ * Creates particles from an image, sampling RGB and using alpha to include/exclude pixels
+ * @param {THREE.Scene} scene
+ * @param {Object} options
+ * @returns {Object} Object with mesh (Points), particles array, and update function
+ */
+export function createParticleImage(scene, options = {}) {
+  const {
+    imageUrl = "/images/Czar_MainTitle.png",
+    position = { x: 0, y: 0, z: -2.5 },
+    scale = 2.5 / 80,
+    animate = true,
+    particleDensity = 0.5, // roughly 1/step pixels sampled
+    alphaThreshold = 0.5, // include pixels with alpha > 0.5
+    useImageColor = false,
+    tintColor = new THREE.Color(0xffffff),
+  } = options;
+
+  // Geometry/material prepared up-front; populated when image loads
+  const geometry = new THREE.BufferGeometry();
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      pointTexture: { value: createCircleTexture() },
+    },
+    vertexShader: `
+      attribute float size;
+      attribute float opacity;
+      varying float vOpacity;
+      varying vec3 vColor;
+      
+      void main() {
+        vOpacity = opacity;
+        vColor = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * 100.0 * (1.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D pointTexture;
+      varying float vOpacity;
+      varying vec3 vColor;
+      
+      void main() {
+        vec4 texColor = texture2D(pointTexture, gl_PointCoord);
+        gl_FragColor = vec4(vColor, texColor.a * vOpacity);
+      }
+    `,
+    transparent: true,
+    vertexColors: true,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  // Start with empty attributes (will be replaced when the image loads)
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(0), 3)
+  );
+  geometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(new Float32Array(0), 3)
+  );
+  geometry.setAttribute(
+    "size",
+    new THREE.BufferAttribute(new Float32Array(0), 1)
+  );
+  geometry.setAttribute(
+    "opacity",
+    new THREE.BufferAttribute(new Float32Array(0), 1)
+  );
+
+  const points = new THREE.Points(geometry, material);
+  points.position.set(position.x, position.y, position.z);
+  scene.add(points);
+
+  const particles = [];
+  points.userData.particles = particles;
+  points.userData.baseScale = scale;
+
+  // Load the image and populate geometry
+  const img = new Image();
+  img.onload = () => {
+    const imgW = img.naturalWidth || img.width;
+    const imgH = img.naturalHeight || img.height;
+
+    // Draw into canvas to access pixel data
+    const canvas = document.createElement("canvas");
+    canvas.width = imgW;
+    canvas.height = imgH;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, imgW, imgH);
+    ctx.drawImage(img, 0, 0, imgW, imgH);
+
+    const imageData = ctx.getImageData(0, 0, imgW, imgH);
+    const data = imageData.data;
+
+    particles.length = 0;
+
+    // Determine sampling step based on density (same approach as text)
+    const step = Math.max(1, Math.floor(1 / particleDensity));
+
+    // Collect particle data
+    for (let y = 0; y < imgH; y += step) {
+      for (let x = 0; x < imgW; x += step) {
+        const i = (y * imgW + x) * 4;
+        const r = data[i] / 255;
+        const g = data[i + 1] / 255;
+        const b = data[i + 2] / 255;
+        const a = data[i + 3] / 255;
+
+        if (a > alphaThreshold) {
+          // Map image pixels to centered XY plane (z=0), matching text mapping style
+          const px = ((x / imgW - 0.5) * 10 * scale * imgW) / 100;
+          const py = (-(y / imgH - 0.5) * 10 * scale * imgH) / 100;
+          const pz = 0;
+
+          particles.push({
+            position: new THREE.Vector3(px, py, pz),
+            originalPosition: new THREE.Vector3(px, py, pz),
+            velocity: new THREE.Vector3(0, 0, 0),
+            scale: 1.0,
+            opacity: 1.0,
+            id: particles.length,
+            normalizedX: x / imgW,
+            color: new THREE.Color(r, g, b),
+          });
+        }
+      }
+    }
+
+    // Allocate buffers
+    const positions = new Float32Array(particles.length * 3);
+    const colors = new Float32Array(particles.length * 3);
+    const sizes = new Float32Array(particles.length);
+    const opacities = new Float32Array(particles.length);
+
+    particles.forEach((p, idx) => {
+      positions[idx * 3] = p.position.x;
+      positions[idx * 3 + 1] = p.position.y;
+      positions[idx * 3 + 2] = p.position.z;
+
+      const c = useImageColor ? p.color : tintColor;
+      colors[idx * 3] = c.r;
+      colors[idx * 3 + 1] = c.g;
+      colors[idx * 3 + 2] = c.b;
+
+      sizes[idx] = 0.15;
+      opacities[idx] = 1.0;
+    });
+
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+    geometry.setAttribute("opacity", new THREE.BufferAttribute(opacities, 1));
+
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.color.needsUpdate = true;
+    geometry.attributes.size.needsUpdate = true;
+    geometry.attributes.opacity.needsUpdate = true;
+  };
+  img.src = imageUrl;
+
+  return {
+    mesh: points,
+    particles: particles,
+    update: (time) => {
+      if (!animate) return;
+      points.position.y = position.y + 0.1 * Math.sin(time / 500);
       points.rotation.y = 0.2 * Math.sin(time / 1000);
     },
   };

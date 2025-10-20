@@ -6,6 +6,7 @@
  * - src: Path to the audio file (or array of paths for fallbacks)
  * - volume: Default volume for this sound (0-1), optional, defaults to 1.0
  * - loop: Whether the sound should loop, optional, defaults to false
+ * - loopDelay: Delay in seconds between loop iterations (only applies if loop is true), defaults to 0
  * - preload: Whether to preload this sound (default: true)
  * - rate: Playback speed (1.0 = normal), optional
  * - criteria: Optional object with key-value pairs that must match game state for sound to play
@@ -247,9 +248,10 @@ export const sfxSounds = {
   // Radio audio (3D spatial audio with reactive light)
   radio: {
     id: "radio",
-    src: ["/audio/music/radio-mooch.mp3"], // Radio playing classical music
+    src: ["/audio/dialog/newsman-czar-strikes-again.mp3"], // Radio playing classical music
     volume: 1.0,
     loop: true,
+    loopDelay: 40.0,
     spatial: true,
     position: sceneObjects.radio.position,
     pannerAttr: {

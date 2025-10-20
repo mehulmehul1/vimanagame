@@ -11,10 +11,11 @@
   gap: 20px;
   pointer-events: none;
   background: rgba(0, 0, 0, 0);
+  opacity: 0;
 }
 
 .intro-tagline {
-  font-family: "LePorsche", Arial, sans-serif;
+  font-family: "Voltaire", Arial, sans-serif;
   font-size: 42px;
   color: #fff;
   text-align: center;
@@ -24,24 +25,36 @@
   letter-spacing: 2px;
 }
 
+.intro-tagline img {
+  width: 400px;
+  height: auto;
+  filter: drop-shadow(2px 2px 8px rgba(0, 0, 0, 0.9));
+}
+
 .intro-button {
-  font-family: "LePorsche", Arial, sans-serif;
-  font-size: 48px;
+  font-family: "Voltaire", Arial, sans-serif;
+  font-size: 42px;
   color: #fff;
   background: transparent;
-  border: 3px solid #fff;
+  border: none;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
   padding: 20px 60px;
   cursor: pointer;
   letter-spacing: 4px;
-  transition: all 0.3s ease;
+  transition: all 0.3s ease-in-out;
   text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
   min-width: 400px;
   pointer-events: all;
 }
 
-.intro-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.05);
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+.intro-button.selected {
+  border-top: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  font-size: 64px;
+}
+
+.intro-button:focus {
+  outline: none;
 }

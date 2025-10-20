@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import { createParticleText } from "./titleText.js";
+import { createParticleText, createParticleImage } from "./titleText.js";
 import { TitleSequence } from "./titleSequence.js";
 import { GAME_STATES } from "./gameData.js";
+import { GamepadMenuNavigation } from "./ui/gamepadMenuNavigation.js";
 import "./styles/startScreen.css";
 
 /**
@@ -17,12 +18,24 @@ export class StartScreen {
     this.uiManager = options.uiManager || null;
     this.sceneManager = options.sceneManager || null;
     this.dialogManager = options.dialogManager || null;
+    this.sfxManager = options.sfxManager || null;
+    this.inputManager = options.inputManager || null;
 
     // Additional state
     this.introStartTriggered = false;
     this.titleSequence = null;
     this.title = null;
     this.byline = null;
+    this.keystrokeIndex = 0; // Track which keystroke sound to play next (0-3)
+
+    // Gamepad navigation helper
+    this.gamepadNav = new GamepadMenuNavigation({
+      inputManager: this.inputManager,
+      sfxManager: this.sfxManager,
+      onNavigateUp: () => this.navigateMenu(-1),
+      onNavigateDown: () => this.navigateMenu(1),
+      onConfirm: () => this.confirmMenuSelection(),
+    });
 
     // Animation tracking
     this.coneCurveObject = null;
@@ -69,7 +82,7 @@ export class StartScreen {
     this.tiltTime = Math.random() * 100; // Randomize start time
     this.tiltSpeed1 = 0.3 + Math.random() * 0.2; // Base tilt speed (0.3-0.5)
     this.tiltSpeed2 = 0.5 + Math.random() * 0.3; // Secondary tilt speed (0.5-0.8)
-    this.tiltAmount = 0.08; // Max tilt in radians (~4.5 degrees)
+    this.tiltAmount = 0.12; // Max tilt in radians (~4.5 degrees)
 
     // Circle animation settings (fallback if GLB doesn't load)
     this.circleCenter = options.circleCenter || new THREE.Vector3(0, 0, 0);
@@ -206,10 +219,10 @@ export class StartScreen {
     this.overlay = document.createElement("div");
     this.overlay.id = "intro-overlay";
 
-    // Create tagline
+    // Create tagline with emblem image
     this.tagline = document.createElement("div");
     this.tagline.className = "intro-tagline";
-    this.tagline.innerHTML = `In this town<br>it's hard to stray far from...`;
+    this.tagline.innerHTML = `<img src="/images/CliffCole_Emblem.svg" alt="From the Files of Confidential" />`;
 
     // Create start button
     this.startButton = document.createElement("button");
@@ -219,12 +232,32 @@ export class StartScreen {
     // Click handler for start button
     this.startButton.addEventListener("click", (e) => {
       e.stopPropagation(); // Prevent click from reaching canvas
+
+      // Play typewriter return sound on click
+      if (this.sfxManager) {
+        this.sfxManager.play("typewriter-return");
+      }
+
       this.startGame();
 
       // Request pointer lock when game starts (input will be disabled until control is enabled)
       const canvas = document.querySelector("canvas");
       if (canvas && canvas.requestPointerLock) {
         canvas.requestPointerLock();
+      }
+    });
+
+    // Mouse hover handler for start button
+    this.startButton.addEventListener("mouseenter", () => {
+      this.selectedButtonIndex = 0;
+      this.updateButtonSelection();
+
+      // Play typewriter keystroke sound on hover
+      if (this.sfxManager) {
+        const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+        this.sfxManager.play(soundId);
+        // Cycle through 0-3
+        this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
       }
     });
 
@@ -236,8 +269,28 @@ export class StartScreen {
     // Click handler for options button
     this.optionsButton.addEventListener("click", (e) => {
       e.stopPropagation(); // Prevent click from reaching canvas
+
+      // Play typewriter return sound on click
+      if (this.sfxManager) {
+        this.sfxManager.play("typewriter-return");
+      }
+
       if (this.uiManager) {
         this.uiManager.show("options-menu");
+      }
+    });
+
+    // Mouse hover handler for options button
+    this.optionsButton.addEventListener("mouseenter", () => {
+      this.selectedButtonIndex = 1;
+      this.updateButtonSelection();
+
+      // Play typewriter keystroke sound on hover
+      if (this.sfxManager) {
+        const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+        this.sfxManager.play(soundId);
+        // Cycle through 0-3
+        this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
       }
     });
 
@@ -245,6 +298,66 @@ export class StartScreen {
     this.overlay.appendChild(this.startButton);
     this.overlay.appendChild(this.optionsButton);
     document.body.appendChild(this.overlay);
+
+    // Start with transparent content and fade in over 1 second
+    this.overlay.style.opacity = "0";
+    this.overlay.style.transition = "opacity 1s ease-in";
+
+    // Trigger fade-in after a brief delay to ensure DOM is ready
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.overlay.style.opacity = "1";
+      });
+    });
+
+    // Setup menu navigation
+    this.menuButtons = [this.startButton, this.optionsButton];
+    this.selectedButtonIndex = 0; // Start button is selected by default
+    this.updateButtonSelection();
+
+    // Add keyboard navigation
+    this.keydownHandler = (e) => {
+      if (!this.overlay || this.overlay.style.display === "none") return;
+
+      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        this.selectedButtonIndex =
+          (this.selectedButtonIndex + 1) % this.menuButtons.length;
+        this.updateButtonSelection();
+
+        // Play typewriter keystroke sound
+        if (this.sfxManager) {
+          const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+          this.sfxManager.play(soundId);
+          // Cycle through 0-3
+          this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
+        }
+      } else if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        this.selectedButtonIndex =
+          (this.selectedButtonIndex - 1 + this.menuButtons.length) %
+          this.menuButtons.length;
+        this.updateButtonSelection();
+
+        // Play typewriter keystroke sound
+        if (this.sfxManager) {
+          const soundId = `typewriter-keystroke-0${this.keystrokeIndex}`;
+          this.sfxManager.play(soundId);
+          // Cycle through 0-3
+          this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
+        }
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+
+        // Play typewriter return sound
+        if (this.sfxManager) {
+          this.sfxManager.play("typewriter-return");
+        }
+
+        this.menuButtons[this.selectedButtonIndex].click();
+      }
+    };
+    document.addEventListener("keydown", this.keydownHandler);
 
     // Register with UI manager if available
     if (this.uiManager) {
@@ -258,6 +371,19 @@ export class StartScreen {
         }
       );
     }
+  }
+
+  /**
+   * Update button selection visual state
+   */
+  updateButtonSelection() {
+    this.menuButtons.forEach((button, index) => {
+      if (index === this.selectedButtonIndex) {
+        button.classList.add("selected");
+      } else {
+        button.classList.remove("selected");
+      }
+    });
   }
 
   /**
@@ -275,51 +401,49 @@ export class StartScreen {
       20.0 // Far plane: text can be as far as ~15 units (10 + 5)
     );
 
-    // Create first title text (particle-based)
-    const textData1 = createParticleText(this.textScene, {
-      text: "THE SHADOW\nof the Czar",
-      font: "LePorsche",
-      fontSize: 120,
-      color: new THREE.Color(0xffffff), // White
-      position: { x: 0, y: 0, z: -2.5 }, // Base position for animation
-      scale: 2.5 / 80, // Increased from 1.0/80 for larger text
+    // Create first title as image-based particles from PNG with alpha masking
+    const imageData1 = createParticleImage(this.textScene, {
+      imageUrl: "/images/Czar_MainTitle.png",
+      position: { x: 0, y: 0, z: -4.25 },
+      scale: 2.5 / 80,
       animate: true,
-      particleDensity: 0.5, // Higher density for better text quality
+      particleDensity: 0.5,
+      alphaThreshold: 0.1, // keep semi-opaque pixels, discard near-fully transparent
     });
-    this.textScene.remove(textData1.mesh);
-    this.textCamera.add(textData1.mesh);
+    this.textScene.remove(imageData1.mesh);
+    this.textCamera.add(imageData1.mesh);
     this.textScene.add(this.textCamera);
-    textData1.mesh.userData.baseScale = 1.0 / 80;
-    textData1.mesh.visible = false; // Hide initially
+    imageData1.mesh.userData.baseScale = 1.0 / 80;
+    imageData1.mesh.visible = false; // Hide initially
 
     // Create a wrapper object that includes particles
     const title = {
-      mesh: textData1.mesh,
-      particles: textData1.particles,
-      update: textData1.update,
+      mesh: imageData1.mesh,
+      particles: imageData1.particles,
+      update: imageData1.update,
     };
 
-    // Create second title text (positioned below first)
-    const textData2 = createParticleText(this.textScene, {
-      text: "by JAMES C. KANE",
-      font: "LePorsche",
-      fontSize: 30,
-      color: new THREE.Color(0xffffff), // White
-      position: { x: 0, y: -0.5, z: -2 }, // Base position lower for animation
-      scale: 2.5 / 80, // Increased from 1.0/80 to match first text
+    // Create byline as image-based particles below title
+    const imageData2 = createParticleImage(this.textScene, {
+      imageUrl: "/images/JamesCKane.png",
+      position: { x: 0, y: -1.2, z: -3.6 },
+      scale: 2.5 / 80,
       animate: true,
-      particleDensity: 0.5, // Higher density for better text quality
+      particleDensity: 0.5,
+      alphaThreshold: 0.1,
+      useImageColor: false,
+      tintColor: new THREE.Color(0xffffff),
     });
-    this.textScene.remove(textData2.mesh);
-    this.textCamera.add(textData2.mesh);
-    textData2.mesh.userData.baseScale = 1.0 / 80;
-    textData2.mesh.visible = false; // Hide initially
+    this.textScene.remove(imageData2.mesh);
+    this.textCamera.add(imageData2.mesh);
+    imageData2.mesh.userData.baseScale = 1.0 / 80;
+    imageData2.mesh.visible = false; // Hide initially
 
     // Create a wrapper object that includes particles
     const byline = {
-      mesh: textData2.mesh,
-      particles: textData2.particles,
-      update: textData2.update,
+      mesh: imageData2.mesh,
+      particles: imageData2.particles,
+      update: imageData2.update,
     };
 
     return { title, byline };
@@ -497,7 +621,7 @@ export class StartScreen {
         // Flip high-level state from startScreen -> titleSequence
         if (this.uiManager && this.uiManager.gameManager) {
           this.uiManager.gameManager.setState({
-            currentState: GAME_STATES.TITLE_SEQUENCE,
+            currentState: GAME_STATES.INTRO,
           });
         }
 
@@ -531,11 +655,40 @@ export class StartScreen {
   }
 
   /**
+   * Navigate menu in specified direction
+   * @param {number} direction - -1 for up, 1 for down
+   */
+  navigateMenu(direction) {
+    this.selectedButtonIndex =
+      (this.selectedButtonIndex + direction + this.menuButtons.length) %
+      this.menuButtons.length;
+    this.updateButtonSelection();
+  }
+
+  /**
+   * Confirm current menu selection
+   */
+  confirmMenuSelection() {
+    if (this.menuButtons && this.menuButtons[this.selectedButtonIndex]) {
+      this.menuButtons[this.selectedButtonIndex].click();
+    }
+  }
+
+  /**
    * Update camera position for circling or unified path
    * @param {number} dt - Delta time in seconds
    * @returns {boolean} - True if still active, false if complete
    */
   update(dt) {
+    // Handle gamepad menu navigation (only when overlay is visible)
+    if (
+      !this.hasStarted &&
+      this.overlay &&
+      this.overlay.style.display !== "none"
+    ) {
+      this.gamepadNav.update(dt);
+    }
+
     // Update tilt time
     this.tiltTime += dt;
     // Sync text camera with main camera
@@ -873,6 +1026,12 @@ export class StartScreen {
       this.overlay.parentNode.removeChild(this.overlay);
     }
 
+    // Remove keyboard navigation event listener
+    if (this.keydownHandler) {
+      document.removeEventListener("keydown", this.keydownHandler);
+      this.keydownHandler = null;
+    }
+
     // Hide or remove the camera curve object
     if (this.coneCurveObject && this.sceneManager) {
       this.scene.remove(this.coneCurveObject);
@@ -896,16 +1055,14 @@ export class StartScreen {
 
       // Defer title particle sequence until INTRO_COMPLETE game state
       const startTitleSequence = () => {
-        // Make text visible just before starting sequence
-        this.title.mesh.visible = true;
-        this.byline.mesh.visible = true;
-
+        // Create sequence first so we can prime particle buffers before showing
         this.titleSequence = new TitleSequence([this.title, this.byline], {
           introDuration: 3.0,
           staggerDelay: 2.0,
           holdDuration: 3.0,
           outroDuration: 2.0,
           disperseDistance: 5.0,
+          basePointSize: 0.28,
           onComplete: () => {
             console.log("Title sequence complete");
             gameManager.setState({
@@ -914,19 +1071,31 @@ export class StartScreen {
           },
         });
 
+        // Prime one update tick to ensure initial opacities/positions are set (avoids flash)
+        if (
+          this.titleSequence &&
+          typeof this.titleSequence.update === "function"
+        ) {
+          this.titleSequence.update(0);
+        }
+
+        // Now make text visible
+        this.title.mesh.visible = true;
+        this.byline.mesh.visible = true;
+
         // Update game state - intro is ending, transitioning to gameplay
         gameManager.setState({
           currentState: GAME_STATES.TITLE_SEQUENCE,
         });
       };
 
-      // Drive by game state: wait for INTRO_COMPLETE then trigger
+      // Drive by game state: wait for TITLE_SEQUENCE then trigger
       const gm = this.uiManager && this.uiManager.gameManager;
       if (gm && typeof gm.on === "function") {
         const onStateChanged = (newState, oldState) => {
           if (
             newState &&
-            newState.currentState === GAME_STATES.INTRO_COMPLETE
+            newState.currentState === GAME_STATES.TITLE_SEQUENCE
           ) {
             if (typeof gm.off === "function") {
               gm.off("state:changed", onStateChanged);

@@ -9,20 +9,22 @@ export const uiElements = {
   FULLSCREEN_BUTTON: {
     id: "fullscreen-button",
     layer: "GAME_HUD",
-    image: "/images/fullscreen.png",
+    image: "/images/FullScreen.svg",
     position: {
       bottom: "5%",
-      left: "5%",
+      right: "5%",
     },
     size: {
-      width: "144px",
-      height: "144px",
+      width: "80px",
+      height: "80px",
     },
     style: {
       cursor: "pointer",
       opacity: "1.0",
       transition: "opacity 0.3s ease, transform 0.2s ease",
       pointerEvents: "all",
+      color: "white",
+      backgroundColor: "white",
     },
     hoverStyle: {
       opacity: "1.0",

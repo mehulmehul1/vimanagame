@@ -445,12 +445,16 @@ class CameraAnimationManager {
       lookAtData.returnDuration ||
       transitionTime;
 
+    // Get lookat hold duration (separate from zoom hold duration)
+    const lookAtHoldDuration = lookAtData.lookAtHoldDuration || 0;
+
     // Check if input should be restored (default: true for backwards compatibility)
     const shouldRestoreInput =
       lookAtData.restoreInput !== undefined ? lookAtData.restoreInput : true;
 
-    // Determine if we need to delay input restoration after zoom/DoF completes
-    // This happens when: zoom is enabled AND restoreInput is true
+    // Determine if we need to delay input restoration after onComplete fires
+    // Note: holdDuration is handled by characterController internally (transition → hold → return → onComplete)
+    // We only need to delay for zoom effects that happen after the lookat sequence completes
     const needsDelayedRestore =
       shouldRestoreInput && lookAtData.enableZoom && lookAtData.zoomOptions;
 
@@ -460,14 +464,13 @@ class CameraAnimationManager {
     let onComplete = null;
 
     if (needsDelayedRestore) {
-      const zoomOpts = lookAtData.zoomOptions;
-      const holdDuration = zoomOpts.holdDuration || 0;
-      const zoomTransitionDuration = zoomOpts.transitionDuration || 0;
+      const zoomTransitionDuration =
+        lookAtData.zoomOptions?.transitionDuration || 0;
 
       let delayAfterLookat;
       if (lookAtData.returnToOriginalView) {
-        // When returning to original view, zoom/DoF resets during the return animation
-        // So we need to wait for the return animation to complete
+        // When returning to original view, zoom/DoF resets during the return transition
+        // So we need to wait for the return transition to complete
         delayAfterLookat = returnTransitionTime;
         if (this.debug)
           console.log(
@@ -478,15 +481,15 @@ class CameraAnimationManager {
               `(return transition: ${returnTransitionTime}s)`
           );
       } else {
-        // When not returning to original view, wait for zoom hold + zoom-out transition
-        delayAfterLookat = holdDuration + zoomTransitionDuration;
+        // When not returning to original view, wait for zoom-out transition
+        delayAfterLookat = zoomTransitionDuration;
         if (this.debug)
           console.log(
             `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
               `Will restore control ${delayAfterLookat.toFixed(
                 2
               )}s after lookat completes ` +
-              `(hold: ${holdDuration}s + zoom-out: ${zoomTransitionDuration}s)`
+              `(zoom-out: ${zoomTransitionDuration}s)`
           );
       }
 
@@ -536,6 +539,7 @@ class CameraAnimationManager {
       this.gameManager.emit("camera:lookat", {
         position: lookAtData.position,
         duration: transitionTime,
+        holdDuration: lookAtHoldDuration,
         onComplete: onComplete,
         returnToOriginalView: lookAtData.returnToOriginalView || false,
         returnDuration: returnTransitionTime,

@@ -40,9 +40,9 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: {
-      x: sceneObjects.radio.position.x,
+      x: sceneObjects.radio.position.x - 3,
       y: 0.8,
-      z: sceneObjects.radio.position.z - 4,
+      z: sceneObjects.radio.position.z - 14,
     },
   },
 

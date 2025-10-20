@@ -213,17 +213,36 @@ class GameManager {
   /**
    * Update scene objects based on current game state
    * Loads new objects that match current state conditions
+   * Unloads objects that no longer match current state conditions
    */
   async updateSceneForState() {
     if (!this.sceneManager) return;
 
     const objectsToLoad = getSceneObjectsForState(this.state);
+    const objectIdsToLoad = new Set(objectsToLoad.map((obj) => obj.id));
+
+    // Find objects that are loaded but should no longer be
+    const objectsToUnload = Array.from(this.loadedScenes).filter(
+      (id) => !objectIdsToLoad.has(id)
+    );
+
+    // Unload objects that no longer match criteria
+    if (objectsToUnload.length > 0) {
+      console.log(
+        `GameManager: Unloading ${objectsToUnload.length} scene objects no longer needed`
+      );
+      objectsToUnload.forEach((id) => {
+        this.sceneManager.removeObject(id);
+        this.loadedScenes.delete(id);
+      });
+    }
 
     // Filter out objects that are already loaded
     const newObjects = objectsToLoad.filter(
       (obj) => !this.loadedScenes.has(obj.id)
     );
 
+    // Load new objects that match criteria
     if (newObjects.length > 0) {
       console.log(
         `GameManager: Loading ${newObjects.length} new scene objects for state`

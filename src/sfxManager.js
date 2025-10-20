@@ -30,6 +30,10 @@ class SFXManager {
     // Delayed playback support
     this.pendingSounds = new Map(); // Map of soundId -> { soundId, timer, delay }
 
+    // Loop delay support
+    this.loopDelays = new Map(); // Map of soundId -> { delay, timer, active }
+    this.loopingSounds = new Map(); // Map of soundId -> Howler sound instance ID
+
     // Set global Howler volume (we'll manage individual sounds separately)
     Howler.volume(1.0);
   }
@@ -251,9 +255,12 @@ class SFXManager {
         this.loadingScreen.registerTask(`sfx_${sound.id}`, 1);
       }
 
+      // Check if this sound has a loop delay - if so, we'll manage looping manually
+      const hasLoopDelay = sound.loop && sound.loopDelay > 0;
+
       const howl = new Howl({
         src: sound.src,
-        loop: sound.loop,
+        loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
         preload: preload,
         onload: () => {
@@ -271,6 +278,7 @@ class SFXManager {
             this.loadingScreen.completeTask(`sfx_${sound.id}`);
           }
         },
+        onend: hasLoopDelay ? () => this._handleLoopEnd(sound.id) : undefined,
       });
 
       // Apply spatial attributes after creation
@@ -282,6 +290,18 @@ class SFXManager {
       }
 
       this.registerSound(sound.id, howl, sound.volume ?? 1.0);
+
+      // Register loop delay if present
+      if (hasLoopDelay) {
+        this.loopDelays.set(sound.id, {
+          delay: sound.loopDelay,
+          timer: 0,
+          active: false,
+        });
+        console.log(
+          `SFXManager: Registered loop delay of ${sound.loopDelay}s for sound "${sound.id}"`
+        );
+      }
 
       // Request audio-reactive light creation from lightManager if configured
       if (
@@ -312,9 +332,12 @@ class SFXManager {
       `SFXManager: Loading ${this.deferredSounds.size} deferred sounds`
     );
     for (const [id, sound] of this.deferredSounds) {
+      // Check if this sound has a loop delay - if so, we'll manage looping manually
+      const hasLoopDelay = sound.loop && sound.loopDelay > 0;
+
       const howl = new Howl({
         src: sound.src,
-        loop: sound.loop,
+        loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
         preload: true, // Load now
         onload: () => {
@@ -326,6 +349,7 @@ class SFXManager {
             error
           );
         },
+        onend: hasLoopDelay ? () => this._handleLoopEnd(sound.id) : undefined,
       });
 
       // Apply spatial attributes after creation
@@ -337,6 +361,18 @@ class SFXManager {
       }
 
       this.registerSound(sound.id, howl, sound.volume ?? 1.0);
+
+      // Register loop delay if present
+      if (hasLoopDelay) {
+        this.loopDelays.set(sound.id, {
+          delay: sound.loopDelay,
+          timer: 0,
+          active: false,
+        });
+        console.log(
+          `SFXManager: Registered loop delay of ${sound.loopDelay}s for deferred sound "${sound.id}"`
+        );
+      }
 
       // Request audio-reactive light creation from lightManager if configured
       if (
@@ -424,11 +460,15 @@ class SFXManager {
       console.log(`SFXManager: Loading deferred sound "${id}" on-demand`);
       const sound = this.deferredSounds.get(id);
 
+      // Check if this sound has a loop delay - if so, we'll manage looping manually
+      const hasLoopDelay = sound.loop && sound.loopDelay > 0;
+
       const howl = new Howl({
         src: sound.src,
-        loop: sound.loop,
+        loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
         preload: true, // Load now
+        onend: hasLoopDelay ? () => this._handleLoopEnd(sound.id) : undefined,
       });
 
       // Wait for the sound to load using Howler's event system
@@ -455,6 +495,18 @@ class SFXManager {
       }
 
       this.registerSound(sound.id, howl, sound.volume ?? 1.0);
+
+      // Register loop delay if present
+      if (hasLoopDelay) {
+        this.loopDelays.set(sound.id, {
+          delay: sound.loopDelay,
+          timer: 0,
+          active: false,
+        });
+        console.log(
+          `SFXManager: Registered loop delay of ${sound.loopDelay}s for on-demand sound "${sound.id}"`
+        );
+      }
 
       // Request audio-reactive light creation from lightManager if configured
       if (
@@ -483,7 +535,14 @@ class SFXManager {
         console.warn(`SFXManager: Cannot play proxy object "${id}"`);
         return null;
       }
-      return soundData.howl.play();
+      const instanceId = soundData.howl.play();
+
+      // Track the instance if this sound has a loop delay
+      if (this.loopDelays.has(id)) {
+        this.loopingSounds.set(id, instanceId);
+      }
+
+      return instanceId;
     }
     return null;
   }
@@ -506,6 +565,14 @@ class SFXManager {
       } else {
         soundData.howl.stop();
       }
+
+      // Clean up loop delay state
+      if (this.loopDelays.has(id)) {
+        const loopData = this.loopDelays.get(id);
+        loopData.active = false;
+        loopData.timer = 0;
+      }
+      this.loopingSounds.delete(id);
     }
   }
 
@@ -518,6 +585,30 @@ class SFXManager {
         soundData.howl.stop();
       }
     }
+
+    // Clean up all loop delay states
+    for (const [id, loopData] of this.loopDelays) {
+      loopData.active = false;
+      loopData.timer = 0;
+    }
+    this.loopingSounds.clear();
+  }
+
+  /**
+   * Handle the end of a sound with loop delay
+   * @param {string} soundId - Sound identifier
+   * @private
+   */
+  _handleLoopEnd(soundId) {
+    const loopData = this.loopDelays.get(soundId);
+    if (!loopData) return;
+
+    // Start the delay timer
+    loopData.active = true;
+    loopData.timer = 0;
+    console.log(
+      `SFXManager: Starting loop delay for "${soundId}" (${loopData.delay}s)`
+    );
   }
 
   /**
@@ -602,6 +693,34 @@ class SFXManager {
         }
       }
     }
+
+    // Update loop delays
+    if (this.loopDelays.size > 0) {
+      for (const [soundId, loopData] of this.loopDelays) {
+        if (!loopData.active) continue;
+
+        loopData.timer += dt;
+
+        // Check if loop delay has elapsed
+        if (loopData.timer >= loopData.delay) {
+          console.log(
+            `SFXManager: Replaying sound "${soundId}" after loop delay`
+          );
+          loopData.active = false;
+          loopData.timer = 0;
+
+          try {
+            this.play(soundId);
+          } catch (e) {
+            console.warn(
+              `SFXManager: Failed to replay sound "${soundId}" after loop delay`,
+              e
+            );
+          }
+          break; // Only play one loop per frame
+        }
+      }
+    }
   }
 
   /**
@@ -612,6 +731,10 @@ class SFXManager {
 
     // Clear pending sounds
     this.pendingSounds.clear();
+
+    // Clear loop delay data
+    this.loopDelays.clear();
+    this.loopingSounds.clear();
 
     // Clean up sounds
     for (const [id, soundData] of this.sounds) {

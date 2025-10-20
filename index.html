@@ -3,7 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shadow of the Czar</title>
+    <title>Shadow of the Czar by James C. Kane</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/images/Czar_Icon_No_Border.svg"
+    />
     <link rel="stylesheet" href="/src/styles/style.css" />
     <style>
       body {
@@ -14,14 +19,26 @@
       .font-preload {
         position: absolute;
         visibility: hidden;
-        font-family: "LePorsche";
+        font-family: "PXCountryTypewriter", "LePorsche";
       }
     </style>
   </head>
 
   <body>
-    <!-- Hidden element to force font loading -->
-    <div class="font-preload">.</div>
+    <!-- Hidden elements to force font loading -->
+    <div class="font-preload" style="font-weight: normal">.</div>
+    <div
+      class="font-preload"
+      style="font-family: 'LePorsche'; font-weight: normal"
+    >
+      .
+    </div>
+    <div
+      class="font-preload"
+      style="font-family: 'Voltaire'; font-weight: normal"
+    >
+      .
+    </div>
     <script type="importmap">
       {
         "imports": {

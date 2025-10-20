@@ -64,16 +64,16 @@ export class IdleHelper {
     this.helperElement.id = "idle-helper";
     this.helperElement.style.position = "fixed";
     this.helperElement.style.bottom = "5%";
-    this.helperElement.style.right = "5%";
+    this.helperElement.style.left = "5%";
     this.helperElement.style.opacity = "0";
     this.helperElement.style.pointerEvents = "none";
     this.helperElement.style.zIndex = "1000";
 
     // Create the image
     const img = document.createElement("img");
-    img.src = "/images/wasdmouse.png";
-    img.style.width = "300px";
-    img.style.height = "auto";
+    img.src = "/images/WASD.svg";
+    img.style.width = "auto";
+    img.style.height = "120px";
     img.style.display = "block";
 
     this.helperElement.appendChild(img);

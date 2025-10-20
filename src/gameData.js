@@ -9,8 +9,9 @@
  * Canonical state names/flags used across data files
  */
 export const GAME_STATES = {
+  LOADING: -1, // Game is loading
   START_SCREEN: 0, // Game has loaded, START and OPTIONS buttons available, fullscreen available, camera animation plays
-  INTRO_COMPLETE: 1,
+  INTRO: 1, // Intro sequence plays, camera animation plays
   TITLE_SEQUENCE: 2, // Title sequence plays, camera animation plays
   TITLE_SEQUENCE_COMPLETE: 3, // Title sequence completes, intro narration starts, player starts
   CAT_DIALOG_CHOICE: 4, // Player chooses reaction to cat
@@ -47,7 +48,7 @@ export const startScreen = {
   currentScene: null,
 
   // High-level state name
-  currentState: GAME_STATES.START_SCREEN,
+  currentState: GAME_STATES.LOADING,
 
   // Control flow
   controlEnabled: false, // When true, character controller updates/inputs are enabled

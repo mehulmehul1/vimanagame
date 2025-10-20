@@ -30,6 +30,7 @@ import { LoadingScreen } from "./loadingScreen.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
+import "./styles/fullscreenButton.css";
 
 // Initialize loading screen immediately (before any asset loading)
 const loadingScreen = new LoadingScreen();
@@ -92,6 +93,9 @@ window.desaturationEffect = desaturationEffect;
 
 // Initialize game manager early to check for debug spawn
 const gameManager = new GameManager();
+
+// Connect loading screen to game manager so it can transition state when done
+loadingScreen.setGameManager(gameManager);
 
 // Initialize light manager BEFORE fog so splat lights can affect fog particles
 // Pass sceneManager so lights can be parented under specific scene objects
@@ -214,52 +218,11 @@ Object.values(musicTracks).forEach((track) => {
   });
 });
 
-// Initialize start screen only if we're in START_SCREEN state
-let startScreen = null;
-if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
-  // Calculate camera target position based on actual character spawn
-  const cameraTargetPos = new THREE.Vector3(
-    spawnPos.x,
-    spawnPos.y + characterController.cameraHeight, // Character Y + camera offset
-    spawnPos.z
-  );
-
-  startScreen = new StartScreen(camera, scene, {
-    circleCenter: new THREE.Vector3(
-      sceneObjects.phonebooth.position.x,
-      sceneObjects.phonebooth.position.y,
-      sceneObjects.phonebooth.position.z - 10
-    ), // Center point of the circular path
-    circleRadius: 6,
-    circleHeight: 5,
-    circleSpeed: 0.05,
-    targetPosition: cameraTargetPos,
-    targetRotation: {
-      yaw: THREE.MathUtils.degToRad(defaultSpawnRot.y),
-      pitch: 0,
-    },
-    transitionDuration: 8.0,
-    uiManager: uiManager,
-    sceneManager: sceneManager,
-    glbAnimationStartProgress: 0.55, // Optional: Start at 50% through the GLB animation (0-1)
-  });
-}
-
-// Initialize options menu
-const optionsMenu = new OptionsMenu({
-  musicManager: musicManager,
-  sfxManager: sfxManager,
-  gameManager: gameManager,
-  uiManager: uiManager,
-  sparkRenderer: spark,
-  characterController: characterController,
-  startScreen: startScreen,
-});
-
 // Initialize dialog choice UI
 const dialogChoiceUI = new DialogChoiceUI({
   gameManager: gameManager,
   sfxManager: sfxManager,
+  inputManager: inputManager,
 });
 
 // Initialize dialog manager with HTML captions
@@ -270,6 +233,65 @@ const dialogManager = new DialogManager({
   gameManager: gameManager, // Link to game manager for state updates
   dialogChoiceUI: dialogChoiceUI, // Link to dialog choice UI
   loadingScreen: loadingScreen, // For progress tracking
+});
+
+// Initialize start screen - will be created when state transitions to START_SCREEN
+let startScreen = null;
+
+// Listen for state changes to initialize StartScreen when transitioning from LOADING to START_SCREEN
+gameManager.on("state:changed", (newState, oldState) => {
+  if (
+    newState.currentState === GAME_STATES.START_SCREEN &&
+    oldState.currentState === GAME_STATES.LOADING &&
+    !startScreen
+  ) {
+    console.log("Creating StartScreen after loading complete");
+    // Calculate camera target position based on actual character spawn
+    const cameraTargetPos = new THREE.Vector3(
+      spawnPos.x,
+      spawnPos.y + characterController.cameraHeight, // Character Y + camera offset
+      spawnPos.z
+    );
+
+    startScreen = new StartScreen(camera, scene, {
+      circleCenter: new THREE.Vector3(
+        sceneObjects.phonebooth.position.x,
+        sceneObjects.phonebooth.position.y,
+        sceneObjects.phonebooth.position.z - 10
+      ), // Center point of the circular path
+      circleRadius: 6,
+      circleHeight: 5,
+      circleSpeed: 0.05,
+      targetPosition: cameraTargetPos,
+      targetRotation: {
+        yaw: THREE.MathUtils.degToRad(defaultSpawnRot.y),
+        pitch: 0,
+      },
+      transitionDuration: 8.0,
+      uiManager: uiManager,
+      sceneManager: sceneManager,
+      sfxManager: sfxManager,
+      dialogManager: dialogManager,
+      inputManager: inputManager,
+      glbAnimationStartProgress: 0.55, // Optional: Start at 50% through the GLB animation (0-1)
+    });
+
+    // Update options menu with the newly created startScreen
+    if (optionsMenu) {
+      optionsMenu.startScreen = startScreen;
+    }
+  }
+});
+
+// Initialize options menu
+const optionsMenu = new OptionsMenu({
+  musicManager: musicManager,
+  sfxManager: sfxManager,
+  gameManager: gameManager,
+  uiManager: uiManager,
+  sparkRenderer: spark,
+  characterController: characterController,
+  startScreen: startScreen,
 });
 
 // Preload dialog audio files
@@ -321,6 +343,9 @@ characterController.setGameManager(gameManager);
 characterController.setSceneManager(sceneManager); // For first-person body attachment
 musicManager.setGameManager(gameManager);
 sfxManager.setGameManager(gameManager);
+
+// Apply caption settings now that dialogManager is available
+optionsMenu.applyCaptions();
 
 // Set up light manager state change listener to dynamically load/unload lights based on criteria
 gameManager.on("state:changed", (newState, oldState) => {
@@ -391,7 +416,7 @@ if (typeof inputManager.setGizmoProbe === "function") {
 
 // Hide loading screen and show renderer
 if (loadingScreen.isLoadingComplete()) {
-  loadingScreen.hide(1.0);
+  loadingScreen.hide(0.5);
   // Fade in renderer
   renderer.domElement.style.transition = "opacity 0.5s ease-in";
   setTimeout(() => {
@@ -484,6 +509,9 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Always update dialog manager (handles caption timing)
   dialogManager.update(dt);
+
+  // Always update dialog choice UI (handles gamepad navigation)
+  dialogChoiceUI.update(dt);
 
   // Always update scene manager (handles GLTF animations)
   sceneManager.update(dt);

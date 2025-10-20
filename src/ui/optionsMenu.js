@@ -24,6 +24,7 @@ class OptionsMenu {
       musicVolume: 0.6,
       sfxVolume: 0.5,
       dofEnabled: true,
+      captionsEnabled: true,
       ...this.loadSettings(),
     };
 
@@ -133,6 +134,19 @@ class OptionsMenu {
               >
             </label>
           </div>
+
+          <!-- Captions Enable Checkbox -->
+          <div class="option-group">
+            <label class="option-label checkbox-label" for="captions-enabled">
+              Captions
+              <input 
+                type="checkbox" 
+                id="captions-enabled" 
+                class="option-checkbox"
+                checked
+              >
+            </label>
+          </div>
         </div>
       </div>
     `;
@@ -228,6 +242,15 @@ class OptionsMenu {
       this.saveSettings();
     });
 
+    // Captions Enable checkbox
+    const captionsEnabledCheckbox = document.getElementById("captions-enabled");
+
+    captionsEnabledCheckbox.addEventListener("change", (e) => {
+      this.settings.captionsEnabled = e.target.checked;
+      this.applyCaptions();
+      this.saveSettings();
+    });
+
     // Close button
     const closeButton = document.getElementById("close-button");
     if (closeButton) {
@@ -315,6 +338,7 @@ class OptionsMenu {
     const sfxSlider = document.getElementById("sfx-volume");
     const sfxValue = document.getElementById("sfx-volume-value");
     const dofEnabledCheckbox = document.getElementById("dof-enabled");
+    const captionsEnabledCheckbox = document.getElementById("captions-enabled");
 
     const musicPercent = Math.round(this.settings.musicVolume * 100);
     const sfxPercent = Math.round(this.settings.sfxVolume * 100);
@@ -328,6 +352,7 @@ class OptionsMenu {
     sfxSlider.style.setProperty("--value", `${sfxPercent}%`);
 
     dofEnabledCheckbox.checked = this.settings.dofEnabled;
+    captionsEnabledCheckbox.checked = this.settings.captionsEnabled;
   }
 
   /**
@@ -360,12 +385,25 @@ class OptionsMenu {
   }
 
   /**
+   * Apply captions settings
+   */
+  applyCaptions() {
+    // Notify game manager to pass captions setting to dialog manager
+    if (this.gameManager && this.gameManager.dialogManager) {
+      this.gameManager.dialogManager.setCaptionsEnabled(
+        this.settings.captionsEnabled
+      );
+    }
+  }
+
+  /**
    * Apply all settings
    */
   applySettings() {
     this.applyMusicVolume();
     this.applySfxVolume();
     this.applyDepthOfField();
+    this.applyCaptions();
     this.updateUI();
   }
 

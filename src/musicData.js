@@ -25,6 +25,20 @@ import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 
 export const musicTracks = {
+  dukeMooche: {
+    id: "dukeMooche",
+    path: "./audio/music/duke-ellington-the-mooche.mp3",
+    description: "Duke Mooche - Intro sequence",
+    preload: true, // Load before showing game
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.NEAR_RADIO,
+        $lte: GAME_STATES.DRIVE_BY_PREAMBLE,
+      },
+    },
+    fadeTime: 1.0,
+    priority: 10,
+  },
   rach2: {
     id: "rach2",
     path: "./audio/music/rach 3 - mv 2 - 1-00.mp3",

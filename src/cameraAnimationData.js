@@ -29,6 +29,9 @@
  * For type "lookat":
  * - position: {x, y, z} world position to look at
  * - transitionTime: Time for the initial look-at transition in seconds (default: 2.0)
+ * - lookAtHoldDuration: How long to hold at target before returning or restoring control (default: 0)
+ *   - If returnToOriginalView=true, holds before starting return transition
+ *   - If returnToOriginalView=false, holds before restoring control
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
  * - returnTransitionTime: Time for the return transition in seconds (default: same as transitionTime)
  *   Note: Only used if returnToOriginalView is true. Can be different from initial transition.
@@ -41,9 +44,7 @@
  *   - maxAperture: DoF effect strength at rest
  *   - transitionStart: When to start zoom (0-1, fraction of transitionTime)
  *   - transitionDuration: How long zoom IN and OUT transitions take in seconds
- *   - holdDuration: How long to hold at target. If returnToOriginalView=true, holds before return
- *                   (DoF/zoom reset DURING the return animation). If returnToOriginalView=false, holds
- *                   after lookat completes, then zoom/DoF transitions back over transitionDuration.
+ *   - holdDuration: How long to hold at target zoom (independent of lookAtHoldDuration)
  * - onComplete: Optional callback when lookat completes. Receives gameManager as parameter.
  *   Example: onComplete: (gameManager) => { gameManager.setState({...}); }
  *
@@ -116,17 +117,18 @@ export const cameraAnimations = {
       z: sceneObjects.radio.position.z,
     },
     transitionTime: 0.75,
+    lookAtHoldDuration: 1.5, // Hold at radio for 1.5 seconds before returning
     returnToOriginalView: true,
     returnTransitionTime: 1.0,
-    enableZoom: true,
-    zoomOptions: {
-      zoomFactor: 1.5, // Subtle zoom
-      minAperture: 0.2,
-      maxAperture: 0.35,
-      transitionStart: 0.6,
-      transitionDuration: 1.5,
-      holdDuration: 2.0,
-    },
+    enableZoom: false,
+    // zoomOptions: {
+    //   zoomFactor: 1.5, // Subtle zoom
+    //   minAperture: 0.2,
+    //   maxAperture: 0.35,
+    //   transitionStart: 0.6,
+    //   transitionDuration: 1.5,
+    //   holdDuration: 2.0,
+    // },
     criteria: { currentState: GAME_STATES.NEAR_RADIO },
     playOnce: true,
     priority: 100,

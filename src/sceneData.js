@@ -32,6 +32,7 @@
  *   - autoPlay: If true, automatically play when criteria are met
  *   - playOnce: If true, only play once per game session
  *   - timeScale: Playback speed (1.0 = normal)
+ *   - removeObjectOnFinish: If true, remove parent object from scene when animation finishes
  *
  * Usage:
  * import { sceneObjects, getSceneObjectsForState } from './sceneData.js';
@@ -123,9 +124,10 @@ export const sceneObjects = {
       {
         id: "drive-by-anim",
         clipName: null,
-        loop: true,
+        loop: false,
         autoPlay: true,
         timeScale: 0.475,
+        removeObjectOnFinish: true, // Despawn car after animation completes
         criteria: {
           currentState: {
             $gte: GAME_STATES.DRIVE_BY_PREAMBLE,

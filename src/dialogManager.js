@@ -1,5 +1,6 @@
 import { Howl } from "howler";
 import * as THREE from "three";
+import { GAME_STATES } from "./gameData.js";
 
 /**
  * DialogManager - Handles dialog audio playback with synchronized captions
@@ -40,6 +41,11 @@ class DialogManager {
     this.captionTimer = 0;
     this.isPlaying = false;
     this.onCompleteCallback = null;
+    this.captionsEnabled = true; // Default to captions enabled
+
+    // Per-dialog progress-based state triggers
+    this.currentProgressTriggers = [];
+    this.progressTriggersFired = new Set();
 
     // Delayed playback support
     this.pendingDialogs = new Map(); // Map of dialogId -> { dialogData, onComplete, timer, delay }
@@ -311,6 +317,37 @@ class DialogManager {
     this.captionIndex = 0;
     this.captionTimer = 0;
     this.isPlaying = true;
+    // Normalize and store progress-based state triggers for this dialog
+    this.currentProgressTriggers = [];
+    this.progressTriggersFired.clear();
+    if (dialogData) {
+      // Single trigger form
+      if (
+        dialogData.progressStateTrigger &&
+        typeof dialogData.progressStateTrigger === "object"
+      ) {
+        const t = dialogData.progressStateTrigger;
+        if (typeof t.progress === "number" && t.state !== undefined) {
+          this.currentProgressTriggers.push({
+            progress: Math.max(0, Math.min(1, t.progress)),
+            state: t.state,
+          });
+        }
+      }
+      // Array form
+      if (Array.isArray(dialogData.progressStateTriggers)) {
+        dialogData.progressStateTriggers.forEach((t) => {
+          if (t && typeof t.progress === "number" && t.state !== undefined) {
+            this.currentProgressTriggers.push({
+              progress: Math.max(0, Math.min(1, t.progress)),
+              state: t.state,
+            });
+          }
+        });
+      }
+      // Sort triggers ascending by progress
+      this.currentProgressTriggers.sort((a, b) => a.progress - b.progress);
+    }
 
     // Load and play audio
     if (dialogData.audio) {
@@ -412,6 +449,8 @@ class DialogManager {
     this.captionQueue = [];
     this.captionIndex = 0;
     this.captionTimer = 0;
+    this.currentProgressTriggers = [];
+    this.progressTriggersFired.clear();
 
     this.emit("dialog:stop");
   }
@@ -421,8 +460,10 @@ class DialogManager {
    * @param {Object} caption - Caption object with text and duration
    */
   showCaption(caption) {
-    // HTML caption
-    this.captionElement.textContent = caption.text;
+    // Only show caption if captions are enabled
+    if (this.captionsEnabled) {
+      this.captionElement.textContent = caption.text;
+    }
 
     this.captionTimer = 0;
     this.emit("dialog:caption", caption);
@@ -445,6 +486,8 @@ class DialogManager {
     const completedDialog = this.currentDialog;
     this.currentDialog = null;
     this.currentAudio = null;
+    this.currentProgressTriggers = [];
+    this.progressTriggersFired.clear();
 
     // Check if this dialog should trigger choices
     if (completedDialog && this.dialogChoiceUI) {
@@ -518,6 +561,36 @@ class DialogManager {
       }
     }
 
+    // Progress-based state triggers for current dialog (configured in dialogData)
+    if (
+      this.isPlaying &&
+      this.currentAudio &&
+      this.gameManager &&
+      this.currentProgressTriggers.length > 0
+    ) {
+      try {
+        const dur = this.currentAudio.duration
+          ? this.currentAudio.duration()
+          : 0;
+        const pos = this.currentAudio.seek ? this.currentAudio.seek() : 0;
+        if (dur > 0) {
+          const prog = pos / dur; // 0..1
+          for (let i = 0; i < this.currentProgressTriggers.length; i++) {
+            const trig = this.currentProgressTriggers[i];
+            if (prog >= trig.progress && !this.progressTriggersFired.has(i)) {
+              // Fire state change
+              if (typeof this.gameManager.setState === "function") {
+                this.gameManager.setState({ currentState: trig.state });
+              }
+              this.progressTriggersFired.add(i);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore seek() while not loaded
+      }
+    }
+
     // Update current dialog captions
     if (!this.isPlaying || this.captionQueue.length === 0) {
       return;
@@ -557,8 +630,8 @@ class DialogManager {
    */
   applyDefaultCaptionStyle() {
     this.setCaptionStyle({
-      fontFamily: "LePorsche, Arial, sans-serif",
-      fontSize: "28px",
+      fontFamily: "PXCountryTypewriter, Arial, sans-serif",
+      fontSize: "32px",
       background: "transparent",
       padding: "20px 40px",
       color: "#ffffff",
@@ -590,6 +663,26 @@ class DialogManager {
 
     if (this.currentAudio) {
       this.currentAudio.volume(this.audioVolume);
+    }
+  }
+
+  /**
+   * Set whether captions are enabled
+   * @param {boolean} enabled - Whether to show captions
+   */
+  setCaptionsEnabled(enabled) {
+    this.captionsEnabled = enabled;
+
+    // If disabling captions and currently showing one, hide it
+    if (!enabled) {
+      this.hideCaption();
+    }
+    // If enabling captions and currently playing dialog, show current caption
+    else if (enabled && this.isPlaying && this.captionQueue.length > 0) {
+      const currentCaption = this.captionQueue[this.captionIndex];
+      if (currentCaption) {
+        this.captionElement.textContent = currentCaption.text;
+      }
     }
   }
 

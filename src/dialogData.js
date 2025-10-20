@@ -61,15 +61,13 @@ export const dialogTracks = {
         duration: 2.5,
       },
     ],
-    criteria: { currentState: GAME_STATES.TITLE_SEQUENCE },
+    criteria: { currentState: GAME_STATES.INTRO },
     once: true,
     autoPlay: true,
     priority: 100,
     delay: 1.0, // Wait 1 second after title sequence completes
-    onComplete: (gameManager) => {
-      console.log("INTRO dialog complete - setting state to INTRO_COMPLETE");
-      gameManager.setState({ currentState: GAME_STATES.INTRO_COMPLETE });
-    },
+    // Fire game state change based on audio progress (handled by DialogManager)
+    progressStateTrigger: { progress: 0.85, state: GAME_STATES.TITLE_SEQUENCE },
   },
 
   // Radio captions (audio is handled by sfxData.js with reactive light)
@@ -133,6 +131,9 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 100,
     delay: 2.0, // Wait 2 seconds after answering phone
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.DIALOG_CHOICE_1 });
+    },
   },
 
   // Follow-up dialog for EMPATH response

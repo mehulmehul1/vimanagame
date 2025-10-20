@@ -37,68 +37,45 @@ export class FullscreenButton {
    * Create the fullscreen button element
    */
   createButton() {
-    // Add keyframe animation for pulsing effect
-    this.addPulseAnimation();
-
     // Create button container
     this.button = document.createElement("div");
     this.button.id = this.config.id || "fullscreen-button";
+    this.button.classList.add("fullscreen-button");
 
     // Create button image
     this.image = document.createElement("img");
-    this.image.src = this.config.image || "/images/fullscreen.png";
+    this.image.src = this.config.image || "/images/FullScreen.svg";
     this.image.alt = "Toggle Fullscreen";
-    this.image.style.cssText = `
-      width: 100%;
-      height: 100%;
-      display: block;
-      user-select: none;
-      -webkit-user-drag: none;
-      object-fit: contain;
-      image-orientation: from-image;
-    `;
 
     this.button.appendChild(this.image);
 
-    // Apply base styles
-    this.button.style.cssText = `
-      position: fixed;
-      bottom: ${this.config.position?.bottom || "20px"};
-      left: ${this.config.position?.left || "20px"};
-      width: ${this.config.size?.width || "48px"};
-      height: ${this.config.size?.height || "48px"};
-      cursor: ${this.config.style?.cursor || "pointer"};
-      opacity: ${this.config.style?.opacity || "0.7"};
-      transition: ${
-        this.config.style?.transition ||
-        "opacity 0.3s ease, transform 0.2s ease"
-      };
-      pointer-events: ${this.config.style?.pointerEvents || "all"};
-      z-index: 2000;
-    `;
-
-    // Add hover effects with pulsing animation
-    this.button.addEventListener("mouseenter", () => {
-      this.button.style.animation =
-        "fullscreenButtonPulse 1.5s ease-in-out infinite";
-    });
-
-    this.button.addEventListener("mouseleave", () => {
-      this.button.style.animation = "none";
-      this.button.style.opacity = this.config.style?.opacity || "1.0";
-      this.button.style.transform = "scale(1)";
+    // Apply CSS variables from config (fallbacks handled in CSS)
+    const position = this.config.position || {};
+    const size = this.config.size || {};
+    const style = this.config.style || {};
+    const varMap = {
+      "--fb-bottom": position.bottom,
+      "--fb-right": position.right,
+      "--fb-width": size.width,
+      "--fb-height": size.height,
+      "--fb-cursor": style.cursor,
+      "--fb-opacity": style.opacity,
+      "--fb-transition": style.transition,
+      "--fb-pointer-events": style.pointerEvents,
+      "--fb-z-index": style.zIndex,
+    };
+    Object.entries(varMap).forEach(([key, value]) => {
+      if (value !== undefined) this.button.style.setProperty(key, value);
     });
 
     // Add touch feedback (visual response on mobile)
     this.button.addEventListener("touchstart", (e) => {
       e.preventDefault(); // Prevent default touch behavior
-      this.button.style.transform = "scale(1.15)";
-      this.button.style.opacity = "1.0";
+      this.button.classList.add("is-touching");
     });
 
     this.button.addEventListener("touchcancel", () => {
-      this.button.style.transform = "scale(1)";
-      this.button.style.opacity = this.config.style?.opacity || "1.0";
+      this.button.classList.remove("is-touching");
     });
 
     // Add click handler for mouse input
@@ -112,8 +89,7 @@ export class FullscreenButton {
     this.button.addEventListener("touchend", (e) => {
       e.preventDefault(); // Prevent click event from also firing
       // Reset visual feedback
-      this.button.style.transform = "scale(1)";
-      this.button.style.opacity = this.config.style?.opacity || "1.0";
+      this.button.classList.remove("is-touching");
       this.toggleFullscreen();
     });
 
@@ -138,43 +114,11 @@ export class FullscreenButton {
 
     // Hide button if fullscreen is not supported (e.g., iOS)
     if (!this.isFullscreenSupported()) {
-      this.button.style.display = "none";
+      this.button.classList.add("is-hidden");
       console.log(
         "FullscreenButton: Fullscreen API not supported on this device, button hidden"
       );
     }
-  }
-
-  /**
-   * Add CSS keyframe animation for pulsing effect
-   */
-  addPulseAnimation() {
-    // Check if animation already exists
-    const styleId = "fullscreen-button-pulse-animation";
-    if (document.getElementById(styleId)) {
-      return;
-    }
-
-    // Create style element with keyframe animation
-    const style = document.createElement("style");
-    style.id = styleId;
-    style.textContent = `
-      @keyframes fullscreenButtonPulse {
-        0% {
-          transform: scale(1);
-          opacity: 1.0;
-        }
-        50% {
-          transform: scale(1.15);
-          opacity: 1.15;
-        }
-        100% {
-          transform: scale(1);
-          opacity: 1.0;
-        }
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   /**
@@ -279,8 +223,7 @@ export class FullscreenButton {
     if (!this.isFullscreenSupported()) {
       return;
     }
-
-    this.button.style.display = "block";
+    this.button.classList.remove("is-hidden");
     if (this.uiManager) {
       this.uiManager.show(this.config.id || "fullscreen-button");
     }
@@ -290,7 +233,7 @@ export class FullscreenButton {
    * Hide the button
    */
   hide() {
-    this.button.style.display = "none";
+    this.button.classList.add("is-hidden");
     if (this.uiManager) {
       this.uiManager.hide(this.config.id || "fullscreen-button");
     }

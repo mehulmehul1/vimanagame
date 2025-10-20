@@ -6,16 +6,25 @@
 export class LoadingScreen {
   constructor() {
     this.container = null;
-    this.progressBar = null;
+    this.progressRect = null;
     this.progressText = null;
     this.loadingTasks = new Map(); // task name -> { loaded: number, total: number }
     this.isVisible = true;
     this.isComplete = false;
+    this.gameManager = null; // Will be set after GameManager is created
 
     this.createUI();
   }
 
-  createUI() {
+  /**
+   * Set the game manager reference (called after GameManager is instantiated)
+   * @param {GameManager} gameManager - Game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+  }
+
+  async createUI() {
     // Create container
     this.container = document.createElement("div");
     this.container.id = "loading-screen";
@@ -25,29 +34,34 @@ export class LoadingScreen {
     const content = document.createElement("div");
     content.className = "loading-content";
 
-    // Create title
+    // Create loading title
     const title = document.createElement("div");
     title.className = "loading-title";
     title.textContent = "LOADING";
+    content.appendChild(title);
 
-    // Create progress bar container
-    const progressContainer = document.createElement("div");
-    progressContainer.className = "loading-progress-container";
+    // Load and insert the SVG
+    try {
+      const response = await fetch("images/Loading.svg");
+      const svgText = await response.text();
+      const svgContainer = document.createElement("div");
+      svgContainer.className = "loading-svg-container";
+      svgContainer.innerHTML = svgText;
+      content.appendChild(svgContainer);
 
-    // Create progress bar
-    this.progressBar = document.createElement("div");
-    this.progressBar.className = "loading-progress-bar";
+      // Get reference to the progress rectangle
+      this.progressRect = svgContainer.querySelector("#progressRect");
+    } catch (error) {
+      console.error("Failed to load Loading.svg:", error);
+    }
 
     // Create progress text
     this.progressText = document.createElement("div");
     this.progressText.className = "loading-progress-text";
     this.progressText.textContent = "0%";
+    content.appendChild(this.progressText);
 
     // Assemble UI
-    progressContainer.appendChild(this.progressBar);
-    content.appendChild(title);
-    content.appendChild(progressContainer);
-    content.appendChild(this.progressText);
     this.container.appendChild(content);
 
     // Add to document
@@ -107,9 +121,10 @@ export class LoadingScreen {
 
     const progress = totalItems > 0 ? (totalLoaded / totalItems) * 100 : 0;
 
-    // Update UI
-    if (this.progressBar) {
-      this.progressBar.style.width = `${progress}%`;
+    // Update UI - SVG progress rect width goes from 0 to 850
+    if (this.progressRect) {
+      const width = (progress / 100) * 850;
+      this.progressRect.setAttribute("width", width.toString());
     }
     if (this.progressText) {
       this.progressText.textContent = `${Math.round(progress)}%`;
@@ -131,6 +146,14 @@ export class LoadingScreen {
     this.isVisible = false;
     this.container.style.transition = `opacity ${duration}s ease-out`;
     this.container.style.opacity = "0";
+
+    // Transition game state from LOADING to START_SCREEN
+    if (this.gameManager) {
+      // Import GAME_STATES dynamically to avoid circular dependencies
+      import("./gameData.js").then(({ GAME_STATES }) => {
+        this.gameManager.setState({ currentState: GAME_STATES.START_SCREEN });
+      });
+    }
 
     // Remove from DOM after fade completes
     setTimeout(() => {

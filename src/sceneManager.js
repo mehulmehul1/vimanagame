@@ -49,6 +49,7 @@ class SceneManager {
     this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
     this.animationActions = new Map(); // Map of animationId -> THREE.AnimationAction
     this.animationData = new Map(); // Map of animationId -> animation data config
+    this.animationToObject = new Map(); // Map of animationId -> objectId
     this.playedAnimations = new Set(); // Track animations that have been played once (for playOnce)
 
     // Event listeners
@@ -431,6 +432,18 @@ class SceneManager {
         if (storedAction === action) {
           console.log(`SceneManager: Animation "${animId}" finished`);
           this.emit("animation:finished", animId);
+
+          // Check if we should remove the object after animation finishes
+          const config = this.animationData.get(animId);
+          if (config && config.removeObjectOnFinish) {
+            const objectId = this.animationToObject.get(animId);
+            if (objectId) {
+              console.log(
+                `SceneManager: Removing object "${objectId}" after animation "${animId}" finished`
+              );
+              this.removeObject(objectId);
+            }
+          }
           break;
         }
       }
@@ -471,9 +484,10 @@ class SceneManager {
       action.timeScale = config.timeScale || 1.0;
       action.clampWhenFinished = !config.loop;
 
-      // Store action and config
+      // Store action, config, and object mapping
       this.animationActions.set(config.id, action);
       this.animationData.set(config.id, config);
+      this.animationToObject.set(config.id, objectId);
 
       console.log(
         `SceneManager: Registered animation "${config.id}" for object "${objectId}"`
@@ -614,6 +628,25 @@ class SceneManager {
   removeObject(id) {
     const object = this.objects.get(id);
     if (object) {
+      // Clean up animations for this object
+      const mixer = this.animationMixers.get(id);
+      if (mixer) {
+        // Stop all actions in this mixer
+        mixer.stopAllAction();
+        // Remove all animation actions associated with this object
+        for (const [animId, action] of this.animationActions.entries()) {
+          // Check if this action belongs to this mixer
+          if (action.getMixer() === mixer) {
+            this.animationActions.delete(animId);
+            this.animationData.delete(animId);
+            this.animationToObject.delete(animId);
+            this.playedAnimations.delete(animId);
+          }
+        }
+        // Remove the mixer
+        this.animationMixers.delete(id);
+      }
+
       this.scene.remove(object);
       // Dispose of geometries and materials
       object.traverse((child) => {
@@ -629,6 +662,7 @@ class SceneManager {
         }
       });
       this.objects.delete(id);
+      this.objectData.delete(id);
       console.log(`SceneManager: Removed "${id}"`);
     }
   }
@@ -757,6 +791,7 @@ class SceneManager {
     this.animationMixers.clear();
     this.animationActions.clear();
     this.animationData.clear();
+    this.animationToObject.clear();
 
     // Remove all objects
     for (const id of this.objects.keys()) {

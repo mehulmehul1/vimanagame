@@ -26,8 +26,8 @@ export const dialogChoices = {
   // First choice moment - after phone call
   choice1: {
     id: "choice1",
-    criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
-    triggerDialog: dialogTracks.bonneSoiree, // Dialog that triggers this choice
+    criteria: { currentState: GAME_STATES.DIALOG_CHOICE_1 },
+    triggerDialog: null, // No trigger dialog - using criteria-based loading
     choiceStateKey: "dialogChoice1",
     prompt: null, // Optional prompt above choices
     choices: [
