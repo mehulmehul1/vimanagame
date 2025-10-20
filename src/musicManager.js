@@ -138,6 +138,15 @@ class MusicManager {
           }
         });
 
+        // Check initial state and start appropriate music
+        const initialTrack = getMusicForState(this.gameManager.state);
+        if (initialTrack) {
+          console.log(
+            `MusicManager: Starting initial music "${initialTrack.id}" (${initialTrack.description})`
+          );
+          this.changeMusic(initialTrack.id, initialTrack.fadeTime || 0);
+        }
+
         console.log("MusicManager: Event listeners registered");
       }
     );

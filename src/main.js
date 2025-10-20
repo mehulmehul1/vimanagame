@@ -241,6 +241,7 @@ if (gameManager.state.currentState === GAME_STATES.START_SCREEN) {
     transitionDuration: 8.0,
     uiManager: uiManager,
     sceneManager: sceneManager,
+    glbAnimationStartProgress: 0.5, // Optional: Start at 50% through the GLB animation (0-1)
   });
 }
 
@@ -390,7 +391,7 @@ if (typeof inputManager.setGizmoProbe === "function") {
 
 // Hide loading screen and show renderer
 if (loadingScreen.isLoadingComplete()) {
-  loadingScreen.hide(0.5);
+  loadingScreen.hide(1.0);
   // Fade in renderer
   renderer.domElement.style.transition = "opacity 0.5s ease-in";
   setTimeout(() => {

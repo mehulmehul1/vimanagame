@@ -47,15 +47,15 @@ export const lights = {
   streetLight2: {
     id: "street-light-2",
     type: "SplatLight",
-    splatType: "INFINITE_CONE",
+    splatType: "SPHERE",
     color: { r: 0.9, g: 0.9, b: 0.9 },
-    position: { x: 11.07, y: 5.05, z: 82.97 },
-    rotation: { x: -Math.PI / 2, y: 0, z: 0 }, // Point downward (-90° rotation from +Z to -Y)
-    radius: 0.8, // Half-angle = π/4 × 0.8 ≈ 36° (72° total cone - typical streetlight)
-    opacity: 0.05, // With ADD_RGBA, 0 opacity gives best falloff
+    position: { x: 13.03, y: 1.44, z: 75.07 },
+    rotation: { x: -1.57, y: 0, z: 0 },
+    radius: 5, // Sphere radius
+    opacity: 0.025, // With ADD_RGBA, 0 opacity gives best falloff
     rgbaBlendMode: "ADD_RGBA",
-    sdfSmooth: 0.5,
-    softEdge: 2.0, // Larger soft edge for gradual streetlight falloff
+    sdfSmooth: 0.1,
+    softEdge: 3.0, // Larger soft edge for gradual streetlight falloff
   },
 
   // Car headlights (parented to GLTF node "Old_Car_01" inside scene object id "car")

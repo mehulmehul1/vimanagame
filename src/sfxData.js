@@ -248,16 +248,16 @@ export const sfxSounds = {
   radio: {
     id: "radio",
     src: ["/audio/music/radio-mooch.mp3"], // Radio playing classical music
-    volume: 0.6,
+    volume: 1.0,
     loop: true,
     spatial: true,
     position: sceneObjects.radio.position,
     pannerAttr: {
       panningModel: "HRTF",
-      refDistance: 6,
+      refDistance: 8,
       rolloffFactor: 1,
       distanceModel: "linear",
-      maxDistance: 12,
+      maxDistance: 14,
     },
     preload: true,
     criteria: {

@@ -14,7 +14,7 @@ class CloudParticlesShader {
     this.spawnPosition = new THREE.Vector3(0, 0, 40);
 
     // Fog settings - edit these directly
-    this.particleCount = 20000;
+    this.particleCount = 22000;
     this.cloudSize = 40;
     this.particleSize = 1.5;
     this.particleSizeMin = 0.75;
@@ -24,9 +24,9 @@ class CloudParticlesShader {
     this.color = 0xffffff;
     this.fluffiness = 8;
     this.turbulence = 3;
-    this.groundLevel = -1;
-    this.fogHeight = 10.0;
-    this.fogFalloff = 2;
+    this.groundLevel = -5;
+    this.fogHeight = 14.0;
+    this.fogFalloff = 1;
 
     // Gust model (analytic, avoids reversal/jumps)
     this.gustAmplitude = 0.4; // speed variation amplitude

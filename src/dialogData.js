@@ -103,7 +103,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 2.0,
+    delay: 3.0,
   },
 
   // Dialog that plays when phone starts ringing
