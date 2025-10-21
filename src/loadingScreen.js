@@ -1,3 +1,5 @@
+import { Logger } from "./utils/logger.js";
+
 /**
  * LoadingScreen - Minimal loading screen that tracks asset loading progress
  * Shows before main.js initialization and hides when all assets are loaded
@@ -7,6 +9,7 @@ export class LoadingScreen {
   constructor() {
     this.container = null;
     this.progressRect = null;
+    this.logger = new Logger("LoadingScreen", false);
     this.progressText = null;
     this.loadingTasks = new Map(); // task name -> { loaded: number, total: number }
     this.isVisible = true;
@@ -52,7 +55,7 @@ export class LoadingScreen {
       // Get reference to the progress rectangle
       this.progressRect = svgContainer.querySelector("#progressRect");
     } catch (error) {
-      console.error("Failed to load Loading.svg:", error);
+      this.logger.error("Failed to load Loading.svg:", error);
     }
 
     // Create progress text
@@ -147,11 +150,15 @@ export class LoadingScreen {
     this.container.style.transition = `opacity ${duration}s ease-out`;
     this.container.style.opacity = "0";
 
-    // Transition game state from LOADING to START_SCREEN
+    // Transition game state from LOADING to START_SCREEN (only if currently LOADING)
     if (this.gameManager) {
       // Import GAME_STATES dynamically to avoid circular dependencies
       import("./gameData.js").then(({ GAME_STATES }) => {
-        this.gameManager.setState({ currentState: GAME_STATES.START_SCREEN });
+        // Only transition to START_SCREEN if we're currently in LOADING state
+        // This preserves debug spawn states
+        if (this.gameManager.state.currentState === GAME_STATES.LOADING) {
+          this.gameManager.setState({ currentState: GAME_STATES.START_SCREEN });
+        }
       });
     }
 

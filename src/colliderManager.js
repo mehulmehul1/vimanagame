@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * ColliderManager - Manages trigger colliders and intersection detection
@@ -26,6 +27,7 @@ class ColliderManager {
     this.scene = scene;
     this.sceneManager = sceneManager;
     this.gizmoManager = gizmoManager; // For registering debug meshes
+    this.logger = new Logger("ColliderManager", false);
     this.colliders = [];
     this.debugMeshes = new Map(); // Map of collider id -> debug mesh
     this.activeColliders = new Set(); // Track which colliders the character is currently inside
@@ -57,12 +59,12 @@ class ColliderManager {
           typeof window.gameManager.setState === "function"
         ) {
           window.gameManager.setState({ hasGizmoInData: true });
-          console.log(
-            "ColliderManager: Set hasGizmoInData=true due to gizmo-enabled colliders"
+          this.logger.log(
+            "Set hasGizmoInData=true due to gizmo-enabled colliders"
           );
         }
       } catch (e) {
-        console.error("ColliderManager: Failed to set hasGizmoInData:", e);
+        this.logger.error("Failed to set hasGizmoInData:", e);
       }
     }
   }
@@ -85,9 +87,7 @@ class ColliderManager {
       }
     });
 
-    console.log(
-      `ColliderManager: Initialized ${this.colliders.length} colliders`
-    );
+    this.logger.log(`Initialized ${this.colliders.length} colliders`);
   }
 
   /**
@@ -132,9 +132,7 @@ class ColliderManager {
         break;
 
       default:
-        console.warn(
-          `ColliderManager: Unknown collider type "${type}" for ${data.id}`
-        );
+        this.logger.warn(`Unknown collider type "${type}" for ${data.id}`);
         return null;
     }
 
@@ -216,7 +214,7 @@ class ColliderManager {
    * @param {Object} data - Collider data
    */
   onEnter(id, data) {
-    console.log(`ColliderManager: Entered "${id}"`);
+    this.logger.log(`Entered "${id}"`);
 
     // Emit events through game manager
     data.onEnter.forEach((event) => {
@@ -230,7 +228,7 @@ class ColliderManager {
    * @param {Object} data - Collider data
    */
   onExit(id, data) {
-    console.log(`ColliderManager: Exited "${id}"`);
+    this.logger.log(`Exited "${id}"`);
 
     // Emit events through game manager
     data.onExit.forEach((event) => {
@@ -265,7 +263,7 @@ class ColliderManager {
         break;
 
       default:
-        console.warn(`ColliderManager: Unknown event type "${type}"`);
+        this.logger.warn(`Unknown event type "${type}"`);
     }
   }
 
@@ -315,15 +313,13 @@ class ColliderManager {
           y: worldPos.y,
           z: worldPos.z,
         };
-        console.log(
-          `ColliderManager: Looking at mesh "${childName}" in "${objectId}" at (${worldPos.x.toFixed(
+        this.logger.log(
+          `Looking at mesh "${childName}" in "${objectId}" at (${worldPos.x.toFixed(
             2
           )}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)})`
         );
       } else {
-        console.warn(
-          `ColliderManager: Could not find mesh "${childName}" in "${objectId}"`
-        );
+        this.logger.warn(`Could not find mesh "${childName}" in "${objectId}"`);
         // List available children to help debug
         const sceneObj = this.sceneManager.getObject(objectId);
         if (sceneObj) {
@@ -331,15 +327,15 @@ class ColliderManager {
           sceneObj.traverse((child) => {
             if (child.name) childNames.push(child.name);
           });
-          console.log(`Available children in "${objectId}":`, childNames);
+          this.logger.log(`Available children in "${objectId}":`, childNames);
         }
       }
     }
 
     // Safety check: ensure we have a valid position before emitting
     if (!targetPosition) {
-      console.error(
-        `ColliderManager: No valid target position for camera-lookat (colliderId: ${colliderId})`
+      this.logger.error(
+        `No valid target position for camera-lookat (colliderId: ${colliderId})`
       );
       return;
     }
@@ -402,7 +398,7 @@ class ColliderManager {
     const collider = this.colliders.find((c) => c.id === id);
     if (collider) {
       collider.enabled = true;
-      console.log(`ColliderManager: Enabled "${id}"`);
+      this.logger.log(`Enabled "${id}"`);
     }
   }
 
@@ -416,7 +412,7 @@ class ColliderManager {
       collider.enabled = false;
       // Remove from active if it was active
       this.activeColliders.delete(id);
-      console.log(`ColliderManager: Disabled "${id}"`);
+      this.logger.log(`Disabled "${id}"`);
     }
   }
 
@@ -426,7 +422,7 @@ class ColliderManager {
    */
   resetOnceCollider(id) {
     this.triggeredOnce.delete(id);
-    console.log(`ColliderManager: Reset once-trigger for "${id}"`);
+    this.logger.log(`Reset once-trigger for "${id}"`);
   }
 
   /**
@@ -485,14 +481,16 @@ class ColliderManager {
     const hasAnyGizmoColliders = this.colliders.some(({ data }) => data.gizmo);
 
     if (!showColliders && !hasAnyGizmoColliders) {
-      console.log(
+      this.logger.log(
         "Collider debug visualization disabled (add ?showColliders=true to URL to enable)"
       );
       return;
     }
 
     if (showColliders) {
-      console.log("Collider debug visualization enabled (showColliders=true)");
+      this.logger.log(
+        "Collider debug visualization enabled (showColliders=true)"
+      );
     }
 
     this.colliders.forEach(({ id, data, enabled }) => {
@@ -547,13 +545,13 @@ class ColliderManager {
         // Register with gizmo manager if this collider has gizmo flag
         if (data.gizmo && this.gizmoManager) {
           this.gizmoManager.registerObject(mesh, id, "collider");
-          console.log(`Registered gizmo collider: ${id}`);
+          this.logger.log(`Registered gizmo collider: ${id}`);
         }
 
         if (showColliders) {
-          console.log(`Added debug mesh for collider: ${id}`);
+          this.logger.log(`Added debug mesh for collider: ${id}`);
         } else if (data.gizmo) {
-          console.log(
+          this.logger.log(
             `Added gizmo debug mesh for collider: ${id} (red wireframe)`
           );
         }
@@ -594,7 +592,7 @@ class ColliderManager {
     this.activeColliders.delete(id);
     this.triggeredOnce.delete(id);
 
-    console.log(`ColliderManager: Removed and cleaned up collider "${id}"`);
+    this.logger.log(`Removed and cleaned up collider "${id}"`);
   }
 }
 

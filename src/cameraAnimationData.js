@@ -27,17 +27,32 @@
  *   - Example: 0.8 would reduce vertical movement by 20%
  *
  * For type "lookat":
+ * SINGLE LOOKAT (simple position):
  * - position: {x, y, z} world position to look at
  * - transitionTime: Time for the initial look-at transition in seconds (default: 2.0)
  * - lookAtHoldDuration: How long to hold at target before returning or restoring control (default: 0)
- *   - If returnToOriginalView=true, holds before starting return transition
- *   - If returnToOriginalView=false, holds before restoring control
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
  * - returnTransitionTime: Time for the return transition in seconds (default: same as transitionTime)
- *   Note: Only used if returnToOriginalView is true. Can be different from initial transition.
+ * - enableZoom: If true, enable zoom/DoF effect (default: false)
+ * - zoomOptions: Optional zoom configuration (see below)
+ *
+ * SEQUENCE LOOKAT (array of positions):
+ * - positions: Array of {x, y, z} world positions to look at in sequence
+ * - transitionTime: Default transition time for all positions (can be overridden per position)
+ * - lookAtHoldDuration: Default hold duration for all positions (can be overridden per position)
+ * - returnToOriginalView: If true, return to original view after final position (default: false)
+ * - returnTransitionTime: Time for the return transition in seconds (default: same as transitionTime)
+ * - enableZoom: Default zoom setting for all positions (can be overridden per position)
+ * - zoomOptions: Default zoom configuration for all positions (can be overridden per position)
+ * - sequenceSettings: Array of per-position overrides (optional)
+ *   - Each entry can override: transitionTime, lookAtHoldDuration, enableZoom, zoomOptions
+ *   - Example: [null, { transitionTime: 0.5 }, { enableZoom: false }]
+ *   - Use null to use defaults for that position
+ * - loop: If true, continuously cycle through positions (default: false)
+ *
+ * COMMON LOOKAT PROPERTIES:
  * - restoreInput: If true, restore input controls when complete (default: true)
  *   - If false, inputs remain disabled after animation - you must manually re-enable them
- * - enableZoom: If true, enable zoom/DoF effect (default: false)
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
  *   - minAperture: DoF effect strength at peak
@@ -77,9 +92,10 @@ import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
 import { videos } from "./videoData.js";
 import { sceneObjects } from "./sceneData.js";
+import { Logger } from "./utils/logger.js";
 
-// Debug logging toggle - set to false to disable console logs
-export const DEBUG_CAMERA_ANIMATIONS = false;
+// Create module-level logger
+const logger = new Logger("CameraAnimationData", false);
 
 export const cameraAnimations = {
   catLookat: {
@@ -120,15 +136,6 @@ export const cameraAnimations = {
     lookAtHoldDuration: 1.5, // Hold at radio for 1.5 seconds before returning
     returnToOriginalView: true,
     returnTransitionTime: 1.0,
-    enableZoom: false,
-    // zoomOptions: {
-    //   zoomFactor: 1.5, // Subtle zoom
-    //   minAperture: 0.2,
-    //   maxAperture: 0.35,
-    //   transitionStart: 0.6,
-    //   transitionDuration: 1.5,
-    //   holdDuration: 2.0,
-    // },
     criteria: { currentState: GAME_STATES.NEAR_RADIO },
     playOnce: true,
     priority: 100,
@@ -174,10 +181,53 @@ export const cameraAnimations = {
       transitionDuration: 2.5, // Slower, more dramatic transition
       holdDuration: 2.0, // Hold the zoom longer for dramatic effect
     },
-    criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
+    criteria: {
+      currentState: {
+        $in: [GAME_STATES.PHONE_BOOTH_RINGING],
+      },
+    },
     priority: 100,
     playOnce: true,
     delay: 0.25, // Wait 0.5 seconds before looking at phone booth
+  },
+
+  passageLookat: {
+    id: "passageLookat",
+    type: "lookat",
+    description: "Look at passage after LeClaire tells you to",
+    positions: [
+      {
+        x: sceneObjects.phonebooth.position.x,
+        y: 0.9,
+        z: sceneObjects.phonebooth.position.z,
+      },
+      sceneObjects.interior.position,
+    ],
+    transitionTime: 1,
+    lookAtHoldDuration: 2.0,
+    criteria: {
+      currentState: {
+        $in: [GAME_STATES.POST_DRIVE_BY],
+      },
+    },
+    priority: 100,
+    playOnce: true,
+    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
+    sequenceSettings: [
+      null, // Position 0: use defaults
+      {
+        // Position 1: different zoom settings
+        enableZoom: true,
+        zoomOptions: {
+          zoomFactor: 1.5,
+          minAperture: 0.25,
+          maxAperture: 0.4,
+          transitionStart: 0.5,
+          transitionDuration: 2.0, // Important: this controls zoom fade timing
+          holdDuration: 2.0,
+        },
+      },
+    ],
   },
 
   phoneBoothMoveTo: {
@@ -301,6 +351,52 @@ export const cameraAnimations = {
     playOnce: true,
     delay: 1.5, // Delay after falling
   },
+
+  // Example of a lookat sequence with per-position settings:
+  // sequenceExample: {
+  //   id: "sequenceExample",
+  //   type: "lookat",
+  //   description: "Look at multiple positions in sequence",
+  //   positions: [
+  //     { x: 5.94, y: 0.9, z: 65.76 },  // Phone booth
+  //     { x: 4.04, y: 0.8, z: 35.45 },  // Radio
+  //     { x: -5.9, y: 0.76, z: 68.35 }, // Car
+  //   ],
+  //   // Default settings for all positions
+  //   transitionTime: 1.0,
+  //   lookAtHoldDuration: 2.0,
+  //   enableZoom: true,
+  //   zoomOptions: {
+  //     zoomFactor: 2.0,
+  //     minAperture: 0.2,
+  //     maxAperture: 0.4,
+  //     transitionStart: 0.5,
+  //     transitionDuration: 2.5,
+  //     holdDuration: 2.0,
+  //   },
+  //   // Per-position overrides (optional)
+  //   sequenceSettings: [
+  //     null, // Position 0: use defaults
+  //     { // Position 1: faster transition, longer hold
+  //       transitionTime: 0.5,
+  //       lookAtHoldDuration: 3.0,
+  //     },
+  //     { // Position 2: different zoom settings
+  //       enableZoom: true,
+  //       zoomOptions: {
+  //         zoomFactor: 1.5,
+  //         minAperture: 0.25,
+  //         holdDuration: 3.0,
+  //       }
+  //     }
+  //   ],
+  //   loop: false, // Set to true to continuously cycle through positions
+  //   returnToOriginalView: true, // Return to original view after last position
+  //   restoreInput: true,
+  //   criteria: { currentState: GAME_STATES.YOUR_STATE },
+  //   priority: 100,
+  //   playOnce: true,
+  // },
 };
 
 /**
@@ -318,50 +414,38 @@ export function getCameraAnimationsForState(
     (a, b) => (b.priority || 0) - (a.priority || 0)
   );
 
-  if (DEBUG_CAMERA_ANIMATIONS)
-    console.log(
-      `CameraAnimationData: Checking ${animations.length} animations for state:`,
-      gameState
-    );
+  logger.log(`Checking ${animations.length} animations for state:`, gameState);
 
   const matchingAnimations = [];
 
   // Find all animations matching criteria that haven't been played yet
   for (const animation of animations) {
     if (!animation.criteria) {
-      if (DEBUG_CAMERA_ANIMATIONS)
-        console.log(
-          `CameraAnimationData: Animation '${animation.id}' has no criteria, skipping`
-        );
+      logger.log(`Animation '${animation.id}' has no criteria, skipping`);
       continue;
     }
 
     const matches = checkCriteria(gameState, animation.criteria);
-    if (DEBUG_CAMERA_ANIMATIONS)
-      console.log(
-        `CameraAnimationData: Animation '${animation.id}' criteria:`,
-        animation.criteria,
-        `matches:`,
-        matches
-      );
+    logger.log(
+      `Animation '${animation.id}' criteria:`,
+      animation.criteria,
+      `matches:`,
+      matches
+    );
 
     if (matches) {
       // Check playOnce - skip if already played
       if (animation.playOnce && playedAnimations.has(animation.id)) {
-        if (DEBUG_CAMERA_ANIMATIONS)
-          console.log(
-            `CameraAnimationData: Animation '${animation.id}' matches but already played (playOnce), skipping...`
-          );
+        logger.log(
+          `Animation '${animation.id}' matches but already played (playOnce), skipping...`
+        );
         continue;
       }
       matchingAnimations.push(animation);
     }
   }
 
-  if (DEBUG_CAMERA_ANIMATIONS)
-    console.log(
-      `CameraAnimationData: Found ${matchingAnimations.length} matching animation(s)`
-    );
+  logger.log(`Found ${matchingAnimations.length} matching animation(s)`);
   return matchingAnimations;
 }
 

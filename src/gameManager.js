@@ -3,6 +3,7 @@ import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
 import VideoManager from "./videoManager.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * GameManager - Central game state and event management
@@ -20,8 +21,11 @@ class GameManager {
     this.state = debugState ? { ...debugState } : { ...startScreen };
     this.isDebugMode = isDebugSpawnActive();
 
+    // Logger for debug messages
+    this.logger = new Logger("GameManager", false);
+
     if (this.isDebugMode) {
-      console.log("GameManager: Debug mode active", this.state);
+      this.logger.log("Debug mode active", this.state);
     }
 
     this.eventListeners = {};
@@ -51,7 +55,7 @@ class GameManager {
       params[key] = value;
     }
 
-    console.log("GameManager: URL params:", params);
+    this.logger.log("URL params:", params);
     return params;
   }
 
@@ -160,12 +164,12 @@ class GameManager {
       newState.currentState !== undefined &&
       newState.currentState !== oldState.currentState
     ) {
-      console.log(
-        `GameManager: State changed from ${oldState.currentState} to ${newState.currentState}`
+      this.logger.log(
+        `State changed from ${oldState.currentState} to ${newState.currentState}`
       );
     }
     if (Object.keys(newState).length > 0) {
-      console.log("GameManager: setState called with:", newState);
+      this.logger.log("setState called with:", newState);
     }
 
     this.emit("state:changed", this.state, oldState);
@@ -200,11 +204,11 @@ class GameManager {
 
     // Enable character controller when controlEnabled state is true
     if (this.state.controlEnabled === true) {
-      console.log("GameManager: Enabling character controller");
+      this.logger.log("Enabling character controller");
       this.characterController.headbobEnabled = true;
       this.emit("character-controller:enabled");
     } else if (this.state.controlEnabled === false) {
-      console.log("GameManager: Disabling character controller");
+      this.logger.log("Disabling character controller");
       this.characterController.headbobEnabled = false;
       this.emit("character-controller:disabled");
     }
@@ -228,8 +232,8 @@ class GameManager {
 
     // Unload objects that no longer match criteria
     if (objectsToUnload.length > 0) {
-      console.log(
-        `GameManager: Unloading ${objectsToUnload.length} scene objects no longer needed`
+      this.logger.log(
+        `Unloading ${objectsToUnload.length} scene objects no longer needed`
       );
       objectsToUnload.forEach((id) => {
         this.sceneManager.removeObject(id);
@@ -244,8 +248,8 @@ class GameManager {
 
     // Load new objects that match criteria
     if (newObjects.length > 0) {
-      console.log(
-        `GameManager: Loading ${newObjects.length} new scene objects for state`
+      this.logger.log(
+        `Loading ${newObjects.length} new scene objects for state`
       );
       await this.sceneManager.loadObjectsForState(newObjects);
 

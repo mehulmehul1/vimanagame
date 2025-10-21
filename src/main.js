@@ -27,10 +27,13 @@ import GizmoManager from "./gizmoManager.js";
 import { createCloudParticlesShader } from "./vfx/cloudParticlesShader.js";
 import DesaturationEffect from "./vfx/desaturationEffect.js";
 import { LoadingScreen } from "./loadingScreen.js";
+import { Logger } from "./utils/logger.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
 import "./styles/fullscreenButton.css";
+
+const logger = new Logger("Main", false);
 
 // Initialize loading screen immediately (before any asset loading)
 const loadingScreen = new LoadingScreen();
@@ -139,7 +142,7 @@ camera.position.set(
 // IMPORTANT: Created AFTER light manager so splat lights can affect the fog particles
 // Pass camera so fog initializes around camera position and follows the character
 const cloudParticles = createCloudParticlesShader(scene, camera);
-console.log("Fog system loaded: GPU Shader-based ⚡");
+logger.log("Fog system loaded: GPU Shader-based ⚡");
 
 // Make cloud particles globally accessible
 window.cloudParticles = cloudParticles;
@@ -245,7 +248,7 @@ gameManager.on("state:changed", (newState, oldState) => {
     oldState.currentState === GAME_STATES.LOADING &&
     !startScreen
   ) {
-    console.log("Creating StartScreen after loading complete");
+    logger.log("Creating StartScreen after loading complete");
     // Calculate camera target position based on actual character spawn
     const cameraTargetPos = new THREE.Vector3(
       spawnPos.x,
@@ -425,7 +428,7 @@ if (loadingScreen.isLoadingComplete()) {
 
   // Load deferred assets after loading screen hides
   setTimeout(() => {
-    console.log("Loading deferred assets...");
+    logger.log("Loading deferred assets...");
     musicManager.loadDeferredTracks();
     sfxManager.loadDeferredSounds();
     dialogManager.loadDeferredDialogs();

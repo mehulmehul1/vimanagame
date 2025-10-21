@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { GAME_STATES } from "../gameData.js";
+import { Logger } from "../utils/logger.js";
 
 /**
  * PhoneBooth - Manages phonebooth-specific interactions and animations
@@ -20,6 +21,7 @@ class PhoneBooth {
     this.scene = options.scene;
     this.camera = options.camera;
     this.characterController = options.characterController; // Reference to character controller
+    this.logger = new Logger("PhoneBooth", false);
 
     // Receiver animation state
     this.receiverLerp = null;
@@ -78,7 +80,7 @@ class PhoneBooth {
    */
   initialize(gameManager = null) {
     if (!this.sceneManager) {
-      console.warn("PhoneBooth: No SceneManager provided");
+      this.logger.warn("No SceneManager provided");
       return;
     }
 
@@ -104,9 +106,7 @@ class PhoneBooth {
 
           // If receiver is attached to camera, lock its local position
           if (this.receiver && this.receiver.parent === this.camera) {
-            console.log(
-              "PhoneBooth: Locking receiver position relative to camera"
-            );
+            this.logger.log("Locking receiver position relative to camera");
             // Store the current local position to prevent any transform updates
             const lockedPos = this.receiver.position.clone();
             const lockedRot = this.receiver.rotation.clone();
@@ -138,8 +138,8 @@ class PhoneBooth {
       this.receiverOriginalWorldRot = new THREE.Quaternion();
       this.receiver.getWorldPosition(this.receiverOriginalWorldPos);
       this.receiver.getWorldQuaternion(this.receiverOriginalWorldRot);
-      console.log(
-        "PhoneBooth: Stored receiver original position:",
+      this.logger.log(
+        "Stored receiver original position:",
         this.receiverOriginalWorldPos.toArray()
       );
 
@@ -149,8 +149,8 @@ class PhoneBooth {
         this.gameManager.state &&
         this.gameManager.state.currentState >= GAME_STATES.DRIVE_BY
       ) {
-        console.log(
-          "PhoneBooth: Starting in DRIVE_BY or later state, positioning receiver in dropped state"
+        this.logger.log(
+          "Starting in DRIVE_BY or later state, positioning receiver in dropped state"
         );
         this.initializeReceiverInDroppedState();
       }
@@ -160,12 +160,12 @@ class PhoneBooth {
       // Create the phone cord chain
       this.createPhoneCord();
     } else {
-      console.warn(
-        "PhoneBooth: Cannot create phone cord - missing CordAttach, Receiver, or PhysicsManager"
+      this.logger.warn(
+        "Cannot create phone cord - missing CordAttach, Receiver, or PhysicsManager"
       );
     }
 
-    console.log("PhoneBooth: Initialized");
+    this.logger.log("Initialized");
   }
 
   /**
@@ -174,7 +174,7 @@ class PhoneBooth {
    */
   createPhoneCord() {
     if (!this.physicsManager || !this.cordAttach || !this.receiver) {
-      console.warn("PhoneBooth: Cannot create cord - missing components");
+      this.logger.warn("Cannot create cord - missing components");
       return;
     }
 
@@ -198,22 +198,22 @@ class PhoneBooth {
     const totalCordLength = this.config.cordSegments * segmentLength;
     const slackFactor = totalCordLength / straightDistance;
 
-    console.log(
-      "PhoneBooth: Creating phone cord with",
+    this.logger.log(
+      "Creating phone cord with",
       this.config.cordSegments,
       "segments"
     );
-    console.log(
+    this.logger.log(
       "  Slack factor:",
       slackFactor.toFixed(2),
       "(>1 means cord will droop)"
     );
-    console.log(
+    this.logger.log(
       "  CordAttach position (phone booth):",
       cordAttachPos.toArray()
     );
-    console.log("  Receiver position:", receiverPos.toArray());
-    console.log(
+    this.logger.log("  Receiver position:", receiverPos.toArray());
+    this.logger.log(
       "  Rigid segments:",
       this.config.cordRigidSegments,
       "at PHONE BOOTH end"
@@ -233,7 +233,7 @@ class PhoneBooth {
         // Add smooth downward curve (quadratic easing)
         const curveFactor = rigidStep * rigidStep; // Accelerating curve downward
         pos.y -= curveFactor * segmentLength * 2; // Gradual drop
-        console.log(`  Segment ${i} (RIGID): position`, pos.toArray());
+        this.logger.log(`  Segment ${i} (RIGID): position`, pos.toArray());
       } else {
         // For flexible segments, calculate position from end of rigid section to receiver
         const flexibleSegmentIndex = i - this.config.cordRigidSegments;
@@ -266,7 +266,7 @@ class PhoneBooth {
             pos.y,
             pos.z
           );
-        console.log(`  Segment ${i} is KINEMATIC (won't fall)`);
+        this.logger.log(`  Segment ${i} is KINEMATIC (won't fall)`);
       } else {
         rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic()
           .setTranslation(pos.x, pos.y, pos.z)
@@ -410,7 +410,7 @@ class PhoneBooth {
     // Create visual line to represent the cord
     this.createCordLine();
 
-    console.log("PhoneBooth: Phone cord created successfully");
+    this.logger.log("Phone cord created successfully");
   }
 
   /**
@@ -519,7 +519,7 @@ class PhoneBooth {
       this.cordLineMesh = null;
     }
 
-    console.log("PhoneBooth: Phone cord destroyed");
+    this.logger.log("Phone cord destroyed");
   }
 
   /**
@@ -527,7 +527,7 @@ class PhoneBooth {
    * Called when the phone booth ring animation completes
    */
   handleAnimationFinished() {
-    console.log("PhoneBooth: Ring animation finished, reparenting receiver");
+    this.logger.log("Ring animation finished, reparenting receiver");
 
     // Keep the cord - it will follow the receiver as it moves
     this.reparentReceiver();
@@ -539,7 +539,7 @@ class PhoneBooth {
    */
   reparentReceiver() {
     if (!this.sceneManager || !this.camera) {
-      console.warn("PhoneBooth: Cannot reparent receiver - missing managers");
+      this.logger.warn("Cannot reparent receiver - missing managers");
       return;
     }
 
@@ -556,15 +556,15 @@ class PhoneBooth {
       const worldPos = new THREE.Vector3();
       this.receiver.getWorldPosition(worldPos);
 
-      console.log("PhoneBooth: Receiver successfully attached to camera");
-      console.log("  Local position:", this.receiver.position.toArray());
-      console.log(
+      this.logger.log("Receiver successfully attached to camera");
+      this.logger.log("  Local position:", this.receiver.position.toArray());
+      this.logger.log(
         "  Local rotation:",
         this.receiver.rotation.toArray().slice(0, 3)
       );
-      console.log("  Local scale:", this.receiver.scale.toArray());
-      console.log("  World position:", worldPos.toArray());
-      console.log("  Parent:", this.receiver.parent?.type || "none");
+      this.logger.log("  Local scale:", this.receiver.scale.toArray());
+      this.logger.log("  World position:", worldPos.toArray());
+      this.logger.log("  Parent:", this.receiver.parent?.type || "none");
 
       // Disable character physics collisions to prevent cord from pushing character
       if (this.characterController) {
@@ -574,7 +574,7 @@ class PhoneBooth {
       // Start lerp animation to move receiver to target position
       this.startReceiverLerp();
     } else {
-      console.warn("PhoneBooth: Failed to attach receiver to camera");
+      this.logger.warn("Failed to attach receiver to camera");
     }
   }
 
@@ -584,7 +584,7 @@ class PhoneBooth {
    */
   startReceiverLerp() {
     if (!this.receiver) {
-      console.warn("PhoneBooth: Cannot start lerp - no receiver");
+      this.logger.warn("Cannot start lerp - no receiver");
       return;
     }
 
@@ -606,7 +606,7 @@ class PhoneBooth {
       elapsed: 0,
     };
 
-    console.log("PhoneBooth: Starting receiver lerp animation");
+    this.logger.log("Starting receiver lerp animation");
   }
 
   /**
@@ -615,7 +615,7 @@ class PhoneBooth {
    */
   stopReceiverLerp() {
     if (this.receiverLerp) {
-      console.log("PhoneBooth: Stopping receiver lerp");
+      this.logger.log("Stopping receiver lerp");
       // Stop the lerp at its current position
       this.receiverLerp = null;
     }
@@ -632,8 +632,8 @@ class PhoneBooth {
       !this.receiverOriginalWorldRot ||
       !this.cordAttach
     ) {
-      console.warn(
-        "PhoneBooth: Cannot start drop lerp - no receiver or original position"
+      this.logger.warn(
+        "Cannot start drop lerp - no receiver or original position"
       );
       return;
     }
@@ -671,10 +671,10 @@ class PhoneBooth {
       elapsed: 0,
     };
 
-    console.log(
-      "PhoneBooth: Starting receiver drop animation (below rigid cord section)"
+    this.logger.log(
+      "Starting receiver drop animation (below rigid cord section)"
     );
-    console.log("  Target position:", targetPos.toArray());
+    this.logger.log("  Target position:", targetPos.toArray());
   }
 
   /**
@@ -709,7 +709,7 @@ class PhoneBooth {
 
     // Complete animation
     if (t >= 1) {
-      console.log("PhoneBooth: Receiver drop animation complete");
+      this.logger.log("Receiver drop animation complete");
       this.receiverDropLerp = null;
     }
   }
@@ -720,13 +720,13 @@ class PhoneBooth {
    */
   dropReceiverWithPhysics() {
     if (!this.receiver || !this.physicsManager || !this.receiverAnchor) {
-      console.warn(
-        "PhoneBooth: Cannot drop receiver - missing receiver, physics manager, or anchor"
+      this.logger.warn(
+        "Cannot drop receiver - missing receiver, physics manager, or anchor"
       );
       return;
     }
 
-    console.log("PhoneBooth: Detaching receiver from camera (no physics)");
+    this.logger.log("Detaching receiver from camera (no physics)");
 
     // Unlock position so we can move it
     this.receiverPositionLocked = false;
@@ -739,12 +739,12 @@ class PhoneBooth {
     this.receiver.getWorldPosition(worldPos);
     this.receiver.getWorldQuaternion(worldQuat);
 
-    console.log(
-      "PhoneBooth: Receiver current parent:",
+    this.logger.log(
+      "Receiver current parent:",
       this.receiver.parent?.name || "none"
     );
-    console.log(
-      "PhoneBooth: Receiver world position before detach:",
+    this.logger.log(
+      "Receiver world position before detach:",
       worldPos.toArray()
     );
 
@@ -752,12 +752,12 @@ class PhoneBooth {
     // This preserves world transform
     this.scene.attach(this.receiver);
 
-    console.log(
-      "PhoneBooth: Receiver detached from camera, new parent:",
+    this.logger.log(
+      "Receiver detached from camera, new parent:",
       this.receiver.parent?.name || "none"
     );
-    console.log(
-      "PhoneBooth: Receiver world position after detach:",
+    this.logger.log(
+      "Receiver world position after detach:",
       this.receiver.position.toArray()
     );
 
@@ -809,7 +809,7 @@ class PhoneBooth {
 
     // Complete animation
     if (t >= 1) {
-      console.log("PhoneBooth: Receiver lerp animation complete");
+      this.logger.log("Receiver lerp animation complete");
       this.receiverLerp = null;
     }
   }
@@ -920,8 +920,8 @@ class PhoneBooth {
       !this.receiverOriginalWorldRot ||
       !this.cordAttach
     ) {
-      console.warn(
-        "PhoneBooth: Cannot initialize dropped state - missing receiver or original position"
+      this.logger.warn(
+        "Cannot initialize dropped state - missing receiver or original position"
       );
       return;
     }
@@ -952,8 +952,8 @@ class PhoneBooth {
     this.receiver.position.copy(droppedPos);
     this.receiver.quaternion.copy(droppedQuat);
 
-    console.log(
-      "PhoneBooth: Receiver initialized in dropped state below rigid cord at:",
+    this.logger.log(
+      "Receiver initialized in dropped state below rigid cord at:",
       droppedPos.toArray()
     );
 

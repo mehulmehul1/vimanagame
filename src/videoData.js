@@ -45,6 +45,9 @@
 
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
+
+const logger = new Logger("VideoData", false);
 
 export const videos = {
   shadowGlimpse: {
@@ -115,8 +118,8 @@ export function getVideosForState(gameState) {
 
     // Check if criteria match current state
     const shouldPlay = checkCriteria(gameState, video.criteria);
-    console.log(
-      `VideoData: Checking video "${video.id}" - currentState: ${gameState.currentState}, criteria:`,
+    logger.log(
+      `Checking video "${video.id}" - currentState: ${gameState.currentState}, criteria:`,
       video.criteria,
       `shouldPlay: ${shouldPlay}`
     );

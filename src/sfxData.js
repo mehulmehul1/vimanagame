@@ -250,6 +250,7 @@ export const sfxSounds = {
     id: "radio",
     src: ["/audio/dialog/newsman-czar-strikes-again.mp3"], // Radio playing classical music
     volume: 1.0,
+    delay: 0.5,
     loop: true,
     loopDelay: 40.0,
     spatial: true,

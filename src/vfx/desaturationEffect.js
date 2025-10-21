@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { Logger } from "../utils/logger.js";
 
 /**
  * DesaturationEffect - Post-processing shader for animating color to grayscale
@@ -13,6 +14,7 @@ export class DesaturationEffect {
   constructor(renderer) {
     this.renderer = renderer;
     this.enabled = false;
+    this.logger = new Logger("DesaturationEffect", false);
     this.progress = 0; // 0 = color, 1 = grayscale
     this.animating = false;
     this.animationTarget = 0;
@@ -218,9 +220,7 @@ export class DesaturationEffect {
    */
   animateTo(targetAmount, options = {}) {
     if (!this.enabled) {
-      console.warn(
-        "DesaturationEffect: Effect is disabled. Call enable() first."
-      );
+      this.logger.warn("Effect is disabled. Call enable() first.");
       return;
     }
 

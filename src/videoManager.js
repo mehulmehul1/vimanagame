@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { videos } from "./videoData.js";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * VideoManager - Manages video playback with state-based control
@@ -17,6 +18,7 @@ class VideoManager {
     this.gameManager = options.gameManager;
     this.camera = options.camera;
     this.gizmoManager = options.gizmoManager; // For debug positioning
+    this.logger = new Logger("VideoManager", false);
 
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
@@ -99,21 +101,21 @@ class VideoManager {
                       }, delay * 1000);
 
                       this.pendingDelays.set(videoId, timeoutId);
-                      console.log(
-                        `VideoManager: Spawned video "${videoId}" (paused), will play in ${delay}s`
+                      this.logger.log(
+                        `Spawned video "${videoId}" (paused), will play in ${delay}s`
                       );
                     } else {
                       // No delay, play immediately
-                      console.log(
-                        `VideoManager: Spawned video "${videoId}" (paused, first frame visible)`
+                      this.logger.log(
+                        `Spawned video "${videoId}" (paused, first frame visible)`
                       );
                       this.playVideo(videoId);
                     }
                   });
                 })
                 .catch((err) => {
-                  console.warn(
-                    `VideoManager: Failed to render first frame for "${videoId}":`,
+                  this.logger.warn(
+                    `Failed to render first frame for "${videoId}":`,
                     err
                   );
                   newPlayer.video.pause();
@@ -133,14 +135,14 @@ class VideoManager {
                     newPlayer.video.pause();
                     newPlayer.video.currentTime = 0;
                     newPlayer.isPlaying = false;
-                    console.log(
-                      `VideoManager: Spawned video "${videoId}" (paused, waiting for play criteria)`
+                    this.logger.log(
+                      `Spawned video "${videoId}" (paused, waiting for play criteria)`
                     );
                   });
                 })
                 .catch((err) => {
-                  console.warn(
-                    `VideoManager: Failed to render first frame for "${videoId}":`,
+                  this.logger.warn(
+                    `Failed to render first frame for "${videoId}":`,
                     err
                   );
                   newPlayer.video.pause();
@@ -178,8 +180,8 @@ class VideoManager {
               }, delay * 1000); // Convert to milliseconds
 
               this.pendingDelays.set(videoId, timeoutId);
-              console.log(
-                `VideoManager: Scheduled video "${videoId}" to play in ${delay}s`
+              this.logger.log(
+                `Scheduled video "${videoId}" to play in ${delay}s`
               );
             } else {
               // Play immediately
@@ -198,9 +200,7 @@ class VideoManager {
         if (hasPendingDelay) {
           clearTimeout(this.pendingDelays.get(videoId));
           this.pendingDelays.delete(videoId);
-          console.log(
-            `VideoManager: Cancelled delayed playback for "${videoId}"`
-          );
+          this.logger.log(`Cancelled delayed playback for "${videoId}"`);
         }
 
         // Stop and remove video if it exists
@@ -218,7 +218,7 @@ class VideoManager {
   playVideo(videoId) {
     const videoConfig = videos[videoId];
     if (!videoConfig) {
-      console.warn(`VideoManager: Video not found: ${videoId}`);
+      this.logger.warn(`Video not found: ${videoId}`);
       return;
     }
 
@@ -251,9 +251,7 @@ class VideoManager {
       if (videoConfig.gizmo) {
         // Disable billboard for gizmo-enabled videos to avoid conflict
         player.config.billboard = false;
-        console.log(
-          `VideoManager: Disabled billboard for "${videoId}" (gizmo enabled)`
-        );
+        this.logger.log(`Disabled billboard for "${videoId}" (gizmo enabled)`);
 
         if (this.gizmoManager && player.videoMesh) {
           this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
@@ -275,7 +273,7 @@ class VideoManager {
             this.gameManager.setState({ hasGizmoInData: true });
           }
         } catch (e) {
-          console.error("VideoManager: Failed to set hasGizmoInData:", e);
+          this.logger.error("Failed to set hasGizmoInData:", e);
         }
       }
 
@@ -300,8 +298,8 @@ class VideoManager {
       // Disable billboard for gizmo-enabled videos to avoid conflict
       player.config.billboard = false;
 
-      console.log(
-        `VideoManager: Retry registering "${videoId}" with gizmo and selecting it`
+      this.logger.log(
+        `Retry registering "${videoId}" with gizmo and selecting it`
       );
       this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
       if (typeof this.gizmoManager.selectObjectById === "function") {
@@ -363,6 +361,7 @@ class VideoPlayer {
     this.scene = options.scene;
     this.gameManager = options.gameManager;
     this.camera = options.camera;
+    this.logger = new Logger("VideoPlayer", false);
 
     // Video configuration
     this.config = {
@@ -532,12 +531,9 @@ class VideoPlayer {
     });
 
     this.video.addEventListener("error", (e) => {
-      console.error("VideoPlayer: Video error:", e);
-      console.error("VideoPlayer: Video error code:", this.video.error?.code);
-      console.error(
-        "VideoPlayer: Video error message:",
-        this.video.error?.message
-      );
+      this.logger.error("Video error:", e);
+      this.logger.error("Video error code:", this.video.error?.code);
+      this.logger.error("Video error message:", this.video.error?.message);
     });
 
     this.video.addEventListener("ended", () => {
@@ -592,7 +588,7 @@ class VideoPlayer {
         this.scheduleVideoFrameCallback();
       }
     } catch (error) {
-      console.error("VideoPlayer: Failed to play video", error);
+      this.logger.error("Failed to play video", error);
     }
   }
 
@@ -796,11 +792,11 @@ class VideoPlayer {
       // Volume is controlled by gain node, set video to max
       this.video.volume = 1.0;
 
-      console.log(
-        `VideoPlayer: Spatial audio enabled at world position [${audioWorldPos.x}, ${audioWorldPos.y}, ${audioWorldPos.z}] (video pos + offset)`
+      this.logger.log(
+        `Spatial audio enabled at world position [${audioWorldPos.x}, ${audioWorldPos.y}, ${audioWorldPos.z}] (video pos + offset)`
       );
     } catch (error) {
-      console.error("VideoPlayer: Failed to set up spatial audio:", error);
+      this.logger.error("Failed to set up spatial audio:", error);
       // Fall back to regular audio
       this.video.muted = this.config.muted;
       this.video.volume = this.config.volume;

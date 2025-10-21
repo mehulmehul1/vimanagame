@@ -9,6 +9,7 @@
  */
 
 import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
+import { Logger } from "../utils/logger.js";
 
 class DialogChoiceUI {
   constructor(options = {}) {
@@ -16,6 +17,7 @@ class DialogChoiceUI {
     this.dialogManager = options.dialogManager || null;
     this.sfxManager = options.sfxManager || null;
     this.inputManager = options.inputManager || null;
+    this.logger = new Logger("DialogChoiceUI", false);
     this.container = null;
     this.currentChoices = null;
     this.isVisible = false;
@@ -70,9 +72,7 @@ class DialogChoiceUI {
         if (matchingChoices.length > 0) {
           const choiceData = matchingChoices[0];
 
-          console.log(
-            `DialogChoiceUI: Auto-showing choices "${choiceData.id}"`
-          );
+          this.logger.log(`Auto-showing choices "${choiceData.id}"`);
 
           // Track that this choice has been shown
           this.shownChoices.add(choiceData.id);
@@ -89,7 +89,7 @@ class DialogChoiceUI {
         }
       });
 
-      console.log("DialogChoiceUI: State listener registered");
+      this.logger.log("State listener registered");
     });
   }
 
@@ -324,7 +324,7 @@ class DialogChoiceUI {
       this.keystrokeIndex = (this.keystrokeIndex + 1) % 4;
     }
 
-    console.log(`DialogChoiceUI: Selected option ${this.selectedIndex}`);
+    this.logger.log(`Selected option ${this.selectedIndex}`);
   }
 
   /**
@@ -350,7 +350,7 @@ class DialogChoiceUI {
    */
   showChoices(choiceData) {
     if (!choiceData || !choiceData.choices || choiceData.choices.length === 0) {
-      console.warn("DialogChoiceUI: No choices provided");
+      this.logger.warn("No choices provided");
       return;
     }
 
@@ -413,7 +413,7 @@ class DialogChoiceUI {
     // Show container
     this.container.style.display = "block";
 
-    console.log("DialogChoiceUI: Showing choices", choiceData);
+    this.logger.log("Showing choices", choiceData);
   }
 
   /**
@@ -422,7 +422,7 @@ class DialogChoiceUI {
    * @param {Object} choiceData - Full choice data
    */
   selectChoice(choice, choiceData) {
-    console.log("DialogChoiceUI: Choice selected", choice);
+    this.logger.log("Choice selected", choice);
 
     // Hide choices
     this.hide();
@@ -443,22 +443,19 @@ class DialogChoiceUI {
           Object.assign(stateUpdate, additionalUpdates);
         }
       } catch (error) {
-        console.error("DialogChoiceUI: Error in onSelect callback", error);
+        this.logger.error("Error in onSelect callback", error);
       }
     }
 
     // Apply all state updates at once (prevents triggering autoplay multiple times)
     if (Object.keys(stateUpdate).length > 0 && this.gameManager) {
-      console.log("DialogChoiceUI: Applying state updates:", stateUpdate);
+      this.logger.log("Applying state updates:", stateUpdate);
       this.gameManager.setState(stateUpdate);
     }
 
     // Play response dialog if specified
     if (choice.responseDialog && this.dialogManager) {
-      console.log(
-        "DialogChoiceUI: Playing response dialog",
-        choice.responseDialog
-      );
+      this.logger.log("Playing response dialog", choice.responseDialog);
       this.dialogManager.playDialog(choice.responseDialog);
     }
 
@@ -470,10 +467,7 @@ class DialogChoiceUI {
       try {
         choiceData.onChoiceSelected(this.gameManager, choice);
       } catch (error) {
-        console.error(
-          "DialogChoiceUI: Error in onChoiceSelected callback",
-          error
-        );
+        this.logger.error("Error in onChoiceSelected callback", error);
       }
     }
   }

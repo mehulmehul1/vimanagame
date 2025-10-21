@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { Logger } from "../../utils/logger.js";
+
+const logger = new Logger("HeadlightBeamShader", false);
 
 /**
  * Create a custom shader material for headlight beams
@@ -65,8 +68,8 @@ export function createHeadlightBeamShader(originalMaterial) {
     polygonOffsetUnits: -1,
   });
 
-  console.log(
-    `HeadlightBeamShader: Created shader (fade: ${shaderMaterial.uniforms.fadeStart.value} to ${shaderMaterial.uniforms.fadeEnd.value})`
+  logger.log(
+    `Created shader (fade: ${shaderMaterial.uniforms.fadeStart.value} to ${shaderMaterial.uniforms.fadeEnd.value})`
   );
 
   return shaderMaterial;

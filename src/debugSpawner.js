@@ -1,5 +1,8 @@
 import { GAME_STATES, startScreen } from "./gameData.js";
 import { sceneObjects } from "./sceneData.js";
+import { Logger } from "./utils/logger.js";
+
+const logger = new Logger("DebugSpawner", false);
 
 /**
  * DebugSpawner - Debug utility for spawning into specific game states
@@ -95,9 +98,9 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: {
-      x: sceneObjects.phonebooth.position.x,
-      y: 0.8,
-      z: sceneObjects.phonebooth.position.z - 8,
+      x: 11.68,
+      y: 1.34,
+      z: 64.35,
     },
   },
 };
@@ -183,14 +186,14 @@ export function getDebugSpawnState() {
   const preset = debugStatePresets[gameStateParam];
 
   if (!preset) {
-    console.warn(
-      `DebugSpawner: Unknown gameState "${gameStateParam}". Available states:`,
+    logger.warn(
+      `Unknown gameState "${gameStateParam}". Available states:`,
       Object.keys(debugStatePresets)
     );
     return null;
   }
 
-  console.log(`DebugSpawner: Spawning into state "${gameStateParam}"`);
+  logger.log(`Spawning into state "${gameStateParam}"`);
   return { ...preset };
 }
 
@@ -227,9 +230,7 @@ export function applyDebugCharacterPosition(character, debugState) {
   character.translation.y = pos.y;
   character.translation.z = pos.z;
 
-  console.log(
-    `DebugSpawner: Set character position to (${pos.x}, ${pos.y}, ${pos.z})`
-  );
+  logger.log(`Set character position to (${pos.x}, ${pos.y}, ${pos.z})`);
 }
 
 export default {

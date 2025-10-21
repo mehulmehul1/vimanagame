@@ -1,4 +1,5 @@
 import { Howl, Howler } from "howler";
+import { Logger } from "./utils/logger.js";
 
 /**
  * MusicManager - Audio manager for background music with fade transitions
@@ -85,6 +86,9 @@ class MusicManager {
 
     this.gameManager = null;
 
+    // Logger for debug messages
+    this.logger = new Logger("MusicManager", false);
+
     // Store pending loads for deferred assets
     this.deferredTracks = new Map(); // Store track data for later loading
   }
@@ -106,8 +110,8 @@ class MusicManager {
 
           // Only change music if it's different from current track
           if (this.getCurrentTrack() !== track.id) {
-            console.log(
-              `MusicManager: Changing music to "${track.id}" (${track.description})`
+            this.logger.log(
+              `Changing music to "${track.id}" (${track.description})`
             );
             this.changeMusic(track.id, track.fadeTime || 0);
           }
@@ -116,13 +120,13 @@ class MusicManager {
         // Check initial state and start appropriate music
         const initialTrack = getMusicForState(this.gameManager.state);
         if (initialTrack) {
-          console.log(
-            `MusicManager: Starting initial music "${initialTrack.id}" (${initialTrack.description})`
+          this.logger.log(
+            `Starting initial music "${initialTrack.id}" (${initialTrack.description})`
           );
           this.changeMusic(initialTrack.id, initialTrack.fadeTime || 0);
         }
 
-        console.log("MusicManager: Event listeners registered");
+        this.logger.log("Event listeners registered");
       }
     );
   }
@@ -139,7 +143,7 @@ class MusicManager {
     // If preload is false, store for later loading
     if (!preload) {
       this.deferredTracks.set(name, { src, options });
-      console.log(`MusicManager: Deferred loading for track "${name}"`);
+      this.logger.log(`Deferred loading for track "${name}"`);
       return null;
     }
 
@@ -155,13 +159,13 @@ class MusicManager {
         options.volume !== undefined ? options.volume : this.defaultVolume,
       preload: preload,
       onload: () => {
-        console.log(`MusicManager: Loaded track "${name}"`);
+        this.logger.log(`Loaded track "${name}"`);
         if (this.loadingScreen && preload) {
           this.loadingScreen.completeTask(`music_${name}`);
         }
       },
       onloaderror: (id, error) => {
-        console.error(`MusicManager: Failed to load track "${name}":`, error);
+        this.logger.error(`Failed to load track "${name}":`, error);
         if (this.loadingScreen && preload) {
           this.loadingScreen.completeTask(`music_${name}`);
         }
@@ -175,9 +179,7 @@ class MusicManager {
    * Load deferred tracks (called after loading screen)
    */
   loadDeferredTracks() {
-    console.log(
-      `MusicManager: Loading ${this.deferredTracks.size} deferred tracks`
-    );
+    this.logger.log(`Loading ${this.deferredTracks.size} deferred tracks`);
     for (const [name, { src, options }] of this.deferredTracks) {
       this.tracks[name] = new Howl({
         src: Array.isArray(src) ? src : [src],
@@ -186,13 +188,10 @@ class MusicManager {
           options.volume !== undefined ? options.volume : this.defaultVolume,
         preload: true, // Load now
         onload: () => {
-          console.log(`MusicManager: Loaded deferred track "${name}"`);
+          this.logger.log(`Loaded deferred track "${name}"`);
         },
         onloaderror: (id, error) => {
-          console.error(
-            `MusicManager: Failed to load deferred track "${name}":`,
-            error
-          );
+          this.logger.error(`Failed to load deferred track "${name}":`, error);
         },
         ...options,
       });
@@ -208,9 +207,7 @@ class MusicManager {
   async changeMusic(trackName, fadeIn = 0.0) {
     // Check if track is deferred and needs to be loaded on-demand
     if (!this.tracks[trackName] && this.deferredTracks.has(trackName)) {
-      console.log(
-        `MusicManager: Loading deferred track "${trackName}" on-demand`
-      );
+      this.logger.log(`Loading deferred track "${trackName}" on-demand`);
       const { src, options } = this.deferredTracks.get(trackName);
 
       // Load the track now
@@ -221,11 +218,11 @@ class MusicManager {
           options.volume !== undefined ? options.volume : this.defaultVolume,
         preload: true, // Load now
         onload: () => {
-          console.log(`MusicManager: Loaded on-demand track "${trackName}"`);
+          this.logger.log(`Loaded on-demand track "${trackName}"`);
         },
         onloaderror: (id, error) => {
-          console.error(
-            `MusicManager: Failed to load on-demand track "${trackName}":`,
+          this.logger.error(
+            `Failed to load on-demand track "${trackName}":`,
             error
           );
         },
@@ -239,9 +236,7 @@ class MusicManager {
     }
 
     if (this.isTransitioning || !this.tracks[trackName]) {
-      console.warn(
-        `MusicManager: Track "${trackName}" not found or transitioning`
-      );
+      this.logger.warn(`Track "${trackName}" not found or transitioning`);
       return;
     }
 
@@ -261,10 +256,7 @@ class MusicManager {
           resolve();
         });
         howl.once("loaderror", (id, error) => {
-          console.error(
-            `MusicManager: Failed to load track "${trackName}":`,
-            error
-          );
+          this.logger.error(`Failed to load track "${trackName}":`, error);
           resolve(); // Resolve anyway to prevent hanging
         });
       });

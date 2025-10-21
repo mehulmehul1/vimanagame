@@ -12,6 +12,8 @@
  * - scale: {x, y, z} scale multipliers or uniform number
  * - description: Human-readable description
  * - options: Type-specific options
+ *   - useContainer: (GLTF) Wrap model in a container group
+ *   - visible: If false, object will be invisible (useful for animation helpers)
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
@@ -40,6 +42,10 @@
 
 import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
+
+// Create module-level logger
+const logger = new Logger("SceneData", false);
 
 export const sceneObjects = {
   exterior: {
@@ -53,6 +59,23 @@ export const sceneObjects = {
     quaternion: { x: 1, y: 0, z: 0, w: 0 },
     loadByDefault: true, // Always load this scene
     priority: 100, // Load first
+  },
+
+  interior: {
+    id: "interior",
+    type: "splat",
+    path: "/stairs-and-green-room.sog",
+    description: "Main exterior environment splat mesh",
+    position: { x: 4.55, y: -0.22, z: 78.51 },
+    rotation: { x: 0.0, y: -1.0385, z: -3.1416 },
+    scale: { x: 1, y: 1, z: 1 },
+    loadByDefault: true, // Always load this scene
+    priority: 100, // Load first
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
   },
 
   phonebooth: {
@@ -160,9 +183,13 @@ export const sceneObjects = {
     scale: { x: 1, y: 1, z: 1 },
     options: {
       useContainer: true,
+      visible: false, // Hide the cone - it's just a helper for camera animation
     },
     criteria: {
-      currentState: GAME_STATES.START_SCREEN,
+      currentState: {
+        $gte: GAME_STATES.START_SCREEN,
+        $lt: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+      },
     },
     priority: 100,
     animations: [
@@ -173,7 +200,10 @@ export const sceneObjects = {
         autoPlay: true,
         timeScale: 0.15,
         criteria: {
-          currentState: GAME_STATES.START_SCREEN,
+          currentState: {
+            $gte: GAME_STATES.START_SCREEN,
+            $lt: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+          },
         },
       },
     ],
@@ -233,7 +263,11 @@ export function getSceneObjectsForState(gameState) {
 
     // Check criteria (supports operators like $gte, $lt, etc.)
     if (obj.criteria) {
-      if (!checkCriteria(gameState, obj.criteria)) {
+      const matches = checkCriteria(gameState, obj.criteria);
+      if (!matches) {
+        logger.log(
+          `${obj.id} does NOT match criteria (state=${gameState.currentState})`
+        );
         continue;
       }
     }

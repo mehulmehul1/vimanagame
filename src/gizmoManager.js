@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * GizmoManager - Debug tool for positioning assets in 3D space
@@ -31,6 +32,7 @@ class GizmoManager {
     this.camera = camera;
     this.renderer = renderer;
     this.enabled = false;
+    this.logger = new Logger("GizmoManager", true);
 
     // Configurable objects - now supports multiple simultaneous gizmos
     this.objects = []; // Objects that can be selected
@@ -73,20 +75,18 @@ class GizmoManager {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       this.hasGizmoURLParam = urlParams.has("gizmo");
-      console.log("GizmoManager: Checking URL params");
-      console.log("  - URL search string:", window.location.search);
-      console.log("  - Has 'gizmo' param:", this.hasGizmoURLParam);
+      this.logger.log("Checking URL params");
+      this.logger.log("  - URL search string:", window.location.search);
+      this.logger.log("  - Has 'gizmo' param:", this.hasGizmoURLParam);
       if (this.hasGizmoURLParam) {
-        console.log(
-          "GizmoManager: ✓ gizmo URL parameter detected - P key spawning enabled"
+        this.logger.log(
+          "✓ gizmo URL parameter detected - P key spawning enabled"
         );
       } else {
-        console.log(
-          "GizmoManager: No gizmo URL parameter - P key spawning disabled"
-        );
+        this.logger.log("No gizmo URL parameter - P key spawning disabled");
       }
     } catch (e) {
-      console.warn("GizmoManager: Failed to check URL params:", e);
+      this.logger.warn("Failed to check URL params:", e);
       this.hasGizmoURLParam = false;
     }
   }
@@ -181,7 +181,7 @@ class GizmoManager {
         }
       });
     } catch (e) {
-      console.warn("GizmoManager: registerSceneObjects failed:", e);
+      this.logger.warn("registerSceneObjects failed:", e);
     }
   }
 
@@ -206,7 +206,7 @@ class GizmoManager {
         }
       }
     } catch (e) {
-      console.warn("GizmoManager: registerLights failed:", e);
+      this.logger.warn("registerLights failed:", e);
     }
   }
 
@@ -234,7 +234,7 @@ class GizmoManager {
     if (this.hasAnyGizmoObjects(sceneManager)) {
       if (typeof idleHelper.setGlobalDisable === "function") {
         idleHelper.setGlobalDisable(true);
-        console.log(
+        this.logger.log(
           "IdleHelper: Globally disabled due to gizmo-enabled object(s)"
         );
       }
@@ -255,7 +255,7 @@ class GizmoManager {
     const shouldBlock = this.hasAnyGizmoObjects(sceneManager);
     inputManager.setPointerLockBlocked(shouldBlock);
     if (shouldBlock) {
-      console.log(
+      this.logger.log(
         "InputManager: Pointer lock blocked due to gizmo-enabled object(s)"
       );
     }
@@ -271,7 +271,7 @@ class GizmoManager {
     // Setup event listeners (controls created per-object in registerObject)
     this.setupEventListeners();
 
-    console.log("GizmoManager: Enabled (multi-gizmo mode)");
+    this.logger.log("Enabled (multi-gizmo mode)");
   }
 
   /**
@@ -309,7 +309,7 @@ class GizmoManager {
    */
   registerObject(object, id = null, type = "object") {
     if (!object) {
-      console.warn("GizmoManager: Attempted to register null object");
+      this.logger.warn("Attempted to register null object");
       return;
     }
 
@@ -345,10 +345,10 @@ class GizmoManager {
       if (event.value) {
         this.isGizmoDragging = true;
         this.activeObject = item;
-        console.log(`GizmoManager: Dragging "${item.id}"`);
+        this.logger.log(`Dragging "${item.id}"`);
       } else {
         this.isGizmoDragging = false;
-        console.log(`GizmoManager: Drag ended "${item.id}"`);
+        this.logger.log(`Drag ended "${item.id}"`);
         this.logObjectTransform(item);
       }
     });
@@ -363,11 +363,8 @@ class GizmoManager {
 
     this.controls.set(object, control);
 
-    console.log(
-      `GizmoManager: Registered "${item.id}" (${type}) with gizmo`,
-      object
-    );
-    console.log(`  Total registered objects: ${this.objects.length}`);
+    this.logger.log(`Registered "${item.id}" (${type}) with gizmo`, object);
+    this.logger.log(`  Total registered objects: ${this.objects.length}`);
 
     // Standardize side-effects when any gizmo is present
     this.updateGlobalBlocks();
@@ -382,7 +379,7 @@ class GizmoManager {
     const item = this.objects.find((it) => it.id === id);
     if (item) {
       this.activeObject = item;
-      console.log(`GizmoManager: Set active object to "${id}"`);
+      this.logger.log(`Set active object to "${id}"`);
     }
   }
 
@@ -496,9 +493,7 @@ class GizmoManager {
 
       if (focusedObj) {
         this.activeObject = focusedObj;
-        console.log(
-          `GizmoManager: Focused "${focusedObj.id}" (${focusedObj.type})`
-        );
+        this.logger.log(`Focused "${focusedObj.id}" (${focusedObj.type})`);
       }
     }
   }
@@ -515,7 +510,7 @@ class GizmoManager {
    */
   handleKeyDown(event) {
     if (!this.enabled) {
-      console.log("GizmoManager: handleKeyDown called but not enabled");
+      this.logger.log("handleKeyDown called but not enabled");
       return;
     }
 
@@ -529,17 +524,15 @@ class GizmoManager {
 
     switch (event.key.toLowerCase()) {
       case "p":
-        console.log(
-          "GizmoManager: P key pressed, hasGizmoURLParam:",
+        this.logger.log(
+          "P key pressed, hasGizmoURLParam:",
           this.hasGizmoURLParam
         );
         // Spawn gizmo if URL param is present
         if (this.hasGizmoURLParam) {
           this.spawnGizmoInFrontOfCamera();
         } else {
-          console.log(
-            "GizmoManager: P key pressed but gizmo URL param not present"
-          );
+          this.logger.log("P key pressed but gizmo URL param not present");
         }
         break;
       case "g":
@@ -548,7 +541,7 @@ class GizmoManager {
         for (const control of this.controls.values()) {
           control.setMode("translate");
         }
-        console.log("GizmoManager: Mode = Translate (all gizmos)");
+        this.logger.log("Mode = Translate (all gizmos)");
         break;
       case "r":
         if (this.controls.size === 0) return;
@@ -556,7 +549,7 @@ class GizmoManager {
         for (const control of this.controls.values()) {
           control.setMode("rotate");
         }
-        console.log("GizmoManager: Mode = Rotate (all gizmos)");
+        this.logger.log("Mode = Rotate (all gizmos)");
         break;
       case "s":
         if (this.controls.size === 0) return;
@@ -564,7 +557,7 @@ class GizmoManager {
         for (const control of this.controls.values()) {
           control.setMode("scale");
         }
-        console.log("GizmoManager: Mode = Scale (all gizmos)");
+        this.logger.log("Mode = Scale (all gizmos)");
         break;
       case "w":
         if (this.controls.size === 0) return;
@@ -572,7 +565,7 @@ class GizmoManager {
         for (const control of this.controls.values()) {
           control.setSpace("world");
         }
-        console.log("GizmoManager: Space = World (all gizmos)");
+        this.logger.log("Space = World (all gizmos)");
         break;
       case "l":
         if (this.controls.size === 0) return;
@@ -580,23 +573,19 @@ class GizmoManager {
         for (const control of this.controls.values()) {
           control.setSpace("local");
         }
-        console.log("GizmoManager: Space = Local (all gizmos)");
+        this.logger.log("Space = Local (all gizmos)");
         break;
       case "h":
         if (this.controls.size === 0) return;
         this.setVisible(!this.isVisible);
-        console.log(
-          `GizmoManager: ${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`
-        );
+        this.logger.log(`${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`);
         break;
       case "f":
         this.cycleAndTeleportToNextGizmo();
         break;
       case "escape":
         if (this.activeObject) {
-          console.log(
-            `GizmoManager: Cleared focus from "${this.activeObject.id}"`
-          );
+          this.logger.log(`Cleared focus from "${this.activeObject.id}"`);
           this.activeObject = null;
         }
         break;
@@ -608,7 +597,7 @@ class GizmoManager {
    */
   spawnGizmoInFrontOfCamera() {
     if (!this.camera) {
-      console.warn("GizmoManager: Cannot spawn gizmo - no camera reference");
+      this.logger.warn("Cannot spawn gizmo - no camera reference");
       return;
     }
 
@@ -638,7 +627,7 @@ class GizmoManager {
     // Register the sphere with the gizmo manager
     this.registerObject(sphere, gizmoId, "spawned");
 
-    console.log(`GizmoManager: Spawned gizmo "${gizmoId}" at`, spawnPosition);
+    this.logger.log(`Spawned gizmo "${gizmoId}" at`, spawnPosition);
   }
 
   /**
@@ -646,7 +635,7 @@ class GizmoManager {
    */
   cycleAndTeleportToNextGizmo() {
     if (this.objects.length === 0) {
-      console.log("GizmoManager: No gizmo objects available");
+      this.logger.log("No gizmo objects available");
       return;
     }
 
@@ -662,8 +651,8 @@ class GizmoManager {
     const nextGizmo = this.objects[this.currentGizmoIndex];
     this.activeObject = nextGizmo;
 
-    console.log(
-      `GizmoManager: Cycling to gizmo ${this.currentGizmoIndex + 1}/${
+    this.logger.log(
+      `Cycling to gizmo ${this.currentGizmoIndex + 1}/${
         this.objects.length
       } ("${nextGizmo.id}")`
     );
@@ -677,7 +666,7 @@ class GizmoManager {
    */
   teleportCharacterToObject(item) {
     if (!item || !item.object) {
-      console.warn("GizmoManager: Cannot teleport - no object specified");
+      this.logger.warn("Cannot teleport - no object specified");
       return;
     }
 
@@ -686,9 +675,7 @@ class GizmoManager {
     const physicsManager = characterController?.physicsManager;
 
     if (!characterController) {
-      console.warn(
-        "GizmoManager: Cannot teleport - character controller not found"
-      );
+      this.logger.warn("Cannot teleport - character controller not found");
       return;
     }
 
@@ -721,16 +708,12 @@ class GizmoManager {
         true
       );
 
-      console.log(
-        `GizmoManager: Teleported character to 5m in front of "${item.id}"`
-      );
-      console.log(`  Object position:`, obj.position);
-      console.log(`  Object forward:`, forward);
-      console.log(`  Teleport position:`, teleportPosition);
+      this.logger.log(`Teleported character to 5m in front of "${item.id}"`);
+      this.logger.log(`  Object position:`, obj.position);
+      this.logger.log(`  Object forward:`, forward);
+      this.logger.log(`  Teleport position:`, teleportPosition);
     } else {
-      console.warn(
-        "GizmoManager: Cannot teleport - character physics body not found"
-      );
+      this.logger.warn("Cannot teleport - character physics body not found");
     }
   }
 
@@ -761,7 +744,7 @@ class GizmoManager {
    */
   selectObject(item) {
     this.activeObject = item;
-    console.log(`GizmoManager: Selected "${item.id}" (${item.type})`);
+    this.logger.log(`Selected "${item.id}" (${item.type})`);
     this.logObjectTransform(item);
   }
 
@@ -770,7 +753,7 @@ class GizmoManager {
    */
   deselectObject() {
     if (this.activeObject) {
-      console.log(`GizmoManager: Deselected "${this.activeObject.id}"`);
+      this.logger.log(`Deselected "${this.activeObject.id}"`);
       this.activeObject = null;
     }
   }
@@ -788,23 +771,23 @@ class GizmoManager {
     const rot = obj.rotation;
     const scale = obj.scale;
 
-    console.log(`\n=== ${target.id} (${target.type}) ===`);
-    console.log(
+    this.logger.log(`\n=== ${target.id} (${target.type}) ===`);
+    this.logger.log(
       `position: { x: ${pos.x.toFixed(2)}, y: ${pos.y.toFixed(
         2
       )}, z: ${pos.z.toFixed(2)} },`
     );
-    console.log(
+    this.logger.log(
       `rotation: { x: ${rot.x.toFixed(4)}, y: ${rot.y.toFixed(
         4
       )}, z: ${rot.z.toFixed(4)} },`
     );
-    console.log(
+    this.logger.log(
       `scale: { x: ${scale.x.toFixed(2)}, y: ${scale.y.toFixed(
         2
       )}, z: ${scale.z.toFixed(2)} },`
     );
-    console.log("");
+    this.logger.log("");
   }
 
   /**

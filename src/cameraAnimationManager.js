@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { getCameraAnimationsForState } from "./cameraAnimationData.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * CameraAnimationManager - Manages playback of recorded camera animations
@@ -19,8 +20,8 @@ class CameraAnimationManager {
     this.gameManager = gameManager;
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
 
-    // Debug logging toggle - set to false to disable console logs
-    this.debug = false;
+    // Debug logging
+    this.logger = new Logger("CameraAnimationManager", false);
 
     // Playback state
     this.isPlaying = false;
@@ -65,6 +66,9 @@ class CameraAnimationManager {
     // Delayed input restoration (for lookat animations with zoom)
     this.pendingInputRestore = null; // { timer: 0, delay: number } or null
 
+    // Lookat sequence state
+    this.activeSequence = null; // { animData, currentIndex, isWaitingForNext } or null
+
     // Post-animation settle-up to ensure clearance above floor
     this.isSettlingUp = false;
     this.settleStartY = 0;
@@ -91,18 +95,15 @@ class CameraAnimationManager {
       // Listen for camera:animation events
       this.gameManager.on("camera:animation", async (data) => {
         const { animation, onComplete } = data;
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Playing animation: ${animation}`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Playing animation: ${animation}`
+        );
 
         // Load animation if not already loaded
         if (!this.getAnimationNames().includes(animation)) {
           const ok = await this.loadAnimation(animation, animation);
           if (!ok) {
-            console.warn(
-              `CameraAnimationManager: Failed to load animation: ${animation}`
-            );
+            this.logger.warn(`Failed to load animation: ${animation}`);
             if (onComplete) onComplete(false);
             return;
           }
@@ -110,17 +111,13 @@ class CameraAnimationManager {
 
         // Play animation
         this.play(animation, () => {
-          if (this.debug)
-            console.log(
-              `CameraAnimationManager: Animation complete: ${animation}`
-            );
+          if (this.debug) this.logger.log(`Animation complete: ${animation}`);
           if (onComplete) onComplete(true);
         });
       });
     }
 
-    if (this.debug)
-      console.log("CameraAnimationManager: Initialized with event listeners");
+    if (this.debug) this.logger.log("Initialized with event listeners");
   }
 
   /**
@@ -148,10 +145,9 @@ class CameraAnimationManager {
       } else {
         deferredAnimations.push(anim);
         this.deferredAnimations.set(anim.id, anim);
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Deferred loading for animation "${anim.id}"`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Deferred loading for animation "${anim.id}"`
+        );
       }
     }
 
@@ -163,8 +159,8 @@ class CameraAnimationManager {
 
     const nonJsonCount = animations.length - animationsToLoad.length;
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Loaded ${preloadAnimations.length} JSON animations from data (${deferredAnimations.length} deferred, ${nonJsonCount} lookats/moveTos)`
+      this.logger.log(
+        `Loaded ${preloadAnimations.length} JSON animations from data (${deferredAnimations.length} deferred, ${nonJsonCount} lookats/moveTos)`
       );
   }
 
@@ -173,8 +169,8 @@ class CameraAnimationManager {
    */
   async loadDeferredAnimations() {
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Loading ${this.deferredAnimations.size} deferred animations`
+      this.logger.log(
+        `Loading ${this.deferredAnimations.size} deferred animations`
       );
     const loadPromises = [];
     for (const [id, anim] of this.deferredAnimations) {
@@ -190,10 +186,7 @@ class CameraAnimationManager {
    */
   onStateChanged(newState) {
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: State changed, checking for animations...`,
-        newState
-      );
+      this.logger.log(`State changed, checking for animations...`, newState);
 
     // Get all animations that should play for this state (pass playedAnimations for playOnce filtering)
     const animations = getCameraAnimationsForState(
@@ -201,16 +194,15 @@ class CameraAnimationManager {
       this.playedAnimations
     );
     if (!animations || animations.length === 0) {
-      if (this.debug)
-        console.log(
-          `CameraAnimationManager: No animations match current state`
-        );
+      this.logger.log(
+        `CameraAnimationManager: No animations match current state`
+      );
       return;
     }
 
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Found ${animations.length} animation(s) for state:`,
+      this.logger.log(
+        `Found ${animations.length} animation(s) for state:`,
         animations.map((a) => a.id)
       );
 
@@ -221,10 +213,9 @@ class CameraAnimationManager {
 
       // Don't interrupt currently playing animation or pre-slerp phase (unless it's a fade)
       if (!isFadeAnimation && (this.isPlaying || this.isPreSlerping)) {
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Animation already playing or pre-slerping, skipping non-fade animation '${animData.id}'`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Animation already playing or pre-slerping, skipping non-fade animation '${animData.id}'`
+        );
         continue;
       }
 
@@ -236,10 +227,9 @@ class CameraAnimationManager {
         this.scheduleDelayedAnimation(animData, delay);
       } else {
         // Play immediately (playOnce check already handled in getCameraAnimationsForState)
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: State changed, playing '${animData.id}'`
-          );
+        this.logger.log(
+          `CameraAnimationManager: State changed, playing '${animData.id}'`
+        );
         this.playFromData(animData);
       }
     }
@@ -253,8 +243,8 @@ class CameraAnimationManager {
    */
   scheduleDelayedAnimation(animData, delay) {
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Scheduling animation "${animData.id}" with ${delay}s delay`
+      this.logger.log(
+        `Scheduling animation "${animData.id}" with ${delay}s delay`
       );
 
     this.pendingAnimations.set(animData.id, {
@@ -270,10 +260,9 @@ class CameraAnimationManager {
    */
   cancelDelayedAnimation(animId) {
     if (this.pendingAnimations.has(animId)) {
-      if (this.debug)
-        console.log(
-          `CameraAnimationManager: Cancelled delayed animation "${animId}"`
-        );
+      this.logger.log(
+        `CameraAnimationManager: Cancelled delayed animation "${animId}"`
+      );
       this.pendingAnimations.delete(animId);
     }
   }
@@ -283,10 +272,9 @@ class CameraAnimationManager {
    */
   cancelAllDelayedAnimations() {
     if (this.pendingAnimations.size > 0) {
-      if (this.debug)
-        console.log(
-          `CameraAnimationManager: Cancelling ${this.pendingAnimations.size} pending animation(s)`
-        );
+      this.logger.log(
+        `CameraAnimationManager: Cancelling ${this.pendingAnimations.size} pending animation(s)`
+      );
       this.pendingAnimations.clear();
     }
   }
@@ -351,9 +339,7 @@ class CameraAnimationManager {
       return success;
     }
 
-    console.warn(
-      `CameraAnimationManager: Unknown animation type "${animData.type}"`
-    );
+    this.logger.warn(`Unknown animation type "${animData.type}"`);
     return false;
   }
 
@@ -390,8 +376,7 @@ class CameraAnimationManager {
    * @param {Object} fadeData - Fade data from cameraAnimationData.js
    */
   playFade(fadeData) {
-    if (this.debug)
-      console.log(`CameraAnimationManager: Playing fade '${fadeData.id}'`);
+    if (this.debug) this.logger.log(`Playing fade '${fadeData.id}'`);
 
     // Mark as played if playOnce
     if (fadeData.playOnce) {
@@ -419,8 +404,8 @@ class CameraAnimationManager {
     cube.material.opacity = 0;
 
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Fade '${fadeData.id}' - in:${this.fadeData.fadeInTime}s hold:${this.fadeData.holdTime}s out:${this.fadeData.fadeOutTime}s`
+      this.logger.log(
+        `Fade '${fadeData.id}' - in:${this.fadeData.fadeInTime}s hold:${this.fadeData.holdTime}s out:${this.fadeData.fadeOutTime}s`
       );
   }
 
@@ -429,14 +414,37 @@ class CameraAnimationManager {
    * @param {Object} lookAtData - Lookat data from cameraAnimationData.js
    */
   playLookat(lookAtData) {
-    if (this.debug)
-      console.log(`CameraAnimationManager: Playing lookat '${lookAtData.id}'`);
+    if (this.debug) this.logger.log(`Playing lookat '${lookAtData.id}'`);
 
     // Mark as played if playOnce
     if (lookAtData.playOnce) {
       this.playedAnimations.add(lookAtData.id);
     }
 
+    // Check if this is a sequence (positions array) or single position
+    const isSequence = Array.isArray(lookAtData.positions);
+
+    if (isSequence) {
+      // Start sequence at first position
+      this.activeSequence = {
+        animData: lookAtData,
+        currentIndex: 0,
+        isWaitingForNext: false,
+      };
+      this._playLookatAtIndex(lookAtData, 0);
+      return;
+    }
+
+    // Single position - use existing logic
+    this._playSingleLookat(lookAtData);
+  }
+
+  /**
+   * Play a single lookat (non-sequence)
+   * @param {Object} lookAtData - Lookat data
+   * @private
+   */
+  _playSingleLookat(lookAtData) {
     // Support both new (transitionTime) and old (duration) property names for backwards compatibility
     const transitionTime =
       lookAtData.transitionTime || lookAtData.duration || 2.0;
@@ -472,25 +480,23 @@ class CameraAnimationManager {
         // When returning to original view, zoom/DoF resets during the return transition
         // So we need to wait for the return transition to complete
         delayAfterLookat = returnTransitionTime;
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom with return. ` +
-              `Will restore control ${delayAfterLookat.toFixed(
-                2
-              )}s after lookat completes ` +
-              `(return transition: ${returnTransitionTime}s)`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom with return. ` +
+            `Will restore control ${delayAfterLookat.toFixed(
+              2
+            )}s after lookat completes ` +
+            `(return transition: ${returnTransitionTime}s)`
+        );
       } else {
         // When not returning to original view, wait for zoom-out transition
         delayAfterLookat = zoomTransitionDuration;
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
-              `Will restore control ${delayAfterLookat.toFixed(
-                2
-              )}s after lookat completes ` +
-              `(zoom-out: ${zoomTransitionDuration}s)`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Lookat '${lookAtData.id}' has zoom without return. ` +
+            `Will restore control ${delayAfterLookat.toFixed(
+              2
+            )}s after lookat completes ` +
+            `(zoom-out: ${zoomTransitionDuration}s)`
+        );
       }
 
       // Provide onComplete that schedules delayed restoration and calls user callback
@@ -510,8 +516,8 @@ class CameraAnimationManager {
         if (this.characterController) {
           this.characterController.enableInput();
           if (this.debug)
-            console.log(
-              `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input restored`
+            this.logger.log(
+              `Lookat '${lookAtData.id}' complete, input restored`
             );
         }
         // Call user-defined callback if provided
@@ -522,10 +528,9 @@ class CameraAnimationManager {
     } else {
       // Don't restore input - just call user callback if provided
       onComplete = () => {
-        if (this.debug)
-          console.log(
-            `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
-          );
+        this.logger.log(
+          `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
+        );
         // Call user-defined callback if provided
         if (userOnComplete) {
           userOnComplete(this.gameManager);
@@ -548,9 +553,234 @@ class CameraAnimationManager {
         colliderId: `camera-data-${lookAtData.id}`,
       });
     } else {
-      console.warn(
-        `CameraAnimationManager: Cannot play lookat '${lookAtData.id}', no gameManager`
+      this.logger.warn(`Cannot play lookat '${lookAtData.id}', no gameManager`);
+    }
+  }
+
+  /**
+   * Play a lookat at a specific index in a sequence
+   * @param {Object} lookAtData - Lookat sequence data
+   * @param {number} index - Index of position to look at
+   * @private
+   */
+  _playLookatAtIndex(lookAtData, index) {
+    if (
+      !Array.isArray(lookAtData.positions) ||
+      index >= lookAtData.positions.length
+    ) {
+      this.logger.warn(
+        `Invalid sequence index ${index} for '${lookAtData.id}'`
       );
+      return;
+    }
+
+    const position = lookAtData.positions[index];
+
+    // Get settings for this position (merge defaults with per-position overrides)
+    const sequenceSettings = lookAtData.sequenceSettings?.[index] || {};
+
+    // Build effective settings for this position
+    const transitionTime =
+      sequenceSettings.transitionTime ?? lookAtData.transitionTime ?? 2.0;
+    const lookAtHoldDuration =
+      sequenceSettings.lookAtHoldDuration ?? lookAtData.lookAtHoldDuration ?? 0;
+    const enableZoom =
+      sequenceSettings.enableZoom ?? lookAtData.enableZoom ?? false;
+
+    // Merge zoom options (per-position overrides take precedence)
+    let zoomOptions = null;
+    if (enableZoom) {
+      zoomOptions = {
+        ...(lookAtData.zoomOptions || {}),
+        ...(sequenceSettings.zoomOptions || {}),
+      };
+    }
+
+    // Determine if this is the last position in sequence
+    const isLastPosition = index === lookAtData.positions.length - 1;
+    const shouldLoop = lookAtData.loop ?? false;
+
+    // Only return to original view if it's the last position and not looping
+    const returnToOriginalView =
+      isLastPosition &&
+      !shouldLoop &&
+      (lookAtData.returnToOriginalView ?? false);
+    const returnTransitionTime =
+      lookAtData.returnTransitionTime ?? transitionTime;
+
+    // Check if input should be restored (only on last position if not looping)
+    const shouldRestoreInput =
+      isLastPosition &&
+      !shouldLoop &&
+      (lookAtData.restoreInput !== undefined ? lookAtData.restoreInput : true);
+
+    // Determine if we need to delay input restoration
+    const needsDelayedRestore = shouldRestoreInput && enableZoom && zoomOptions;
+
+    // Store user-defined onComplete callback (only call on final position)
+    const userOnComplete =
+      isLastPosition && !shouldLoop ? lookAtData.onComplete : null;
+
+    // Helper to progress to next position in sequence after waiting for hold duration
+    const progressSequence = () => {
+      // For sequences, wait for hold duration before progressing to next position
+      // The characterController's onComplete fires after transition, not after hold
+      if (!isLastPosition || shouldLoop) {
+        const waitTime = lookAtHoldDuration || 0;
+        if (waitTime > 0) {
+          this.logger.log(
+            `CameraAnimationManager: Waiting ${waitTime.toFixed(
+              2
+            )}s before next position in sequence`
+          );
+          setTimeout(() => {
+            this._onSequencePositionComplete(lookAtData, index);
+          }, waitTime * 1000);
+        } else {
+          this._onSequencePositionComplete(lookAtData, index);
+        }
+      } else {
+        // Final position or end of loop
+        this._onSequencePositionComplete(lookAtData, index);
+      }
+    };
+
+    let onComplete = null;
+
+    if (needsDelayedRestore) {
+      const zoomTransitionDuration = zoomOptions?.transitionDuration || 0;
+
+      let delayAfterLookat;
+      if (returnToOriginalView) {
+        delayAfterLookat = returnTransitionTime;
+        this.logger.log(
+          `CameraAnimationManager: Lookat '${lookAtData.id}' [${index}] has zoom with return. ` +
+            `Will restore control ${delayAfterLookat.toFixed(
+              2
+            )}s after lookat completes`
+        );
+      } else {
+        delayAfterLookat = zoomTransitionDuration;
+        this.logger.log(
+          `CameraAnimationManager: Lookat '${lookAtData.id}' [${index}] has zoom without return. ` +
+            `Will restore control ${delayAfterLookat.toFixed(
+              2
+            )}s after lookat completes`
+        );
+      }
+
+      onComplete = () => {
+        this.pendingInputRestore = {
+          timer: 0,
+          delay: delayAfterLookat,
+        };
+        if (userOnComplete) {
+          userOnComplete(this.gameManager);
+        }
+        progressSequence();
+      };
+    } else if (shouldRestoreInput) {
+      // Immediate restoration when lookat completes
+      onComplete = () => {
+        if (this.characterController) {
+          this.characterController.enableInput();
+          if (this.debug)
+            this.logger.log(
+              `Lookat '${lookAtData.id}' [${index}] complete, input restored`
+            );
+        }
+        if (userOnComplete) {
+          userOnComplete(this.gameManager);
+        }
+        progressSequence();
+      };
+    } else {
+      // Don't restore input - just progress sequence
+      onComplete = () => {
+        if (isLastPosition && !shouldLoop) {
+          this.logger.log(
+            `CameraAnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
+          );
+        }
+        if (userOnComplete) {
+          userOnComplete(this.gameManager);
+        }
+        progressSequence();
+      };
+    }
+
+    this.logger.log(
+      `Playing lookat sequence '${lookAtData.id}' position ${index + 1}/${
+        lookAtData.positions.length
+      }`,
+      `transition: ${transitionTime}s, hold: ${lookAtHoldDuration}s, return: ${returnToOriginalView}`,
+      position
+    );
+
+    // Emit lookat event through gameManager
+    if (this.gameManager) {
+      this.gameManager.emit("camera:lookat", {
+        position: position,
+        duration: transitionTime,
+        holdDuration: lookAtHoldDuration,
+        onComplete: onComplete,
+        returnToOriginalView: returnToOriginalView,
+        returnDuration: returnTransitionTime,
+        enableZoom: enableZoom,
+        zoomOptions: zoomOptions || {},
+        colliderId: `camera-data-${lookAtData.id}-${index}`,
+      });
+    } else {
+      this.logger.warn(`Cannot play lookat '${lookAtData.id}', no gameManager`);
+    }
+  }
+
+  /**
+   * Handle completion of a position in a lookat sequence
+   * @param {Object} lookAtData - Lookat sequence data
+   * @param {number} completedIndex - Index of the position that just completed
+   * @private
+   */
+  _onSequencePositionComplete(lookAtData, completedIndex) {
+    if (
+      !this.activeSequence ||
+      this.activeSequence.animData.id !== lookAtData.id
+    ) {
+      // Sequence was cancelled or replaced
+      return;
+    }
+
+    const nextIndex = completedIndex + 1;
+    const shouldLoop = lookAtData.loop ?? false;
+
+    // Check if we should continue to next position
+    if (nextIndex < lookAtData.positions.length) {
+      // More positions in sequence
+      this.activeSequence.currentIndex = nextIndex;
+      this._playLookatAtIndex(lookAtData, nextIndex);
+    } else if (shouldLoop) {
+      // Loop back to start
+      this.activeSequence.currentIndex = 0;
+      if (this.debug) {
+        this.logger.log(`Looping sequence '${lookAtData.id}' back to start`);
+      }
+      this._playLookatAtIndex(lookAtData, 0);
+    } else {
+      // Sequence complete
+      if (this.debug) {
+        this.logger.log(`Sequence '${lookAtData.id}' complete`);
+      }
+      this.activeSequence = null;
+    }
+  }
+
+  /**
+   * Stop the current lookat sequence
+   */
+  stopSequence() {
+    if (this.activeSequence) {
+      this.logger.log(`Stopping sequence '${this.activeSequence.animData.id}'`);
+      this.activeSequence = null;
     }
   }
 
@@ -559,8 +789,7 @@ class CameraAnimationManager {
    * @param {Object} moveToData - MoveTo data from cameraAnimationData.js
    */
   playMoveTo(moveToData) {
-    if (this.debug)
-      console.log(`CameraAnimationManager: Playing moveTo '${moveToData.id}'`);
+    if (this.debug) this.logger.log(`Playing moveTo '${moveToData.id}'`);
 
     // Mark as played if playOnce
     if (moveToData.playOnce) {
@@ -585,9 +814,7 @@ class CameraAnimationManager {
         onComplete: moveToData.onComplete || null,
       });
     } else {
-      console.warn(
-        `CameraAnimationManager: Cannot play moveTo '${moveToData.id}', no gameManager`
-      );
+      this.logger.warn(`Cannot play moveTo '${moveToData.id}', no gameManager`);
     }
   }
 
@@ -614,7 +841,7 @@ class CameraAnimationManager {
       const data = await res.json();
       const raw = Array.isArray(data.frames) ? data.frames : [];
       if (raw.length === 0) {
-        console.warn(`CameraAnimationManager: No frames in '${src}'`);
+        this.logger.warn(`No frames in '${src}'`);
         if (this.loadingScreen && isPreload) {
           this.loadingScreen.completeTask(`camera_anim_${name}`);
         }
@@ -647,12 +874,11 @@ class CameraAnimationManager {
 
       const duration = frames[frames.length - 1].t;
       this.animations.set(name, { frames, duration });
-      if (this.debug)
-        console.log(
-          `CameraAnimationManager: Loaded '${name}' (${
-            frames.length
-          } frames, ${duration.toFixed(2)}s)`
-        );
+      this.logger.log(
+        `CameraAnimationManager: Loaded '${name}' (${
+          frames.length
+        } frames, ${duration.toFixed(2)}s)`
+      );
 
       // Mark as complete in loading screen if preloading
       if (this.loadingScreen && isPreload) {
@@ -661,7 +887,7 @@ class CameraAnimationManager {
 
       return true;
     } catch (e) {
-      console.warn(`CameraAnimationManager: Failed to load '${name}':`, e);
+      this.logger.warn(`Failed to load '${name}':`, e);
       // Mark as complete even on error so loading screen can proceed
       if (this.loadingScreen && isPreload) {
         this.loadingScreen.completeTask(`camera_anim_${name}`);
@@ -680,7 +906,7 @@ class CameraAnimationManager {
   play(name, onComplete = null, animData = null) {
     const anim = this.animations.get(name);
     if (!anim) {
-      console.warn(`CameraAnimationManager: Animation '${name}' not found`);
+      this.logger.warn(`Animation '${name}' not found`);
       return false;
     }
 
@@ -711,8 +937,8 @@ class CameraAnimationManager {
     this.isPlaying = false; // Not playing actual animation yet
 
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Pre-slerping to zero pitch (keeping yaw) before playing '${name}'`
+      this.logger.log(
+        `Pre-slerping to zero pitch (keeping yaw) before playing '${name}'`
       );
     return true;
   }
@@ -735,8 +961,8 @@ class CameraAnimationManager {
     this.scaleY = this.currentAnimationData?.scaleY ?? 1.0;
 
     if (this.debug)
-      console.log(
-        `CameraAnimationManager: Starting animation playback from level horizon (pitch=0)${
+      this.logger.log(
+        `Starting animation playback from level horizon (pitch=0)${
           this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
         }`
       );
@@ -826,15 +1052,13 @@ class CameraAnimationManager {
       // Only restore input if configured
       if (restoreInput) {
         this.characterController.enableInput();
-        if (this.debug)
-          console.log("CameraAnimationManager: Stopped, input restored");
+        this.logger.log("CameraAnimationManager: Stopped, input restored");
       } else {
         // If not restoring input, disable camera sync to leave camera frozen
         this.characterController.disableCameraSync();
-        if (this.debug)
-          console.log(
-            "CameraAnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
-          );
+        this.logger.log(
+          "CameraAnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
+        );
       }
     }
   }
@@ -902,7 +1126,7 @@ class CameraAnimationManager {
             callback();
           }
 
-          if (this.debug) console.log(`CameraAnimationManager: Fade complete`);
+          this.logger.log(`Fade complete`);
         }
 
         cube.material.opacity = opacity;
@@ -922,8 +1146,8 @@ class CameraAnimationManager {
 
         if (canPlay) {
           if (this.debug)
-            console.log(
-              `CameraAnimationManager: Playing delayed animation "${animId}"${
+            this.logger.log(
+              `Playing delayed animation "${animId}"${
                 isFadeAnimation ? " (fade)" : ""
               }`
             );
@@ -943,8 +1167,8 @@ class CameraAnimationManager {
         if (this.characterController) {
           this.characterController.enableInput();
           if (this.debug)
-            console.log(
-              `CameraAnimationManager: Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
+            this.logger.log(
+              `Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
                 2
               )}s delay)`
             );

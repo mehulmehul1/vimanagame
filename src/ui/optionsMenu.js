@@ -8,12 +8,15 @@
  * - Save settings to localStorage
  */
 
+import { Logger } from "../utils/logger.js";
+
 class OptionsMenu {
   constructor(options = {}) {
     this.musicManager = options.musicManager || null;
     this.sfxManager = options.sfxManager || null;
     this.gameManager = options.gameManager || null;
     this.sparkRenderer = options.sparkRenderer || null;
+    this.logger = new Logger("OptionsMenu", false);
     this.uiManager = options.uiManager || null;
     this.characterController = options.characterController || null;
     this.startScreen = options.startScreen || null;
@@ -259,7 +262,7 @@ class OptionsMenu {
         this.close();
       });
     } else {
-      console.error("Close button not found!");
+      this.logger.error("Close button not found!");
     }
 
     // Click overlay to close
@@ -414,7 +417,7 @@ class OptionsMenu {
     try {
       localStorage.setItem("gameSettings", JSON.stringify(this.settings));
     } catch (e) {
-      console.warn("Failed to save settings:", e);
+      this.logger.warn("Failed to save settings:", e);
     }
   }
 
@@ -426,7 +429,7 @@ class OptionsMenu {
       const saved = localStorage.getItem("gameSettings");
       return saved ? JSON.parse(saved) : {};
     } catch (e) {
-      console.warn("Failed to load settings:", e);
+      this.logger.warn("Failed to load settings:", e);
       return {};
     }
   }

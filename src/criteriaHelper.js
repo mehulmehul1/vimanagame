@@ -1,3 +1,7 @@
+import { Logger } from "./utils/logger.js";
+
+const logger = new Logger("CriteriaHelper", false);
+
 /**
  * Criteria Helper - Unified criteria checking for game state
  *
@@ -72,7 +76,7 @@ export function matchesCriteria(value, criteria) {
         break;
 
       default:
-        console.warn(`criteriaHelper: Unknown operator "${operator}"`);
+        logger.warn(`Unknown operator "${operator}"`);
         return false;
     }
   }

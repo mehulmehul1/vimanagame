@@ -8,6 +8,7 @@ import {
 import AudioReactiveLight from "./vfx/audioReactiveLight.js";
 import { lights } from "./lightData.js";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * LightManager - Manages all lights in the scene
@@ -33,6 +34,9 @@ class LightManager {
     this.reactiveLights = new Map(); // Map of id -> { light, audioReactive }
     this.splatLayers = new Map(); // Map of id -> SplatEdit layer
     this.pendingAttachments = new Map(); // Map of id -> { object3D, config }
+
+    // Logger for debug messages
+    this.logger = new Logger("LightManager", false);
 
     // Automatically load lights from data on initialization
     const gameState = gameManager?.getState();
@@ -81,9 +85,7 @@ class LightManager {
     if (wantsParent && parent === this.scene && id) {
       this.pendingAttachments.set(id, { object3D, config });
       const parentId = config?.parentId || config?.attachTo?.objectId;
-      console.log(
-        `⏸️ LightManager: "${id}" waiting for parent "${parentId}" to load`
-      );
+      this.logger.log(`⏸️ "${id}" waiting for parent "${parentId}" to load`);
     }
   }
 
@@ -105,8 +107,8 @@ class LightManager {
         }
         parent.add(object3D);
         this.pendingAttachments.delete(id);
-        console.log(
-          `✅ LightManager: Reattached "${id}" under resolved parent (type: ${object3D.constructor.name})`
+        this.logger.log(
+          `✅ Reattached "${id}" under resolved parent (type: ${object3D.constructor.name})`
         );
 
         // Check if this is a splat light layer (SplatEdit)
@@ -115,23 +117,21 @@ class LightManager {
           this.splatLayers.has(id) || object3D.constructor.name === "SplatEdit";
         if (isSplatLight) {
           splatLightReattached = true;
-          console.log(`  → This is a splat light, will rebuild fog`);
+          this.logger.log(`  → This is a splat light, will rebuild fog`);
         }
       }
     }
 
     // Rebuild fog if any splat lights were reattached
     if (splatLightReattached && window.cloudParticles) {
-      console.log("🌫️ Rebuilding fog after splat light reattachment...");
+      this.logger.log("🌫️ Rebuilding fog after splat light reattachment...");
       window.cloudParticles.rebuild();
     }
 
     // Log pending attachments for debugging
     if (this.pendingAttachments.size > 0) {
       const pendingIds = Array.from(this.pendingAttachments.keys());
-      console.log(
-        `⏳ LightManager: Still waiting for parents: ${pendingIds.join(", ")}`
-      );
+      this.logger.log(`⏳ Still waiting for parents: ${pendingIds.join(", ")}`);
     }
   }
 
@@ -141,22 +141,18 @@ class LightManager {
    * @param {Object} gameState - Current game state for criteria checking
    */
   loadLightsFromData(lightsData, gameState = null) {
-    console.log("LightManager: Loading lights from data...");
+    this.logger.log("Loading lights from data...");
 
     for (const [key, config] of Object.entries(lightsData)) {
       // Check criteria if gameState is provided
       if (gameState && config.criteria) {
         if (!checkCriteria(gameState, config.criteria)) {
-          console.log(
-            `⏭️ LightManager: Skipping light "${key}" - criteria not met`
-          );
+          this.logger.log(`⏭️ Skipping light "${key}" - criteria not met`);
           continue;
         }
       }
 
-      console.log(
-        `🔦 LightManager: Processing light "${key}" (type: ${config.type})`
-      );
+      this.logger.log(`🔦 Processing light "${key}" (type: ${config.type})`);
       try {
         if (config.type === "SplatLight") {
           this.createSplatLight(config);
@@ -165,11 +161,11 @@ class LightManager {
           this.createLight(config);
         }
       } catch (error) {
-        console.error(`❌ LightManager: Error creating light "${key}":`, error);
+        this.logger.error(`❌ Error creating light "${key}":`, error);
       }
     }
 
-    console.log(`LightManager: Created ${this.lights.size} light(s)`);
+    this.logger.log(`Created ${this.lights.size} light(s)`);
   }
 
   /**
@@ -188,7 +184,7 @@ class LightManager {
       case "SpotLight":
         return this.createSpotLight(config);
       default:
-        console.warn(`LightManager: Unknown light type "${config.type}"`);
+        this.logger.warn(`Unknown light type "${config.type}"`);
         return null;
     }
   }
@@ -256,8 +252,8 @@ class LightManager {
       this.createThreeLightDuplicate(config);
     }
 
-    console.log(
-      `LightManager: Created splat light "${config.id}" at (${config.position.x}, ${config.position.y}, ${config.position.z})`
+    this.logger.log(
+      `Created splat light "${config.id}" at (${config.position.x}, ${config.position.y}, ${config.position.z})`
     );
 
     // Rebuild fog to pick up new splat light
@@ -311,9 +307,7 @@ class LightManager {
     const light = this.createLight(threeLightConfig);
 
     if (light) {
-      console.log(
-        `LightManager: Created Three.js duplicate light for "${config.id}"`
-      );
+      this.logger.log(`Created Three.js duplicate light for "${config.id}"`);
 
       // If gizmo is requested on the duplicate, register it
       if (duplicateConfig.gizmo && window.gizmoManager) {
@@ -428,7 +422,7 @@ class LightManager {
       config.decay ?? 2
     );
 
-    console.log(
+    this.logger.log(
       `🔦 Creating SpotLight "${config.id}" with intensity ${light.intensity}, distance ${light.distance}, angle ${light.angle}`
     );
 
@@ -450,7 +444,7 @@ class LightManager {
 
     const parent = this._resolveParent(config);
     parent.add(light);
-    console.log(
+    this.logger.log(
       `  SpotLight parent: ${parent.type || parent.constructor.name}`
     );
 
@@ -463,14 +457,14 @@ class LightManager {
       );
       // Add target to the same parent so it moves with the light
       parent.add(light.target);
-      console.log(
+      this.logger.log(
         `  SpotLight target at (${light.target.position.x}, ${light.target.position.y}, ${light.target.position.z})`
       );
     } else {
       // Default: point forward along parent's +Z axis
       light.target.position.set(0, 0, 10);
       parent.add(light.target);
-      console.log(`  SpotLight target at default (0, 0, 10)`);
+      this.logger.log(`  SpotLight target at default (0, 0, 10)`);
     }
 
     this._maybeTrackPendingAttachment(config.id, light, config, parent);
@@ -511,9 +505,7 @@ class LightManager {
           });
           break;
         default:
-          console.warn(
-            `LightManager: Unknown light type "${config.type}" for "${id}"`
-          );
+          this.logger.warn(`Unknown light type "${config.type}" for "${id}"`);
           return null;
       }
 
@@ -532,13 +524,10 @@ class LightManager {
       this.lights.set(id, light);
       this.reactiveLights.set(id, { light, audioReactive });
 
-      console.log(`LightManager: Created reactive light "${id}"`);
+      this.logger.log(`Created reactive light "${id}"`);
       return { light, audioReactive };
     } catch (error) {
-      console.error(
-        `LightManager: Error creating reactive light "${id}":`,
-        error
-      );
+      this.logger.error(`Error creating reactive light "${id}":`, error);
       return null;
     }
   }
@@ -613,9 +602,7 @@ class LightManager {
 
         // If criteria met and light doesn't exist, create it
         if (criteriaMet && !exists) {
-          console.log(
-            `🔦 LightManager: Creating light "${lightId}" (criteria now met)`
-          );
+          this.logger.log(`🔦 Creating light "${lightId}" (criteria now met)`);
           try {
             if (config.type === "SplatLight") {
               this.createSplatLight(config);
@@ -623,16 +610,13 @@ class LightManager {
               this.createLight(config);
             }
           } catch (error) {
-            console.error(
-              `❌ LightManager: Error creating light "${lightId}":`,
-              error
-            );
+            this.logger.error(`❌ Error creating light "${lightId}":`, error);
           }
         }
         // If criteria not met and light exists, remove it
         else if (!criteriaMet && exists) {
-          console.log(
-            `🔦 LightManager: Removing light "${lightId}" (criteria no longer met)`
+          this.logger.log(
+            `🔦 Removing light "${lightId}" (criteria no longer met)`
           );
           this.removeLight(lightId);
         }

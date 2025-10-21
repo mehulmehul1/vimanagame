@@ -13,10 +13,12 @@ import { IdleHelper } from "./idleHelper.js";
 import { FullscreenButton } from "./fullscreenButton.js";
 // import { SplatCounter } from "./splatCounter.js";
 import { uiElements } from "./uiData.js";
+import { Logger } from "../utils/logger.js";
 
 export class UIManager {
   constructor(gameManager = null) {
     this.gameManager = gameManager;
+    this.logger = new Logger("UIManager", false);
 
     // Z-index layer definitions (higher = more on top)
     this.layers = {
@@ -76,8 +78,8 @@ export class UIManager {
       });
     }
 
-    console.log(
-      `UIManager: Platform detected - iOS: ${isIOS}, Fullscreen supported: ${isFullscreenSupported}`
+    this.logger.log(
+      `Platform detected - iOS: ${isIOS}, Fullscreen supported: ${isFullscreenSupported}`
     );
   }
 
@@ -216,7 +218,7 @@ export class UIManager {
   show(id, options = {}) {
     const uiData = this.activeElements.get(id);
     if (!uiData) {
-      console.warn(`UIManager: Element "${id}" not registered`);
+      this.logger.warn(`Element "${id}" not registered`);
       return;
     }
 

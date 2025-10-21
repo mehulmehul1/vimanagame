@@ -83,7 +83,7 @@ export const lights = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.DRIVE_BY_PREAMBLE,
-        $lte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.POST_DRIVE_BY,
       },
     },
   },

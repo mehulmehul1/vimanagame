@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Howl } from "howler";
 import BreathingSystem from "./wip/breathingSystem.js";
+import { Logger } from "./utils/logger.js";
 
 class CharacterController {
   constructor(
@@ -20,6 +21,7 @@ class CharacterController {
     this.sfxManager = sfxManager;
     this.sparkRenderer = sparkRenderer;
     this.idleHelper = idleHelper;
+    this.logger = new Logger("CharacterController", false);
 
     // Camera rotation (use provided initial rotation or default to -180 degrees)
     const defaultYaw = THREE.MathUtils.degToRad(-180);
@@ -171,7 +173,7 @@ class CharacterController {
     // Add character container to scene
     if (this.sceneManager.scene && this.characterContainer) {
       this.sceneManager.scene.add(this.characterContainer);
-      console.log("CharacterController: Character container added to scene");
+      this.logger.log("Character container added to scene");
     }
 
     // Try to attach the body model if it's already loaded
@@ -188,7 +190,7 @@ class CharacterController {
     }
 
     if (!this.sceneManager) {
-      console.warn("CharacterController: Scene manager not set yet");
+      this.logger.warn("Scene manager not set yet");
       return;
     }
 
@@ -196,18 +198,16 @@ class CharacterController {
     const bodyObject = this.sceneManager.getObject("firstPersonBody");
 
     if (!bodyObject) {
-      console.warn(
-        "CharacterController: First-person body not loaded yet (will retry)"
-      );
+      this.logger.warn("First-person body not loaded yet (will retry)");
       // Try again in a moment (model might still be loading)
       setTimeout(() => this.attachFirstPersonBody(), 100);
       return;
     }
 
-    console.log("CharacterController: Attaching first-person body to camera");
-    console.log("  - Body object:", bodyObject);
-    console.log("  - Body visible:", bodyObject.visible);
-    console.log("  - Body world position:", bodyObject.position);
+    this.logger.log("Attaching first-person body to camera");
+    this.logger.log("  - Body object:", bodyObject);
+    this.logger.log("  - Body visible:", bodyObject.visible);
+    this.logger.log("  - Body world position:", bodyObject.position);
 
     // The bodyObject is the container group from scene manager
     this.bodyModelGroup = bodyObject;
@@ -237,7 +237,7 @@ class CharacterController {
 
     this.bodyModel.traverse((child) => {
       if (child.isMesh) {
-        console.log(`  - Mesh: ${child.name}`);
+        this.logger.log(`  - Mesh: ${child.name}`);
 
         // Try to automatically hide the head mesh
         // Common naming patterns for head meshes
@@ -250,7 +250,7 @@ class CharacterController {
         ) {
           child.visible = false;
           headMeshFound = true;
-          console.log(`    (Hidden - head mesh)`);
+          this.logger.log(`    (Hidden - head mesh)`);
         }
 
         // Calculate bounding box to understand model dimensions
@@ -273,24 +273,24 @@ class CharacterController {
     const height = maxY - minY;
     const depth = maxZ - minZ;
 
-    console.log(`  - Body Model 3D Bounds:`);
-    console.log(
+    this.logger.log(`  - Body Model 3D Bounds:`);
+    this.logger.log(
       `    X: ${minX.toFixed(2)} to ${maxX.toFixed(2)} (width: ${width.toFixed(
         2
       )})`
     );
-    console.log(
+    this.logger.log(
       `    Y: ${minY.toFixed(2)} to ${maxY.toFixed(
         2
       )} (height: ${height.toFixed(2)})`
     );
-    console.log(
+    this.logger.log(
       `    Z: ${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (depth: ${depth.toFixed(
         2
       )})`
     );
     if (headMeshFound) {
-      console.log(`  - Head mesh(es) automatically hidden`);
+      this.logger.log(`  - Head mesh(es) automatically hidden`);
     }
 
     // Parent body to character container
@@ -299,8 +299,8 @@ class CharacterController {
     this.bodyModelGroup.rotation.set(0, Math.PI, 0); // Rotate 180 degrees to face forward
     this.characterContainer.add(this.bodyModelGroup);
 
-    console.log(
-      "CharacterController: Body parented to character container at offset (0, -0.8, 0)"
+    this.logger.log(
+      "Body parented to character container at offset (0, -0.8, 0)"
     );
 
     // Setup animations
@@ -320,8 +320,8 @@ class CharacterController {
     const existingMixer =
       this.sceneManager?.animationMixers.get("firstPersonBody");
 
-    console.log("CharacterController: Setting up body animations");
-    console.log(
+    this.logger.log("Setting up body animations");
+    this.logger.log(
       "  - Existing mixer from SceneManager:",
       existingMixer ? "YES" : "NO"
     );
@@ -333,22 +333,22 @@ class CharacterController {
         this.sceneManager.animationActions.entries()
       ).filter(([id]) => id.startsWith("firstPersonBody"));
 
-      console.log("  - Found actions from SceneManager:", actions.length);
+      this.logger.log("  - Found actions from SceneManager:", actions.length);
 
       // Log all available actions for debugging
-      console.log("  - Available actions:");
+      this.logger.log("  - Available actions:");
       actions.forEach(([id, action]) => {
-        console.log(`    * "${id}"`);
+        this.logger.log(`    * "${id}"`);
       });
 
       // Find walk and idle animations
       for (const [id, action] of actions) {
         if (id.includes("walk")) {
           this.walkAnimation = action;
-          console.log(`  - Using walk animation: "${id}"`);
+          this.logger.log(`  - Using walk animation: "${id}"`);
         } else if (id.includes("idle")) {
           this.idleAnimation = action;
-          console.log(`  - Using idle animation: "${id}"`);
+          this.logger.log(`  - Using idle animation: "${id}"`);
         }
       }
 
@@ -367,22 +367,22 @@ class CharacterController {
 
         this.currentBodyAnimation = this.idleAnimation;
 
-        console.log(
-          `CharacterController: Setup animation blending:`,
+        this.logger.log(
+          `Setup animation blending:`,
           "Walk:",
           this.walkAnimation.isRunning(),
           "Idle:",
           this.idleAnimation.isRunning()
         );
       } else {
-        console.warn(
-          "CharacterController: Could not find all animations (walk/idle). Found:",
+        this.logger.warn(
+          "Could not find all animations (walk/idle). Found:",
           actions.map(([id]) => id)
         );
       }
     } else {
       // No sceneData animations - find them in the loaded GLTF
-      console.log(
+      this.logger.log(
         "  - No SceneManager mixer, searching for animations in GLTF..."
       );
       let animations = null;
@@ -391,11 +391,11 @@ class CharacterController {
       });
 
       if (!animations?.length) {
-        console.warn("CharacterController: No animations found in body model");
+        this.logger.warn("No animations found in body model");
         return;
       }
 
-      console.log(`  - Found ${animations.length} animation(s) in GLTF`);
+      this.logger.log(`  - Found ${animations.length} animation(s) in GLTF`);
 
       // Create our own mixer for manual control
       this.bodyAnimationMixer = new THREE.AnimationMixer(this.bodyModel);
@@ -406,10 +406,7 @@ class CharacterController {
       this.walkAnimation.paused = false; // Start playing immediately for testing
       this.walkAnimation.timeScale = 1.0;
 
-      console.log(
-        "CharacterController: Created animation mixer for body:",
-        walkClip.name
-      );
+      this.logger.log("Created animation mixer for body:", walkClip.name);
     }
   }
 
@@ -496,7 +493,7 @@ class CharacterController {
       );
     });
 
-    console.log("CharacterController: Event listeners registered");
+    this.logger.log("Event listeners registered");
   }
 
   /**
@@ -525,10 +522,10 @@ class CharacterController {
       volume: 0.2,
       preload: true,
       onload: () => {
-        console.log("Footstep audio loaded successfully");
+        this.logger.log("Footstep audio loaded successfully");
       },
       onloaderror: (id, error) => {
-        console.warn("Failed to load footstep audio:", error);
+        this.logger.warn("Failed to load footstep audio:", error);
       },
     });
 
@@ -673,8 +670,8 @@ class CharacterController {
       this.dofHoldTimer = 0; // Reset hold timer
       this.dofTransitionProgress = 0; // Reset progress
 
-      console.log(
-        `CharacterController: DoF ready - Distance: ${distance.toFixed(
+      this.logger.log(
+        `DoF ready - Distance: ${distance.toFixed(
           2
         )}m, Aperture: ${targetApertureSize.toFixed(
           3
@@ -693,17 +690,15 @@ class CharacterController {
       this.lookAtZoomActive = true;
       this.zoomTransitionProgress = 0; // Reset zoom progress
 
-      console.log(
-        `CharacterController: Looking at target over ${duration}s (zoom: ${this.baseFov.toFixed(
+      this.logger.log(
+        `Looking at target over ${duration}s (zoom: ${this.baseFov.toFixed(
           1
         )}° → ${this.targetFov.toFixed(
           1
         )}° [${this.currentZoomConfig.zoomFactor.toFixed(2)}x])`
       );
     } else {
-      console.log(
-        `CharacterController: Looking at target over ${duration}s (no zoom)`
-      );
+      this.logger.log(`Looking at target over ${duration}s (no zoom)`);
     }
   }
 
@@ -747,7 +742,7 @@ class CharacterController {
       this.lookAtDofActive = false;
       this.dofTransitioning = true;
       this.dofTransitionProgress = 0; // Reset for return transition
-      console.log(`CharacterController: Returning DoF to base (cancelled)`);
+      this.logger.log(`Returning DoF to base (cancelled)`);
     }
 
     // Return zoom to base if it was active
@@ -757,10 +752,10 @@ class CharacterController {
       this.lookAtZoomActive = false;
       this.zoomTransitioning = true;
       this.zoomTransitionProgress = 0; // Reset for return transition
-      console.log(`CharacterController: Returning zoom to base (cancelled)`);
+      this.logger.log(`Returning zoom to base (cancelled)`);
     }
 
-    console.log("CharacterController: Look-at cancelled, control restored");
+    this.logger.log("Look-at cancelled, control restored");
   }
 
   /**
@@ -828,8 +823,8 @@ class CharacterController {
     yawDiff = Math.atan2(Math.sin(yawDiff), Math.cos(yawDiff)); // Normalize to [-π, π]
     this.moveToTargetYaw = this.moveToStartYaw + yawDiff; // Adjust target to shortest path
 
-    console.log(
-      `CharacterController: Moving to position (${targetPosition.x.toFixed(
+    this.logger.log(
+      `Moving to position (${targetPosition.x.toFixed(
         2
       )}, ${targetPosition.y.toFixed(2)}, ${targetPosition.z.toFixed(
         2
@@ -864,7 +859,7 @@ class CharacterController {
       this.inputManager.enable();
     }
 
-    console.log("CharacterController: Move-to cancelled, control restored");
+    this.logger.log("Move-to cancelled, control restored");
   }
 
   getForwardRightVectors() {
@@ -960,9 +955,7 @@ class CharacterController {
         collider.setCollisionGroups(0x00040001); // Group 1, only collides with group 3 (environment)
       }
     }
-    console.log(
-      "CharacterController: Physics collisions limited to environment only"
-    );
+    this.logger.log("Physics collisions limited to environment only");
   }
 
   /**
@@ -981,7 +974,7 @@ class CharacterController {
         collider.setCollisionGroups(0xffffffff); // Collide with all groups
       }
     }
-    console.log("CharacterController: Physics collisions restored to default");
+    this.logger.log("Physics collisions restored to default");
   }
 
   /**
@@ -994,29 +987,29 @@ class CharacterController {
   adjustBodyPosition(x, y, z) {
     if (this.bodyModelGroup) {
       this.bodyModelGroup.position.set(x, y, z);
-      console.log(
+      this.logger.log(
         `Body position (relative to character container) set to: ${x}, ${y}, ${z}`
       );
     } else {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
     }
   }
 
   adjustBodyRotation(x, y, z) {
     if (this.bodyModelGroup) {
       this.bodyModelGroup.rotation.set(x, y, z);
-      console.log(`Body rotation set to: ${x}, ${y}, ${z}`);
+      this.logger.log(`Body rotation set to: ${x}, ${y}, ${z}`);
     } else {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
     }
   }
 
   adjustBodyScale(scale) {
     if (this.bodyModelGroup) {
       this.bodyModelGroup.scale.setScalar(scale);
-      console.log(`Body scale set to: ${scale}`);
+      this.logger.log(`Body scale set to: ${scale}`);
     } else {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
     }
   }
 
@@ -1027,11 +1020,11 @@ class CharacterController {
   toggleBodyVisibility() {
     if (this.bodyModelGroup) {
       this.bodyModelGroup.visible = !this.bodyModelGroup.visible;
-      console.log(
+      this.logger.log(
         `Body model visibility: ${this.bodyModelGroup.visible ? "ON" : "OFF"}`
       );
     } else {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
     }
   }
 
@@ -1040,22 +1033,22 @@ class CharacterController {
    * window.characterController.checkAnimationState()
    */
   checkAnimationState() {
-    console.log("=== Body Animation State ===");
-    console.log("Body model group:", this.bodyModelGroup ? "YES" : "NO");
-    console.log("Body model:", this.bodyModel ? "YES" : "NO");
-    console.log("Animation mixer:", this.bodyAnimationMixer ? "YES" : "NO");
-    console.log("Walk animation:", this.walkAnimation ? "YES" : "NO");
+    this.logger.log("=== Body Animation State ===");
+    this.logger.log("Body model group:", this.bodyModelGroup ? "YES" : "NO");
+    this.logger.log("Body model:", this.bodyModel ? "YES" : "NO");
+    this.logger.log("Animation mixer:", this.bodyAnimationMixer ? "YES" : "NO");
+    this.logger.log("Walk animation:", this.walkAnimation ? "YES" : "NO");
 
     if (this.walkAnimation) {
-      console.log("  - Is running:", this.walkAnimation.isRunning());
-      console.log("  - Is paused:", this.walkAnimation.paused);
-      console.log("  - Time scale:", this.walkAnimation.timeScale);
-      console.log("  - Time:", this.walkAnimation.time);
+      this.logger.log("  - Is running:", this.walkAnimation.isRunning());
+      this.logger.log("  - Is paused:", this.walkAnimation.paused);
+      this.logger.log("  - Time scale:", this.walkAnimation.timeScale);
+      this.logger.log("  - Time:", this.walkAnimation.time);
     }
 
     if (this.sceneManager) {
       const mixer = this.sceneManager.animationMixers.get("firstPersonBody");
-      console.log(
+      this.logger.log(
         "SceneManager has mixer for firstPersonBody:",
         mixer ? "YES" : "NO"
       );
@@ -1063,9 +1056,9 @@ class CharacterController {
       const actions = Array.from(
         this.sceneManager.animationActions.entries()
       ).filter(([id]) => id.startsWith("firstPersonBody"));
-      console.log("SceneManager actions:", actions.length);
+      this.logger.log("SceneManager actions:", actions.length);
       actions.forEach(([id, action]) => {
-        console.log(
+        this.logger.log(
           `  - ${id}: running=${action.isRunning()}, paused=${action.paused}`
         );
       });
@@ -1083,9 +1076,9 @@ class CharacterController {
           child.material.wireframe = enabled;
         }
       });
-      console.log(`Body wireframe: ${enabled ? "ON" : "OFF"}`);
+      this.logger.log(`Body wireframe: ${enabled ? "ON" : "OFF"}`);
     } else {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
     }
   }
 
@@ -1095,7 +1088,7 @@ class CharacterController {
    */
   logBodyBounds() {
     if (!this.bodyModel) {
-      console.warn("Body model not loaded yet");
+      this.logger.warn("Body model not loaded yet");
       return;
     }
 
@@ -1127,20 +1120,20 @@ class CharacterController {
     const height = maxY - minY;
     const depth = maxZ - minZ;
 
-    console.log("=== Body Model 3D Bounds ===");
-    console.log(`Meshes analyzed: ${meshCount}`);
-    console.log(
+    this.logger.log("=== Body Model 3D Bounds ===");
+    this.logger.log(`Meshes analyzed: ${meshCount}`);
+    this.logger.log(
       `X: ${minX.toFixed(2)} to ${maxX.toFixed(2)} (width: ${width.toFixed(2)})`
     );
-    console.log(
+    this.logger.log(
       `Y: ${minY.toFixed(2)} to ${maxY.toFixed(2)} (height: ${height.toFixed(
         2
       )})`
     );
-    console.log(
+    this.logger.log(
       `Z: ${minZ.toFixed(2)} to ${maxZ.toFixed(2)} (depth: ${depth.toFixed(2)})`
     );
-    console.log(
+    this.logger.log(
       `\nBody offset in character container: (${this.bodyModelGroup.position.x.toFixed(
         2
       )}, ${this.bodyModelGroup.position.y.toFixed(
@@ -1151,10 +1144,10 @@ class CharacterController {
     // Calculate where the bottom and top of the body are relative to the character
     const bottomY = minY + this.bodyModelGroup.position.y;
     const topY = maxY + this.bodyModelGroup.position.y;
-    console.log(`\nRelative to character container:`);
-    console.log(`  Bottom: y = ${bottomY.toFixed(2)}`);
-    console.log(`  Top: y = ${topY.toFixed(2)}`);
-    console.log(`  Height: ${height.toFixed(2)}`);
+    this.logger.log(`\nRelative to character container:`);
+    this.logger.log(`  Bottom: y = ${bottomY.toFixed(2)}`);
+    this.logger.log(`  Top: y = ${topY.toFixed(2)}`);
+    this.logger.log(`  Height: ${height.toFixed(2)}`);
   }
 
   /**
@@ -1167,27 +1160,27 @@ class CharacterController {
     const pitchDeg = THREE.MathUtils.radToDeg(this.pitch);
     const bodyYawDeg = THREE.MathUtils.radToDeg(this.bodyYaw);
 
-    console.log("=== Physics Body (Capsule Collider Center) ===");
-    console.log(
+    this.logger.log("=== Physics Body (Capsule Collider Center) ===");
+    this.logger.log(
       `Position: { x: ${physicsPos.x.toFixed(2)}, y: ${physicsPos.y.toFixed(
         2
       )}, z: ${physicsPos.z.toFixed(2)} }`
     );
-    console.log(
+    this.logger.log(
       `Rotation: { yaw: ${yawDeg.toFixed(2)}°, pitch: ${pitchDeg.toFixed(2)}° }`
     );
 
     // Character container (holds the body, rotates separately from camera)
     if (this.characterContainer) {
-      console.log("\n=== Character Container ===");
+      this.logger.log("\n=== Character Container ===");
       const cp = this.characterContainer.position;
       const cr = this.characterContainer.rotation;
-      console.log(
+      this.logger.log(
         `Position: { x: ${cp.x.toFixed(2)}, y: ${cp.y.toFixed(
           2
         )}, z: ${cp.z.toFixed(2)} }`
       );
-      console.log(
+      this.logger.log(
         `Body Yaw: ${bodyYawDeg.toFixed(2)}° (rotation.y: ${cr.y.toFixed(
           2
         )} rad)`
@@ -1195,33 +1188,33 @@ class CharacterController {
     }
 
     // Camera position
-    console.log("\n=== Camera ===");
+    this.logger.log("\n=== Camera ===");
     const camPos = this.camera.position;
-    console.log(
+    this.logger.log(
       `Position: { x: ${camPos.x.toFixed(2)}, y: ${camPos.y.toFixed(
         2
       )}, z: ${camPos.z.toFixed(2)} }`
     );
-    console.log(
+    this.logger.log(
       `Rotation: { yaw: ${yawDeg.toFixed(2)}°, pitch: ${pitchDeg.toFixed(2)}° }`
     );
-    console.log(
+    this.logger.log(
       `Height offset from physics center: ${this.cameraHeight.toFixed(2)}`
     );
 
     // Also log body model position if loaded
     if (this.bodyModelGroup) {
-      console.log(
+      this.logger.log(
         "\n=== First-Person Body Model (local offset in container) ==="
       );
       const bp = this.bodyModelGroup.position;
       const br = this.bodyModelGroup.rotation;
-      console.log(
+      this.logger.log(
         `Local Position: { x: ${bp.x.toFixed(2)}, y: ${bp.y.toFixed(
           2
         )}, z: ${bp.z.toFixed(2)} }`
       );
-      console.log(
+      this.logger.log(
         `Local Rotation: { x: ${br.x.toFixed(2)}, y: ${br.y.toFixed(
           2
         )}, z: ${br.z.toFixed(2)} }`
@@ -1260,7 +1253,7 @@ class CharacterController {
    */
   setDofEnabled(enabled) {
     this.dofEnabled = enabled;
-    console.log(`CharacterController: DoF ${enabled ? "enabled" : "disabled"}`);
+    this.logger.log(`DoF ${enabled ? "enabled" : "disabled"}`);
   }
 
   /**
@@ -1296,12 +1289,10 @@ class CharacterController {
           this.zoomTransitionProgress = 0; // Reset for return transition
         }
 
-        console.log(
-          `CharacterController: Hold complete, returning ${
-            wasDofActive ? "DoF" : ""
-          }${wasDofActive && wasZoomActive ? " and " : ""}${
-            wasZoomActive ? "zoom" : ""
-          } to base`
+        this.logger.log(
+          `Hold complete, returning ${wasDofActive ? "DoF" : ""}${
+            wasDofActive && wasZoomActive ? " and " : ""
+          }${wasZoomActive ? "zoom" : ""} to base`
         );
       }
     }
@@ -1580,8 +1571,8 @@ class CharacterController {
           this.lookAtHolding = false;
           this.lookAtReturning = true;
           this.lookAtProgress = 0;
-          console.log(
-            `CharacterController: Hold complete, starting return to original view (${this.lookAtReturnDuration}s)`
+          this.logger.log(
+            `Hold complete, starting return to original view (${this.lookAtReturnDuration}s)`
           );
 
           // Start DoF/zoom reset immediately (so they return to normal as camera returns)
@@ -1612,8 +1603,8 @@ class CharacterController {
             // Override transition duration to match return duration
             this.returnTransitionDuration = this.lookAtReturnDuration;
 
-            console.log(
-              `CharacterController: Starting ${wasDofActive ? "DoF" : ""}${
+            this.logger.log(
+              `Starting ${wasDofActive ? "DoF" : ""}${
                 wasDofActive && wasZoomActive ? "/" : ""
               }${wasZoomActive ? "zoom" : ""} reset during return (${
                 this.lookAtReturnDuration
@@ -1656,12 +1647,10 @@ class CharacterController {
             this.startFov = this.currentFov; // Capture current FOV as start for zoom
             this.zoomTransitioning = true;
           }
-          console.log(
-            `CharacterController: Starting ${
-              this.lookAtDofActive ? "DoF" : ""
-            }${this.lookAtDofActive && this.lookAtZoomActive ? " and " : ""}${
-              this.lookAtZoomActive ? "zoom" : ""
-            } transition${
+          this.logger.log(
+            `Starting ${this.lookAtDofActive ? "DoF" : ""}${
+              this.lookAtDofActive && this.lookAtZoomActive ? " and " : ""
+            }${this.lookAtZoomActive ? "zoom" : ""} transition${
               this.lookAtDofActive && this.lookAtZoomActive ? "s" : ""
             } at ${(this.lookAtProgress * 100).toFixed(0)}% (threshold: ${(
               transitionStart * 100
@@ -1680,15 +1669,15 @@ class CharacterController {
             // Start holding phase
             this.lookAtHolding = true;
             this.lookAtHoldTimer = 0;
-            console.log(
-              `CharacterController: Holding at target for ${this.lookAtHoldDuration}s before returning`
+            this.logger.log(
+              `Holding at target for ${this.lookAtHoldDuration}s before returning`
             );
           } else {
             // No hold, start return immediately
             this.lookAtReturning = true;
             this.lookAtProgress = 0;
-            console.log(
-              `CharacterController: Starting return to original view (${this.lookAtReturnDuration}s)`
+            this.logger.log(
+              `Starting return to original view (${this.lookAtReturnDuration}s)`
             );
 
             // Start DoF/zoom reset immediately (so they return to normal as camera returns)
@@ -1719,8 +1708,8 @@ class CharacterController {
               // Override transition duration to match return duration
               this.returnTransitionDuration = this.lookAtReturnDuration;
 
-              console.log(
-                `CharacterController: Starting ${wasDofActive ? "DoF" : ""}${
+              this.logger.log(
+                `Starting ${wasDofActive ? "DoF" : ""}${
                   wasDofActive && wasZoomActive ? "/" : ""
                 }${wasZoomActive ? "zoom" : ""} reset during return (${
                   this.lookAtReturnDuration
@@ -1755,10 +1744,10 @@ class CharacterController {
             const resetDuration =
               this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
             this.dofHoldTimer = resetDuration;
-            console.log(
-              `CharacterController: Holding ${
-                this.lookAtDofActive ? "DoF" : ""
-              }${this.lookAtDofActive && this.lookAtZoomActive ? "/" : ""}${
+            this.logger.log(
+              `Holding ${this.lookAtDofActive ? "DoF" : ""}${
+                this.lookAtDofActive && this.lookAtZoomActive ? "/" : ""
+              }${
                 this.lookAtZoomActive ? "zoom" : ""
               } for ${resetDuration}s before resetting`
             );
@@ -1828,9 +1817,7 @@ class CharacterController {
             // Both were disabled, enable everything
             this.inputDisabled = false;
             this.inputManager.enable();
-            console.log(
-              "CharacterController: Move-to complete, restored full input"
-            );
+            this.logger.log("Move-to complete, restored full input");
           }
           // NOTE: Selective disables (only movement or only rotation) are NOT restored
           // They must be manually restored by calling enableMovement() or enableRotation()
@@ -1843,7 +1830,7 @@ class CharacterController {
           this.moveToOnComplete = null;
         }
 
-        console.log("CharacterController: Move-to complete");
+        this.logger.log("Move-to complete");
       } else {
         // Interpolate position and rotation
         const t = Math.min(this.moveToProgress, 1.0);
@@ -1892,9 +1879,7 @@ class CharacterController {
         this.glanceState = null;
         this.glanceTimer = 5.0 + Math.random() * 3.0; // Next glance in 5-8 seconds
         this.currentRoll = 0; // Reset head tilt immediately
-        console.log(
-          "CharacterController: Manual camera input detected, cancelling glance"
-        );
+        this.logger.log("Manual camera input detected, cancelling glance");
       }
 
       // Apply camera rotation differently based on input source
@@ -2057,7 +2042,7 @@ class CharacterController {
     ) {
       // Log once that we don't have an animation mixer
       if (!this.loggedNoAnimation) {
-        console.warn("CharacterController: No animation mixer found for body");
+        this.logger.warn("No animation mixer found for body");
         this.loggedNoAnimation = true;
       }
     }

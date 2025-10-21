@@ -1,3 +1,5 @@
+import { Logger } from "../utils/logger.js";
+
 export class IdleHelper {
   constructor(
     dialogManager = null,
@@ -24,6 +26,7 @@ export class IdleHelper {
     this.wasCameraAnimating = false; // Track previous camera animation state
     this.wasBlocked = false; // Track previous overall blocked state
     this.globalDisable = false; // If true, idle behaviors are fully disabled
+    this.logger = new Logger("IdleHelper", false);
 
     this.init();
     this.setupMovementListeners();
@@ -55,7 +58,7 @@ export class IdleHelper {
     const currentState = this.gameManager?.getState?.();
     const isIOS = currentState?.isIOS === true;
     if (isIOS) {
-      console.log("IdleHelper: Skipping initialization on iOS device");
+      this.logger.log("Skipping initialization on iOS device");
       return;
     }
 
@@ -289,7 +292,7 @@ export class IdleHelper {
       if (this.wasCameraAnimating && !isCameraAnimating) {
         // Camera animation just ended - reset idle timer
         this.lastMovementTime = Date.now();
-        console.log("IdleHelper: Camera animation ended, resetting idle timer");
+        this.logger.log("Camera animation ended, resetting idle timer");
       }
 
       // Update the previous camera animation state
@@ -335,8 +338,8 @@ export class IdleHelper {
       // If transitioning from blocked to unblocked, reset idle timer
       if (this.wasBlocked && !isCurrentlyBlocked) {
         this.lastMovementTime = Date.now();
-        console.log(
-          "IdleHelper: Transitioned from blocked to unblocked, resetting idle timer"
+        this.logger.log(
+          "Transitioned from blocked to unblocked, resetting idle timer"
         );
       }
 

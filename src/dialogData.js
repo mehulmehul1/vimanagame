@@ -36,7 +36,7 @@ export const dialogTracks = {
   intro: {
     id: "intro",
     audio: "./audio/dialog/00-on-her-trail.mp3",
-    preload: true, // Load before showing game
+    preload: true,
     captions: [
       { text: "I'd been on her trail for weeks.", duration: 2.0 },
       { text: "An art thief, she'd swindled society-types,", duration: 3.5 },
@@ -65,8 +65,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 1.0, // Wait 1 second after title sequence completes
-    // Fire game state change based on audio progress (handled by DialogManager)
+    delay: 1.0,
     progressStateTrigger: { progress: 0.85, state: GAME_STATES.TITLE_SEQUENCE },
   },
 
@@ -86,7 +85,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 0, // Start captions immediately when near radio
+    delay: 0.2,
   },
 
   heyYouBeingWatched: {
@@ -118,12 +117,12 @@ export const dialogTracks = {
   },
 
   // Dialog that triggers first choice moment
-  bonneSoiree: {
-    id: "bonneSoiree",
-    audio: "./audio/dialog/02-bonne-soiree.mp3",
+  bonsoir: {
+    id: "bonsoir",
+    audio: "./audio/dialog/02-bonsoir.mp3",
     preload: false, // Load after loading screen
     captions: [
-      { text: "Bonne soirée...", duration: 1.5 },
+      { text: "Bonsoir...", duration: 1.5 },
       { text: "I presume you know who this is?", duration: 2 },
     ],
     criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
@@ -153,7 +152,6 @@ export const dialogTracks = {
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
-      console.log("Empath path chosen - triggering PETIT's response");
       gameManager.setState({ dialogChoice1Response: true });
     },
   },
@@ -178,16 +176,14 @@ export const dialogTracks = {
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
-      console.log("Psychologist path chosen - triggering PETIT's response");
       gameManager.setState({ dialogChoice1Response: true });
     },
   },
 
-  // Follow-up dialog for LAWFUL response
   dialogChoice1Lawful: {
     id: "dialogChoice1Lawful",
     audio: "./audio/dialog/choice-1_lawful_someone-with-stolen-property.mp3",
-    preload: false, // Load after loading screen
+    preload: false,
     captions: [
       {
         text: "Someone with stolen property in their possession",
@@ -204,7 +200,6 @@ export const dialogTracks = {
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
-      console.log("Lawful path chosen - triggering PETIT's response");
       gameManager.setState({ dialogChoice1Response: true });
     },
   },
@@ -225,7 +220,6 @@ export const dialogTracks = {
     priority: 99,
     delay: 0.5,
     onComplete: (gameManager) => {
-      console.log("PETIT empath response complete - triggering warning");
       gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
@@ -245,7 +239,6 @@ export const dialogTracks = {
     priority: 99,
     delay: 0.5,
     onComplete: (gameManager) => {
-      console.log("PETIT psychologist response complete - triggering warning");
       gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
@@ -265,7 +258,6 @@ export const dialogTracks = {
     priority: 99,
     delay: 0.5,
     onComplete: (gameManager) => {
-      console.log("PETIT lawful response complete - triggering warning");
       gameManager.setState({ currentState: GAME_STATES.DRIVE_BY_PREAMBLE });
     },
   },
@@ -319,45 +311,33 @@ export const dialogTracks = {
     priority: 98,
     delay: 2.125,
     onComplete: (gameManager) => {
-      console.log("Warning complete - moving to DRIVE_BY_PREAMBLE state");
       gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
     },
   },
 
   // PETIT's final warning before drive-by
-  // driveByPreamble: {
-  //   id: "driveByPreamble",
-  //   audio: "./audio/dialog/00-oui-you-know-him.mp3",
-  //   captions: [
-  //     { text: "Oui, you know him.", duration: 2.0 },
-  //     { text: "And you'd better high-tail it!", duration: 3.0 },
-  //     {
-  //       text: "There is an attic nearby, and someone waiting...",
-  //       duration: 3.0,
-  //     },
-  //   ],
-  //   criteria: {
-  //     currentState: GAME_STATES.DRIVE_BY_PREAMBLE,
-  //   },
-  //   once: true,
-  //   autoPlay: true,
-  //   priority: 100,
-  //   delay: 0.5,
-  //   onComplete: (gameManager) => {
-  //     console.log("DRIVE_BY_PREAMBLE dialog completed - moving to DRIVE_BY");
-  //     gameManager.setState({ currentState: GAME_STATES.DRIVE_BY });
-
-  //     // Trigger the look-and-jump camera animation
-  //     gameManager.emit("camera:animation", {
-  //       animation: "/json/look-and-jump.json",
-  //       onComplete: (success) => {
-  //         if (success) {
-  //           console.log("Look and jump camera animation completed");
-  //         }
-  //       },
-  //     });
-  //   },
-  // },
+  postDriveBy: {
+    id: "postDriveBy",
+    audio: "./audio/dialog/06-oui-you-know-him.mp3",
+    captions: [
+      { text: "Oui, you know him.", duration: 2.0 },
+      { text: "And you'd better high-tail it!", duration: 3.0 },
+      {
+        text: "There is an attic nearby, and someone waiting...",
+        duration: 3.0,
+      },
+    ],
+    criteria: {
+      currentState: GAME_STATES.POST_DRIVE_BY,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.OFFICE_INTERIOR });
+    },
+  },
 };
 
 /**

@@ -1,5 +1,6 @@
 import { Howl, Howler } from "howler";
 import { checkCriteria } from "./criteriaHelper.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * SFXManager - Manages all sound effects with master volume control
@@ -20,6 +21,9 @@ class SFXManager {
     this.dialogManager = null; // Will be set externally
     this.lightManager = options.lightManager || null; // LightManager for reactive lights
     this.gameManager = null;
+
+    // Logger for debug messages
+    this.logger = new Logger("SFXManager", false);
 
     // Track sounds that have been played once (for playOnce functionality)
     this.playedSounds = new Set();
@@ -58,9 +62,7 @@ class SFXManager {
     const currentState = this.gameManager.getState();
     handleStateChange(currentState, null);
 
-    console.log(
-      "SFXManager: Event listeners registered and initial state handled"
-    );
+    this.logger.log("Event listeners registered and initial state handled");
   }
 
   /**
@@ -124,9 +126,7 @@ class SFXManager {
    * @private
    */
   scheduleDelayedSound(soundId, delay) {
-    console.log(
-      `SFXManager: Scheduling sound "${soundId}" with ${delay}s delay`
-    );
+    this.logger.log(`Scheduling sound "${soundId}" with ${delay}s delay`);
 
     this.pendingSounds.set(soundId, {
       soundId,
@@ -141,7 +141,7 @@ class SFXManager {
    */
   cancelDelayedSound(soundId) {
     if (this.pendingSounds.has(soundId)) {
-      console.log(`SFXManager: Cancelled delayed sound "${soundId}"`);
+      this.logger.log(`Cancelled delayed sound "${soundId}"`);
       this.pendingSounds.delete(soundId);
     }
   }
@@ -151,9 +151,7 @@ class SFXManager {
    */
   cancelAllDelayedSounds() {
     if (this.pendingSounds.size > 0) {
-      console.log(
-        `SFXManager: Cancelling ${this.pendingSounds.size} pending sound(s)`
-      );
+      this.logger.log(`Cancelling ${this.pendingSounds.size} pending sound(s)`);
       this.pendingSounds.clear();
     }
   }
@@ -193,9 +191,7 @@ class SFXManager {
     // Apply current master volume
     this.updateSoundVolume(id);
 
-    console.log(
-      `SFXManager: Registered sound "${id}" with base volume ${baseVolume}`
-    );
+    this.logger.log(`Registered sound "${id}" with base volume ${baseVolume}`);
   }
 
   /**
@@ -246,7 +242,7 @@ class SFXManager {
       // If preload is false, defer loading
       if (!preload) {
         this.deferredSounds.set(sound.id, sound);
-        console.log(`SFXManager: Deferred loading for sound "${sound.id}"`);
+        this.logger.log(`Deferred loading for sound "${sound.id}"`);
         return;
       }
 
@@ -264,16 +260,13 @@ class SFXManager {
         volume: sound.volume,
         preload: preload,
         onload: () => {
-          console.log(`SFXManager: Loaded sound "${sound.id}"`);
+          this.logger.log(`Loaded sound "${sound.id}"`);
           if (this.loadingScreen && preload) {
             this.loadingScreen.completeTask(`sfx_${sound.id}`);
           }
         },
         onloaderror: (id, error) => {
-          console.error(
-            `SFXManager: Failed to load sound "${sound.id}":`,
-            error
-          );
+          this.logger.error(`Failed to load sound "${sound.id}":`, error);
           if (this.loadingScreen && preload) {
             this.loadingScreen.completeTask(`sfx_${sound.id}`);
           }
@@ -298,8 +291,8 @@ class SFXManager {
           timer: 0,
           active: false,
         });
-        console.log(
-          `SFXManager: Registered loop delay of ${sound.loopDelay}s for sound "${sound.id}"`
+        this.logger.log(
+          `Registered loop delay of ${sound.loopDelay}s for sound "${sound.id}"`
         );
       }
 
@@ -328,9 +321,7 @@ class SFXManager {
    * Load deferred sounds (called after loading screen)
    */
   loadDeferredSounds() {
-    console.log(
-      `SFXManager: Loading ${this.deferredSounds.size} deferred sounds`
-    );
+    this.logger.log(`Loading ${this.deferredSounds.size} deferred sounds`);
     for (const [id, sound] of this.deferredSounds) {
       // Check if this sound has a loop delay - if so, we'll manage looping manually
       const hasLoopDelay = sound.loop && sound.loopDelay > 0;
@@ -341,11 +332,11 @@ class SFXManager {
         volume: sound.volume,
         preload: true, // Load now
         onload: () => {
-          console.log(`SFXManager: Loaded deferred sound "${sound.id}"`);
+          this.logger.log(`Loaded deferred sound "${sound.id}"`);
         },
         onloaderror: (id, error) => {
-          console.error(
-            `SFXManager: Failed to load deferred sound "${sound.id}":`,
+          this.logger.error(
+            `Failed to load deferred sound "${sound.id}":`,
             error
           );
         },
@@ -369,8 +360,8 @@ class SFXManager {
           timer: 0,
           active: false,
         });
-        console.log(
-          `SFXManager: Registered loop delay of ${sound.loopDelay}s for deferred sound "${sound.id}"`
+        this.logger.log(
+          `Registered loop delay of ${sound.loopDelay}s for deferred sound "${sound.id}"`
         );
       }
 
@@ -457,7 +448,7 @@ class SFXManager {
   async play(id) {
     // Check if sound is deferred and needs to be loaded on-demand
     if (!this.sounds.has(id) && this.deferredSounds.has(id)) {
-      console.log(`SFXManager: Loading deferred sound "${id}" on-demand`);
+      this.logger.log(`Loading deferred sound "${id}" on-demand`);
       const sound = this.deferredSounds.get(id);
 
       // Check if this sound has a loop delay - if so, we'll manage looping manually
@@ -474,14 +465,11 @@ class SFXManager {
       // Wait for the sound to load using Howler's event system
       await new Promise((resolve) => {
         howl.once("load", () => {
-          console.log(`SFXManager: Loaded on-demand sound "${id}"`);
+          this.logger.log(`Loaded on-demand sound "${id}"`);
           resolve();
         });
         howl.once("loaderror", (loadId, error) => {
-          console.error(
-            `SFXManager: Failed to load on-demand sound "${id}":`,
-            error
-          );
+          this.logger.error(`Failed to load on-demand sound "${id}":`, error);
           resolve(); // Resolve anyway to prevent hanging
         });
       });
@@ -503,8 +491,8 @@ class SFXManager {
           timer: 0,
           active: false,
         });
-        console.log(
-          `SFXManager: Registered loop delay of ${sound.loopDelay}s for on-demand sound "${sound.id}"`
+        this.logger.log(
+          `Registered loop delay of ${sound.loopDelay}s for on-demand sound "${sound.id}"`
         );
       }
 
@@ -532,7 +520,7 @@ class SFXManager {
     if (soundData && soundData.howl) {
       if (soundData.isProxy) {
         // Proxy objects don't have play method
-        console.warn(`SFXManager: Cannot play proxy object "${id}"`);
+        this.logger.warn(`Cannot play proxy object "${id}"`);
         return null;
       }
       const instanceId = soundData.howl.play();
@@ -557,7 +545,7 @@ class SFXManager {
     if (soundData && soundData.howl) {
       if (soundData.isProxy) {
         // Proxy objects don't have stop method
-        console.warn(`SFXManager: Cannot stop proxy object "${id}"`);
+        this.logger.warn(`Cannot stop proxy object "${id}"`);
         return;
       }
       if (soundId !== null) {
@@ -606,8 +594,8 @@ class SFXManager {
     // Start the delay timer
     loopData.active = true;
     loopData.timer = 0;
-    console.log(
-      `SFXManager: Starting loop delay for "${soundId}" (${loopData.delay}s)`
+    this.logger.log(
+      `Starting loop delay for "${soundId}" (${loopData.delay}s)`
     );
   }
 
@@ -637,7 +625,7 @@ class SFXManager {
     if (soundData && soundData.howl) {
       if (soundData.isProxy) {
         // Proxy objects don't have fade method
-        console.warn(`SFXManager: Cannot fade proxy object "${id}"`);
+        this.logger.warn(`Cannot fade proxy object "${id}"`);
         return;
       }
       const fromScaled = from * this.masterVolume;
@@ -671,7 +659,7 @@ class SFXManager {
 
         // Check if delay has elapsed
         if (pending.timer >= pending.delay) {
-          console.log(`SFXManager: Playing delayed sound "${soundId}"`);
+          this.logger.log(`Playing delayed sound "${soundId}"`);
           this.pendingSounds.delete(soundId);
 
           // Get the sound definition to check playOnce
@@ -684,10 +672,7 @@ class SFXManager {
             }
           } catch (e) {
             // Ignore autoplay errors
-            console.warn(
-              `SFXManager: Failed to play delayed sound "${soundId}"`,
-              e
-            );
+            this.logger.warn(`Failed to play delayed sound "${soundId}"`, e);
           }
           break; // Only play one sound per frame
         }
@@ -703,17 +688,15 @@ class SFXManager {
 
         // Check if loop delay has elapsed
         if (loopData.timer >= loopData.delay) {
-          console.log(
-            `SFXManager: Replaying sound "${soundId}" after loop delay`
-          );
+          this.logger.log(`Replaying sound "${soundId}" after loop delay`);
           loopData.active = false;
           loopData.timer = 0;
 
           try {
             this.play(soundId);
           } catch (e) {
-            console.warn(
-              `SFXManager: Failed to replay sound "${soundId}" after loop delay`,
+            this.logger.warn(
+              `Failed to replay sound "${soundId}" after loop delay`,
               e
             );
           }

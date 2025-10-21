@@ -3,6 +3,7 @@ import { createParticleText, createParticleImage } from "./titleText.js";
 import { TitleSequence } from "./titleSequence.js";
 import { GAME_STATES } from "./gameData.js";
 import { GamepadMenuNavigation } from "./ui/gamepadMenuNavigation.js";
+import { Logger } from "./utils/logger.js";
 import "./styles/startScreen.css";
 
 /**
@@ -20,6 +21,9 @@ export class StartScreen {
     this.dialogManager = options.dialogManager || null;
     this.sfxManager = options.sfxManager || null;
     this.inputManager = options.inputManager || null;
+
+    // Logger for debug messages
+    this.logger = new Logger("StartScreen", false);
 
     // Additional state
     this.introStartTriggered = false;
@@ -123,8 +127,8 @@ export class StartScreen {
    */
   async loadCameraAnimation() {
     if (!this.sceneManager) {
-      console.warn(
-        "StartScreen: No sceneManager provided, using fallback circle animation"
+      this.logger.warn(
+        "No sceneManager provided, using fallback circle animation"
       );
       return;
     }
@@ -136,9 +140,7 @@ export class StartScreen {
       this.coneCurveObject = this.sceneManager.getObject("coneCurve");
 
       if (!this.coneCurveObject) {
-        console.warn(
-          "StartScreen: coneCurve object not loaded yet, will retry"
-        );
+        this.logger.warn("coneCurve object not loaded yet, will retry");
         // Retry after a short delay
         setTimeout(() => this.loadCameraAnimation(), 100);
         return;
@@ -149,7 +151,7 @@ export class StartScreen {
       this.coneCurveObject.traverse((child) => {
         if (child.name === "Cone") {
           this.coneAnimatedMesh = child;
-          console.log("StartScreen: Found Cone object, type:", child.type);
+          this.logger.log("Found Cone object, type:", child.type);
         }
 
         // Hide all meshes - we only need this for camera tracking
@@ -159,22 +161,19 @@ export class StartScreen {
       });
 
       if (!this.coneAnimatedMesh) {
-        console.warn(
-          "StartScreen: Could not find 'Cone' mesh in ConeCurve.glb, using fallback"
+        this.logger.warn(
+          "Could not find 'Cone' mesh in ConeCurve.glb, using fallback"
         );
         this.isLoadingAnimation = false;
         return;
       }
 
-      console.log("StartScreen: Camera animation loaded successfully");
-      console.log(
-        "StartScreen: Found animated mesh:",
-        this.coneAnimatedMesh.name
-      );
+      this.logger.log("Camera animation loaded successfully");
+      this.logger.log("Found animated mesh:", this.coneAnimatedMesh.name);
 
       // Manually trigger the animation to play
       if (this.sceneManager) {
-        console.log("StartScreen: Manually playing coneCurve-anim");
+        this.logger.log("Manually playing coneCurve-anim");
         this.sceneManager.playAnimation("coneCurve-anim");
 
         // Set initial animation time based on glbAnimationStartProgress
@@ -193,12 +192,10 @@ export class StartScreen {
               mixer.update(0); // Update with 0 dt to evaluate current time without advancing
             }
 
-            console.log(
-              `StartScreen: Set animation start time to ${startTime.toFixed(
-                2
-              )}s (${(this.glbAnimationStartProgress * 100).toFixed(
-                1
-              )}% of ${duration.toFixed(2)}s)`
+            this.logger.log(
+              `Set animation start time to ${startTime.toFixed(2)}s (${(
+                this.glbAnimationStartProgress * 100
+              ).toFixed(1)}% of ${duration.toFixed(2)}s)`
             );
           }
         }
@@ -206,7 +203,7 @@ export class StartScreen {
 
       this.isLoadingAnimation = false;
     } catch (error) {
-      console.error("StartScreen: Error loading camera animation:", error);
+      this.logger.error("Error loading camera animation:", error);
       this.isLoadingAnimation = false;
     }
   }
@@ -466,8 +463,8 @@ export class StartScreen {
         const currentTime = action.time;
         const progress = currentTime / duration;
 
-        console.log(
-          `StartScreen: Creating unified path from ${(progress * 100).toFixed(
+        this.logger.log(
+          `Creating unified path from ${(progress * 100).toFixed(
             1
           )}% of animation`
         );
@@ -503,8 +500,8 @@ export class StartScreen {
         const timeScale = action.timeScale || 1.0; // account for slow playback
         this.initialAnimSpeed = rawSpeed * timeScale;
 
-        console.log(
-          `StartScreen: GLB speed ≈ ${this.initialAnimSpeed.toFixed(
+        this.logger.log(
+          `GLB speed ≈ ${this.initialAnimSpeed.toFixed(
             2
           )} u/s (raw ${rawSpeed.toFixed(2)}, ts ${timeScale})`
         );
@@ -562,12 +559,10 @@ export class StartScreen {
           const introDuration = this.dialogManager.getDialogDuration("intro");
           if (introDuration > 0) {
             dialogDuration = introDuration;
-            console.log(
-              `StartScreen: Using intro dialog duration: ${dialogDuration}s`
-            );
+            this.logger.log(`Using intro dialog duration: ${dialogDuration}s`);
           } else {
-            console.warn(
-              `StartScreen: Could not get intro dialog duration, using fallback: ${dialogDuration}s`
+            this.logger.warn(
+              `Could not get intro dialog duration, using fallback: ${dialogDuration}s`
             );
           }
         }
@@ -578,8 +573,8 @@ export class StartScreen {
         const pathLength = this.unifiedPath.getLength();
         this.targetPathSpeed =
           pathLength > 0 ? pathLength / dialogDuration : 1.0;
-        console.log(
-          `StartScreen: Target path speed ≈ ${this.targetPathSpeed.toFixed(
+        this.logger.log(
+          `Target path speed ≈ ${this.targetPathSpeed.toFixed(
             2
           )} u/s (length ${pathLength.toFixed(2)}, dur ${dialogDuration.toFixed(
             2
@@ -625,8 +620,8 @@ export class StartScreen {
           });
         }
 
-        console.log(
-          `StartScreen: Created unified path with ${pathPoints.length} points over ${this.unifiedPathDuration}s`
+        this.logger.log(
+          `Created unified path with ${pathPoints.length} points over ${this.unifiedPathDuration}s`
         );
       }
     }
@@ -915,11 +910,11 @@ export class StartScreen {
 
         // Debug: Log position occasionally
         if (Math.random() < 0.01) {
-          console.log("StartScreen: Cone position:", worldPosition.toArray());
+          this.logger.log("Cone position:", worldPosition.toArray());
           if (this.sceneManager) {
             const isPlaying =
               this.sceneManager.isAnimationPlaying("coneCurve-anim");
-            console.log("StartScreen: Animation playing?", isPlaying);
+            this.logger.log("Animation playing?", isPlaying);
           }
         }
 
@@ -1035,7 +1030,7 @@ export class StartScreen {
     // Hide or remove the camera curve object
     if (this.coneCurveObject && this.sceneManager) {
       this.scene.remove(this.coneCurveObject);
-      console.log("StartScreen: Removed camera curve object");
+      this.logger.log("Removed camera curve object");
     }
   }
 
@@ -1064,7 +1059,7 @@ export class StartScreen {
           disperseDistance: 5.0,
           basePointSize: 0.28,
           onComplete: () => {
-            console.log("Title sequence complete");
+            this.logger.log("Title sequence complete");
             gameManager.setState({
               currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
             });

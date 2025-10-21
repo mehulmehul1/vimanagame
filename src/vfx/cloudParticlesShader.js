@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SplatMesh, dyno } from "@sparkjsdev/spark";
+import { Logger } from "../utils/logger.js";
 
 /**
  * Cloud Particles System (Shader-based)
@@ -11,6 +12,7 @@ class CloudParticlesShader {
   constructor(scene, camera = null) {
     this.scene = scene;
     this.camera = camera;
+    this.logger = new Logger("CloudParticlesShader", false);
     this.spawnPosition = new THREE.Vector3(0, 0, 40);
 
     // Fog settings - edit these directly
@@ -100,9 +102,7 @@ class CloudParticlesShader {
   }
 
   init() {
-    console.log(
-      "⚡ Initializing GPU shader-based fog system (cloudParticlesShader.js)"
-    );
+    this.logger.log("⚡ Initializing GPU shader-based fog system");
     this.splatCount = this.particleCount;
 
     // Determine world origin for coordinate system
@@ -450,7 +450,7 @@ class CloudParticlesShader {
 
     // End transition
     if (t >= 1.0) {
-      console.log("Fog transition complete (shader)");
+      this.logger.log("Fog transition complete (shader)");
       this.isTransitioning = false;
     }
   }
@@ -473,7 +473,7 @@ class CloudParticlesShader {
       this.opacityTransitionTargetValue =
         minOpacity + Math.random() * (maxOpacity - minOpacity);
 
-      console.log(
+      this.logger.log(
         `💨 Fog opacity change: ${this.opacity.toFixed(
           2
         )} → ${this.opacityTransitionTargetValue.toFixed(
@@ -502,7 +502,7 @@ class CloudParticlesShader {
       // Check if transition is complete
       if (t >= 1.0) {
         this.isTransitioningOpacity = false;
-        console.log(
+        this.logger.log(
           `  Fog opacity transition complete at ${this.opacity.toFixed(2)}`
         );
         // Schedule next opacity change
@@ -512,7 +512,7 @@ class CloudParticlesShader {
             (this.opacityVariationHoldTimeMax -
               this.opacityVariationHoldTimeMin);
         this.nextOpacityChangeTime = time + holdTime;
-        console.log(`  Next opacity change in ${holdTime.toFixed(1)}s`);
+        this.logger.log(`  Next opacity change in ${holdTime.toFixed(1)}s`);
       }
     }
   }
@@ -539,7 +539,7 @@ class CloudParticlesShader {
         Math.random() *
           (this.windTransitionDurationMax - this.windTransitionDurationMin);
 
-      console.log(
+      this.logger.log(
         `🌬️ Wind change: ${this.windSpeed.toFixed(
           2
         )} → ${this.windTransitionTargetValue.toFixed(
@@ -567,7 +567,7 @@ class CloudParticlesShader {
 
       // Debug: log transition progress every second
       if (Math.floor(elapsed) !== Math.floor(elapsed - 0.016)) {
-        console.log(
+        this.logger.log(
           `  Wind lerp progress: t=${t.toFixed(
             2
           )}, speed=${this.windSpeed.toFixed(2)}`
@@ -577,7 +577,7 @@ class CloudParticlesShader {
       // Check if transition is complete
       if (t >= 1.0) {
         this.isTransitioningWind = false;
-        console.log(
+        this.logger.log(
           `  Wind transition complete at ${this.windSpeed.toFixed(2)}`
         );
         // Schedule next wind change using configured hold time range
@@ -585,7 +585,7 @@ class CloudParticlesShader {
           this.windHoldTimeMin +
           Math.random() * (this.windHoldTimeMax - this.windHoldTimeMin);
         this.nextWindChangeTime = time + holdTime;
-        console.log(`  Next wind change in ${holdTime.toFixed(1)}s`);
+        this.logger.log(`  Next wind change in ${holdTime.toFixed(1)}s`);
       }
     }
   }
@@ -596,7 +596,7 @@ class CloudParticlesShader {
   }
 
   transitionTo(targetParams, duration) {
-    console.log(
+    this.logger.log(
       "Starting fog transition (shader):",
       targetParams,
       "over",
@@ -615,7 +615,7 @@ class CloudParticlesShader {
       if (param in targetParams) {
         this.transitionStartValues[param] = this[param];
         this.transitionTargetValues[param] = targetParams[param];
-        console.log(`  ${param}: ${this[param]} → ${targetParams[param]}`);
+        this.logger.log(`  ${param}: ${this[param]} → ${targetParams[param]}`);
       }
     });
   }
@@ -639,14 +639,16 @@ class CloudParticlesShader {
    */
   rebuild() {
     if (this.splatMesh) {
-      console.log("🌫️ Rebuilding fog shader to pick up new splat lights...");
+      this.logger.log(
+        "🌫️ Rebuilding fog shader to pick up new splat lights..."
+      );
       // Force the SplatMesh to rebuild its shader to detect new SplatEdit layers
       this.splatMesh.updateGenerator();
 
       // Also try calling updateVersion in case that helps
       this.splatMesh.updateVersion();
 
-      console.log("🌫️ Fog rebuild complete");
+      this.logger.log("🌫️ Fog rebuild complete");
     }
   }
 

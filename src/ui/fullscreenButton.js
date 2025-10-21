@@ -8,11 +8,14 @@
  * - Handles fullscreen change events
  */
 
+import { Logger } from "../utils/logger.js";
+
 export class FullscreenButton {
   constructor(options = {}) {
     this.uiManager = options.uiManager || null;
     this.gameManager = options.gameManager || null;
     this.config = options.config || {};
+    this.logger = new Logger("FullscreenButton", false);
 
     // Create the button element
     this.createButton();
@@ -115,8 +118,8 @@ export class FullscreenButton {
     // Hide button if fullscreen is not supported (e.g., iOS)
     if (!this.isFullscreenSupported()) {
       this.button.classList.add("is-hidden");
-      console.log(
-        "FullscreenButton: Fullscreen API not supported on this device, button hidden"
+      this.logger.log(
+        "Fullscreen API not supported on this device, button hidden"
       );
     }
   }
@@ -127,14 +130,14 @@ export class FullscreenButton {
   toggleFullscreen() {
     // Don't attempt if not supported
     if (!this.isFullscreenSupported()) {
-      console.log("FullscreenButton: Fullscreen not supported on this device");
+      this.logger.log("Fullscreen not supported on this device");
       return;
     }
 
     if (!document.fullscreenElement) {
       // Enter fullscreen
       document.documentElement.requestFullscreen().catch((err) => {
-        console.warn("Error attempting to enable fullscreen:", err);
+        this.logger.warn("Error attempting to enable fullscreen:", err);
       });
     } else {
       // Exit fullscreen

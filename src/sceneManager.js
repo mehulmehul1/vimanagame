@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
 import { checkCriteria } from "./criteriaHelper.js";
 import { createHeadlightBeamShader } from "./vfx/shaders/headlightBeamShader.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * SceneManager - Manages scene objects (splats, GLTF models, etc.)
@@ -57,6 +58,9 @@ class SceneManager {
 
     // Asset loading progress tracking
     this.assetProgress = new Map(); // Map of asset id -> { loaded, total }
+
+    // Logger for debug messages
+    this.logger = new Logger("SceneManager", false);
   }
 
   /**
@@ -101,22 +105,19 @@ class SceneManager {
    */
   async loadObjectsForState(objectsToLoad) {
     if (!objectsToLoad || objectsToLoad.length === 0) {
-      console.log("SceneManager: No objects to load for current state");
+      this.logger.log("No objects to load for current state");
       return;
     }
 
-    console.log(
-      `SceneManager: Loading ${objectsToLoad.length} objects for current state`
+    this.logger.log(
+      `Loading ${objectsToLoad.length} objects for current state`
     );
 
     let foundGizmo = false;
     const loadPromises = objectsToLoad.map((objectData) =>
       this.loadObject(objectData)
         .catch((error) => {
-          console.error(
-            `SceneManager: Failed to load object "${objectData.id}":`,
-            error
-          );
+          this.logger.error(`Failed to load object "${objectData.id}":`, error);
           // Continue loading other objects even if one fails
           return null;
         })
@@ -155,7 +156,7 @@ class SceneManager {
 
     // Check if already loaded
     if (this.objects.has(id)) {
-      console.warn(`SceneManager: Object "${id}" is already loaded`);
+      this.logger.warn(`Object "${id}" is already loaded`);
       return this.objects.get(id);
     }
 
@@ -169,7 +170,7 @@ class SceneManager {
         loadPromise = this._loadGLTF(objectData);
         break;
       default:
-        console.error(`SceneManager: Unknown object type "${type}"`);
+        this.logger.error(`Unknown object type "${type}"`);
         return null;
     }
 
@@ -180,7 +181,7 @@ class SceneManager {
       this.objects.set(id, object);
       this.objectData.set(id, objectData); // Store original config
       this.loadingPromises.delete(id);
-      console.log(`SceneManager: Loaded "${id}" (${type})`);
+      this.logger.log(`Loaded "${id}" (${type})`);
 
       // Handle parenting if specified
       if (objectData.parent) {
@@ -189,9 +190,7 @@ class SceneManager {
 
         // Wait for parent if it's still loading
         if (!parentObject && this.loadingPromises.has(parentId)) {
-          console.log(
-            `SceneManager: Waiting for parent "${parentId}" to load...`
-          );
+          this.logger.log(`Waiting for parent "${parentId}" to load...`);
           parentObject = await this.loadingPromises.get(parentId);
         }
 
@@ -202,11 +201,9 @@ class SceneManager {
           }
           // Add to parent
           parentObject.add(object);
-          console.log(`SceneManager: Parented "${id}" to "${parentId}"`);
+          this.logger.log(`Parented "${id}" to "${parentId}"`);
         } else {
-          console.warn(
-            `SceneManager: Parent "${parentId}" not found for "${id}"`
-          );
+          this.logger.warn(`Parent "${parentId}" not found for "${id}"`);
         }
       }
 
@@ -218,7 +215,7 @@ class SceneManager {
       return object;
     } catch (error) {
       this.loadingPromises.delete(id);
-      console.error(`SceneManager: Error loading "${id}":`, error);
+      this.logger.error(`Error loading "${id}":`, error);
       throw error;
     }
   }
@@ -385,6 +382,12 @@ class SceneManager {
             }
           }
 
+          // Set visibility
+          if (options && options.visible === false) {
+            finalObject.visible = false;
+            this.logger.log(`Set "${id}" to invisible`);
+          }
+
           // Setup animations if available
           if (
             animations &&
@@ -430,7 +433,7 @@ class SceneManager {
       // Find which animation config this action belongs to
       for (const [animId, storedAction] of this.animationActions) {
         if (storedAction === action) {
-          console.log(`SceneManager: Animation "${animId}" finished`);
+          this.logger.log(`Animation "${animId}" finished`);
           this.emit("animation:finished", animId);
 
           // Check if we should remove the object after animation finishes
@@ -438,8 +441,8 @@ class SceneManager {
           if (config && config.removeObjectOnFinish) {
             const objectId = this.animationToObject.get(animId);
             if (objectId) {
-              console.log(
-                `SceneManager: Removing object "${objectId}" after animation "${animId}" finished`
+              this.logger.log(
+                `Removing object "${objectId}" after animation "${animId}" finished`
               );
               this.removeObject(objectId);
             }
@@ -450,8 +453,8 @@ class SceneManager {
     });
 
     // Log available clips for debugging
-    console.log(
-      `SceneManager: Available animation clips for "${objectId}":`,
+    this.logger.log(
+      `Available animation clips for "${objectId}":`,
       clips.map((c) => c.name)
     );
 
@@ -461,8 +464,8 @@ class SceneManager {
       if (config.clipName) {
         clip = clips.find((c) => c.name === config.clipName);
         if (!clip) {
-          console.warn(
-            `SceneManager: Animation clip "${config.clipName}" not found for "${config.id}". Available:`,
+          this.logger.warn(
+            `Animation clip "${config.clipName}" not found for "${config.id}". Available:`,
             clips.map((c) => c.name)
           );
         }
@@ -472,9 +475,7 @@ class SceneManager {
       }
 
       if (!clip) {
-        console.warn(
-          `SceneManager: No animation clip found for "${config.id}"`
-        );
+        this.logger.warn(`No animation clip found for "${config.id}"`);
         return;
       }
 
@@ -489,8 +490,8 @@ class SceneManager {
       this.animationData.set(config.id, config);
       this.animationToObject.set(config.id, objectId);
 
-      console.log(
-        `SceneManager: Registered animation "${config.id}" for object "${objectId}"`
+      this.logger.log(
+        `Registered animation "${config.id}" for object "${objectId}"`
       );
     });
   }
@@ -513,7 +514,7 @@ class SceneManager {
   findChildByName(objectId, childName) {
     const object = this.getObject(objectId);
     if (!object) {
-      console.warn(`SceneManager: Object "${objectId}" not found`);
+      this.logger.warn(`Object "${objectId}" not found`);
       return null;
     }
 
@@ -525,9 +526,7 @@ class SceneManager {
     });
 
     if (!foundChild) {
-      console.warn(
-        `SceneManager: Child "${childName}" not found in "${objectId}"`
-      );
+      this.logger.warn(`Child "${childName}" not found in "${objectId}"`);
     }
 
     return foundChild;
@@ -614,8 +613,8 @@ class SceneManager {
       }
     }
 
-    console.log(
-      `SceneManager: Reparented "${childName}" from "${sourceObjectId}" to new parent`
+    this.logger.log(
+      `Reparented "${childName}" from "${sourceObjectId}" to new parent`
     );
 
     return child;
@@ -663,7 +662,7 @@ class SceneManager {
       });
       this.objects.delete(id);
       this.objectData.delete(id);
-      console.log(`SceneManager: Removed "${id}"`);
+      this.logger.log(`Removed "${id}"`);
     }
   }
 
@@ -702,9 +701,9 @@ class SceneManager {
     if (action) {
       action.reset();
       action.play();
-      console.log(`SceneManager: Playing animation "${animationId}"`);
+      this.logger.log(`Playing animation "${animationId}"`);
     } else {
-      console.warn(`SceneManager: Animation "${animationId}" not found`);
+      this.logger.warn(`Animation "${animationId}" not found`);
     }
   }
 
@@ -716,7 +715,7 @@ class SceneManager {
     const action = this.animationActions.get(animationId);
     if (action) {
       action.stop();
-      console.log(`SceneManager: Stopped animation "${animationId}"`);
+      this.logger.log(`Stopped animation "${animationId}"`);
     }
   }
 

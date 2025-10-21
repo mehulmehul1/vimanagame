@@ -1,6 +1,7 @@
 import { Howl } from "howler";
 import * as THREE from "three";
 import { GAME_STATES } from "./gameData.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * DialogManager - Handles dialog audio playback with synchronized captions
@@ -42,6 +43,9 @@ class DialogManager {
     this.isPlaying = false;
     this.onCompleteCallback = null;
     this.captionsEnabled = true; // Default to captions enabled
+
+    // Logger for debug messages
+    this.logger = new Logger("DialogManager", false);
 
     // Per-dialog progress-based state triggers
     this.currentProgressTriggers = [];
@@ -88,9 +92,7 @@ class DialogManager {
       // If preload is false, defer loading
       if (!preload) {
         this.deferredDialogs.set(dialog.id, dialog);
-        console.log(
-          `DialogManager: Deferred loading for dialog "${dialog.id}"`
-        );
+        this.logger.log(`Deferred loading for dialog "${dialog.id}"`);
         return;
       }
 
@@ -105,16 +107,13 @@ class DialogManager {
         volume: this.audioVolume,
         preload: true,
         onload: () => {
-          console.log(`DialogManager: Preloaded dialog "${dialog.id}"`);
+          this.logger.log(`Preloaded dialog "${dialog.id}"`);
           if (this.loadingScreen && preload) {
             this.loadingScreen.completeTask(`dialog_${dialog.id}`);
           }
         },
         onloaderror: (id, error) => {
-          console.error(
-            `DialogManager: Failed to preload dialog "${dialog.id}":`,
-            error
-          );
+          this.logger.error(`Failed to preload dialog "${dialog.id}":`, error);
           if (this.loadingScreen && preload) {
             this.loadingScreen.completeTask(`dialog_${dialog.id}`);
           }
@@ -132,9 +131,7 @@ class DialogManager {
    * Load deferred dialogs (called after loading screen)
    */
   loadDeferredDialogs() {
-    console.log(
-      `DialogManager: Loading ${this.deferredDialogs.size} deferred dialogs`
-    );
+    this.logger.log(`Loading ${this.deferredDialogs.size} deferred dialogs`);
     for (const [id, dialog] of this.deferredDialogs) {
       if (!dialog.audio) continue;
 
@@ -143,11 +140,11 @@ class DialogManager {
         volume: this.audioVolume,
         preload: true,
         onload: () => {
-          console.log(`DialogManager: Loaded deferred dialog "${dialog.id}"`);
+          this.logger.log(`Loaded deferred dialog "${dialog.id}"`);
         },
         onloaderror: (id, error) => {
-          console.error(
-            `DialogManager: Failed to load deferred dialog "${dialog.id}":`,
+          this.logger.error(
+            `Failed to load deferred dialog "${dialog.id}":`,
             error
           );
         },
@@ -194,13 +191,13 @@ class DialogManager {
 
           // Cancel any pending dialogs if we have a higher priority one
           if (this.hasDialogsPending()) {
-            console.log(
-              `DialogManager: Canceling pending dialogs for new dialog "${dialog.id}"`
+            this.logger.log(
+              `Canceling pending dialogs for new dialog "${dialog.id}"`
             );
             this.cancelAllDelayedDialogs();
           }
 
-          console.log(`DialogManager: Auto-playing dialog "${dialog.id}"`);
+          this.logger.log(`Auto-playing dialog "${dialog.id}"`);
 
           // Track that this dialog has been played
           this.playedDialogs.add(dialog.id);
@@ -215,7 +212,7 @@ class DialogManager {
         }
       });
 
-      console.log("DialogManager: Event listeners registered");
+      this.logger.log("Event listeners registered");
     });
   }
 
@@ -237,8 +234,8 @@ class DialogManager {
   playDialog(dialogData, onComplete = null) {
     // Cancel any currently playing dialog
     if (this.isPlaying) {
-      console.log(
-        `DialogManager: Canceling current dialog "${this.currentDialog?.id}" for new dialog "${dialogData.id}"`
+      this.logger.log(
+        `Canceling current dialog "${this.currentDialog?.id}" for new dialog "${dialogData.id}"`
       );
       this.stopDialog();
     }
@@ -269,8 +266,8 @@ class DialogManager {
    * @private
    */
   scheduleDelayedDialog(dialogData, onComplete, delay) {
-    console.log(
-      `DialogManager: Scheduling dialog "${dialogData.id}" with ${delay}s delay`
+    this.logger.log(
+      `Scheduling dialog "${dialogData.id}" with ${delay}s delay`
     );
 
     this.pendingDialogs.set(dialogData.id, {
@@ -287,7 +284,7 @@ class DialogManager {
    */
   cancelDelayedDialog(dialogId) {
     if (this.pendingDialogs.has(dialogId)) {
-      console.log(`DialogManager: Cancelled delayed dialog "${dialogId}"`);
+      this.logger.log(`Cancelled delayed dialog "${dialogId}"`);
       this.pendingDialogs.delete(dialogId);
     }
   }
@@ -297,8 +294,8 @@ class DialogManager {
    */
   cancelAllDelayedDialogs() {
     if (this.pendingDialogs.size > 0) {
-      console.log(
-        `DialogManager: Cancelling ${this.pendingDialogs.size} pending dialog(s)`
+      this.logger.log(
+        `Cancelling ${this.pendingDialogs.size} pending dialog(s)`
       );
       this.pendingDialogs.clear();
     }
@@ -353,17 +350,15 @@ class DialogManager {
     if (dialogData.audio) {
       // Check if audio was preloaded or loaded from deferred
       if (this.preloadedAudio.has(dialogData.id)) {
-        console.log(
-          `DialogManager: Using preloaded audio for "${dialogData.id}"`
-        );
+        this.logger.log(`Using preloaded audio for "${dialogData.id}"`);
         this.currentAudio = this.preloadedAudio.get(dialogData.id);
         this.currentAudio.volume(this.audioVolume);
         this.currentAudio.play();
       } else {
         // Check if this was a deferred dialog that hasn't been loaded yet
         if (this.deferredDialogs.has(dialogData.id)) {
-          console.log(
-            `DialogManager: Loading deferred dialog "${dialogData.id}" on-demand`
+          this.logger.log(
+            `Loading deferred dialog "${dialogData.id}" on-demand`
           );
           const deferredDialog = this.deferredDialogs.get(dialogData.id);
 
@@ -375,7 +370,7 @@ class DialogManager {
               this.handleDialogComplete();
             },
             onloaderror: (id, error) => {
-              console.error("DialogManager: Failed to load audio", error);
+              this.logger.error("Failed to load audio", error);
               this.handleDialogComplete();
             },
           });
@@ -385,9 +380,7 @@ class DialogManager {
           this.preloadedAudio.set(dialogData.id, this.currentAudio);
         } else {
           // Fallback: Load on-demand from dialogData
-          console.log(
-            `DialogManager: Loading audio on-demand for "${dialogData.id}"`
-          );
+          this.logger.log(`Loading audio on-demand for "${dialogData.id}"`);
           this.currentAudio = new Howl({
             src: [dialogData.audio],
             volume: this.audioVolume,
@@ -396,7 +389,7 @@ class DialogManager {
               this.handleDialogComplete();
             },
             onloaderror: (id, error) => {
-              console.error("DialogManager: Failed to load audio", error);
+              this.logger.error("Failed to load audio", error);
               this.handleDialogComplete();
             },
           });
@@ -406,14 +399,12 @@ class DialogManager {
         if (this.currentAudio.state && this.currentAudio.state() !== "loaded") {
           await new Promise((resolve) => {
             this.currentAudio.once("load", () => {
-              console.log(
-                `DialogManager: Loaded on-demand dialog "${dialogData.id}"`
-              );
+              this.logger.log(`Loaded on-demand dialog "${dialogData.id}"`);
               resolve();
             });
             this.currentAudio.once("loaderror", (id, error) => {
-              console.error(
-                `DialogManager: Failed to load on-demand dialog "${dialogData.id}":`,
+              this.logger.error(
+                `Failed to load on-demand dialog "${dialogData.id}":`,
                 error
               );
               resolve(); // Resolve anyway to prevent hanging
@@ -496,9 +487,7 @@ class DialogManager {
         const choiceConfig = module.getChoiceForDialog(completedDialog.id);
 
         if (choiceConfig) {
-          console.log(
-            `DialogManager: Showing choices for dialog "${completedDialog.id}"`
-          );
+          this.logger.log(`Showing choices for dialog "${completedDialog.id}"`);
           const choiceData = module.buildChoiceData(choiceConfig);
           this.dialogChoiceUI.showChoices(choiceData);
         } else {
@@ -527,13 +516,11 @@ class DialogManager {
     if (dialog && dialog.onComplete && this.gameManager) {
       if (typeof dialog.onComplete === "function") {
         try {
-          console.log(
-            `DialogManager: Calling onComplete for dialog "${dialog.id}"`
-          );
+          this.logger.log(`Calling onComplete for dialog "${dialog.id}"`);
           dialog.onComplete(this.gameManager);
         } catch (error) {
-          console.error(
-            `DialogManager: Error in onComplete for dialog "${dialog.id}":`,
+          this.logger.error(
+            `Error in onComplete for dialog "${dialog.id}":`,
             error
           );
         }
@@ -553,7 +540,7 @@ class DialogManager {
 
         // Check if delay has elapsed and no dialog is currently playing
         if (pending.timer >= pending.delay && !this.isPlaying) {
-          console.log(`DialogManager: Playing delayed dialog "${dialogId}"`);
+          this.logger.log(`Playing delayed dialog "${dialogId}"`);
           this.pendingDialogs.delete(dialogId);
           this._playDialogImmediate(pending.dialogData, pending.onComplete);
           break; // Only play one dialog per frame
@@ -721,19 +708,19 @@ class DialogManager {
     if (this.preloadedAudio.has(dialogId)) {
       const howl = this.preloadedAudio.get(dialogId);
       const duration = howl.duration();
-      console.log(`DialogManager: Dialog "${dialogId}" duration: ${duration}s`);
+      this.logger.log(`Dialog "${dialogId}" duration: ${duration}s`);
       return duration || 0;
     }
 
     // Check if it's a deferred dialog
     if (this.deferredDialogs.has(dialogId)) {
-      console.warn(
-        `DialogManager: Dialog "${dialogId}" is deferred and not yet loaded, cannot get duration`
+      this.logger.warn(
+        `Dialog "${dialogId}" is deferred and not yet loaded, cannot get duration`
       );
       return 0;
     }
 
-    console.warn(`DialogManager: Dialog "${dialogId}" not found`);
+    this.logger.warn(`Dialog "${dialogId}" not found`);
     return 0;
   }
 

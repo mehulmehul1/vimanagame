@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Howl, Howler } from "howler";
+import { Logger } from "../utils/logger.js";
 
 /**
  * AudioReactiveLight - Makes a THREE.js light react to audio analysis
@@ -33,6 +34,7 @@ class AudioReactiveLight {
     this.frequencyRange = options.frequencyRange ?? "full"; // 'bass', 'mid', 'high', 'full'
     this.noiseFloor = options.noiseFloor ?? 0.0; // 0-1, audio below this is ignored
     this.enabled = options.enabled ?? true;
+    this.logger = new Logger("AudioReactiveLight", false);
 
     // Web Audio API setup
     this.analyser = null;
@@ -63,7 +65,7 @@ class AudioReactiveLight {
       this.audioContext = Howler.ctx;
 
       if (!this.audioContext) {
-        console.warn("AudioReactiveLight: No audio context available");
+        this.logger.warn("No audio context available");
         return;
       }
 
@@ -86,11 +88,11 @@ class AudioReactiveLight {
           sound._node.connect(this.analyser);
           this.analyser.connect(Howler.masterGain);
           this.connected = true;
-          console.log("AudioReactiveLight: Connected to audio stream");
+          this.logger.log("Connected to audio stream");
         }
       }
     } catch (error) {
-      console.error("AudioReactiveLight: Error setting up analyser:", error);
+      this.logger.error("Error setting up analyser:", error);
     }
   }
 

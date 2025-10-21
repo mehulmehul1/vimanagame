@@ -1,5 +1,6 @@
 import { TouchJoystick } from "./ui/touchJoystick.js";
 import { GAME_STATES } from "./gameData.js";
+import { Logger } from "./utils/logger.js";
 
 /**
  * InputManager - Unified input handling for keyboard, mouse, gamepad, and touch
@@ -18,6 +19,7 @@ class InputManager {
   constructor(rendererDomElement, gameManager = null) {
     this.rendererDomElement = rendererDomElement;
     this.gameManager = gameManager;
+    this.logger = new Logger("InputManager", false);
 
     // Input state
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
@@ -76,8 +78,8 @@ class InputManager {
     this.setupGamepadListeners();
     this.setupTouchJoysticks();
 
-    console.log(
-      "InputManager: Initialized with keyboard, mouse, gamepad, and touch support"
+    this.logger.log(
+      "Initialized with keyboard, mouse, gamepad, and touch support"
     );
   }
 
@@ -205,26 +207,26 @@ class InputManager {
    */
   setupGamepadListeners() {
     window.addEventListener("gamepadconnected", (e) => {
-      console.log(
-        `InputManager: Gamepad connected - ${e.gamepad.id} (index: ${e.gamepad.index})`
+      this.logger.log(
+        `Gamepad connected - ${e.gamepad.id} (index: ${e.gamepad.index})`
       );
 
       // Use the first connected gamepad
       if (this.gamepadIndex === null) {
         this.gamepadIndex = e.gamepad.index;
-        console.log(`InputManager: Using gamepad index ${this.gamepadIndex}`);
+        this.logger.log(`Using gamepad index ${this.gamepadIndex}`);
       }
     });
 
     window.addEventListener("gamepaddisconnected", (e) => {
-      console.log(
-        `InputManager: Gamepad disconnected - ${e.gamepad.id} (index: ${e.gamepad.index})`
+      this.logger.log(
+        `Gamepad disconnected - ${e.gamepad.id} (index: ${e.gamepad.index})`
       );
 
       // Clear gamepad index if this was our active gamepad
       if (this.gamepadIndex === e.gamepad.index) {
         this.gamepadIndex = null;
-        console.log("InputManager: Active gamepad disconnected");
+        this.logger.log("Active gamepad disconnected");
       }
     });
   }
@@ -403,8 +405,8 @@ class InputManager {
   enable() {
     // Don't override selective disables (e.g., from moveTo with selective inputControl)
     if (this.hasSelectiveDisable) {
-      console.log(
-        "InputManager: enable() called but selective disable is active (ignoring to preserve selective disables)"
+      this.logger.log(
+        "enable() called but selective disable is active (ignoring to preserve selective disables)"
       );
       return;
     }
@@ -415,7 +417,7 @@ class InputManager {
     // Clear any accumulated input when enabling
     this.mouseDelta = { x: 0, y: 0 };
     this.showTouchControls();
-    console.log("InputManager: Input enabled");
+    this.logger.log("Input enabled");
   }
 
   /**
@@ -429,7 +431,7 @@ class InputManager {
     this.keys = { w: false, a: false, s: false, d: false, shift: false };
     this.mouseDelta = { x: 0, y: 0 };
     this.hideTouchControls();
-    console.log("InputManager: Input disabled");
+    this.logger.log("Input disabled");
   }
 
   /**
@@ -445,7 +447,7 @@ class InputManager {
     if (this.leftJoystick) {
       this.leftJoystick.show();
     }
-    console.log("InputManager: Movement enabled");
+    this.logger.log("Movement enabled");
   }
 
   /**
@@ -463,7 +465,7 @@ class InputManager {
     if (this.leftJoystick) {
       this.leftJoystick.hide();
     }
-    console.log("InputManager: Movement disabled");
+    this.logger.log("Movement disabled");
   }
 
   /**
@@ -481,7 +483,7 @@ class InputManager {
     if (this.rightJoystick) {
       this.rightJoystick.show();
     }
-    console.log("InputManager: Rotation enabled");
+    this.logger.log("Rotation enabled");
   }
 
   /**
@@ -495,7 +497,7 @@ class InputManager {
     if (this.rightJoystick) {
       this.rightJoystick.hide();
     }
-    console.log("InputManager: Rotation disabled");
+    this.logger.log("Rotation disabled");
   }
 
   /**
