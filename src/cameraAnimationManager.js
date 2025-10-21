@@ -15,13 +15,13 @@ import { Logger } from "./utils/logger.js";
  */
 class CameraAnimationManager {
   constructor(camera, characterController, gameManager, options = {}) {
+    // Debug logging
+    this.logger = new Logger("CameraAnimationManager", false);
+
     this.camera = camera;
     this.characterController = characterController;
     this.gameManager = gameManager;
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
-
-    // Debug logging
-    this.logger = new Logger("CameraAnimationManager", false);
 
     // Playback state
     this.isPlaying = false;
