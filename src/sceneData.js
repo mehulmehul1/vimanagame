@@ -14,6 +14,8 @@
  * - options: Type-specific options
  *   - useContainer: (GLTF) Wrap model in a container group
  *   - visible: If false, object will be invisible (useful for animation helpers)
+ *   - physicsCollider: (GLTF) If true, create a Rapier trimesh collider from mesh geometry
+ *   - debugMaterial: (GLTF) If true, apply semi-transparent wireframe material for debugging
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
@@ -47,6 +49,9 @@ import { Logger } from "./utils/logger.js";
 // Create module-level logger
 const logger = new Logger("SceneData", false);
 
+const interiorPosition = { x: 4.55, y: -0.22, z: 78.51 };
+const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
+
 export const sceneObjects = {
   exterior: {
     id: "exterior",
@@ -66,7 +71,7 @@ export const sceneObjects = {
     type: "splat",
     path: "/stairs-and-green-room.sog",
     description: "Main exterior environment splat mesh",
-    position: { x: 4.55, y: -0.22, z: 78.51 },
+    position: interiorPosition,
     rotation: { x: 0.0, y: -1.0385, z: -3.1416 },
     scale: { x: 1, y: 1, z: 1 },
     loadByDefault: true, // Always load this scene
@@ -171,6 +176,29 @@ export const sceneObjects = {
     scale: { x: 2.92, y: 2.92, z: 2.92 },
     loadByDefault: true,
     priority: 100,
+  },
+
+  officeCollider: {
+    id: "officeCollider",
+    type: "gltf",
+    path: "/gltf/colliders/office-collider-v01.glb",
+    description: "Office interior physics collider mesh",
+    position: interiorPosition,
+    rotation: interiorRotation,
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+      visible: false, // Set to true to see debug material
+      physicsCollider: true, // Flag to create physics trimesh collider
+      debugMaterial: false, // Apply semi-transparent debug material to visualize collider
+    },
+    loadByDefault: false,
+    priority: 90,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
   },
 
   coneCurve: {

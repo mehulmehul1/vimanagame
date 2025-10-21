@@ -45,6 +45,17 @@ export class Logger {
   }
 
   /**
+   * Log message without prefix (only if debug is enabled)
+   * Useful for structured data that should be copy-paste friendly
+   * @param {...any} args - Arguments to log
+   */
+  logRaw(...args) {
+    if (this.debug) {
+      console.log(...args);
+    }
+  }
+
+  /**
    * Enable or disable debug logging
    * @param {boolean} enabled - Whether to enable debug logging
    */

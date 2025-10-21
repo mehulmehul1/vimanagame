@@ -20,8 +20,8 @@ import { Logger } from "./utils/logger.js";
  * - Add ?gizmo to URL to enable P key spawning (blocks pointer lock & idle)
  * - Click object to focus it for logging
  * - P = spawn gizmo 5m in front of camera (only with ?gizmo param)
- * - G = translate, R = rotate, S = scale (all gizmos)
- * - W = world space, L = local space (all gizmos)
+ * - G = translate, R = rotate, Q = scale (all gizmos)
+ * - Space = toggle world/local space (all gizmos)
  * - H = toggle visibility (all gizmos)
  * - F = cycle through gizmos and teleport character 5m in front of each
  * - Drag any gizmo to manipulate, release to log position
@@ -32,7 +32,10 @@ class GizmoManager {
     this.camera = camera;
     this.renderer = renderer;
     this.enabled = false;
-    this.logger = new Logger("GizmoManager", true);
+
+    // Check if logging should be enabled based on gizmo presence
+    const shouldEnableLogging = this.checkIfLoggingShouldBeEnabled();
+    this.logger = new Logger("GizmoManager", shouldEnableLogging);
 
     // Configurable objects - now supports multiple simultaneous gizmos
     this.objects = []; // Objects that can be selected
@@ -69,21 +72,52 @@ class GizmoManager {
   }
 
   /**
+   * Check if logging should be enabled based on gizmo presence
+   * @returns {boolean}
+   */
+  checkIfLoggingShouldBeEnabled() {
+    // Check URL params for gizmo parameter
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasGizmoURLParam = urlParams.has("gizmo");
+      if (hasGizmoURLParam) {
+        return true;
+      }
+    } catch (e) {
+      // Ignore errors in URL param checking
+    }
+
+    // Check if any gizmo data exists (will be checked later when data is available)
+    // For now, assume logging should be enabled if we're in a development context
+    // The actual check will happen in applyGlobalBlocksFromDefinitions
+    return false; // Will be updated when data is processed
+  }
+
+  /**
+   * Update logging state based on gizmo data availability
+   */
+  updateLoggingBasedOnGizmoData() {
+    const shouldEnableLogging =
+      this.hasGizmoInDefinitions || this.hasGizmoURLParam;
+    if (this.logger.debug !== shouldEnableLogging) {
+      this.logger.setDebug(shouldEnableLogging);
+      this.logger.log(
+        `Logging ${
+          shouldEnableLogging ? "enabled" : "disabled"
+        } based on gizmo data availability`
+      );
+    }
+  }
+
+  /**
    * Check if gizmo URL parameter is present
    */
   checkGizmoURLParam() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       this.hasGizmoURLParam = urlParams.has("gizmo");
-      this.logger.log("Checking URL params");
-      this.logger.log("  - URL search string:", window.location.search);
-      this.logger.log("  - Has 'gizmo' param:", this.hasGizmoURLParam);
       if (this.hasGizmoURLParam) {
-        this.logger.log(
-          "✓ gizmo URL parameter detected - P key spawning enabled"
-        );
-      } else {
-        this.logger.log("No gizmo URL parameter - P key spawning disabled");
+        this.updateLoggingBasedOnGizmoData();
       }
     } catch (e) {
       this.logger.warn("Failed to check URL params:", e);
@@ -151,6 +185,10 @@ class GizmoManager {
       ...collect(lightDefs),
     ];
     this.hasGizmoInDefinitions = all.some((d) => d && d.gizmo === true);
+
+    // Update logging based on gizmo data availability
+    this.updateLoggingBasedOnGizmoData();
+
     // Inform gameManager (if available via window) so all managers share the same flag
     try {
       if (
@@ -366,6 +404,9 @@ class GizmoManager {
     this.logger.log(`Registered "${item.id}" (${type}) with gizmo`, object);
     this.logger.log(`  Total registered objects: ${this.objects.length}`);
 
+    // Update logging based on runtime gizmo presence
+    this.updateLoggingBasedOnGizmoData();
+
     // Standardize side-effects when any gizmo is present
     this.updateGlobalBlocks();
   }
@@ -406,6 +447,9 @@ class GizmoManager {
       helper.parent.remove(helper);
     }
     this.controlHelpers.delete(object);
+
+    // Update logging based on runtime gizmo presence
+    this.updateLoggingBasedOnGizmoData();
 
     // Update global effects when gizmo set changes
     this.updateGlobalBlocks();
@@ -522,8 +566,9 @@ class GizmoManager {
       return;
     }
 
-    switch (event.key.toLowerCase()) {
+    switch (event.key) {
       case "p":
+      case "P":
         this.logger.log(
           "P key pressed, hasGizmoURLParam:",
           this.hasGizmoURLParam
@@ -536,6 +581,7 @@ class GizmoManager {
         }
         break;
       case "g":
+      case "G":
         if (this.controls.size === 0) return;
         this.currentMode = "translate";
         for (const control of this.controls.values()) {
@@ -544,6 +590,7 @@ class GizmoManager {
         this.logger.log("Mode = Translate (all gizmos)");
         break;
       case "r":
+      case "R":
         if (this.controls.size === 0) return;
         this.currentMode = "rotate";
         for (const control of this.controls.values()) {
@@ -551,7 +598,8 @@ class GizmoManager {
         }
         this.logger.log("Mode = Rotate (all gizmos)");
         break;
-      case "s":
+      case "q":
+      case "Q":
         if (this.controls.size === 0) return;
         this.currentMode = "scale";
         for (const control of this.controls.values()) {
@@ -559,31 +607,29 @@ class GizmoManager {
         }
         this.logger.log("Mode = Scale (all gizmos)");
         break;
-      case "w":
+      case " ":
         if (this.controls.size === 0) return;
-        this.currentSpace = "world";
+        this.currentSpace = this.currentSpace === "world" ? "local" : "world";
         for (const control of this.controls.values()) {
-          control.setSpace("world");
+          control.setSpace(this.currentSpace);
         }
-        this.logger.log("Space = World (all gizmos)");
-        break;
-      case "l":
-        if (this.controls.size === 0) return;
-        this.currentSpace = "local";
-        for (const control of this.controls.values()) {
-          control.setSpace("local");
-        }
-        this.logger.log("Space = Local (all gizmos)");
+        this.logger.log(
+          `Space = ${
+            this.currentSpace === "world" ? "World" : "Local"
+          } (all gizmos)`
+        );
         break;
       case "h":
+      case "H":
         if (this.controls.size === 0) return;
         this.setVisible(!this.isVisible);
         this.logger.log(`${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`);
         break;
       case "f":
+      case "F":
         this.cycleAndTeleportToNextGizmo();
         break;
-      case "escape":
+      case "Escape":
         if (this.activeObject) {
           this.logger.log(`Cleared focus from "${this.activeObject.id}"`);
           this.activeObject = null;
@@ -627,7 +673,11 @@ class GizmoManager {
     // Register the sphere with the gizmo manager
     this.registerObject(sphere, gizmoId, "spawned");
 
-    this.logger.log(`Spawned gizmo "${gizmoId}" at`, spawnPosition);
+    // Log spawn position in clean text format
+    const spawnText = `position: {x: ${spawnPosition.x.toFixed(
+      2
+    )}, y: ${spawnPosition.y.toFixed(2)}, z: ${spawnPosition.z.toFixed(2)}}`;
+    this.logger.logRaw(`Spawned gizmo "${gizmoId}" at ${spawnText}`);
   }
 
   /**
@@ -709,9 +759,23 @@ class GizmoManager {
       );
 
       this.logger.log(`Teleported character to 5m in front of "${item.id}"`);
-      this.logger.log(`  Object position:`, obj.position);
-      this.logger.log(`  Object forward:`, forward);
-      this.logger.log(`  Teleport position:`, teleportPosition);
+      this.logger.logRaw(
+        `  Object position: {x: ${obj.position.x.toFixed(
+          2
+        )}, y: ${obj.position.y.toFixed(2)}, z: ${obj.position.z.toFixed(2)}}`
+      );
+      this.logger.logRaw(
+        `  Object forward: {x: ${forward.x.toFixed(3)}, y: ${forward.y.toFixed(
+          3
+        )}, z: ${forward.z.toFixed(3)}}`
+      );
+      this.logger.logRaw(
+        `  Teleport position: {x: ${teleportPosition.x.toFixed(
+          2
+        )}, y: ${teleportPosition.y.toFixed(
+          2
+        )}, z: ${teleportPosition.z.toFixed(2)}}`
+      );
     } else {
       this.logger.warn("Cannot teleport - character physics body not found");
     }
@@ -759,7 +823,7 @@ class GizmoManager {
   }
 
   /**
-   * Log an object's transform
+   * Log an object's transform as formatted text
    * @param {Object} item - Optional item to log (defaults to activeObject)
    */
   logObjectTransform(item = null) {
@@ -771,23 +835,20 @@ class GizmoManager {
     const rot = obj.rotation;
     const scale = obj.scale;
 
-    this.logger.log(`\n=== ${target.id} (${target.type}) ===`);
-    this.logger.log(
-      `position: { x: ${pos.x.toFixed(2)}, y: ${pos.y.toFixed(
+    // Create formatted text with line breaks (single log statement)
+    const transformText =
+      `position: {x: ${pos.x.toFixed(2)}, y: ${pos.y.toFixed(
         2
-      )}, z: ${pos.z.toFixed(2)} },`
-    );
-    this.logger.log(
-      `rotation: { x: ${rot.x.toFixed(4)}, y: ${rot.y.toFixed(
+      )}, z: ${pos.z.toFixed(2)}},\n` +
+      `rotation: {x: ${rot.x.toFixed(4)}, y: ${rot.y.toFixed(
         4
-      )}, z: ${rot.z.toFixed(4)} },`
-    );
-    this.logger.log(
-      `scale: { x: ${scale.x.toFixed(2)}, y: ${scale.y.toFixed(
+      )}, z: ${rot.z.toFixed(4)}},\n` +
+      `scale: {x: ${scale.x.toFixed(2)}, y: ${scale.y.toFixed(
         2
-      )}, z: ${scale.z.toFixed(2)} },`
-    );
-    this.logger.log("");
+      )}, z: ${scale.z.toFixed(2)}}`;
+
+    // Log the formatted text (without prefix for clean output)
+    this.logger.logRaw(transformText);
   }
 
   /**

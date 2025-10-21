@@ -100,13 +100,13 @@ const gameManager = new GameManager();
 // Connect loading screen to game manager so it can transition state when done
 loadingScreen.setGameManager(gameManager);
 
+// Initialize the physics manager
+const physicsManager = new PhysicsManager();
+
 // Initialize light manager BEFORE fog so splat lights can affect fog particles
 // Pass sceneManager so lights can be parented under specific scene objects
 // Pass gameManager so lights can check criteria before loading
 const lightManager = new LightManager(scene, sceneManager, gameManager);
-
-// Initialize the physics manager
-const physicsManager = new PhysicsManager();
 
 // Create character rigid body (capsule)
 // Capsule: halfHeight=0.5, radius=0.3, total height = 1.6m
@@ -297,6 +297,10 @@ const optionsMenu = new OptionsMenu({
   startScreen: startScreen,
 });
 
+// Connect physics manager to scene manager BEFORE initializing gameManager
+// This ensures physics colliders can be created when scene objects load
+sceneManager.physicsManager = physicsManager;
+
 // Preload dialog audio files
 import { dialogTracks } from "./dialogData.js";
 dialogManager.preloadDialogs(dialogTracks);
@@ -381,7 +385,7 @@ const colliderManager = new ColliderManager(
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
 
-// Pass gizmo manager to scene manager and video manager
+// Pass gizmo manager to scene manager (physics manager already set earlier)
 sceneManager.gizmoManager = gizmoManager;
 if (gameManager.videoManager) {
   gameManager.videoManager.gizmoManager = gizmoManager;

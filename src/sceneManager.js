@@ -41,10 +41,12 @@ class SceneManager {
     this.scene = scene;
     this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
+    this.physicsManager = options.physicsManager || null; // For creating physics colliders
     this.objects = new Map(); // Map of id -> THREE.Object3D
     this.objectData = new Map(); // Map of id -> original config data (for gizmo flag)
     this.gltfLoader = new GLTFLoader();
     this.loadingPromises = new Map(); // Track loading promises
+    this.physicsColliderObjects = new Set(); // Track which objects have physics colliders
 
     // Animation management
     this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
@@ -388,6 +390,11 @@ class SceneManager {
             this.logger.log(`Set "${id}" to invisible`);
           }
 
+          // Apply debug material if requested
+          if (options && options.debugMaterial) {
+            this._applyDebugMaterial(id, finalObject);
+          }
+
           // Setup animations if available
           if (
             animations &&
@@ -399,6 +406,12 @@ class SceneManager {
           }
 
           this.scene.add(finalObject);
+
+          // Create physics collider if flag is set
+          if (options && options.physicsCollider && this.physicsManager) {
+            this._createPhysicsCollider(id, finalObject, position, rotation);
+          }
+
           resolve(finalObject);
         },
         (xhr) => {
@@ -413,6 +426,71 @@ class SceneManager {
         }
       );
     });
+  }
+
+  /**
+   * Apply a debug material to visualize collision meshes
+   * @param {string} id - Object ID
+   * @param {THREE.Object3D} object - The loaded THREE.js object
+   * @private
+   */
+  _applyDebugMaterial(id, object) {
+    const debugMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      wireframe: true,
+      wireframeLinewidth: 2,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: false,
+    });
+
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.material = debugMaterial;
+        // Set high render order so it renders on top
+        child.renderOrder = 9999;
+      }
+    });
+
+    this.logger.log(`Applied debug material to "${id}"`);
+  }
+
+  /**
+   * Create a physics collider for a loaded object
+   * @param {string} id - Object ID
+   * @param {THREE.Object3D} object - The loaded THREE.js object
+   * @param {Object} position - Position from objectData
+   * @param {Object} rotation - Rotation from objectData (Euler angles in radians)
+   * @private
+   */
+  _createPhysicsCollider(id, object, position, rotation) {
+    try {
+      // Convert Euler rotation to quaternion for Rapier
+      const euler = new THREE.Euler(
+        rotation?.x || 0,
+        rotation?.y || 0,
+        rotation?.z || 0
+      );
+      const quat = new THREE.Quaternion().setFromEuler(euler);
+
+      const result = this.physicsManager.createTrimeshCollider(
+        id,
+        object,
+        position || { x: 0, y: 0, z: 0 },
+        { x: quat.x, y: quat.y, z: quat.z, w: quat.w }
+      );
+
+      if (result) {
+        this.physicsColliderObjects.add(id);
+        this.logger.log(`Created physics trimesh collider for "${id}"`);
+      } else {
+        this.logger.error(`Failed to create physics collider for "${id}"`);
+      }
+    } catch (error) {
+      this.logger.error(`Error creating physics collider for "${id}":`, error);
+    }
   }
 
   /**
@@ -646,6 +724,15 @@ class SceneManager {
         this.animationMixers.delete(id);
       }
 
+      // Clean up physics collider if this object has one
+      if (this.physicsColliderObjects.has(id) && this.physicsManager) {
+        const removed = this.physicsManager.removeTrimeshCollider(id);
+        if (removed) {
+          this.physicsColliderObjects.delete(id);
+          this.logger.log(`Removed physics collider for "${id}"`);
+        }
+      }
+
       this.scene.remove(object);
       // Dispose of geometries and materials
       object.traverse((child) => {
@@ -791,6 +878,14 @@ class SceneManager {
     this.animationActions.clear();
     this.animationData.clear();
     this.animationToObject.clear();
+
+    // Remove all physics colliders
+    if (this.physicsManager) {
+      for (const id of this.physicsColliderObjects) {
+        this.physicsManager.removeTrimeshCollider(id);
+      }
+      this.physicsColliderObjects.clear();
+    }
 
     // Remove all objects
     for (const id of this.objects.keys()) {
