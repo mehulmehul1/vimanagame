@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
+import { GAME_STATES } from "../gameData.js";
 import PhoneCord from "./phoneCord.js";
 
 /**
@@ -28,8 +29,11 @@ class CandlestickPhone {
     this.logger = new Logger("CandlestickPhone", false);
 
     // Phone components
+    this.phoneObject = null; // Root object for the candlestick phone
     this.cordAttach = null; // Where the cord attaches to the phone base
     this.receiver = null; // The handheld receiver
+    this.phoneBody = null; // Main phone body (base + stem)
+    this.phoneGroup = null; // Blender top-level group (e.g., "Phone Parent Empty")
     this.colliderMesh = null; // Reference to the Collider mesh
 
     // Phone cord (reusable module)
@@ -41,6 +45,20 @@ class CandlestickPhone {
     this.meshCollider = null; // Trimesh collider from Collider mesh
     this.meshColliderBody = null; // Rigid body for trimesh collider
     this.lastPhonePosition = new THREE.Vector3(); // Track phone position for updates
+
+    // Animation state
+    this.receiverLerp = null;
+    this.phoneBodyLerp = null;
+    this.isHeldToCamera = false; // When true, enforce target local transforms
+    this.receiverHeldScale = null; // Preserve original receiver scale when held
+
+    // Original world transforms (captured at initialize)
+    this.receiverOriginalWorldPos = null;
+    this.receiverOriginalWorldQuat = null;
+    this.receiverOriginalScale = null;
+    this.phoneOriginalWorldPos = null;
+    this.phoneOriginalWorldQuat = null;
+    this.phoneOriginalScale = null;
 
     // Configuration
     this.config = {
@@ -205,6 +223,16 @@ class CandlestickPhone {
           },
         ],
       },
+      // Lerp targets when answering office phone
+      receiverTargetPos: new THREE.Vector3(-0.4, 0.05, -0.5),
+      receiverTargetRot: new THREE.Euler(-0.5, -0.4, -Math.PI / 2),
+      receiverForwardRoll: Math.PI, // additional roll around camera forward (local Z)
+      receiverTargetScale: new THREE.Vector3(1.0, 1.0, 1.0),
+      phoneBodyTargetPos: new THREE.Vector3(0, -0.5, -0.5), // centered, just under camera
+      phoneBodyTargetRot: new THREE.Euler(0.15, 0, 0), // slight up-tilt toward camera
+      phoneBodyTargetScale: new THREE.Vector3(1.0, 1.0, 1.0),
+      lerpDuration: 1.2,
+      lerpEase: (t) => 1 - Math.pow(1 - t, 3), // cubic ease-out
       // Table configuration
       tableSize: { x: 1, y: 0.1, z: 1 }, // Half-extents (full size: 0.8x0.04x0.8m)
       tableOffset: -0.1, // Offset below cord attach point
@@ -223,6 +251,18 @@ class CandlestickPhone {
 
     this.gameManager = gameManager;
 
+    // React to state changes (e.g., OFFICE_PHONE_ANSWERED)
+    if (this.gameManager) {
+      this.gameManager.on("state:changed", (newState) => {
+        if (newState.currentState === GAME_STATES.OFFICE_PHONE_ANSWERED) {
+          this.handleOfficePhoneAnswered();
+        }
+      });
+    }
+
+    // Cache phone root object (used for fallback lerp/parenting)
+    this.phoneObject = this.sceneManager.getObject("candlestickPhone");
+
     // Find the CordAttach and Receiver meshes
     this.cordAttach = this.sceneManager.findChildByName(
       "candlestickPhone",
@@ -232,6 +272,15 @@ class CandlestickPhone {
       "candlestickPhone",
       "Receiver"
     );
+    this.phoneBody = this.sceneManager.findChildByName(
+      "candlestickPhone",
+      "PhoneBody"
+    );
+    // Try to find a higher-level group first (matches Blender screenshot)
+    this.phoneGroup = this.sceneManager.findChildByName(
+      "candlestickPhone",
+      "Phone_Parent_Empty"
+    );
 
     if (!this.cordAttach) {
       this.logger.warn("CordAttach mesh not found in candlestickPhone model");
@@ -239,6 +288,33 @@ class CandlestickPhone {
 
     if (!this.receiver) {
       this.logger.warn("Receiver mesh not found in candlestickPhone model");
+    }
+    if (!this.phoneBody) {
+      this.logger.warn("PhoneBody mesh not found in candlestickPhone model");
+    }
+    if (!this.phoneGroup) {
+      this.logger.log(
+        "Phone group 'Phone Parent Empty' not found; will use body/root fallback"
+      );
+    }
+
+    // Capture original world transforms (for putting it back down)
+    if (this.receiver) {
+      this.receiverOriginalWorldPos = new THREE.Vector3();
+      this.receiverOriginalWorldQuat = new THREE.Quaternion();
+      this.receiver.getWorldPosition(this.receiverOriginalWorldPos);
+      this.receiver.getWorldQuaternion(this.receiverOriginalWorldQuat);
+      this.receiverOriginalScale = this.receiver.scale.clone();
+    }
+    if (this.phoneGroup || this.phoneBody || this.phoneObject) {
+      const obj = this.phoneGroup || this.phoneBody || this.phoneObject;
+      const wp = new THREE.Vector3();
+      const wq = new THREE.Quaternion();
+      obj.getWorldPosition(wp);
+      obj.getWorldQuaternion(wq);
+      this.phoneOriginalWorldPos = wp.clone();
+      this.phoneOriginalWorldQuat = wq.clone();
+      this.phoneOriginalScale = obj.scale.clone();
     }
 
     // Find the Collider mesh and make it invisible
@@ -290,6 +366,236 @@ class CandlestickPhone {
     this.createTableCollider();
 
     this.logger.log("Initialized");
+  }
+
+  /**
+   * Handle office phone answered: reparent body and receiver to camera and start lerps
+   */
+  handleOfficePhoneAnswered() {
+    if (!this.sceneManager || !this.camera) {
+      this.logger.warn("Cannot handle office phone answer - missing managers");
+      return;
+    }
+
+    // Reparent receiver to the camera (preserve world transform)
+    if (this.receiver && this.receiver.parent !== this.camera) {
+      this.receiver = this.sceneManager.reparentChild(
+        "candlestickPhone",
+        "Receiver",
+        this.camera
+      );
+    }
+
+    // Reparent phone group/body to the camera (preserve world transform)
+    if (this.phoneGroup && this.phoneGroup.parent !== this.camera) {
+      this.camera.attach(this.phoneGroup);
+    } else if (this.phoneBody && this.phoneBody.parent !== this.camera) {
+      this.phoneBody = this.sceneManager.reparentChild(
+        "candlestickPhone",
+        "PhoneBody",
+        this.camera
+      );
+    } else if (this.phoneObject && this.phoneObject.parent !== this.camera) {
+      // Final fallback: attach entire phone to camera
+      this.camera.attach(this.phoneObject);
+    }
+
+    // Start lerps
+    if (this.receiver) this.startReceiverLerp();
+    if (this.phoneGroup) this.startPhoneGroupLerp();
+    else if (this.phoneBody) this.startPhoneBodyLerp();
+    else if (this.phoneObject) this.startPhoneObjectLerp();
+
+    // Disable local colliders while held to avoid clipping/pushback
+    this.removeHeldPhysics();
+
+    // Mark as held to camera so we can enforce target pose
+    this.isHeldToCamera = true;
+  }
+
+  /** Start receiver lerp to target relative to camera */
+  startReceiverLerp() {
+    if (!this.receiver) return;
+    const startQuat = this.receiver.quaternion.clone();
+    // Base target from configured Euler
+    const baseQuat = new THREE.Quaternion().setFromEuler(
+      this.config.receiverTargetRot
+    );
+    // Apply extra roll around camera forward axis
+    const rollQuat = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 0, 1),
+      this.config.receiverForwardRoll || 0
+    );
+    const targetQuat = baseQuat.multiply(rollQuat);
+    // Capture current scale so we don't accidentally resize the receiver
+    this.receiverHeldScale = this.receiver.scale.clone();
+    this.receiverLerp = {
+      object: this.receiver,
+      startPos: this.receiver.position.clone(),
+      targetPos: this.config.receiverTargetPos,
+      startQuat,
+      targetQuat,
+      startScale: this.receiver.scale.clone(),
+      targetScale: this.receiver.scale.clone(), // keep same scale
+      duration: this.config.lerpDuration,
+      elapsed: 0,
+    };
+  }
+
+  /**
+   * Put the phone back down on the table: detach from camera and lerp
+   * both receiver and body/group back to their original world transforms.
+   */
+  putDownToOriginal() {
+    if (!this.sceneManager) return;
+
+    // Stop held enforcement
+    this.isHeldToCamera = false;
+
+    // Detach receiver and body/group back to scene root while preserving world transform
+    if (this.receiver && this.receiver.parent === this.camera) {
+      this.scene.attach(this.receiver);
+    }
+    const bodyObj = this.phoneGroup || this.phoneBody || this.phoneObject;
+    if (bodyObj && bodyObj.parent === this.camera) {
+      this.scene.attach(bodyObj);
+    }
+
+    // Recreate local lerps that move from current local to target world
+    if (
+      this.receiver &&
+      this.receiverOriginalWorldPos &&
+      this.receiverOriginalWorldQuat
+    ) {
+      // Convert world targets to current parent's local space
+      const parent = this.receiver.parent || this.scene;
+      const invParent = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+
+      const targetPosWorld = this.receiverOriginalWorldPos.clone();
+      const targetQuatWorld = this.receiverOriginalWorldQuat.clone();
+      const targetPosLocal = targetPosWorld.clone().applyMatrix4(invParent);
+      const targetQuatLocal = targetQuatWorld.clone();
+
+      this.receiverLerp = {
+        object: this.receiver,
+        startPos: this.receiver.position.clone(),
+        targetPos: targetPosLocal,
+        startQuat: this.receiver.quaternion.clone(),
+        targetQuat: targetQuatLocal,
+        startScale: this.receiver.scale.clone(),
+        targetScale: this.receiverOriginalScale
+          ? this.receiverOriginalScale.clone()
+          : this.receiver.scale.clone(),
+        duration: this.config.lerpDuration,
+        elapsed: 0,
+      };
+    }
+
+    if (bodyObj && this.phoneOriginalWorldPos && this.phoneOriginalWorldQuat) {
+      const parent = bodyObj.parent || this.scene;
+      const invParent = new THREE.Matrix4().copy(parent.matrixWorld).invert();
+
+      const targetPosWorld = this.phoneOriginalWorldPos.clone();
+      const targetQuatWorld = this.phoneOriginalWorldQuat.clone();
+      const targetPosLocal = targetPosWorld.clone().applyMatrix4(invParent);
+      const targetQuatLocal = targetQuatWorld.clone();
+
+      this.phoneBodyLerp = {
+        object: bodyObj,
+        startPos: bodyObj.position.clone(),
+        targetPos: targetPosLocal,
+        startQuat: bodyObj.quaternion.clone(),
+        targetQuat: targetQuatLocal,
+        startScale: bodyObj.scale.clone(),
+        targetScale: this.phoneOriginalScale
+          ? this.phoneOriginalScale.clone()
+          : bodyObj.scale.clone(),
+        duration: this.config.lerpDuration,
+        elapsed: 0,
+      };
+    }
+
+    // Optionally restore local physics now that it's back down
+    // (leave disabled unless you want cord collisions with the table again)
+  }
+
+  /** Start phone body lerp to target relative to camera */
+  startPhoneBodyLerp() {
+    if (!this.phoneBody) return;
+    const startQuat = this.phoneBody.quaternion.clone();
+    const targetQuat = new THREE.Quaternion().setFromEuler(
+      this.config.phoneBodyTargetRot
+    );
+    this.phoneBodyLerp = {
+      object: this.phoneBody,
+      startPos: this.phoneBody.position.clone(),
+      targetPos: this.config.phoneBodyTargetPos,
+      startQuat,
+      targetQuat,
+      startScale: this.phoneBody.scale.clone(),
+      targetScale: this.config.phoneBodyTargetScale,
+      duration: this.config.lerpDuration,
+      elapsed: 0,
+    };
+  }
+
+  /** Start phone group lerp to target relative to camera */
+  startPhoneGroupLerp() {
+    if (!this.phoneGroup) return;
+    const startQuat = this.phoneGroup.quaternion.clone();
+    const targetQuat = new THREE.Quaternion().setFromEuler(
+      this.config.phoneBodyTargetRot
+    );
+    this.phoneBodyLerp = {
+      object: this.phoneGroup,
+      startPos: this.phoneGroup.position.clone(),
+      targetPos: this.config.phoneBodyTargetPos,
+      startQuat,
+      targetQuat,
+      startScale: this.phoneGroup.scale.clone(),
+      targetScale: this.config.phoneBodyTargetScale,
+      duration: this.config.lerpDuration,
+      elapsed: 0,
+    };
+  }
+
+  /** Start whole-phone fallback lerp */
+  startPhoneObjectLerp() {
+    if (!this.phoneObject) return;
+    const startQuat = this.phoneObject.quaternion.clone();
+    const targetQuat = new THREE.Quaternion().setFromEuler(
+      this.config.phoneBodyTargetRot
+    );
+    this.phoneBodyLerp = {
+      object: this.phoneObject,
+      startPos: this.phoneObject.position.clone(),
+      targetPos: this.config.phoneBodyTargetPos,
+      startQuat,
+      targetQuat,
+      startScale: this.phoneObject.scale.clone(),
+      targetScale: this.config.phoneBodyTargetScale,
+      duration: this.config.lerpDuration,
+      elapsed: 0,
+    };
+  }
+
+  /** Remove table + mesh colliders when phone is brought to camera */
+  removeHeldPhysics() {
+    if (!this.physicsManager) return;
+    const world = this.physicsManager.world;
+    if (this.tableRigidBody) {
+      world.removeRigidBody(this.tableRigidBody);
+      this.tableRigidBody = null;
+      this.tableCollider = null;
+    }
+    if (this.meshColliderBody) {
+      if (this.meshCollider) {
+        world.removeCollider(this.meshCollider, false);
+        this.meshCollider = null;
+      }
+      world.removeRigidBody(this.meshColliderBody);
+      this.meshColliderBody = null;
+    }
   }
 
   /**
@@ -504,6 +810,87 @@ class CandlestickPhone {
             )}, ${offset.z.toFixed(2)})`
           );
         }
+      }
+    }
+
+    // Update receiver lerp
+    if (this.receiverLerp) {
+      this.receiverLerp.elapsed += dt;
+      const t = Math.min(
+        1,
+        this.receiverLerp.elapsed / this.receiverLerp.duration
+      );
+      const eased = this.config.lerpEase(t);
+      this.receiverLerp.object.position.lerpVectors(
+        this.receiverLerp.startPos,
+        this.receiverLerp.targetPos,
+        eased
+      );
+      this.receiverLerp.object.quaternion.slerpQuaternions(
+        this.receiverLerp.startQuat,
+        this.receiverLerp.targetQuat,
+        eased
+      );
+      this.receiverLerp.object.scale.lerpVectors(
+        this.receiverLerp.startScale,
+        this.receiverLerp.targetScale,
+        eased
+      );
+      if (t >= 1) this.receiverLerp = null;
+    }
+
+    // Update phone body lerp
+    if (this.phoneBodyLerp) {
+      this.phoneBodyLerp.elapsed += dt;
+      const t = Math.min(
+        1,
+        this.phoneBodyLerp.elapsed / this.phoneBodyLerp.duration
+      );
+      const eased = this.config.lerpEase(t);
+      this.phoneBodyLerp.object.position.lerpVectors(
+        this.phoneBodyLerp.startPos,
+        this.phoneBodyLerp.targetPos,
+        eased
+      );
+      this.phoneBodyLerp.object.quaternion.slerpQuaternions(
+        this.phoneBodyLerp.startQuat,
+        this.phoneBodyLerp.targetQuat,
+        eased
+      );
+      this.phoneBodyLerp.object.scale.lerpVectors(
+        this.phoneBodyLerp.startScale,
+        this.phoneBodyLerp.targetScale,
+        eased
+      );
+      if (t >= 1) this.phoneBodyLerp = null;
+    }
+
+    // If held to camera, enforce target local transforms (prevents other systems from drifting it)
+    if (this.isHeldToCamera) {
+      if (
+        this.receiver &&
+        !this.receiverLerp &&
+        this.receiver.parent === this.camera
+      ) {
+        this.receiver.position.copy(this.config.receiverTargetPos);
+        const baseQuat = new THREE.Quaternion().setFromEuler(
+          this.config.receiverTargetRot
+        );
+        const rollQuat = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 0, 1),
+          this.config.receiverForwardRoll || 0
+        );
+        this.receiver.quaternion.copy(baseQuat.multiply(rollQuat));
+        if (this.receiverHeldScale) {
+          this.receiver.scale.copy(this.receiverHeldScale);
+        }
+      }
+
+      const bodyObj = this.phoneBody || this.phoneObject;
+      if (bodyObj && !this.phoneBodyLerp && bodyObj.parent === this.camera) {
+        bodyObj.position.copy(this.config.phoneBodyTargetPos);
+        bodyObj.quaternion.setFromEuler(this.config.phoneBodyTargetRot);
+        bodyObj.scale.copy(this.config.phoneBodyTargetScale);
       }
     }
   }

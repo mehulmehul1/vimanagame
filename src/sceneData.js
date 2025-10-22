@@ -16,6 +16,16 @@
  *   - visible: If false, object will be invisible (useful for animation helpers)
  *   - physicsCollider: (GLTF) If true, create a Rapier trimesh collider from mesh geometry
  *   - debugMaterial: (GLTF) If true, apply semi-transparent wireframe material for debugging
+ *   - contactShadow: (GLTF) Create contact shadows under the object using depth rendering
+ *     - size: {x, y} - Plane dimensions (default: {x: 0.5, y: 0.5})
+ *     - offset: {x, y, z} - Position offset relative to object (default: {x: 0, y: -0.05, z: 0})
+ *     - blur: Shadow blur amount (default: 3.5)
+ *     - darkness: Shadow darkness multiplier (default: 1.5)
+ *     - opacity: Overall shadow opacity 0-1 (default: 0.5)
+ *     - cameraHeight: Height of orthographic camera for shadow (default: 0.25)
+ *     - renderTargetSize: Shadow texture resolution (default: 512)
+ *     - trackMesh: Name of child mesh to track (for animated models, e.g. "Old_Car_01")
+ *     - debug: Show camera helper for debugging (default: false)
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
@@ -150,15 +160,25 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/Old_Car_01.glb",
     description: "Car GLTF model",
-    position: { x: -15.67, y: -0.425, z: 62.5 },
+    position: { x: -15.67, y: -0.42, z: 62.5 },
     rotation: { x: 0.0, y: 0.8859, z: 0.0 },
     scale: { x: 0.9, y: 0.9, z: 0.9 },
     options: {
       useContainer: true,
+      contactShadow: {
+        size: { x: 3, y: 5.5 }, // Larger plane for car
+        offset: { x: 0, y: 0.0, z: 0 }, // Position offset
+        blur: 1.0, // Slightly more blur for larger shadow
+        darkness: 0.5, // Shadow darkness multiplier
+        opacity: 0.4, // Overall shadow opacity
+        cameraHeight: 2.5, // Taller camera for car
+        trackMesh: "Old_Car_01", // Track the actual car mesh (for animated models)
+        debug: false,
+      },
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.ANSWERED_PHONE,
+        $gte: GAME_STATES.DRIVE_BY_PREAMBLE,
         $lt: GAME_STATES.POST_DRIVE_BY,
       },
     },
@@ -263,9 +283,20 @@ export const sceneObjects = {
     path: "/gltf/viewmaster.glb",
     preload: false,
     description: "Viewmaster GLTF model",
-    position: { x: -7.01, y: 1.37, z: 88.8 },
+    position: { x: -7.01, y: 1.41, z: 88.8 },
     rotation: { x: 0.2324, y: 0.0, z: 0.2949 },
     scale: { x: 1, y: 1, z: 1 },
+    options: {
+      contactShadow: {
+        size: { x: 0.9, y: 0.9 }, // Plane dimensions
+        offset: { x: 0, y: -0.275, z: 0 }, // Position offset (lowered to ground)
+        blur: 3.5, // Shadow blur amount
+        darkness: 1.5, // Shadow darkness multiplier
+        opacity: 0.8, // Overall shadow opacity
+        cameraHeight: 0.5, // Height for shadow camera
+        debug: false,
+      },
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -279,9 +310,20 @@ export const sceneObjects = {
     path: "/gltf/edison.glb",
     preload: false,
     description: "edison cylinder player",
-    position: { x: -3.66, y: 1.09, z: 89.43 },
+    position: { x: -3.66, y: 1.1, z: 89.43 },
     rotation: { x: 3.1416, y: -0.0245, z: 3.1416 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
+    options: {
+      contactShadow: {
+        size: { x: 0.75, y: 0.75 }, // Plane dimensions
+        offset: { x: 0, y: 0, z: 0 }, // Position offset
+        blur: 1.5, // Shadow blur amount
+        darkness: 1.5, // Shadow darkness multiplier
+        opacity: 0.75, // Overall shadow opacity
+        cameraHeight: 1.35, // Height for shadow camera
+        debug: false, // Set to true to visualize the shadow camera AND see texture
+      },
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -299,6 +341,17 @@ export const sceneObjects = {
     position: { x: -4.69, y: 1.1, z: 85.05 },
     rotation: { x: -0.0001, y: 1.5114, z: 0.0001 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
+    options: {
+      contactShadow: {
+        size: { x: 0.4, y: 0.4 }, // Plane dimensions
+        offset: { x: 0, y: -0.05, z: 0 }, // Position offset
+        blur: 3.5, // Shadow blur amount
+        darkness: 20.0, // Shadow darkness multiplier
+        opacity: 0.7, // Overall shadow opacity
+        cameraHeight: 0.25, // Height for shadow camera
+        debug: false, // Set to true to visualize the shadow camera
+      },
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,

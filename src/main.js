@@ -53,6 +53,8 @@ scene.add(camera); // Add camera to scene so its children render
 
 const renderer = new THREE.WebGLRenderer({ alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
 document.body.appendChild(renderer.domElement);
 
@@ -83,8 +85,8 @@ spark.renderOrder = 9998;
 scene.add(spark);
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
-// Pass loadingScreen for progress tracking
-const sceneManager = new SceneManager(scene, { loadingScreen });
+// Pass loadingScreen for progress tracking and renderer for contact shadows
+const sceneManager = new SceneManager(scene, { loadingScreen, renderer });
 
 // Make scene manager globally accessible for mesh lookups
 window.sceneManager = sceneManager;
@@ -534,6 +536,9 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Update scene animations based on game state
   sceneManager.updateAnimationsForState(gameManager.state);
+
+  // Update contact shadows (must be called before rendering)
+  sceneManager.updateContactShadows();
 
   // Always update game manager (handles receiver lerp, etc.)
   gameManager.update(dt);

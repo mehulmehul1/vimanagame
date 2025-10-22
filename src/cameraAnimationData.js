@@ -25,6 +25,9 @@
  * - scaleY: Optional Y-axis scale multiplier for animation (default: 1.0)
  *   - Values < 1.0 compress vertical motion, > 1.0 expand it
  *   - Example: 0.8 would reduce vertical movement by 20%
+ * - playbackRate: Optional playback speed multiplier (default: 1.0)
+ *   - Values < 1.0 play slower, > 1.0 play faster
+ *   - Example: 0.5 for half speed, 2.0 for double speed
  *
  * For type "lookat":
  * SINGLE LOOKAT (simple position):
@@ -307,6 +310,7 @@ export const cameraAnimations = {
     restoreInput: true,
     delay: 1.5, // Wait 2 seconds after DRIVE_BY state before animation
     scaleY: 0.8, // Optional: reduce vertical motion by 20%
+    playbackRate: 1.25, // Optional: adjust playback speed (1.0 = normal, 0.5 = half speed, 2.0 = double speed)
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.POST_DRIVE_BY });
     },

@@ -177,6 +177,8 @@ class LightManager {
     switch (config.type) {
       case "AmbientLight":
         return this.createAmbientLight(config);
+      case "HemisphereLight":
+        return this.createHemisphereLight(config);
       case "DirectionalLight":
         return this.createDirectionalLight(config);
       case "PointLight":
@@ -340,6 +342,36 @@ class LightManager {
   }
 
   /**
+   * Create a hemisphere light
+   * @param {Object} config - Light configuration
+   * @returns {THREE.HemisphereLight}
+   */
+  createHemisphereLight(config = {}) {
+    const light = new THREE.HemisphereLight(
+      config.skyColor ?? 0xffffff,
+      config.groundColor ?? 0x000000,
+      config.intensity ?? 1.0
+    );
+
+    if (config.position) {
+      light.position.set(
+        config.position.x ?? 0,
+        config.position.y ?? 0,
+        config.position.z ?? 0
+      );
+    }
+
+    if (config.id) {
+      this.lights.set(config.id, light);
+    }
+
+    const parent = this._resolveParent(config);
+    parent.add(light);
+    this._maybeTrackPendingAttachment(config.id, light, config, parent);
+    return light;
+  }
+
+  /**
    * Create a directional light
    * @param {Object} config - Light configuration
    * @returns {THREE.DirectionalLight}
@@ -360,6 +392,33 @@ class LightManager {
 
     if (config.castShadow !== undefined) {
       light.castShadow = config.castShadow;
+    }
+
+    // Configure shadow properties if shadow config is provided
+    if (config.shadow && light.castShadow) {
+      if (config.shadow.mapSize) {
+        light.shadow.mapSize.width = config.shadow.mapSize.width ?? 512;
+        light.shadow.mapSize.height = config.shadow.mapSize.height ?? 512;
+      }
+      if (config.shadow.camera) {
+        const cam = config.shadow.camera;
+        if (cam.left !== undefined) light.shadow.camera.left = cam.left;
+        if (cam.right !== undefined) light.shadow.camera.right = cam.right;
+        if (cam.top !== undefined) light.shadow.camera.top = cam.top;
+        if (cam.bottom !== undefined) light.shadow.camera.bottom = cam.bottom;
+        if (cam.near !== undefined) light.shadow.camera.near = cam.near;
+        if (cam.far !== undefined) light.shadow.camera.far = cam.far;
+        light.shadow.camera.updateProjectionMatrix();
+      }
+      if (config.shadow.bias !== undefined) {
+        light.shadow.bias = config.shadow.bias;
+      }
+      if (config.shadow.normalBias !== undefined) {
+        light.shadow.normalBias = config.shadow.normalBias;
+      }
+      this.logger.log(
+        `Configured shadow for "${config.id}" - mapSize: ${light.shadow.mapSize.width}x${light.shadow.mapSize.height}`
+      );
     }
 
     if (config.id) {

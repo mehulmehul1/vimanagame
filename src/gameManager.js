@@ -98,7 +98,9 @@ class GameManager {
     this.sceneManager = managers.sceneManager;
     this.lightManager = managers.lightManager;
     this.inputManager = managers.inputManager;
+    this.physicsManager = managers.physicsManager; // Store physics manager reference
     this.camera = managers.camera; // Store camera reference
+    this.scene = managers.scene; // Store scene reference
     // Add other managers as needed
 
     // Set up internal event handlers
@@ -109,6 +111,24 @@ class GameManager {
       await this.updateSceneForState();
       // Trigger initial animation check after loading
       this.sceneManager.updateAnimationsForState(this.state);
+    }
+
+    // Check if candlestickPhone was already loaded (e.g., debug spawn at POST_DRIVE_BY or later)
+    if (
+      !this.candlestickPhone &&
+      this.state.currentState >= GAME_STATES.POST_DRIVE_BY &&
+      this.sceneManager?.hasObject("candlestickPhone")
+    ) {
+      this.logger.log(
+        "Initializing candlestick phone (object loaded at startup)"
+      );
+      this.candlestickPhone = new CandlestickPhone({
+        sceneManager: this.sceneManager,
+        physicsManager: this.physicsManager,
+        scene: this.scene,
+        camera: this.camera,
+      });
+      this.candlestickPhone.initialize(this);
     }
 
     // Initialize content-specific systems AFTER scene is loaded
@@ -123,14 +143,7 @@ class GameManager {
     });
     this.phoneBooth.initialize(this);
 
-    // Initialize candlestick phone
-    this.candlestickPhone = new CandlestickPhone({
-      sceneManager: this.sceneManager,
-      physicsManager: managers.physicsManager,
-      scene: managers.scene,
-      camera: this.camera,
-    });
-    this.candlestickPhone.initialize(this);
+    // Note: candlestickPhone will be initialized when its scene object loads (POST_DRIVE_BY state)
 
     // Initialize video manager with state-based playback
     this.videoManager = new VideoManager({
@@ -161,6 +174,24 @@ class GameManager {
       if (this.inputManager) {
         this.inputManager.disable();
         this.inputManager.hideTouchControls();
+      }
+    });
+
+    // Initialize candlestick phone when state reaches POST_DRIVE_BY
+    this.on("state:changed", (newState, oldState) => {
+      if (
+        !this.candlestickPhone &&
+        newState.currentState >= GAME_STATES.POST_DRIVE_BY &&
+        this.sceneManager?.hasObject("candlestickPhone")
+      ) {
+        this.logger.log("Initializing candlestick phone (object loaded)");
+        this.candlestickPhone = new CandlestickPhone({
+          sceneManager: this.sceneManager,
+          physicsManager: this.physicsManager,
+          scene: this.scene,
+          camera: this.camera,
+        });
+        this.candlestickPhone.initialize(this);
       }
     });
   }

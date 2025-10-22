@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { createHeadlightBeamShader } from "./vfx/shaders/headlightBeamShader.js";
+import { ContactShadow } from "./vfx/contactShadow.js";
 import { Logger } from "./utils/logger.js";
 
 /**
@@ -39,6 +40,7 @@ import { Logger } from "./utils/logger.js";
 class SceneManager {
   constructor(scene, options = {}) {
     this.scene = scene;
+    this.renderer = options.renderer || null; // For contact shadows
     this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
     this.physicsManager = options.physicsManager || null; // For creating physics colliders
@@ -54,6 +56,9 @@ class SceneManager {
     this.animationData = new Map(); // Map of animationId -> animation data config
     this.animationToObject = new Map(); // Map of animationId -> objectId
     this.playedAnimations = new Set(); // Track animations that have been played once (for playOnce)
+
+    // Contact shadow management
+    this.contactShadows = new Map(); // Map of objectId -> ContactShadow instance
 
     // Event listeners
     this.eventListeners = {};
@@ -341,6 +346,20 @@ class SceneManager {
                   }
                 });
               }
+
+              // Configure shadow casting/receiving
+              // If contactShadow is enabled, automatically enable shadows
+              if (options && options.contactShadow) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+              // Allow explicit shadow configuration
+              if (options && options.castShadow !== undefined) {
+                child.castShadow = options.castShadow;
+              }
+              if (options && options.receiveShadow !== undefined) {
+                child.receiveShadow = options.receiveShadow;
+              }
             }
             // Collect lights to remove (can't remove during traversal)
             if (child.isLight) {
@@ -393,6 +412,26 @@ class SceneManager {
           // Apply debug material if requested
           if (options && options.debugMaterial) {
             this._applyDebugMaterial(id, finalObject);
+          }
+
+          // Create contact shadow if requested
+          if (options && options.contactShadow && this.renderer) {
+            const shadowConfig = {
+              ...options.contactShadow,
+              name: `${id}_contactShadow`,
+            };
+            const contactShadow = new ContactShadow(
+              this.renderer,
+              this.scene,
+              finalObject,
+              shadowConfig
+            );
+            this.contactShadows.set(id, contactShadow);
+            this.logger.log(`Created contact shadow for "${id}"`);
+          } else if (options && options.contactShadow && !this.renderer) {
+            this.logger.warn(
+              `Cannot create contact shadow for "${id}" - renderer not provided to SceneManager`
+            );
           }
 
           // Setup animations if available
@@ -724,6 +763,14 @@ class SceneManager {
         this.animationMixers.delete(id);
       }
 
+      // Clean up contact shadow if this object has one
+      const contactShadow = this.contactShadows.get(id);
+      if (contactShadow) {
+        contactShadow.dispose();
+        this.contactShadows.delete(id);
+        this.logger.log(`Removed contact shadow for "${id}"`);
+      }
+
       // Clean up physics collider if this object has one
       if (this.physicsColliderObjects.has(id) && this.physicsManager) {
         const removed = this.physicsManager.removeTrimeshCollider(id);
@@ -827,6 +874,16 @@ class SceneManager {
   }
 
   /**
+   * Update all contact shadows
+   * Call this in your animation loop to render contact shadows
+   */
+  updateContactShadows() {
+    for (const contactShadow of this.contactShadows.values()) {
+      contactShadow.render();
+    }
+  }
+
+  /**
    * Update animations based on game state
    * Uses criteria to determine whether animations should play or stop
    * @param {Object} gameState - Current game state
@@ -878,6 +935,12 @@ class SceneManager {
     this.animationActions.clear();
     this.animationData.clear();
     this.animationToObject.clear();
+
+    // Dispose all contact shadows
+    for (const contactShadow of this.contactShadows.values()) {
+      contactShadow.dispose();
+    }
+    this.contactShadows.clear();
 
     // Remove all physics colliders
     if (this.physicsManager) {

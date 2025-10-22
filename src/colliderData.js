@@ -245,7 +245,7 @@ export const colliders = [
     type: "box",
     position: sceneObjects.candlestickPhone.position,
     rotation: { x: 0, y: 0, z: 0 },
-    dimensions: { x: 1, y: 5, z: 1 },
+    dimensions: { x: 2, y: 5, z: 2 },
     onEnter: [
       {
         type: "state",

@@ -31,6 +31,7 @@ class CameraAnimationManager {
     this.frameIdx = 1;
     this.onComplete = null;
     this.scaleY = 0.8; // Y-axis scale for current animation
+    this.playbackRate = 1.0; // Playback speed multiplier for current animation
 
     // Pre-animation slerp state (to reset pitch to 0 while keeping yaw)
     this.isPreSlerping = false;
@@ -960,11 +961,14 @@ class CameraAnimationManager {
     // Get Y-axis scale from animation data (default to 1.0)
     this.scaleY = this.currentAnimationData?.scaleY ?? 1.0;
 
+    // Get playback rate from animation data (default to 1.0)
+    this.playbackRate = this.currentAnimationData?.playbackRate ?? 1.0;
+
     if (this.debug)
       this.logger.log(
         `Starting animation playback from level horizon (pitch=0)${
           this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
-        }`
+        }${this.playbackRate !== 1.0 ? ` at ${this.playbackRate}x speed` : ""}`
       );
   }
 
@@ -1204,7 +1208,8 @@ class CameraAnimationManager {
 
     if (!this.isPlaying || !this.currentAnimation) return;
 
-    this.elapsed += dt;
+    // Apply playback rate to delta time
+    this.elapsed += dt * this.playbackRate;
     const { frames, duration } = this.currentAnimation;
 
     // Check if animation is complete

@@ -78,7 +78,6 @@ export const lights = {
       distance: 20,
       castShadow: false,
       position: { x: 0, y: 2, z: 3 },
-      gizmo: true, // Enable gizmo for positioning
     },
     criteria: {
       currentState: {
@@ -96,6 +95,31 @@ export const lights = {
     groundColor: 0x3a5a54, // Deep teal floor
     intensity: 0.8,
     position: { x: -4.5, y: 3, z: 85 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  officeDirectional: {
+    id: "office-directional",
+    type: "DirectionalLight",
+    color: 0xffffff,
+    intensity: 0.5,
+    position: { x: -2, y: 5, z: 88 },
+    castShadow: true,
+    shadow: {
+      mapSize: { width: 1024, height: 1024 },
+      camera: {
+        left: -5,
+        right: 5,
+        top: 5,
+        bottom: -5,
+        near: 0.5,
+        far: 15,
+      },
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
