@@ -311,7 +311,7 @@ class LightManager {
 
       // If gizmo is requested on the duplicate, register it
       if (duplicateConfig.gizmo && window.gizmoManager) {
-        window.gizmoManager.registerLight(light, threeLightConfig.id);
+        window.gizmoManager.registerObject(light, threeLightConfig.id, "light");
       }
     }
 

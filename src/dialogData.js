@@ -334,9 +334,6 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 100,
     delay: 0.5,
-    onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.OFFICE_INTERIOR });
-    },
   },
 };
 

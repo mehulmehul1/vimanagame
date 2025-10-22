@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GAME_STATES } from "../gameData.js";
 import { Logger } from "../utils/logger.js";
+import { checkCriteria } from "../criteriaHelper.js";
 import PhoneCord from "./phoneCord.js";
 
 /**
@@ -48,6 +49,11 @@ class PhoneBooth {
       receiverLerpDuration: 1.5,
       receiverLerpEase: (t) => 1 - Math.pow(1 - t, 3), // Cubic ease-out
 
+      // Cord existence criteria - cord should exist while state < OFFICE_INTERIOR
+      cordCriteria: {
+        currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // state < 13
+      },
+
       // Receiver physics configuration (for when dropped)
       receiverColliderHeight: 0.215, // Height of cylindrical collider in meters
       receiverColliderRadius: 0.05, // Radius of cylindrical collider in meters
@@ -79,6 +85,16 @@ class PhoneBooth {
     // Listen for game state changes
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
+        // Check if phone cord should be destroyed based on criteria
+        if (this.phoneCord && this.config.cordCriteria) {
+          const criteriaMet = checkCriteria(newState, this.config.cordCriteria);
+          if (!criteriaMet) {
+            this.logger.log("🗑️ Cord criteria no longer met, destroying cord");
+            this.phoneCord.destroy();
+            this.phoneCord = null;
+          }
+        }
+
         // When leaving ANSWERED_PHONE state
         if (
           oldState.currentState === GAME_STATES.ANSWERED_PHONE &&

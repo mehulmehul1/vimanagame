@@ -191,6 +191,54 @@ export const colliders = [
     },
   },
 
+  // ENTERING_OFFICE trigger
+  {
+    id: "entering-office",
+    type: "box",
+    position: sceneObjects.officeCollider.position,
+    rotation: { x: 0, y: 0, z: 0 },
+    dimensions: { x: 3, y: 4, z: 3 },
+    onEnter: [
+      {
+        type: "state",
+        data: { key: "currentState", value: GAME_STATES.ENTERING_OFFICE },
+      },
+    ],
+    onExit: [],
+    once: true, // Only trigger once
+    enabled: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+    },
+  },
+
+  // OFFICE_INTERIOR trigger
+  {
+    id: "interior-office",
+    type: "box",
+    position: sceneObjects.candlestickPhone.position,
+    rotation: { x: 0, y: 0, z: 0 },
+    dimensions: { x: 3, y: 4, z: 3 },
+    onEnter: [
+      {
+        type: "state",
+        data: { key: "currentState", value: GAME_STATES.OFFICE_INTERIOR },
+      },
+    ],
+    onExit: [],
+    once: true, // Only trigger once
+    enabled: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
   // {
   //   id: "shoulderTap",
   //   type: "box",

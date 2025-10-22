@@ -48,12 +48,12 @@ class CandlestickPhone {
       cordConfig: {
         cordSegments: 10,
         cordSegmentLength: 0.06,
-        cordSegmentRadius: 0.02, // Larger collider for reliable collision detection (15mm)
+        cordSegmentRadius: 0.05, // Larger collider for reliable collision detection (15mm)
         cordMass: 0.001,
         cordDamping: 5.0,
         cordAngularDamping: 5.0,
         cordDroopAmount: 0,
-        cordRigidSegments: 0, // No rigid segments - all dynamic
+        cordRigidSegments: 0, // All segments dynamic - using baked transforms for initial pose
         cordColor: 0x2a2a2a, // Darker grey for vintage look
         cordVisualRadius: 0.008,
         cordMetalness: 0.4,
@@ -269,6 +269,7 @@ class CandlestickPhone {
         physicsManager: this.physicsManager,
         cordAttach: this.cordAttach,
         receiver: this.receiver,
+        gameManager: this.gameManager, // Pass gameManager (no auto-destroy configured)
         loggerName: "CandlestickPhone.Cord",
         config: this.config.cordConfig,
       });

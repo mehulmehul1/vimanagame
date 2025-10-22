@@ -62,8 +62,13 @@ export const sceneObjects = {
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     quaternion: { x: 1, y: 0, z: 0, w: 0 },
-    loadByDefault: true, // Always load this scene
     priority: 100, // Load first
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
   },
 
   interior: {
@@ -74,7 +79,6 @@ export const sceneObjects = {
     position: interiorPosition,
     rotation: { x: 0.0, y: -1.0385, z: -3.1416 },
     scale: { x: 1, y: 1, z: 1 },
-    loadByDefault: true, // Always load this scene
     priority: 100, // Load first
     criteria: {
       currentState: {
@@ -96,8 +100,13 @@ export const sceneObjects = {
       // Create a container group for proper scaling
       useContainer: true,
     },
-    loadByDefault: true, // Always load this object
     priority: 50,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
     animations: [
       {
         id: "phonebooth-ring", // Identifier for this animation
@@ -127,8 +136,13 @@ export const sceneObjects = {
     options: {
       useContainer: true,
     },
-    loadByDefault: true,
     priority: 50,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
   },
 
   car: {
@@ -175,8 +189,13 @@ export const sceneObjects = {
     position: { x: 8.42, y: -0.37, z: 32.46 },
     rotation: { x: -2.6226, y: 1.2478, z: -0.5263 },
     scale: { x: 2.92, y: 2.92, z: 2.92 },
-    loadByDefault: true,
     priority: 100,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
   },
 
   officeCollider: {

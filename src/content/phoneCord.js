@@ -25,13 +25,14 @@ class PhoneCord {
     this.physicsManager = options.physicsManager;
     this.cordAttach = options.cordAttach; // THREE.Object3D where cord attaches (phone booth end)
     this.receiver = options.receiver; // THREE.Object3D for receiver (handheld end)
-    this.logger = new Logger(options.loggerName || "PhoneCord", true);
+    this.logger = new Logger(options.loggerName || "PhoneCord", false);
 
     // Phone cord physics simulation
     this.cordLinks = []; // Array of { rigidBody, mesh, joint }
     this.cordLineMesh = null; // Visual line representation
     this.cordAttachAnchor = null; // Kinematic body that follows the cord attach point
     this.receiverAnchor = null; // Kinematic body that follows the receiver
+    this.isDestroyed = false; // Track if cord has been destroyed
 
     // Configuration
     this.config = {
@@ -43,7 +44,7 @@ class PhoneCord {
       cordDamping: 8.0, // Linear damping (high to prevent wild movement)
       cordAngularDamping: 8.0, // Angular damping (high to prevent spinning)
       cordDroopAmount: 2, // How much the cord droops in the middle (0 = straight, 1+ = more droop)
-      cordRigidSegments: 1, // Number of initial segments that use fixed joints (rigid at phone booth end)
+      cordRigidSegments: 0, // Number of initial segments that use fixed joints (rigid at phone booth end)
 
       // Initialization mode: "horizontal" or "straight"
       // "horizontal": Extends along X with Y droop (for phonebooth)
@@ -139,16 +140,43 @@ class PhoneCord {
           this.logger.log("Using baked initial segment transforms");
         }
       } else if (this.config.initMode === "straight") {
-        // STRAIGHT MODE: Direct line from attach to receiver (for candlestick phone)
-        // No Y droop - prevents segments from spawning inside table geometry
-        const t = (i + 0.5) / this.config.cordSegments;
-        pos.lerpVectors(cordAttachPos, receiverPos, t);
-
+        // STRAIGHT MODE: For candlestick phone
         if (i < this.config.cordRigidSegments) {
+          // Kinematic segments: extend slightly upward from attach point
+          // This prevents them from intersecting with phone base geometry
+          const rigidStep = (i + 1) / this.config.cordRigidSegments;
+          pos.copy(cordAttachPos);
+          // Slight upward offset to clear phone base
+          pos.y += rigidStep * segmentLength * 0.5;
+          // Lerp toward receiver on XZ plane
+          const targetXZ = new THREE.Vector3(
+            receiverPos.x,
+            pos.y,
+            receiverPos.z
+          );
+          pos.lerp(targetXZ, rigidStep * 0.3);
+
           this.logger.log(
             `  Segment ${i} (RIGID, straight mode): position`,
             pos.toArray()
           );
+        } else {
+          // Dynamic segments: straight line from end of kinematic to receiver
+          const t =
+            (i - this.config.cordRigidSegments + 0.5) /
+            (this.config.cordSegments - this.config.cordRigidSegments);
+
+          // Start from last kinematic segment position
+          const kinematicEndPos = new THREE.Vector3().copy(cordAttachPos);
+          kinematicEndPos.y += segmentLength * 0.5;
+          const targetXZ = new THREE.Vector3(
+            receiverPos.x,
+            kinematicEndPos.y,
+            receiverPos.z
+          );
+          kinematicEndPos.lerp(targetXZ, 0.3);
+
+          pos.lerpVectors(kinematicEndPos, receiverPos, t);
         }
       } else {
         // HORIZONTAL MODE: X extension with Y droop (for phonebooth)
@@ -510,11 +538,19 @@ class PhoneCord {
    * Destroy the phone cord physics and visuals
    */
   destroy() {
+    if (this.isDestroyed) return; // Already destroyed
+
+    this.logger.log("Destroying phone cord");
+
+    // Mark as destroyed first
+    this.isDestroyed = true;
+
     if (!this.physicsManager) return;
 
     const world = this.physicsManager.world;
 
     // Remove all cord links
+    this.logger.log(`Removing ${this.cordLinks.length} cord links`);
     for (const link of this.cordLinks) {
       if (link.joint) {
         world.removeImpulseJoint(link.joint, true);
