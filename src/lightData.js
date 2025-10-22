@@ -87,6 +87,53 @@ export const lights = {
       },
     },
   },
+
+  // Office Interior Lights
+  officeHemisphere: {
+    id: "office-hemisphere",
+    type: "HemisphereLight",
+    skyColor: 0xe6d4a0, // Warm golden ceiling
+    groundColor: 0x3a5a54, // Deep teal floor
+    intensity: 0.8,
+    position: { x: -4.5, y: 3, z: 85 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  officeLampKey: {
+    id: "office-lamp-key",
+    type: "PointLight",
+    color: 0xffcc66, // Warm amber
+    intensity: 80,
+    distance: 12,
+    decay: 2,
+    position: { x: -6, y: 1.8, z: 86 },
+    castShadow: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  officeLampFill: {
+    id: "office-lamp-fill",
+    type: "PointLight",
+    color: 0xffd98c,
+    intensity: 60,
+    distance: 12,
+    decay: 2,
+    position: { x: -3, y: 1.8, z: 86 },
+    castShadow: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
 };
 
 export default lights;

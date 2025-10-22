@@ -230,6 +230,26 @@ export const cameraAnimations = {
     ],
   },
 
+  phonoAndPhoneLookat: {
+    id: "phonoAndPhoneLookat",
+    type: "lookat",
+    description: "Look at passage after LeClaire tells you to",
+    positions: [
+      sceneObjects.edison.position,
+      sceneObjects.candlestickPhone.position,
+    ],
+    transitionTime: 1,
+    lookAtHoldDuration: 2.0,
+    criteria: {
+      currentState: {
+        $in: [GAME_STATES.OFFICE_INTERIOR],
+      },
+    },
+    priority: 100,
+    playOnce: true,
+    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
+  },
+
   phoneBoothMoveTo: {
     id: "phoneBoothMoveTo",
     type: "moveTo",

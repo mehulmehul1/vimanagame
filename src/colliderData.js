@@ -239,6 +239,30 @@ export const colliders = [
     },
   },
 
+  // OFFICE_INTERIOR trigger
+  {
+    id: "candlestickPhone-pickup",
+    type: "box",
+    position: sceneObjects.candlestickPhone.position,
+    rotation: { x: 0, y: 0, z: 0 },
+    dimensions: { x: 1, y: 5, z: 1 },
+    onEnter: [
+      {
+        type: "state",
+        data: { key: "currentState", value: GAME_STATES.OFFICE_PHONE_ANSWERED },
+      },
+    ],
+    onExit: [],
+    once: true, // Only trigger once
+    enabled: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.OFFICE_PHONE_ANSWERED,
+      },
+    },
+  },
+
   // {
   //   id: "shoulderTap",
   //   type: "box",

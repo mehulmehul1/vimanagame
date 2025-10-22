@@ -104,6 +104,16 @@ const stateOverrides = {
     },
   },
 
+  ENTERING_OFFICE: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: {
+      x: 7.16,
+      y: 0.38,
+      z: 77.44,
+    },
+  },
+
   OFFICE_INTERIOR: {
     isPlaying: true,
     controlEnabled: true,

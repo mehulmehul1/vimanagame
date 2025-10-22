@@ -120,6 +120,46 @@ export const sfxSounds = {
     },
   },
 
+  "phone-ring-2": {
+    id: "phone-ring-2",
+    src: ["/audio/sfx/bakelitephonering.mp3"],
+    volume: 1,
+    loop: true,
+    spatial: true,
+    position: {
+      x: sceneObjects.candlestickPhone.position.x,
+      y: 0.9,
+      z: sceneObjects.candlestickPhone.position.z,
+    },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 10,
+      rolloffFactor: 2,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    preload: true,
+    criteria: {
+      currentState: GAME_STATES.OFFICE_INTERIOR,
+    },
+    delay: 2.75,
+    rate: 1.3,
+    reactiveLight: {
+      enabled: true,
+      type: "PointLight", // THREE.js light type
+      color: 0x50c878, // Emerald green light
+      position: { x: 0, y: 1.7, z: 0 }, // Offset from sound position (above phone booth)
+      baseIntensity: 0.0, // Completely off when silent
+      reactivityMultiplier: 50.0, // Much more dramatic
+      distance: 20, // Wider reach
+      decay: 2,
+      smoothing: 0.6, // Slightly more responsive
+      frequencyRange: "full", // 'bass', 'mid', 'high', 'full'
+      maxIntensity: 250.0, // Higher peak intensity
+      noiseFloor: 0.125, // Ignore audio below 10% to prevent reverb flicker
+    },
+  },
+
   "footsteps-gravel": {
     id: "footsteps-gravel",
     src: ["/audio/sfx/gravel-steps.ogg"],

@@ -25,6 +25,19 @@ import { GAME_STATES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 
 export const musicTracks = {
+  dukeKoko: {
+    id: "dukeKoko",
+    path: "./audio/music/Duke-Ellington-Ko-Ko.mp3",
+    description: "Duke Koko - interior sequence",
+    preload: true, // Load before showing game
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.ENTERING_OFFICE,
+      },
+    },
+    fadeTime: 2.0,
+    priority: 10,
+  },
   dukeMooche: {
     id: "dukeMooche",
     path: "./audio/music/duke-ellington-the-mooche.mp3",
@@ -55,7 +68,12 @@ export const musicTracks = {
     path: "./audio/music/rach 3 - mv 2 - 4-30.mp3",
     description: "Rachmaninoff 3 - Movement 2 (4:30) - Drive-by sequence",
     preload: false, // Load after loading screen
-    criteria: { currentState: { $gte: GAME_STATES.DRIVE_BY } },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.DRIVE_BY,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+    },
     fadeTime: 1.0,
     priority: 90,
   },
