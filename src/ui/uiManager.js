@@ -11,7 +11,6 @@
 
 import { IdleHelper } from "./idleHelper.js";
 import { FullscreenButton } from "./fullscreenButton.js";
-// import { SplatCounter } from "./splatCounter.js";
 import { uiElements } from "./uiData.js";
 import { Logger } from "../utils/logger.js";
 
@@ -45,7 +44,6 @@ export class UIManager {
       dialogManager: null,
       idleHelper: null,
       fullscreenButton: null,
-      splatCounter: null,
       // Add more as needed
     };
 
@@ -369,14 +367,27 @@ export class UIManager {
   }
 
   /**
-   * Update method - call each frame if needed
-   * @param {number} dt - Delta time
+   * Update UI components that need per-frame updates
+   * @param {number} dt - Delta time in seconds
    */
   update(dt) {
-    // Update splat counter every frame
-    if (this.components.splatCounter) {
-      this.components.splatCounter.update();
+    // Update idle helper if it exists
+    if (
+      this.components.idleHelper &&
+      typeof this.components.idleHelper.update === "function"
+    ) {
+      this.components.idleHelper.update(dt);
     }
+
+    // Update fullscreen button if it exists
+    if (
+      this.components.fullscreenButton &&
+      typeof this.components.fullscreenButton.update === "function"
+    ) {
+      this.components.fullscreenButton.update(dt);
+    }
+
+    // Add more component updates as needed
   }
 
   /**

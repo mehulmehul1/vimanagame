@@ -1,4 +1,4 @@
-import { Logger } from "./utils/logger.js";
+import { Logger } from "./logger.js";
 
 const logger = new Logger("CriteriaHelper", false);
 

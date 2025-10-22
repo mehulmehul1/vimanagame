@@ -25,7 +25,7 @@ class CandlestickPhone {
     this.physicsManager = options.physicsManager;
     this.scene = options.scene;
     this.camera = options.camera;
-    this.logger = new Logger("CandlestickPhone", true);
+    this.logger = new Logger("CandlestickPhone", false);
 
     // Phone components
     this.cordAttach = null; // Where the cord attaches to the phone base

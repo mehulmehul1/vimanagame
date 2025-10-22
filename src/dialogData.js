@@ -30,7 +30,7 @@
  */
 
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 
 export const dialogTracks = {
   intro: {

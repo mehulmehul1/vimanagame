@@ -1,6 +1,6 @@
-import { GAME_STATES, startScreen } from "./gameData.js";
-import { sceneObjects } from "./sceneData.js";
-import { Logger } from "./utils/logger.js";
+import { GAME_STATES, startScreen } from "../gameData.js";
+import { sceneObjects } from "../sceneData.js";
+import { Logger } from "./logger.js";
 
 const logger = new Logger("DebugSpawner", false);
 

@@ -1,10 +1,10 @@
 import * as THREE from "three";
-import { createParticleText, createParticleImage } from "./titleText.js";
-import { TitleSequence } from "./titleSequence.js";
-import { GAME_STATES } from "./gameData.js";
-import { GamepadMenuNavigation } from "./ui/gamepadMenuNavigation.js";
-import { Logger } from "./utils/logger.js";
-import "./styles/startScreen.css";
+import { createParticleText, createParticleImage } from "../vfx/titleText.js";
+import { TitleSequence } from "../vfx/titleSequence.js";
+import { GAME_STATES } from "../gameData.js";
+import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
+import { Logger } from "../utils/logger.js";
+import "../styles/startScreen.css";
 
 /**
  * StartScreen - Manages the intro camera animation and start button

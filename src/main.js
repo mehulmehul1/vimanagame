@@ -19,14 +19,14 @@ import { musicTracks } from "./musicData.js";
 import { sceneObjects } from "./sceneData.js";
 import { videos } from "./videoData.js";
 import { lights } from "./lightData.js";
-import { StartScreen } from "./startScreen.js";
+import { StartScreen } from "./ui/startScreen.js";
 import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
-import GizmoManager from "./gizmoManager.js";
+import GizmoManager from "./utils/gizmoManager.js";
 import { createCloudParticlesShader } from "./vfx/cloudParticlesShader.js";
 import DesaturationEffect from "./vfx/desaturationEffect.js";
-import { LoadingScreen } from "./loadingScreen.js";
+import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
@@ -362,7 +362,7 @@ gameManager.on("state:changed", (newState, oldState) => {
   lightManager.updateLightsForState(newState);
 });
 
-// Initialize UI components (idleHelper, fullscreenButton, splatCounter)
+// Initialize UI components (idleHelper, fullscreenButton)
 uiManager.initializeComponents({
   dialogManager,
   cameraAnimationManager,
@@ -546,12 +546,6 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Update desaturation effect animation
   desaturationEffect.update(dt);
-
-  // Update lighting
-  //lightingSystem.updateFlickering(t);
-
-  // Update UI manager (updates splat counter and other UI components)
-  uiManager.update(dt);
 
   // Render with desaturation effect
   desaturationEffect.render(scene, camera);

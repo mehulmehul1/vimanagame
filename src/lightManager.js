@@ -7,7 +7,7 @@ import {
 } from "@sparkjsdev/spark";
 import AudioReactiveLight from "./vfx/audioReactiveLight.js";
 import { lights } from "./lightData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 /**

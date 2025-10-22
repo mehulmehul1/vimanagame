@@ -1,6 +1,9 @@
 import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
-import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
+import {
+  getDebugSpawnState,
+  isDebugSpawnActive,
+} from "./utils/debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
 import CandlestickPhone from "./content/candlestickPhone.js";
 import VideoManager from "./videoManager.js";
@@ -262,10 +265,11 @@ class GameManager {
       this.logger.log(
         `Loading ${newObjects.length} new scene objects for state`
       );
-      await this.sceneManager.loadObjectsForState(newObjects);
 
-      // Track loaded objects
+      // Track loaded objects BEFORE loading to prevent duplicate loads during async operations
       newObjects.forEach((obj) => this.loadedScenes.add(obj.id));
+
+      await this.sceneManager.loadObjectsForState(newObjects);
     }
   }
 

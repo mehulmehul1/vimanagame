@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import { createHeadlightBeamShader } from "./vfx/shaders/headlightBeamShader.js";
 import { Logger } from "./utils/logger.js";
 

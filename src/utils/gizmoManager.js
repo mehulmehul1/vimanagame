@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
-import { Logger } from "./utils/logger.js";
+import { Logger } from "./logger.js";
 
 /**
  * GizmoManager - Debug tool for positioning assets in 3D space

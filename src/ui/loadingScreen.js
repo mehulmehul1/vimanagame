@@ -1,4 +1,4 @@
-import { Logger } from "./utils/logger.js";
+import { Logger } from "../utils/logger.js";
 
 /**
  * LoadingScreen - Minimal loading screen that tracks asset loading progress
@@ -153,7 +153,7 @@ export class LoadingScreen {
     // Transition game state from LOADING to START_SCREEN (only if currently LOADING)
     if (this.gameManager) {
       // Import GAME_STATES dynamically to avoid circular dependencies
-      import("./gameData.js").then(({ GAME_STATES }) => {
+      import("../gameData.js").then(({ GAME_STATES }) => {
         // Only transition to START_SCREEN if we're currently in LOADING state
         // This preserves debug spawn states
         if (this.gameManager.state.currentState === GAME_STATES.LOADING) {

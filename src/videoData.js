@@ -44,7 +44,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 const logger = new Logger("VideoData", false);

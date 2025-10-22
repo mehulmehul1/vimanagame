@@ -89,7 +89,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import { videos } from "./videoData.js";
 import { sceneObjects } from "./sceneData.js";
 import { Logger } from "./utils/logger.js";

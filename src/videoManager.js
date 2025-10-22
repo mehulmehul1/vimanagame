@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { videos } from "./videoData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 /**

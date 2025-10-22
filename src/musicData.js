@@ -22,7 +22,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
-import { checkCriteria } from "./criteriaHelper.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 
 export const musicTracks = {
   dukeMooche: {

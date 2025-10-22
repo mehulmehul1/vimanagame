@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GAME_STATES } from "../gameData.js";
 import { Logger } from "../utils/logger.js";
-import { checkCriteria } from "../criteriaHelper.js";
+import { checkCriteria } from "../utils/criteriaHelper.js";
 import PhoneCord from "./phoneCord.js";
 
 /**
