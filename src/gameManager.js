@@ -2,6 +2,7 @@ import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
 import { getDebugSpawnState, isDebugSpawnActive } from "./debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
+import CandlestickPhone from "./content/candlestickPhone.js";
 import VideoManager from "./videoManager.js";
 import { Logger } from "./utils/logger.js";
 
@@ -35,6 +36,7 @@ class GameManager {
     this.uiManager = null;
     this.sceneManager = null;
     this.phoneBooth = null;
+    this.candlestickPhone = null;
 
     // Track loaded scene objects
     this.loadedScenes = new Set();
@@ -117,6 +119,15 @@ class GameManager {
       characterController: this.characterController,
     });
     this.phoneBooth.initialize(this);
+
+    // Initialize candlestick phone
+    this.candlestickPhone = new CandlestickPhone({
+      sceneManager: this.sceneManager,
+      physicsManager: managers.physicsManager,
+      scene: managers.scene,
+      camera: this.camera,
+    });
+    this.candlestickPhone.initialize(this);
 
     // Initialize video manager with state-based playback
     this.videoManager = new VideoManager({
@@ -343,6 +354,10 @@ class GameManager {
     // Update content-specific systems
     if (this.phoneBooth) {
       this.phoneBooth.update(dt);
+    }
+
+    if (this.candlestickPhone) {
+      this.candlestickPhone.update(dt);
     }
 
     // Add any per-frame game logic here

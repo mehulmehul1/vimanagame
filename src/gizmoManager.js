@@ -27,10 +27,17 @@ import { Logger } from "./utils/logger.js";
  * - Drag any gizmo to manipulate, release to log position
  */
 class GizmoManager {
-  constructor(scene, camera, renderer, sceneManager = null) {
+  constructor(
+    scene,
+    camera,
+    renderer,
+    sceneManager = null,
+    characterController = null
+  ) {
     this.scene = scene;
     this.camera = camera;
     this.renderer = renderer;
+    this.characterController = characterController;
     this.enabled = false;
 
     // Check if logging should be enabled based on gizmo presence
@@ -65,10 +72,8 @@ class GizmoManager {
     // Always enable (will only affect objects with gizmo: true)
     this.enable();
 
-    // Register any already-loaded scene objects if sceneManager provided
-    if (sceneManager) {
-      this.registerSceneObjects(sceneManager);
-    }
+    // Note: Scene objects will be registered later by main.js after they're loaded
+    // Don't call registerSceneObjects here - sceneManager is empty at construction time
   }
 
   /**
@@ -721,10 +726,9 @@ class GizmoManager {
     }
 
     // Get character controller and physics manager from window globals
-    const characterController = window.characterController;
-    const physicsManager = characterController?.physicsManager;
+    const physicsManager = this.characterController?.physicsManager;
 
-    if (!characterController) {
+    if (!this.characterController) {
       this.logger.warn("Cannot teleport - character controller not found");
       return;
     }
@@ -745,11 +749,8 @@ class GizmoManager {
     teleportPosition.y = Math.max(0.9, teleportPosition.y);
 
     // Teleport character controller
-    if (characterController.character) {
-      const character = characterController.character;
-
-      // Update character position (physics body)
-      character.setTranslation(
+    if (this.characterController.character) {
+      this.characterController.character.setTranslation(
         {
           x: teleportPosition.x,
           y: teleportPosition.y,

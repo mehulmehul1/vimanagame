@@ -87,7 +87,8 @@ export const sceneObjects = {
     id: "phonebooth",
     type: "gltf",
     path: "/gltf/phonebooth.glb",
-    description: "Phone booth GLTF model",
+    description:
+      "Phone booth GLTF model with CordAttach and Receiver children (uses PhoneCord module)",
     position: { x: 5.94, y: -0.76, z: 65.76 },
     rotation: { x: 0, y: Math.PI / 2, z: 0 }, // 90 degrees around Y axis
     scale: { x: 1.25, y: 1.25, z: 1.25 },
@@ -235,6 +236,59 @@ export const sceneObjects = {
         },
       },
     ],
+  },
+
+  viewmaster: {
+    id: "viewmaster",
+    type: "gltf",
+    path: "/gltf/viewmaster.glb",
+    preload: false,
+    description: "Viewmaster GLTF model",
+    position: { x: -7.01, y: 1.37, z: 88.8 },
+    rotation: { x: 0.2324, y: 0.0, z: 0.2949 },
+    scale: { x: 1, y: 1, z: 1 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  edison: {
+    id: "edison",
+    type: "gltf",
+    path: "/gltf/edison.glb",
+    preload: false,
+    description: "edison cylinder player",
+    position: { x: -3.66, y: 1.09, z: 89.43 },
+    rotation: { x: 3.1416, y: -0.0245, z: 3.1416 },
+    scale: { x: 1.32, y: 1.32, z: 1.32 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  candlestickPhone: {
+    id: "candlestickPhone",
+    type: "gltf",
+    path: "/gltf/candlestickPhone.glb",
+    preload: false,
+    description:
+      "Candlestick phone with CordAttach and Receiver children (uses PhoneCord module)",
+    position: { x: -4.69, y: 1.05, z: 85.05 },
+    rotation: { x: -0.0001, y: 1.5114, z: 0.0001 },
+    scale: { x: 1.32, y: 1.32, z: 1.32 },
+    gizmo: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+    // Note: This object has a companion script (src/content/candlestickPhone.js)
+    // The script manages the CordAttach and Receiver children using the PhoneCord module
+    // Initialize in main.js or scene manager after the object is loaded
   },
 
   //   firstPersonBody: {

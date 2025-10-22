@@ -370,7 +370,13 @@ uiManager.initializeComponents({
 });
 
 // Initialize gizmo manager for debug positioning
-const gizmoManager = new GizmoManager(scene, camera, renderer);
+const gizmoManager = new GizmoManager(
+  scene,
+  camera,
+  renderer,
+  sceneManager,
+  characterController
+);
 
 // Initialize collider manager with scene and sceneManager references
 const colliderManager = new ColliderManager(
