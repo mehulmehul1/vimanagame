@@ -277,7 +277,7 @@ export const sceneObjects = {
     preload: false,
     description:
       "Candlestick phone with CordAttach and Receiver children (uses PhoneCord module)",
-    position: { x: -4.69, y: 1.05, z: 85.05 },
+    position: { x: -4.69, y: 1.1, z: 85.05 },
     rotation: { x: -0.0001, y: 1.5114, z: 0.0001 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     gizmo: true,

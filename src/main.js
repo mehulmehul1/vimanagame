@@ -97,6 +97,9 @@ window.desaturationEffect = desaturationEffect;
 // Initialize game manager early to check for debug spawn
 const gameManager = new GameManager();
 
+// Expose for debug console access
+window.gameManager = gameManager;
+
 // Connect loading screen to game manager so it can transition state when done
 loadingScreen.setGameManager(gameManager);
 

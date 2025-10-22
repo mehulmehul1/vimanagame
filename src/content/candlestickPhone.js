@@ -48,7 +48,7 @@ class CandlestickPhone {
       cordConfig: {
         cordSegments: 10,
         cordSegmentLength: 0.06,
-        cordSegmentRadius: 0.015, // Larger collider for reliable collision detection (15mm)
+        cordSegmentRadius: 0.02, // Larger collider for reliable collision detection (15mm)
         cordMass: 0.001,
         cordDamping: 5.0,
         cordAngularDamping: 5.0,
@@ -62,10 +62,152 @@ class CandlestickPhone {
         // Collision groups: Belongs to group 2, collides ONLY with group 4 (table cube/trimesh)
         // Format: 0xMMMMGGGG where MMMM = collision mask, GGGG = membership groups
         cordCollisionGroup: 0x00080002, // Belongs to group 2 (0x0002), collides with group 4 (0x0008)
+        initialSegmentTransforms: [
+          {
+            index: 0,
+            position: {
+              x: -4.76614236831665,
+              y: 1.1566543579101562,
+              z: 85.10692596435547,
+            },
+            rotation: {
+              x: 0.01608729548752308,
+              y: 0.0039041037671267986,
+              z: -0.6943904161453247,
+              w: 0.7194080352783203,
+            },
+          },
+          {
+            index: 1,
+            position: {
+              x: -4.842679500579834,
+              y: 1.1704081296920776,
+              z: 85.14257049560547,
+            },
+            rotation: {
+              x: -0.26038578152656555,
+              y: -0.6332693099975586,
+              z: -0.7261661887168884,
+              w: -0.06206420436501503,
+            },
+          },
+          {
+            index: 2,
+            position: {
+              x: -4.890603542327881,
+              y: 1.1704081296920776,
+              z: 85.21875,
+            },
+            rotation: {
+              x: 0.5373536944389343,
+              y: -0.2495744377374649,
+              z: 0.3767964243888855,
+              w: -0.7120309472084045,
+            },
+          },
+          {
+            index: 3,
+            position: {
+              x: -4.979955673217773,
+              y: 1.1704081296920776,
+              z: 85.20796966552734,
+            },
+            rotation: {
+              x: 0.3558013141155243,
+              y: -0.1129140853881836,
+              z: -0.914277970790863,
+              w: -0.15732675790786743,
+            },
+          },
+          {
+            index: 4,
+            position: {
+              x: -4.987236022949219,
+              y: 1.1704081296920776,
+              z: 85.29729461669922,
+            },
+            rotation: {
+              x: 0.38533830642700195,
+              y: -0.8555383682250977,
+              z: 0.08497804403305054,
+              w: 0.3351823687553406,
+            },
+          },
+          {
+            index: 5,
+            position: {
+              x: -4.899610996246338,
+              y: 1.1704082489013672,
+              z: 85.2767562866211,
+            },
+            rotation: {
+              x: -0.5119867324829102,
+              y: 0.6058070063591003,
+              z: -0.5236726999282837,
+              w: -0.31086090207099915,
+            },
+          },
+          {
+            index: 6,
+            position: {
+              x: -4.809802532196045,
+              y: 1.1704081296920776,
+              z: 85.2710189819336,
+            },
+            rotation: {
+              x: -0.7087559103965759,
+              y: 0.6893279552459717,
+              z: -0.08311052620410919,
+              w: -0.12483887374401093,
+            },
+          },
+          {
+            index: 7,
+            position: {
+              x: -4.720593452453613,
+              y: 1.1704086065292358,
+              z: 85.2591781616211,
+            },
+            rotation: {
+              x: 0.19807924330234528,
+              y: -0.15645527839660645,
+              z: -0.05735204368829727,
+              w: 0.9659178256988525,
+            },
+          },
+          {
+            index: 8,
+            position: {
+              x: -4.634779453277588,
+              y: 1.180083990097046,
+              z: 85.2403335571289,
+            },
+            rotation: {
+              x: 0.6636924743652344,
+              y: 0.08627700805664062,
+              z: 0.7408108115196228,
+              w: -0.057167429476976395,
+            },
+          },
+          {
+            index: 9,
+            position: {
+              x: -4.622823238372803,
+              y: 1.2620922327041626,
+              z: 85.20442199707031,
+            },
+            rotation: {
+              x: -0.23143023252487183,
+              y: -0.7361793518066406,
+              z: -0.3078458607196808,
+              w: 0.5565167665481567,
+            },
+          },
+        ],
       },
       // Table configuration
-      tableSize: { x: 1, y: 0.02, z: 1 }, // Half-extents (full size: 0.8x0.04x0.8m)
-      tableOffset: -0.25, // Offset below cord attach point
+      tableSize: { x: 1, y: 0.1, z: 1 }, // Half-extents (full size: 0.8x0.04x0.8m)
+      tableOffset: -0.1, // Offset below cord attach point
     };
   }
 

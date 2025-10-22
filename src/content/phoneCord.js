@@ -121,9 +121,24 @@ class PhoneCord {
     // Create cord segments with initial droop/curve
     for (let i = 0; i < this.config.cordSegments; i++) {
       let pos = new THREE.Vector3();
+      let rot = { x: 0, y: 0, z: 0, w: 1 };
 
-      // Choose initialization mode
-      if (this.config.initMode === "straight") {
+      // Check if we have baked initial transforms (from debugExportSegmentTransforms)
+      if (
+        this.config.initialSegmentTransforms &&
+        this.config.initialSegmentTransforms[i]
+      ) {
+        const transform = this.config.initialSegmentTransforms[i];
+        pos.set(
+          transform.position.x,
+          transform.position.y,
+          transform.position.z
+        );
+        rot = transform.rotation;
+        if (i === 0) {
+          this.logger.log("Using baked initial segment transforms");
+        }
+      } else if (this.config.initMode === "straight") {
         // STRAIGHT MODE: Direct line from attach to receiver (for candlestick phone)
         // No Y droop - prevents segments from spawning inside table geometry
         const t = (i + 0.5) / this.config.cordSegments;
@@ -178,16 +193,14 @@ class PhoneCord {
       // For rigid segments at phone booth, make them KINEMATIC (unaffected by gravity)
       let rigidBodyDesc;
       if (i < this.config.cordRigidSegments) {
-        rigidBodyDesc =
-          RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-            pos.x,
-            pos.y,
-            pos.z
-          );
+        rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+          .setTranslation(pos.x, pos.y, pos.z)
+          .setRotation(rot);
         this.logger.log(`  Segment ${i} is KINEMATIC (won't fall)`);
       } else {
         rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic()
           .setTranslation(pos.x, pos.y, pos.z)
+          .setRotation(rot)
           .setLinearDamping(this.config.cordDamping)
           .setAngularDamping(this.config.cordAngularDamping);
       }
@@ -455,6 +468,42 @@ class PhoneCord {
     if (this.cordLinks.length > 0) {
       this.updateCordLine();
     }
+  }
+
+  /**
+   * DEBUG: Export current segment transforms for copy-paste
+   * Call from console: window.gameManager.candlestickPhone.phoneCord.debugExportSegmentTransforms()
+   */
+  debugExportSegmentTransforms() {
+    if (!this.cordLinks || this.cordLinks.length === 0) {
+      console.log("No segments to export");
+      return;
+    }
+
+    // Skip anchor segments (they're kinematic followers), only export dynamic segments
+    const transforms = [];
+    for (let i = 0; i < this.cordLinks.length; i++) {
+      const link = this.cordLinks[i];
+      if (!link.rigidBody || link.isAnchor) continue; // Skip anchors
+
+      const pos = link.rigidBody.translation();
+      const rot = link.rigidBody.rotation();
+      transforms.push({
+        index: transforms.length, // Use actual segment index
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rotation: { x: rot.x, y: rot.y, z: rot.z, w: rot.w },
+      });
+    }
+
+    console.log("=== CORD SEGMENT TRANSFORMS ===");
+    console.log(`Found ${transforms.length} segments`);
+    console.log(
+      "Copy the array below and paste into cordConfig as 'initialSegmentTransforms':"
+    );
+    console.log(JSON.stringify(transforms, null, 2));
+    console.log("===============================");
+
+    return transforms;
   }
 
   /**
