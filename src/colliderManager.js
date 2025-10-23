@@ -6,11 +6,12 @@ import { Logger } from "./utils/logger.js";
  * ColliderManager - Manages trigger colliders and intersection detection
  *
  * Features:
- * - Creates sensor colliders from collider data
+ * - Creates trigger colliders from collider data below
  * - Detects when character enters/exits colliders
- * - Emits events to GameManager
+ * - Sets game state through GameManager
  * - Supports box, sphere, and capsule shapes
  * - Handles one-time triggers and enable/disable states
+ * - Supports state-based activation criteria
  */
 
 class ColliderManager {
@@ -216,10 +217,10 @@ class ColliderManager {
   onEnter(id, data) {
     this.logger.log(`Entered "${id}"`);
 
-    // Emit events through game manager
-    data.onEnter.forEach((event) => {
-      this.handleEvent(event, id, "enter");
-    });
+    // Set state if defined
+    if (data.setStateOnEnter) {
+      this.gameManager.setState(data.setStateOnEnter);
+    }
   }
 
   /**
@@ -230,173 +231,10 @@ class ColliderManager {
   onExit(id, data) {
     this.logger.log(`Exited "${id}"`);
 
-    // Emit events through game manager
-    data.onExit.forEach((event) => {
-      this.handleEvent(event, id, "exit");
-    });
-  }
-
-  /**
-   * Handle a single event
-   * @param {Object} event - Event data
-   * @param {string} colliderId - ID of the collider
-   * @param {string} triggerType - "enter" or "exit"
-   */
-  handleEvent(event, colliderId, triggerType) {
-    const { type, data } = event;
-
-    switch (type) {
-      case "state":
-        this.handleStateEvent(data, colliderId);
-        break;
-
-      case "camera-lookat":
-        this.handleCameraLookAtEvent(data, colliderId);
-        break;
-
-      case "camera-animation":
-        this.handleCameraAnimationEvent(data, colliderId);
-        break;
-
-      case "move-to":
-        this.handleMoveToEvent(data, colliderId);
-        break;
-
-      default:
-        this.logger.warn(`Unknown event type "${type}"`);
+    // Set state if defined
+    if (data.setStateOnExit) {
+      this.gameManager.setState(data.setStateOnExit);
     }
-  }
-
-  /**
-   * Handle UI event
-   */
-  handleUIEvent(data, colliderId) {
-    const { action, element } = data;
-    this.gameManager.emit("collider:ui", { action, element, colliderId });
-  }
-
-  /**
-   * Handle state event
-   */
-  handleStateEvent(data, colliderId) {
-    const { key, value } = data;
-    this.gameManager.setState({ [key]: value });
-  }
-
-  /**
-   * Handle camera look-at event
-   */
-  handleCameraLookAtEvent(data, colliderId) {
-    const {
-      position,
-      targetMesh,
-      duration = 2.0,
-      returnToOriginalView = false,
-      returnDuration = null,
-      enableZoom = false,
-      zoomOptions = {},
-    } = data;
-
-    let targetPosition = position;
-
-    // If targetMesh is specified, look up the mesh and get its world position
-    if (targetMesh && this.sceneManager) {
-      const { objectId, childName } = targetMesh;
-      const childMesh = this.sceneManager.findChildByName(objectId, childName);
-
-      if (childMesh) {
-        // Get world position of the mesh
-        const worldPos = new THREE.Vector3();
-        childMesh.getWorldPosition(worldPos);
-        targetPosition = {
-          x: worldPos.x,
-          y: worldPos.y,
-          z: worldPos.z,
-        };
-        this.logger.log(
-          `Looking at mesh "${childName}" in "${objectId}" at (${worldPos.x.toFixed(
-            2
-          )}, ${worldPos.y.toFixed(2)}, ${worldPos.z.toFixed(2)})`
-        );
-      } else {
-        this.logger.warn(`Could not find mesh "${childName}" in "${objectId}"`);
-        // List available children to help debug
-        const sceneObj = this.sceneManager.getObject(objectId);
-        if (sceneObj) {
-          const childNames = [];
-          sceneObj.traverse((child) => {
-            if (child.name) childNames.push(child.name);
-          });
-          this.logger.log(`Available children in "${objectId}":`, childNames);
-        }
-      }
-    }
-
-    // Safety check: ensure we have a valid position before emitting
-    if (!targetPosition) {
-      this.logger.error(
-        `No valid target position for camera-lookat (colliderId: ${colliderId})`
-      );
-      return;
-    }
-
-    // Emit event for character controller to handle
-    this.gameManager.emit("camera:lookat", {
-      position: targetPosition,
-      duration,
-      returnToOriginalView,
-      returnDuration: returnDuration || duration,
-      enableZoom,
-      zoomOptions,
-      colliderId,
-    });
-  }
-
-  /**
-   * Handle camera animation event
-   */
-  handleCameraAnimationEvent(data, colliderId) {
-    const { animation, onComplete } = data;
-
-    // Emit event for game manager to handle
-    this.gameManager.emit("camera:animation", {
-      animation,
-      onComplete,
-      colliderId,
-    });
-  }
-
-  /**
-   * Handle move-to event (move character to position)
-   */
-  handleMoveToEvent(data, colliderId) {
-    const {
-      position,
-      rotation,
-      lookat,
-      autoFloorHeight,
-      duration = 2.0,
-      inputControl,
-    } = data;
-
-    // Emit event for character controller to handle
-    this.gameManager.emit("character:moveto", {
-      position,
-      rotation,
-      lookat, // Pass through lookat if provided
-      autoFloorHeight, // Pass through autoFloorHeight if provided
-      duration,
-      inputControl, // Pass through input control settings
-      colliderId,
-    });
-  }
-
-  /**
-   * Handle custom event
-   */
-  handleCustomEvent(data, colliderId, triggerType) {
-    const { eventName, payload } = data;
-    this.gameManager.emit(eventName, { ...payload, colliderId, triggerType });
   }
 
   /**

@@ -16,7 +16,7 @@ import { Logger } from "./utils/logger.js";
 class CameraAnimationManager {
   constructor(camera, characterController, gameManager, options = {}) {
     // Debug logging
-    this.logger = new Logger("CameraAnimationManager", true);
+    this.logger = new Logger("CameraAnimationManager", false);
 
     this.camera = camera;
     this.characterController = characterController;
@@ -846,7 +846,6 @@ class CameraAnimationManager {
         position: moveToData.position,
         rotation: moveToData.rotation || null,
         lookat: moveToData.lookat || null, // Pass lookat position if provided
-        autoFloorHeight: moveToData.autoFloorHeight || false, // Auto-detect floor height
         duration: transitionTime, // Still use 'duration' for the event for compatibility with characterController
         inputControl: moveToData.inputControl || {
           disableMovement: true,

@@ -472,53 +472,8 @@ class CharacterController {
 
       let targetY = data.position.y;
 
-      // Handle autoFloorHeight - raycast to find floor and place character on it
-      if (data.autoFloorHeight && this.physicsManager) {
-        // Start ray from current character position (or higher if specified Y is higher)
-        const currentPos = this.character.translation();
-        const startY =
-          Math.max(currentPos.y, data.position.y || currentPos.y, 100) + 50;
-
-        const floorY = this.physicsManager.getFloorHeightAt(
-          data.position.x,
-          data.position.z,
-          startY,
-          300 // Cast down 300 units
-        );
-
-        if (floorY !== null) {
-          // Place character on floor: floor Y + character capsule radius + half height
-          // Capsule: radius=0.3, halfHeight=0.6, so center is at floorY + 0.9
-          targetY = floorY + 0.9;
-          this.logger.log(
-            `AutoFloorHeight: floor at Y=${floorY.toFixed(
-              2
-            )}, character at Y=${targetY.toFixed(2)}`
-          );
-        } else {
-          // Raycast failed - use provided Y or fall back to current position
-          if (targetY === undefined || !isFinite(targetY)) {
-            const currentPos = this.character.translation();
-            targetY = currentPos.y;
-            this.logger.warn(
-              `AutoFloorHeight: No floor found at (${data.position.x.toFixed(
-                2
-              )}, ${data.position.z.toFixed(
-                2
-              )}), using current Y=${targetY.toFixed(2)}`
-            );
-          } else {
-            this.logger.warn(
-              `AutoFloorHeight: No floor found at (${data.position.x.toFixed(
-                2
-              )}, ${data.position.z.toFixed(
-                2
-              )}), using provided Y=${targetY.toFixed(2)}`
-            );
-          }
-        }
-      } else if (targetY === undefined || !isFinite(targetY)) {
-        // No autoFloorHeight but Y is missing or invalid - use current position
+      // Validate Y coordinate
+      if (targetY === undefined || !isFinite(targetY)) {
         const currentPos = this.character.translation();
         targetY = currentPos.y;
         this.logger.warn(
@@ -718,15 +673,36 @@ class CharacterController {
     );
 
     // Calculate target orientation
-    const direction = new THREE.Vector3()
-      .subVectors(targetPosition, this.camera.position)
-      .normalize();
+    const direction = new THREE.Vector3().subVectors(
+      targetPosition,
+      this.camera.position
+    );
+    const dirLen = direction.length();
+    let targetYaw = this.yaw;
+    let targetPitch = this.pitch;
+    if (dirLen < 1e-6) {
+      this.logger.warn(
+        `lookAt: target coincides with camera (len=${dirLen.toFixed(
+          6
+        )}), keeping current rotation`
+      );
+    } else {
+      direction.divideScalar(dirLen);
+      const horiz = Math.sqrt(
+        direction.x * direction.x + direction.z * direction.z
+      );
+      targetYaw = Math.atan2(-direction.x, -direction.z);
+      targetPitch = Math.atan2(direction.y, horiz);
+      if (!isFinite(targetYaw) || !isFinite(targetPitch)) {
+        this.logger.warn(
+          `lookAt: computed non-finite rotation (yaw=${targetYaw}, pitch=${targetPitch}), falling back to current`
+        );
+        targetYaw = this.yaw;
+        targetPitch = this.pitch;
+      }
+    }
 
-    // Calculate target yaw and pitch from direction
-    const targetYaw = Math.atan2(-direction.x, -direction.z);
-    const targetPitch = Math.asin(direction.y);
-
-    // Create target quaternion from target euler angles
+    // Create target quaternion from validated euler angles
     this.lookAtEndQuat.setFromEuler(
       new THREE.Euler(targetPitch, targetYaw, 0, "YXZ")
     );
@@ -899,18 +875,38 @@ class CharacterController {
     this.moveToTargetPos.copy(targetPosition);
 
     // Store current rotation
-    this.moveToStartYaw = this.yaw;
-    this.moveToStartPitch = this.pitch;
+    this.moveToStartYaw = isFinite(this.yaw) ? this.yaw : 0;
+    this.moveToStartPitch = isFinite(this.pitch) ? this.pitch : 0;
+    if (!isFinite(this.yaw) || !isFinite(this.pitch)) {
+      this.logger.warn(
+        `MoveTo: Current yaw/pitch invalid (yaw=${this.yaw}, pitch=${this.pitch}), resetting to (0,0)`
+      );
+      this.yaw = 0;
+      this.pitch = 0;
+      this.targetYaw = 0;
+      this.targetPitch = 0;
+    }
 
     // Set target rotation (if provided, otherwise keep current)
     if (targetRotation) {
       this.moveToTargetYaw =
-        targetRotation.yaw !== undefined ? targetRotation.yaw : this.yaw;
+        targetRotation.yaw !== undefined && isFinite(targetRotation.yaw)
+          ? targetRotation.yaw
+          : this.moveToStartYaw;
       this.moveToTargetPitch =
-        targetRotation.pitch !== undefined ? targetRotation.pitch : this.pitch;
+        targetRotation.pitch !== undefined && isFinite(targetRotation.pitch)
+          ? targetRotation.pitch
+          : this.moveToStartPitch;
     } else {
-      this.moveToTargetYaw = this.yaw;
-      this.moveToTargetPitch = this.pitch;
+      this.moveToTargetYaw = this.moveToStartYaw;
+      this.moveToTargetPitch = this.moveToStartPitch;
+    }
+    if (!isFinite(this.moveToTargetYaw) || !isFinite(this.moveToTargetPitch)) {
+      this.logger.warn(
+        `MoveTo: Target yaw/pitch invalid (yaw=${this.moveToTargetYaw}, pitch=${this.moveToTargetPitch}), using (0,0)`
+      );
+      this.moveToTargetYaw = 0;
+      this.moveToTargetPitch = 0;
     }
 
     // Normalize the yaw difference to ensure shortest rotation path
@@ -1966,6 +1962,14 @@ class CharacterController {
         this.pitch =
           this.moveToStartPitch +
           (this.moveToTargetPitch - this.moveToStartPitch) * easedT;
+        if (!isFinite(this.yaw) || !isFinite(this.pitch)) {
+          this.logger.error(
+            `MoveTo: interpolation produced NaN (start=(${this.moveToStartYaw}, ${this.moveToStartPitch}), target=(${this.moveToTargetYaw}, ${this.moveToTargetPitch}), t=${easedT})`
+          );
+          this.yaw = 0;
+          this.pitch = 0;
+        }
+
         this.targetYaw = this.yaw;
         this.targetPitch = this.pitch;
 

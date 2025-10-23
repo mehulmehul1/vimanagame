@@ -71,13 +71,9 @@
  *                to false to keep inputs disabled after animation completes.
  *
  * For type "moveTo":
- * - position: {x, y, z} or {x, z} world position to move character to
- *   - If autoFloorHeight is true, y can be omitted (will be auto-detected via raycast)
+ * - position: {x, y, z} world position to move character to
  * - rotation: {yaw, pitch} target rotation in radians (optional, ignored if lookat is set)
  * - lookat: {x, y, z} world position to look at during movement (optional, overrides rotation)
- * - autoFloorHeight: If true, raycast down to find floor Y at target X/Z (default: false)
- *   - Useful when floor height varies throughout the game
- *   - Character will be placed on the detected floor surface
  * - transitionTime: Time for the movement transition in seconds (default: 2.0)
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
@@ -327,11 +323,10 @@ export const cameraAnimations = {
     description: "Move character near Viewmaster and look down at it",
     position: {
       x: -6.46,
-      y: 1.93, // Will be overridden by autoFloorHeight
+      y: 1.93,
       z: 87.77,
     },
     lookat: sceneObjects.viewmaster.position, // Look at viewmaster (below eye level)
-    autoFloorHeight: true, // Automatically detect floor height at destination
     transitionTime: 1.5,
     inputControl: {
       disableMovement: true, // Disable movement

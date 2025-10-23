@@ -232,8 +232,13 @@ class GameManager {
       this.sceneManager.updateAnimationsForState(this.state);
     }
 
-    // Update character controller based on new state
-    this.updateCharacterController();
+    // Update character controller only if controlEnabled changed
+    if (
+      newState.controlEnabled !== undefined &&
+      newState.controlEnabled !== oldState.controlEnabled
+    ) {
+      this.updateCharacterController();
+    }
   }
 
   /**
@@ -397,9 +402,6 @@ class GameManager {
     if (this.candlestickPhone) {
       this.candlestickPhone.update(dt);
     }
-
-    // Add any per-frame game logic here
-    this.emit("game:update", dt);
   }
 }
 

@@ -88,13 +88,6 @@ export class StartScreen {
     this.tiltSpeed2 = 0.5 + Math.random() * 0.3; // Secondary tilt speed (0.5-0.8)
     this.tiltAmount = 0.12; // Max tilt in radians (~4.5 degrees)
 
-    // Circle animation settings (fallback if GLB doesn't load)
-    this.circleCenter = options.circleCenter || new THREE.Vector3(0, 0, 0);
-    this.circleRadius = options.circleRadius || 15;
-    this.circleHeight = options.circleHeight || 10;
-    this.circleSpeed = options.circleSpeed || 0.3;
-    this.circleTime = 0;
-
     // Target position (where camera should end up)
     this.targetPosition =
       options.targetPosition || new THREE.Vector3(10, 1.6, 15);
@@ -970,33 +963,6 @@ export class StartScreen {
         const rollAngle = this.calculateCameraTilt();
         const rollQuat = new THREE.Quaternion();
         rollQuat.setFromAxisAngle(this.smoothedForward, rollAngle);
-        this.camera.quaternion.multiply(rollQuat);
-
-        return true;
-      } else {
-        // Fallback: Circle animation
-        this.circleTime += dt * this.circleSpeed;
-
-        const x =
-          this.circleCenter.x + Math.cos(this.circleTime) * this.circleRadius;
-        const z =
-          this.circleCenter.z + Math.sin(this.circleTime) * this.circleRadius;
-        const y = this.circleHeight;
-
-        this.camera.position.set(x, y, z);
-
-        // Calculate forward direction (tangent to circle)
-        const forwardX = -Math.sin(this.circleTime);
-        const forwardZ = Math.cos(this.circleTime);
-
-        const lookTarget = new THREE.Vector3(x + forwardX, y, z + forwardZ);
-        this.camera.lookAt(lookTarget);
-
-        // Apply camera tilt/roll for unsteady flight effect
-        const rollAngle = this.calculateCameraTilt();
-        const forward = new THREE.Vector3(forwardX, 0, forwardZ).normalize();
-        const rollQuat = new THREE.Quaternion();
-        rollQuat.setFromAxisAngle(forward, rollAngle);
         this.camera.quaternion.multiply(rollQuat);
 
         return true;

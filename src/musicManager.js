@@ -91,6 +91,28 @@ class MusicManager {
 
     // Store pending loads for deferred assets
     this.deferredTracks = new Map(); // Store track data for later loading
+
+    // Automatically initialize tracks from musicData
+    this._initializeTracks();
+  }
+
+  /**
+   * Initialize tracks from musicData (called automatically in constructor)
+   * @private
+   */
+  async _initializeTracks() {
+    const { musicTracks } = await import("./musicData.js");
+
+    this.logger.log(
+      `Initializing ${Object.keys(musicTracks).length} music tracks`
+    );
+
+    Object.values(musicTracks).forEach((track) => {
+      this.addTrack(track.id, track.path, {
+        preload: track.preload,
+        loop: track.loop !== undefined ? track.loop : true,
+      });
+    });
   }
 
   /**

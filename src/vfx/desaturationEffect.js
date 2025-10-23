@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
-import { VFXStateManager } from "./vfxManager.js";
+import { VFXManager } from "./vfxManager.js";
 
 /**
  * DesaturationEffect - Post-processing shader for animating color to grayscale
@@ -11,7 +11,7 @@ import { VFXStateManager } from "./vfxManager.js";
  *   desat.animateToGrayscale(); // Animate to B&W
  *   desat.render(scene, camera); // Call instead of renderer.render()
  */
-export class DesaturationEffect extends VFXStateManager {
+export class DesaturationEffect extends VFXManager {
   constructor(renderer) {
     super("DesaturationEffect", false);
 

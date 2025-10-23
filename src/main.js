@@ -15,7 +15,6 @@ import UIManager from "./ui/uiManager.js";
 import ColliderManager from "./colliderManager.js";
 import SceneManager from "./sceneManager.js";
 import colliders from "./colliderData.js";
-import { musicTracks } from "./musicData.js";
 import { sceneObjects } from "./sceneData.js";
 import { videos } from "./videoData.js";
 import { lights } from "./lightData.js";
@@ -24,8 +23,7 @@ import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
 import GizmoManager from "./utils/gizmoManager.js";
-import { createCloudParticlesShader } from "./vfx/cloudParticlesShader.js";
-import DesaturationEffect from "./vfx/desaturationEffect.js";
+import { VFXSystemManager } from "./vfx/vfxManager.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import "./styles/optionsMenu.css";
@@ -58,17 +56,6 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
 document.body.appendChild(renderer.domElement);
 
-// Create desaturation post-processing effect (starts disabled, enabled by state management)
-const desaturationEffect = new DesaturationEffect(renderer);
-
-// Handle window resize
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  desaturationEffect.setSize(window.innerWidth, window.innerHeight);
-});
-
 // Create a SparkRenderer with depth of field effect
 const apertureSize = 0.01; // Very small aperture for subtle DoF
 const focalDistance = 6.0;
@@ -95,9 +82,6 @@ window.sceneManager = sceneManager;
 
 // Note: gizmoManager will be passed to sceneManager after initialization
 
-// Make desaturation effect globally accessible
-window.desaturationEffect = desaturationEffect;
-
 // Initialize game manager early to check for debug spawn
 const gameManager = new GameManager();
 
@@ -114,6 +98,22 @@ const physicsManager = new PhysicsManager();
 // Pass sceneManager so lights can be parented under specific scene objects
 // Pass gameManager so lights can check criteria before loading
 const lightManager = new LightManager(scene, sceneManager, gameManager);
+
+// Initialize VFX system manager AFTER light manager (so splat lights can affect fog)
+// Pass loadingScreen for progress tracking
+const vfxManager = new VFXSystemManager(scene, camera, renderer, loadingScreen);
+await vfxManager.initialize();
+
+// Make VFX manager globally accessible
+window.vfxManager = vfxManager;
+
+// Handle window resize
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  vfxManager.setSize(window.innerWidth, window.innerHeight);
+});
 
 // Create character rigid body (capsule)
 // Capsule: halfHeight=0.5, radius=0.3, total height = 1.6m
@@ -137,27 +137,12 @@ const spawnPos = gameManager.getDebugSpawnPosition() || defaultSpawnPos;
 const character = physicsManager.createCharacter(spawnPos, defaultSpawnRot);
 // Removed visual mesh for character;
 
-// Sync camera to character spawn position BEFORE creating particles
-// This prevents particles from being immediately culled due to camera/character position mismatch
+// Sync camera to character spawn position
 camera.position.set(
   spawnPos.x,
   spawnPos.y + 0.8, // Character Y + camera height offset
   spawnPos.z
 );
-
-// Create rolling fog effect using GPU shader-based Gaussian splats
-// IMPORTANT: Created AFTER light manager so splat lights can affect the fog particles
-// Pass camera so fog initializes around camera position and follows the character
-const cloudParticles = createCloudParticlesShader(scene, camera);
-logger.log("Fog system loaded: GPU Shader-based ⚡");
-
-// Make cloud particles globally accessible
-window.cloudParticles = cloudParticles;
-
-// Manual trigger example (call from console):
-// cloudParticles.transitionTo({ windSpeed: -1, opacity: 0.01 }, 4.0)
-
-// Light manager already initialized above (before fog) so splat lights can affect fog
 
 // Initialize SFX manager (pass lightManager for audio-reactive lights)
 const sfxManager = new SFXManager({
@@ -214,18 +199,10 @@ window.cameraAnimationManager = cameraAnimationManager;
 // Initialize UI manager (manages all UI elements and z-index)
 const uiManager = new UIManager(gameManager);
 
-// Initialize music manager and load tracks from musicData
+// Initialize music manager (automatically loads tracks from musicData)
 const musicManager = new MusicManager({
   defaultVolume: 0.6,
   loadingScreen: loadingScreen,
-});
-
-// Load only preload tracks during loading screen
-Object.values(musicTracks).forEach((track) => {
-  musicManager.addTrack(track.id, track.path, {
-    preload: track.preload,
-    loop: track.loop !== undefined ? track.loop : true,
-  });
 });
 
 // Initialize dialog choice UI
@@ -248,13 +225,9 @@ const dialogManager = new DialogManager({
 // Initialize start screen - will be created when state transitions to START_SCREEN
 let startScreen = null;
 
-// Listen for state changes to initialize StartScreen when transitioning from LOADING to START_SCREEN
-gameManager.on("state:changed", (newState, oldState) => {
-  if (
-    newState.currentState === GAME_STATES.START_SCREEN &&
-    oldState.currentState === GAME_STATES.LOADING &&
-    !startScreen
-  ) {
+// One-time listener to initialize StartScreen when transitioning from LOADING to START_SCREEN
+const initStartScreen = (newState, oldState) => {
+  if (newState.currentState === GAME_STATES.START_SCREEN && !startScreen) {
     logger.log("Creating StartScreen after loading complete");
     // Calculate camera target position based on actual character spawn
     const cameraTargetPos = new THREE.Vector3(
@@ -264,14 +237,6 @@ gameManager.on("state:changed", (newState, oldState) => {
     );
 
     startScreen = new StartScreen(camera, scene, {
-      circleCenter: new THREE.Vector3(
-        sceneObjects.phonebooth.position.x,
-        sceneObjects.phonebooth.position.y,
-        sceneObjects.phonebooth.position.z - 10
-      ), // Center point of the circular path
-      circleRadius: 6,
-      circleHeight: 5,
-      circleSpeed: 0.05,
       targetPosition: cameraTargetPos,
       targetRotation: {
         yaw: THREE.MathUtils.degToRad(defaultSpawnRot.y),
@@ -286,12 +251,12 @@ gameManager.on("state:changed", (newState, oldState) => {
       glbAnimationStartProgress: 0.55, // Optional: Start at 50% through the GLB animation (0-1)
     });
 
-    // Update options menu with the newly created startScreen
-    if (optionsMenu) {
-      optionsMenu.startScreen = startScreen;
-    }
+    // Remove this listener after it runs once
+    gameManager.off("state:changed", initStartScreen);
   }
-});
+};
+
+gameManager.on("state:changed", initStartScreen);
 
 // Initialize options menu
 const optionsMenu = new OptionsMenu({
@@ -362,8 +327,7 @@ cameraAnimationManager.initialize();
 
 musicManager.setGameManager(gameManager);
 sfxManager.setGameManager(gameManager);
-desaturationEffect.setGameManager(gameManager, "desaturation");
-cloudParticles.setGameManager(gameManager, "cloudParticles");
+vfxManager.setGameManager(gameManager);
 
 // Apply caption settings now that dialogManager is available
 optionsMenu.applyCaptions();
@@ -497,14 +461,7 @@ renderer.setAnimationLoop(function animate(time) {
     // (moved below) Video manager is updated unconditionally so videos render during START_SCREEN too
 
     // Update Howler listener position for spatial audio
-    // Guard against NaN/Infinity values that would break Howler
-    if (
-      isFinite(camera.position.x) &&
-      isFinite(camera.position.y) &&
-      isFinite(camera.position.z)
-    ) {
-      Howler.pos(camera.position.x, camera.position.y, camera.position.z);
-    }
+    Howler.pos(camera.position.x, camera.position.y, camera.position.z);
 
     // Update Howler listener orientation (forward and up vectors)
     const cameraDirection = new THREE.Vector3();
@@ -562,14 +519,11 @@ renderer.setAnimationLoop(function animate(time) {
   // Always update audio-reactive lights
   lightManager.updateReactiveLights(dt);
 
-  // Update cloud particles (shader-based fog)
-  cloudParticles.update(dt);
+  // Update all VFX effects (fog, desaturation, etc.)
+  vfxManager.update(dt);
 
-  // Update desaturation effect animation
-  desaturationEffect.update(dt);
-
-  // Render with desaturation effect
-  desaturationEffect.render(scene, camera);
+  // Render with VFX post-processing effects
+  vfxManager.render(scene, camera);
 
   // Render text splats on top (separate scene for title sequence)
   if (startScreen && startScreen.getTextRenderInfo) {

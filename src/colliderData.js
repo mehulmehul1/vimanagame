@@ -1,8 +1,10 @@
 /**
  * Collider Data Structure
  *
- * Each collider defines a trigger zone that can emit events when the player enters or exits.
- * These events are passed to the GameManager which can then trigger dialog, music, UI, etc.
+ * Each collider defines a trigger zone that sets game state when the player enters or exits.
+ * Colliders are purely for state management - all game behavior (dialog, music, camera
+ * animations, character movement, etc.) should be driven by state changes through their
+ * respective managers (GameManager, MusicManager, CameraAnimationManager, etc.).
  *
  * Collider properties:
  * - id: Unique identifier for the collider
@@ -13,9 +15,10 @@
  *   - box: {x, y, z} half-extents (full size is 2x these values)
  *   - sphere: {radius}
  *   - capsule: {halfHeight, radius}
- * - onEnter: Array of events to emit when player enters
- *   - Each event: { type: "event-type", data: {...} }
- * - onExit: Array of events to emit when player exits
+ * - setStateOnEnter: Object with key-value pairs to set when player enters (optional)
+ *   - Example: { currentState: GAME_STATES.NEAR_RADIO, nearRadio: true }
+ * - setStateOnExit: Object with key-value pairs to set when player exits (optional)
+ *   - Example: { nearRadio: false }
  * - once: If true, only trigger once then deactivate (default: false)
  * - enabled: If false, collider is inactive (default: true)
  * - criteria: Optional object with key-value pairs that must match game state
@@ -24,29 +27,8 @@
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - gizmo: If true, indicates this collider is part of gizmo authoring mode (blocks idle behaviors)
  *
- * Event Types:
- * - "dialog": Trigger a dialog sequence
- *   - data: { dialogId: "sequence-name", onComplete: "optional-event-id" }
- * - "music": Change music track
- *   - data: { track: "track-name", fadeTime: 2.0 }
- * - "sfx": Play a sound effect
- *   - data: { sound: "sound-name", volume: 1.0 }
- * - "ui": Show/hide UI elements
- *   - data: { action: "show|hide", element: "element-name" }
- * - "state": Set game state
- *   - data: { key: "state-key", value: any }
- * - "camera-lookat": Trigger camera look-at (DEPRECATED - use cameraAnimationData.js instead)
- *   - data: { position: {x, y, z}, duration: 2.0, enableZoom: false }
- *   - OR with targetMesh: { targetMesh: {objectId: "object-id", childName: "MeshName"}, duration: 2.0, enableZoom: true }
- *   - Optional zoomOptions: { zoomFactor: 1.5, minAperture: 0.15, maxAperture: 0.35, transitionStart: 0.8, transitionDuration: 2.0, holdDuration: 2.0 }
- *   - Input is always disabled during lookat and restored when complete (or after zoom if enabled without returnToOriginalView)
- * - "camera-animation": Play a camera animation
- *   - data: { animation: "path/to/animation.json", onComplete: optional-callback }
- * - "custom": Emit custom event for game-specific logic
- *   - data: { eventName: "name", payload: {...} }
- *
- * Note: Camera lookats and character moveTos should be defined in cameraAnimationData.js
- * with state-based criteria, not as collider events.
+ * Note: All game behaviors should be triggered by state changes, not directly by colliders.
+ * Use cameraAnimationData.js, musicData.js, dialogData.js, etc. with state-based criteria.
  */
 
 import { GAME_STATES } from "./gameData.js";
@@ -59,13 +41,7 @@ export const colliders = [
     position: sceneObjects.phonebooth.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 10, y: 4, z: 10 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.PHONE_BOOTH_RINGING },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
     once: true, // Triggers once then cleans itself up
     enabled: true,
     criteria: {
@@ -87,13 +63,7 @@ export const colliders = [
     },
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 1, y: 4, z: 1 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.ANSWERED_PHONE },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.ANSWERED_PHONE },
     once: true,
     enabled: true,
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING }, // Only activates after phone starts ringing
@@ -105,13 +75,7 @@ export const colliders = [
     position: { x: -0.5, y: 0.4, z: 18.6 },
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 2.5, y: 1.0, z: 2.5 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "heardCat", value: true },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { heardCat: true },
     once: false,
     enabled: true,
   },
@@ -123,13 +87,7 @@ export const colliders = [
     position: sceneObjects.radio.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { radius: 8 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.NEAR_RADIO },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.NEAR_RADIO },
     once: true, // Only trigger once - state progresses forward only
     enabled: true,
     criteria: {
@@ -147,18 +105,8 @@ export const colliders = [
     position: sceneObjects.radio.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { radius: 10 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "nearRadio", value: true },
-      },
-    ],
-    onExit: [
-      {
-        type: "state",
-        data: { key: "nearRadio", value: false },
-      },
-    ],
+    setStateOnEnter: { nearRadio: true },
+    setStateOnExit: { nearRadio: false },
     once: false, // Repeatable - toggles on/off
     enabled: true,
     criteria: {
@@ -175,13 +123,7 @@ export const colliders = [
     position: { x: -9.29, y: 0.27, z: 37.47 },
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { radius: 2 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "shadowGlimpse", value: true },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { shadowGlimpse: true },
     once: true, // Only trigger once
     enabled: true,
     criteria: {
@@ -198,13 +140,7 @@ export const colliders = [
     position: sceneObjects.officeCollider.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 3, y: 4, z: 3 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.ENTERING_OFFICE },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.ENTERING_OFFICE },
     once: true, // Only trigger once
     enabled: true,
     criteria: {
@@ -222,13 +158,7 @@ export const colliders = [
     position: sceneObjects.candlestickPhone.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 3, y: 4, z: 3 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.OFFICE_INTERIOR },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.OFFICE_INTERIOR },
     once: true, // Only trigger once
     enabled: true,
     criteria: {
@@ -246,13 +176,7 @@ export const colliders = [
     position: sceneObjects.candlestickPhone.position,
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 1.5, y: 5, z: 1.5 },
-    onEnter: [
-      {
-        type: "state",
-        data: { key: "currentState", value: GAME_STATES.OFFICE_PHONE_ANSWERED },
-      },
-    ],
-    onExit: [],
+    setStateOnEnter: { currentState: GAME_STATES.OFFICE_PHONE_ANSWERED },
     once: true, // Only trigger once
     enabled: true,
     criteria: {

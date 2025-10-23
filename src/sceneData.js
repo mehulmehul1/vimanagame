@@ -266,7 +266,7 @@ export const sceneObjects = {
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.START_SCREEN,
+        $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
       },
     },

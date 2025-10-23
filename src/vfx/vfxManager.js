@@ -1,7 +1,7 @@
 import { Logger } from "../utils/logger.js";
 
 /**
- * VFXStateManager - Base class for state-driven VFX systems
+ * VFXManager - Base class for state-driven VFX systems
  *
  * Provides reusable game state management for VFX effects.
  * VFX systems can extend this class to automatically respond to game state changes.
@@ -25,8 +25,8 @@ import { Logger } from "../utils/logger.js";
  *      myVfx: myVfxEffects, // <-- Add your effects here
  *    };
  *
- * 2. Your VFX class extends VFXStateManager:
- *    class MyVFX extends VFXStateManager {
+ * 2. Your VFX class extends VFXManager:
+ *    class MyVFX extends VFXManager {
  *      constructor() {
  *        super("MyVFX"); // Pass logger name
  *        // Your VFX initialization
@@ -46,12 +46,12 @@ import { Logger } from "../utils/logger.js";
  *
  * That's it! The VFX will automatically load effects from vfxData.js and respond to state changes.
  */
-export class VFXStateManager {
+export class VFXManager {
   /**
    * @param {string} loggerName - Name for the logger (e.g., "MyVFX")
    * @param {boolean} debugMode - Enable debug logging
    */
-  constructor(loggerName = "VFXStateManager", debugMode = false) {
+  constructor(loggerName = "VFXManager", debugMode = false) {
     this.gameManager = null;
     this.currentEffectId = null;
     this.logger = new Logger(loggerName, debugMode);
@@ -239,4 +239,147 @@ export function findMatchingEffect(effects, gameState, checkCriteria) {
   return null;
 }
 
-export default VFXStateManager;
+/**
+ * VFXSystemManager - Coordinates all VFX effects in the system
+ *
+ * Creates and manages all VFX effects as a group.
+ * Main.js should create one instance of this instead of manually setting up each effect.
+ *
+ * Usage in main.js:
+ *   const vfxManager = new VFXSystemManager(scene, camera, renderer, loadingScreen);
+ *   await vfxManager.initialize();
+ *   vfxManager.setGameManager(gameManager);
+ *   vfxManager.update(deltaTime);
+ *   vfxManager.render(scene, camera);
+ */
+export class VFXSystemManager {
+  constructor(scene, camera, renderer, loadingScreen = null) {
+    this.scene = scene;
+    this.camera = camera;
+    this.renderer = renderer;
+    this.loadingScreen = loadingScreen;
+    this.logger = new Logger("VFXSystemManager", false);
+
+    this.effects = {};
+    this.gameManager = null;
+
+    this.logger.log("Initializing VFX system");
+  }
+
+  /**
+   * Initialize all VFX effects
+   */
+  async initialize() {
+    // Register loading task
+    if (this.loadingScreen) {
+      this.loadingScreen.registerTask("vfx-system", 1);
+    }
+
+    this.logger.log("Loading VFX modules...");
+
+    // Dynamically import VFX modules
+    const [{ DesaturationEffect }, { createCloudParticlesShader }] =
+      await Promise.all([
+        import("./desaturationEffect.js"),
+        import("./cloudParticlesShader.js"),
+      ]);
+
+    // Create desaturation post-processing effect
+    this.effects.desaturation = new DesaturationEffect(this.renderer);
+
+    // Create cloud particles shader
+    this.effects.cloudParticles = createCloudParticlesShader(
+      this.scene,
+      this.camera
+    );
+
+    this.logger.log("VFX effects initialized:", Object.keys(this.effects));
+
+    // Complete loading task
+    if (this.loadingScreen) {
+      this.loadingScreen.completeTask("vfx-system");
+    }
+  }
+
+  /**
+   * Connect all VFX effects to game manager
+   * @param {GameManager} gameManager - The game manager instance
+   */
+  setGameManager(gameManager) {
+    this.gameManager = gameManager;
+
+    // Connect each effect to game manager
+    if (this.effects.desaturation) {
+      this.effects.desaturation.setGameManager(gameManager, "desaturation");
+    }
+
+    if (this.effects.cloudParticles) {
+      this.effects.cloudParticles.setGameManager(gameManager, "cloudParticles");
+    }
+
+    this.logger.log("All VFX effects connected to game manager");
+  }
+
+  /**
+   * Update all VFX effects
+   * @param {number} deltaTime - Time since last frame in seconds
+   */
+  update(deltaTime) {
+    if (this.effects.desaturation) {
+      this.effects.desaturation.update(deltaTime);
+    }
+
+    if (this.effects.cloudParticles) {
+      this.effects.cloudParticles.update(deltaTime);
+    }
+  }
+
+  /**
+   * Render scene with post-processing effects
+   * @param {THREE.Scene} scene - The scene to render
+   * @param {THREE.Camera} camera - The camera to use
+   */
+  render(scene, camera) {
+    // Desaturation effect handles rendering (includes post-processing)
+    if (this.effects.desaturation) {
+      this.effects.desaturation.render(scene, camera);
+    } else {
+      // Fallback to direct rendering if no post-processing
+      this.renderer.render(scene, camera);
+    }
+  }
+
+  /**
+   * Handle window resize for all effects
+   * @param {number} width - New width
+   * @param {number} height - New height
+   */
+  setSize(width, height) {
+    if (this.effects.desaturation) {
+      this.effects.desaturation.setSize(width, height);
+    }
+  }
+
+  /**
+   * Get a specific effect by name
+   * @param {string} name - Effect name (e.g., 'desaturation', 'cloudParticles')
+   * @returns {Object|null} The effect or null
+   */
+  getEffect(name) {
+    return this.effects[name] || null;
+  }
+
+  /**
+   * Dispose of all VFX resources
+   */
+  dispose() {
+    Object.values(this.effects).forEach((effect) => {
+      if (effect.dispose) {
+        effect.dispose();
+      }
+    });
+    this.effects = {};
+  }
+}
+
+export default VFXManager;

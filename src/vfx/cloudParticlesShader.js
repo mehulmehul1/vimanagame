@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SplatMesh, dyno } from "@sparkjsdev/spark";
 import { Logger } from "../utils/logger.js";
-import { VFXStateManager } from "./vfxManager.js";
+import { VFXManager } from "./vfxManager.js";
 
 /**
  * Cloud Particles System (Shader-based)
@@ -9,7 +9,7 @@ import { VFXStateManager } from "./vfxManager.js";
  * Uses the dyno shader system for high-performance particle updates
  */
 
-class CloudParticlesShader extends VFXStateManager {
+class CloudParticlesShader extends VFXManager {
   constructor(scene, camera = null) {
     super("CloudParticlesShader", false);
 
