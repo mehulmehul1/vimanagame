@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { SplatMesh, dyno } from "@sparkjsdev/spark";
 import { Logger } from "../utils/logger.js";
+import { VFXStateManager } from "./vfxManager.js";
 
 /**
  * Cloud Particles System (Shader-based)
@@ -8,11 +9,12 @@ import { Logger } from "../utils/logger.js";
  * Uses the dyno shader system for high-performance particle updates
  */
 
-class CloudParticlesShader {
+class CloudParticlesShader extends VFXStateManager {
   constructor(scene, camera = null) {
+    super("CloudParticlesShader", false);
+
     this.scene = scene;
     this.camera = camera;
-    this.logger = new Logger("CloudParticlesShader", false);
     this.spawnPosition = new THREE.Vector3(0, 0, 40);
 
     // Fog settings - edit these directly
@@ -177,6 +179,9 @@ class CloudParticlesShader {
 
     // Apply shader-based animation
     this.setupSplatModifier();
+
+    // Start hidden - will be shown when first effect matches via onFirstEnable
+    this.splatMesh.visible = false;
 
     this.scene.add(this.splatMesh);
   }
@@ -587,6 +592,66 @@ class CloudParticlesShader {
         this.nextWindChangeTime = time + holdTime;
         this.logger.log(`  Next wind change in ${holdTime.toFixed(1)}s`);
       }
+    }
+  }
+
+  /**
+   * Override: Called when first effect matches - show fog for first time
+   * @param {Object} effect - Effect data from vfxData.js
+   * @param {Object} state - Current game state
+   */
+  onFirstEnable(effect, state) {
+    this.logger.log("Enabling cloud particles for first time");
+    // Make mesh visible
+    if (this.splatMesh) {
+      this.splatMesh.visible = true;
+    }
+    // Apply the initial effect
+    this.applyEffect(effect, state);
+  }
+
+  /**
+   * Override: Apply effect from game state
+   * @param {Object} effect - Effect data from vfxData.js
+   * @param {Object} state - Current game state
+   */
+  applyEffect(effect, state) {
+    const params = effect.parameters || {};
+    const duration = params.transitionDuration || 2.0; // Default 2 second transition
+
+    const targetParams = {};
+
+    // Apply opacity changes
+    if (params.opacity !== undefined) {
+      targetParams.opacity = params.opacity;
+    }
+
+    // Apply wind speed changes
+    if (params.windSpeed !== undefined) {
+      targetParams.windSpeed = params.windSpeed;
+    }
+
+    // Apply other parameters directly (no transition)
+    if (params.particleCount !== undefined) {
+      this.particleCount = params.particleCount;
+      this.dynoParticleCount.value = params.particleCount;
+    }
+
+    // If we have parameters to animate, use transitionTo
+    if (Object.keys(targetParams).length > 0) {
+      this.transitionTo(targetParams, duration);
+    }
+  }
+
+  /**
+   * Override: Handle when no effect matches state (hide fog)
+   * @param {Object} state - Current game state
+   */
+  onNoEffect(state) {
+    this.logger.log("No cloud particle effect needed - hiding");
+    // Hide the mesh
+    if (this.splatMesh) {
+      this.splatMesh.visible = false;
     }
   }
 

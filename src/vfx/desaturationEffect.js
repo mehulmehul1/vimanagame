@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
+import { VFXStateManager } from "./vfxManager.js";
 
 /**
  * DesaturationEffect - Post-processing shader for animating color to grayscale
@@ -10,11 +11,12 @@ import { Logger } from "../utils/logger.js";
  *   desat.animateToGrayscale(); // Animate to B&W
  *   desat.render(scene, camera); // Call instead of renderer.render()
  */
-export class DesaturationEffect {
+export class DesaturationEffect extends VFXStateManager {
   constructor(renderer) {
+    super("DesaturationEffect", false);
+
     this.renderer = renderer;
     this.enabled = false;
-    this.logger = new Logger("DesaturationEffect", false);
     this.progress = 0; // 0 = color, 1 = grayscale
     this.animating = false;
     this.animationTarget = 0;
@@ -197,6 +199,51 @@ export class DesaturationEffect {
    */
   disable() {
     this.enabled = false;
+  }
+
+  /**
+   * Override: Called when first effect matches - enable the desaturation system
+   * @param {Object} effect - Effect data from vfxData.js
+   * @param {Object} state - Current game state
+   */
+  onFirstEnable(effect, state) {
+    this.logger.log("Enabling desaturation effect for first time");
+    this.enable(true);
+    // Apply the initial effect
+    this.applyEffect(effect, state);
+  }
+
+  /**
+   * Override: Apply effect from game state
+   * @param {Object} effect - Effect data from vfxData.js
+   * @param {Object} state - Current game state
+   */
+  applyEffect(effect, state) {
+    const params = effect.parameters || {};
+
+    // Update animation duration if specified
+    if (params.duration !== undefined) {
+      this.animationDuration = params.duration;
+    }
+
+    // Animate to the target amount with specified options
+    const options = {
+      mode: params.mode || "bleed",
+      direction: params.direction || "vertical",
+    };
+
+    this.animateTo(params.target, options);
+  }
+
+  /**
+   * Override: Handle when no effect matches state (disable desaturation)
+   * @param {Object} state - Current game state
+   */
+  onNoEffect(state) {
+    this.logger.log("No desaturation effect needed - disabling");
+    // Optionally fade to color before disabling
+    // this.animateTo(0.0, { mode: "fade", duration: 1.0 });
+    // For now, just keep last state but could disable if desired
   }
 
   /**

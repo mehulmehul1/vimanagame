@@ -315,17 +315,19 @@ export const dialogTracks = {
     },
   },
 
-  // PETIT's final warning before drive-by
+  // PETIT's callout after the drive-by-shooting
   postDriveBy: {
     id: "postDriveBy",
-    audio: "./audio/dialog/06-oui-you-know-him.mp3",
+    audio: "./audio/dialog/leclaire-so-did-you-survive.mp3",
     captions: [
-      { text: "Oui, you know him.", duration: 2.0 },
-      { text: "And you'd better high-tail it!", duration: 3.0 },
+      { text: "So...", duration: 1.0 },
+      { text: "Did you survive?", duration: 1.75 },
+      { text: "Then hightail it!", duration: 1.5 },
       {
-        text: "There is an attic nearby, and someone waiting...",
-        duration: 3.0,
+        text: "There's a room nearby.",
+        duration: 1.5,
       },
+      { text: "I've something to show you.", duration: 2.0 },
     ],
     criteria: {
       currentState: GAME_STATES.POST_DRIVE_BY,
@@ -334,6 +336,34 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 100,
     delay: 0.5,
+  },
+
+  // PETIT's final warning before drive-by
+  itsLeCzar: {
+    id: "itsLeCzar",
+    audio: "./audio/dialog/leclaire-its-le-czar.mp3",
+    captions: [
+      { text: "Cole,", duration: 1.0 },
+      { text: "it's Le Czar...", duration: 1.75 },
+      { text: "He's gone bad!", duration: 1.0 },
+      {
+        text: "He was always bad!",
+        duration: 1.55,
+      },
+      { text: "Non, c'est différent...", duration: 1.75 },
+      { text: "Under the spell of a mad cultist.", duration: 3.75 },
+      { text: "And that thing...", duration: 1.5 },
+    ],
+    criteria: {
+      currentState: GAME_STATES.OFFICE_PHONE_ANSWERED,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.PRE_VIEWMASTER });
+    },
   },
 };
 

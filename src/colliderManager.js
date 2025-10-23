@@ -370,12 +370,21 @@ class ColliderManager {
    * Handle move-to event (move character to position)
    */
   handleMoveToEvent(data, colliderId) {
-    const { position, rotation, duration = 2.0, inputControl } = data;
+    const {
+      position,
+      rotation,
+      lookat,
+      autoFloorHeight,
+      duration = 2.0,
+      inputControl,
+    } = data;
 
     // Emit event for character controller to handle
     this.gameManager.emit("character:moveto", {
       position,
       rotation,
+      lookat, // Pass through lookat if provided
+      autoFloorHeight, // Pass through autoFloorHeight if provided
       duration,
       inputControl, // Pass through input control settings
       colliderId,

@@ -71,8 +71,13 @@
  *                to false to keep inputs disabled after animation completes.
  *
  * For type "moveTo":
- * - position: {x, y, z} world position to move character to
- * - rotation: {yaw, pitch} target rotation in radians (optional)
+ * - position: {x, y, z} or {x, z} world position to move character to
+ *   - If autoFloorHeight is true, y can be omitted (will be auto-detected via raycast)
+ * - rotation: {yaw, pitch} target rotation in radians (optional, ignored if lookat is set)
+ * - lookat: {x, y, z} world position to look at during movement (optional, overrides rotation)
+ * - autoFloorHeight: If true, raycast down to find floor Y at target X/Z (default: false)
+ *   - Useful when floor height varies throughout the game
+ *   - Character will be placed on the detected floor surface
  * - transitionTime: Time for the movement transition in seconds (default: 2.0)
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
@@ -194,65 +199,6 @@ export const cameraAnimations = {
     delay: 0.25, // Wait 0.5 seconds before looking at phone booth
   },
 
-  passageLookat: {
-    id: "passageLookat",
-    type: "lookat",
-    description: "Look at passage after LeClaire tells you to",
-    positions: [
-      {
-        x: sceneObjects.phonebooth.position.x,
-        y: 0.9,
-        z: sceneObjects.phonebooth.position.z,
-      },
-      sceneObjects.interior.position,
-    ],
-    transitionTime: 1,
-    lookAtHoldDuration: 2.0,
-    criteria: {
-      currentState: {
-        $in: [GAME_STATES.POST_DRIVE_BY],
-      },
-    },
-    priority: 100,
-    playOnce: true,
-    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
-    sequenceSettings: [
-      null, // Position 0: use defaults
-      {
-        // Position 1: different zoom settings
-        enableZoom: true,
-        zoomOptions: {
-          zoomFactor: 1.5,
-          minAperture: 0.25,
-          maxAperture: 0.4,
-          transitionStart: 0.5,
-          transitionDuration: 2.0, // Important: this controls zoom fade timing
-          holdDuration: 2.0,
-        },
-      },
-    ],
-  },
-
-  phonoAndPhoneLookat: {
-    id: "phonoAndPhoneLookat",
-    type: "lookat",
-    description: "Look at passage after LeClaire tells you to",
-    positions: [
-      sceneObjects.edison.position,
-      sceneObjects.candlestickPhone.position,
-    ],
-    transitionTime: 1,
-    lookAtHoldDuration: 2.0,
-    criteria: {
-      currentState: {
-        $in: [GAME_STATES.OFFICE_INTERIOR],
-      },
-    },
-    priority: 100,
-    playOnce: true,
-    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
-  },
-
   phoneBoothMoveTo: {
     id: "phoneBoothMoveTo",
     type: "moveTo",
@@ -314,6 +260,86 @@ export const cameraAnimations = {
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.POST_DRIVE_BY });
     },
+  },
+
+  passageLookat: {
+    id: "passageLookat",
+    type: "lookat",
+    description: "Look at passage after LeClaire tells you to",
+    positions: [
+      {
+        x: sceneObjects.phonebooth.position.x,
+        y: 0.9,
+        z: sceneObjects.phonebooth.position.z,
+      },
+      sceneObjects.interior.position,
+    ],
+    transitionTime: 1,
+    lookAtHoldDuration: 4.0,
+    criteria: {
+      currentState: {
+        $in: [GAME_STATES.POST_DRIVE_BY],
+      },
+    },
+    priority: 100,
+    playOnce: true,
+    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
+    sequenceSettings: [
+      null, // Position 0: use defaults
+      {
+        // Position 1: different zoom settings
+        enableZoom: true,
+        zoomOptions: {
+          zoomFactor: 1.5,
+          minAperture: 0.25,
+          maxAperture: 0.4,
+          transitionStart: 0.5,
+          transitionDuration: 2.0, // Important: this controls zoom fade timing
+          holdDuration: 2.0,
+        },
+      },
+    ],
+  },
+
+  phonoAndPhoneLookat: {
+    id: "phonoAndPhoneLookat",
+    type: "lookat",
+    description: "Look at passage after LeClaire tells you to",
+    positions: [
+      sceneObjects.edison.position,
+      sceneObjects.candlestickPhone.position,
+    ],
+    transitionTime: 1,
+    lookAtHoldDuration: 2.0,
+    criteria: {
+      currentState: {
+        $in: [GAME_STATES.OFFICE_INTERIOR],
+      },
+    },
+    priority: 100,
+    playOnce: true,
+    delay: 0.25, // Wait 0.5 seconds before looking at phone booth
+  },
+
+  viewmasterMoveTo: {
+    id: "viewmasterMoveTo",
+    type: "moveTo",
+    description: "Move character near Viewmaster and look down at it",
+    position: {
+      x: -6.46,
+      y: 1.93, // Will be overridden by autoFloorHeight
+      z: 87.77,
+    },
+    lookat: sceneObjects.viewmaster.position, // Look at viewmaster (below eye level)
+    autoFloorHeight: true, // Automatically detect floor height at destination
+    transitionTime: 1.5,
+    inputControl: {
+      disableMovement: true, // Disable movement
+      disableRotation: false, // Allow rotation (player can look around)
+    },
+    criteria: { currentState: GAME_STATES.PRE_VIEWMASTER },
+    priority: 100,
+    playOnce: true,
   },
 
   shoulderTap: {

@@ -133,6 +133,16 @@ const stateOverrides = {
       z: 83.05,
     },
   },
+
+  PRE_VIEWMASTER: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: {
+      x: -4.69,
+      y: 1.05,
+      z: 83.05,
+    },
+  },
 };
 
 /**

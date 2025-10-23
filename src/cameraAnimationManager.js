@@ -16,7 +16,7 @@ import { Logger } from "./utils/logger.js";
 class CameraAnimationManager {
   constructor(camera, characterController, gameManager, options = {}) {
     // Debug logging
-    this.logger = new Logger("CameraAnimationManager", false);
+    this.logger = new Logger("CameraAnimationManager", true);
 
     this.camera = camera;
     this.characterController = characterController;
@@ -87,38 +87,66 @@ class CameraAnimationManager {
     this.fadeCube = null; // Mesh for fade effect
     this.fadeOnComplete = null;
 
-    // Listen for state changes
-    if (this.gameManager) {
-      this.gameManager.on("state:changed", (newState, oldState) => {
-        this.onStateChanged(newState);
-      });
+    // Event listeners will be set up in initialize()
+    this.logger.log(
+      "CameraAnimationManager constructed (call initialize() to set up event listeners)"
+    );
+  }
 
-      // Listen for camera:animation events
-      this.gameManager.on("camera:animation", async (data) => {
-        const { animation, onComplete } = data;
-        this.logger.log(
-          `CameraAnimationManager: Playing animation: ${animation}`
-        );
-
-        // Load animation if not already loaded
-        if (!this.getAnimationNames().includes(animation)) {
-          const ok = await this.loadAnimation(animation, animation);
-          if (!ok) {
-            this.logger.warn(`Failed to load animation: ${animation}`);
-            if (onComplete) onComplete(false);
-            return;
-          }
-        }
-
-        // Play animation
-        this.play(animation, () => {
-          if (this.debug) this.logger.log(`Animation complete: ${animation}`);
-          if (onComplete) onComplete(true);
-        });
-      });
+  /**
+   * Initialize event listeners and check initial state
+   * Call this AFTER CharacterController has registered its event listeners
+   */
+  initialize() {
+    if (!this.gameManager) {
+      this.logger.warn("Cannot initialize, no gameManager");
+      return;
     }
 
-    if (this.debug) this.logger.log("Initialized with event listeners");
+    // Listen for state changes
+    this.gameManager.on("state:changed", (newState, oldState) => {
+      this.logger.log(
+        `[CameraAnimationManager] state:changed event - oldState.currentState: ${oldState.currentState}, newState.currentState: ${newState.currentState}`
+      );
+      this.onStateChanged(newState, oldState);
+    });
+
+    // Listen for camera:animation events
+    this.gameManager.on("camera:animation", async (data) => {
+      const { animation, onComplete } = data;
+      this.logger.log(
+        `CameraAnimationManager: Playing animation: ${animation}`
+      );
+
+      // Load animation if not already loaded
+      if (!this.getAnimationNames().includes(animation)) {
+        const ok = await this.loadAnimation(animation, animation);
+        if (!ok) {
+          this.logger.warn(`Failed to load animation: ${animation}`);
+          if (onComplete) onComplete(false);
+          return;
+        }
+      }
+
+      // Play animation
+      this.play(animation, () => {
+        if (this.debug) this.logger.log(`Animation complete: ${animation}`);
+        if (onComplete) onComplete(true);
+      });
+    });
+
+    // Check initial state for animations AFTER first render frame
+    // This ensures input is fully initialized before any animation tries to disable it
+    requestAnimationFrame(() => {
+      const initialState = this.gameManager.getState();
+      this.logger.log(
+        `[CameraAnimationManager] Checking initial state for animations:`,
+        initialState
+      );
+      this.onStateChanged(initialState, {}); // Pass empty oldState so currentState will be different
+    });
+
+    this.logger.log("CameraAnimationManager initialized with event listeners");
   }
 
   /**
@@ -184,10 +212,20 @@ class CameraAnimationManager {
   /**
    * Handle game state changes
    * @param {Object} newState - New game state
+   * @param {Object} oldState - Previous game state
    */
-  onStateChanged(newState) {
-    if (this.debug)
-      this.logger.log(`State changed, checking for animations...`, newState);
+  onStateChanged(newState, oldState = {}) {
+    // Only check animations when currentState actually changes
+    if (newState.currentState === oldState.currentState) {
+      this.logger.log(
+        `[CameraAnimationManager] currentState unchanged (${newState.currentState}), skipping animation check`
+      );
+      return;
+    }
+
+    this.logger.log(
+      `[CameraAnimationManager] currentState changed from ${oldState.currentState} to ${newState.currentState}, checking for animations...`
+    );
 
     // Get all animations that should play for this state (pass playedAnimations for playOnce filtering)
     const animations = getCameraAnimationsForState(
@@ -196,7 +234,7 @@ class CameraAnimationManager {
     );
     if (!animations || animations.length === 0) {
       this.logger.log(
-        `CameraAnimationManager: No animations match current state`
+        `CameraAnimationManager: No animations match current state ${newState.currentState}`
       );
       return;
     }
@@ -807,6 +845,8 @@ class CameraAnimationManager {
       this.gameManager.emit("character:moveto", {
         position: moveToData.position,
         rotation: moveToData.rotation || null,
+        lookat: moveToData.lookat || null, // Pass lookat position if provided
+        autoFloorHeight: moveToData.autoFloorHeight || false, // Auto-detect floor height
         duration: transitionTime, // Still use 'duration' for the event for compatibility with characterController
         inputControl: moveToData.inputControl || {
           disableMovement: true,

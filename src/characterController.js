@@ -21,7 +21,7 @@ class CharacterController {
     this.sfxManager = sfxManager;
     this.sparkRenderer = sparkRenderer;
     this.idleHelper = idleHelper;
-    this.logger = new Logger("CharacterController", false);
+    this.logger = new Logger("CharacterController", true);
 
     // Camera rotation (use provided initial rotation or default to -180 degrees)
     const defaultYaw = THREE.MathUtils.degToRad(-180);
@@ -178,6 +178,15 @@ class CharacterController {
 
     // Try to attach the body model if it's already loaded
     this.attachFirstPersonBody();
+  }
+
+  /**
+   * Set the physics manager reference (called after initialization)
+   * @param {PhysicsManager} physicsManager - The physics manager instance
+   */
+  setPhysicsManager(physicsManager) {
+    this.physicsManager = physicsManager;
+    this.logger.log("Physics manager reference set");
   }
 
   /**
@@ -461,15 +470,102 @@ class CharacterController {
       // Check if control is enabled
       if (!this.gameManager.isControlEnabled()) return;
 
+      let targetY = data.position.y;
+
+      // Handle autoFloorHeight - raycast to find floor and place character on it
+      if (data.autoFloorHeight && this.physicsManager) {
+        // Start ray from current character position (or higher if specified Y is higher)
+        const currentPos = this.character.translation();
+        const startY =
+          Math.max(currentPos.y, data.position.y || currentPos.y, 100) + 50;
+
+        const floorY = this.physicsManager.getFloorHeightAt(
+          data.position.x,
+          data.position.z,
+          startY,
+          300 // Cast down 300 units
+        );
+
+        if (floorY !== null) {
+          // Place character on floor: floor Y + character capsule radius + half height
+          // Capsule: radius=0.3, halfHeight=0.6, so center is at floorY + 0.9
+          targetY = floorY + 0.9;
+          this.logger.log(
+            `AutoFloorHeight: floor at Y=${floorY.toFixed(
+              2
+            )}, character at Y=${targetY.toFixed(2)}`
+          );
+        } else {
+          // Raycast failed - use provided Y or fall back to current position
+          if (targetY === undefined || !isFinite(targetY)) {
+            const currentPos = this.character.translation();
+            targetY = currentPos.y;
+            this.logger.warn(
+              `AutoFloorHeight: No floor found at (${data.position.x.toFixed(
+                2
+              )}, ${data.position.z.toFixed(
+                2
+              )}), using current Y=${targetY.toFixed(2)}`
+            );
+          } else {
+            this.logger.warn(
+              `AutoFloorHeight: No floor found at (${data.position.x.toFixed(
+                2
+              )}, ${data.position.z.toFixed(
+                2
+              )}), using provided Y=${targetY.toFixed(2)}`
+            );
+          }
+        }
+      } else if (targetY === undefined || !isFinite(targetY)) {
+        // No autoFloorHeight but Y is missing or invalid - use current position
+        const currentPos = this.character.translation();
+        targetY = currentPos.y;
+        this.logger.warn(
+          `MoveTo: Invalid Y coordinate provided, using current Y=${targetY.toFixed(
+            2
+          )}`
+        );
+      }
+
       const targetPos = new THREE.Vector3(
         data.position.x,
-        data.position.y,
+        targetY,
         data.position.z
       );
 
-      // Parse rotation if provided
+      // Parse rotation - lookat takes precedence over rotation
       let targetRotation = null;
-      if (data.rotation) {
+      if (data.lookat) {
+        // Calculate rotation to look at the target position from the destination
+        const lookAtPos = new THREE.Vector3(
+          data.lookat.x,
+          data.lookat.y,
+          data.lookat.z
+        );
+
+        // Calculate direction from target position to lookat position
+        const direction = new THREE.Vector3()
+          .subVectors(lookAtPos, targetPos)
+          .normalize();
+
+        // Calculate yaw (horizontal rotation) - negate because camera faces -Z
+        const yaw = Math.atan2(-direction.x, -direction.z);
+
+        // Calculate pitch (vertical rotation)
+        const horizontalDistance = Math.sqrt(
+          direction.x * direction.x + direction.z * direction.z
+        );
+        const pitch = Math.atan2(direction.y, horizontalDistance);
+
+        targetRotation = { yaw, pitch };
+
+        this.logger.log(
+          `MoveTo with lookat: target rotation yaw=${THREE.MathUtils.radToDeg(
+            yaw
+          ).toFixed(1)}° pitch=${THREE.MathUtils.radToDeg(pitch).toFixed(1)}°`
+        );
+      } else if (data.rotation) {
         targetRotation = {
           yaw: data.rotation.yaw,
           pitch: data.rotation.pitch || 0,
@@ -849,17 +945,23 @@ class CharacterController {
         // Both were disabled, enable everything
         this.inputDisabled = false;
         this.inputManager.enable();
+        this.logger.log("Move-to cancelled, restored full input");
+      } else if (this.moveToInputControl.disableMovement) {
+        // Only movement was disabled, restore it
+        this.inputManager.enableMovement();
+        this.logger.log("Move-to cancelled, restored movement input");
+      } else if (this.moveToInputControl.disableRotation) {
+        // Only rotation was disabled, restore it
+        this.inputManager.enableRotation();
+        this.logger.log("Move-to cancelled, restored rotation input");
       }
-      // NOTE: Selective disables (only movement or only rotation) are NOT restored
-      // They must be manually restored by calling enableMovement() or enableRotation()
       this.moveToInputControl = null;
     } else {
       // Fallback: enable everything if inputControl wasn't stored
       this.inputDisabled = false;
       this.inputManager.enable();
+      this.logger.log("Move-to cancelled, control restored (fallback)");
     }
-
-    this.logger.log("Move-to cancelled, control restored");
   }
 
   getForwardRightVectors() {
@@ -1818,9 +1920,15 @@ class CharacterController {
             this.inputDisabled = false;
             this.inputManager.enable();
             this.logger.log("Move-to complete, restored full input");
+          } else if (this.moveToInputControl.disableMovement) {
+            // Only movement was disabled, restore it
+            this.inputManager.enableMovement();
+            this.logger.log("Move-to complete, restored movement input");
+          } else if (this.moveToInputControl.disableRotation) {
+            // Only rotation was disabled, restore it
+            this.inputManager.enableRotation();
+            this.logger.log("Move-to complete, restored rotation input");
           }
-          // NOTE: Selective disables (only movement or only rotation) are NOT restored
-          // They must be manually restored by calling enableMovement() or enableRotation()
           this.moveToInputControl = null;
         }
 

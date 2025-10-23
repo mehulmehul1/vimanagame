@@ -8,7 +8,7 @@ class PhysicsManager {
     this.gravity = { x: 0.0, y: -9.81, z: 0.0 };
     this.world = new RAPIER.World(this.gravity);
     this.trimeshColliders = new Map(); // Map of id -> { collider, body }
-    this.logger = new Logger("PhysicsManager", false);
+    this.logger = new Logger("PhysicsManager", true);
     this.createFloor();
   }
 
@@ -259,6 +259,42 @@ class PhysicsManager {
    */
   hasTrimeshCollider(id) {
     return this.trimeshColliders.has(id);
+  }
+
+  /**
+   * Cast a ray downward to find the floor height at a given X/Z position
+   * @param {number} x - World X coordinate
+   * @param {number} z - World Z coordinate
+   * @param {number} startY - Y coordinate to start the ray from (default: 100)
+   * @param {number} maxDistance - Maximum ray distance (default: 200)
+   * @returns {number|null} Floor Y coordinate if hit, null otherwise
+   */
+  getFloorHeightAt(x, z, startY = 100, maxDistance = 200) {
+    // Create ray pointing downward
+    const rayOrigin = { x, y: startY, z };
+    const rayDirection = { x: 0, y: -1, z: 0 }; // Straight down
+    const ray = new this.RAPIER.Ray(rayOrigin, rayDirection);
+
+    // Cast ray and get first hit
+    const hit = this.world.castRay(ray, maxDistance, true); // solid = true (only hit solid colliders)
+
+    if (hit) {
+      // Calculate hit point Y coordinate
+      const hitY = startY + hit.toi * rayDirection.y; // toi = time of impact
+      this.logger.log(
+        `Floor raycast at (${x.toFixed(2)}, ${z.toFixed(
+          2
+        )}): hit at Y=${hitY.toFixed(2)}`
+      );
+      return hitY;
+    }
+
+    this.logger.warn(
+      `Floor raycast at (${x.toFixed(2)}, ${z.toFixed(
+        2
+      )}): no hit within ${maxDistance}m`
+    );
+    return null;
   }
 
   step() {

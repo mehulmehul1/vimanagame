@@ -58,10 +58,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
 document.body.appendChild(renderer.domElement);
 
-// Create desaturation post-processing effect
+// Create desaturation post-processing effect (starts disabled, enabled by state management)
 const desaturationEffect = new DesaturationEffect(renderer);
-// Enable for testing (normally you'd enable this when color scenes load)
-desaturationEffect.enable();
 
 // Handle window resize
 window.addEventListener("resize", () => {
@@ -357,8 +355,15 @@ loadingScreen.completeTask("initialization");
 // Set up event listeners for managers
 characterController.setGameManager(gameManager);
 characterController.setSceneManager(sceneManager); // For first-person body attachment
+characterController.setPhysicsManager(physicsManager); // For floor height raycasts
+
+// Initialize camera animation manager AFTER CharacterController has registered its listeners
+cameraAnimationManager.initialize();
+
 musicManager.setGameManager(gameManager);
 sfxManager.setGameManager(gameManager);
+desaturationEffect.setGameManager(gameManager, "desaturation");
+cloudParticles.setGameManager(gameManager, "cloudParticles");
 
 // Apply caption settings now that dialogManager is available
 optionsMenu.applyCaptions();
@@ -492,7 +497,14 @@ renderer.setAnimationLoop(function animate(time) {
     // (moved below) Video manager is updated unconditionally so videos render during START_SCREEN too
 
     // Update Howler listener position for spatial audio
-    Howler.pos(camera.position.x, camera.position.y, camera.position.z);
+    // Guard against NaN/Infinity values that would break Howler
+    if (
+      isFinite(camera.position.x) &&
+      isFinite(camera.position.y) &&
+      isFinite(camera.position.z)
+    ) {
+      Howler.pos(camera.position.x, camera.position.y, camera.position.z);
+    }
 
     // Update Howler listener orientation (forward and up vectors)
     const cameraDirection = new THREE.Vector3();

@@ -26,7 +26,7 @@ class GameManager {
     this.isDebugMode = isDebugSpawnActive();
 
     // Logger for debug messages
-    this.logger = new Logger("GameManager", false);
+    this.logger = new Logger("GameManager", true);
 
     if (this.isDebugMode) {
       this.logger.log("Debug mode active", this.state);
@@ -204,17 +204,20 @@ class GameManager {
     const oldState = { ...this.state };
     this.state = { ...this.state, ...newState };
 
-    // Log state changes
+    // Log state changes with stack trace
     if (
       newState.currentState !== undefined &&
       newState.currentState !== oldState.currentState
     ) {
       this.logger.log(
-        `State changed from ${oldState.currentState} to ${newState.currentState}`
+        `[GameManager] currentState changed from ${oldState.currentState} to ${newState.currentState}`
       );
-    }
-    if (Object.keys(newState).length > 0) {
-      this.logger.log("setState called with:", newState);
+      console.trace("[GameManager] setState stack trace:");
+    } else if (Object.keys(newState).length > 0) {
+      this.logger.log(
+        "[GameManager] setState called with (no currentState change):",
+        newState
+      );
     }
 
     this.emit("state:changed", this.state, oldState);

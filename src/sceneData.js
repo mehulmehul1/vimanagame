@@ -379,7 +379,7 @@ export const sceneObjects = {
       useContainer: true, // Wrap in container to preserve original model structure
       contactShadow: {
         size: { x: 0.4, y: 0.4 }, // Plane dimensions
-        offset: { x: 0, y: -0.05, z: 0 }, // Position offset
+        offset: { x: 0, y: -0.01, z: 0 }, // Position offset
         blur: 3.5, // Shadow blur amount
         darkness: 20.0, // Shadow darkness multiplier
         opacity: 0.7, // Overall shadow opacity
