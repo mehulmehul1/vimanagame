@@ -309,9 +309,9 @@ export const sceneObjects = {
       },
       envMap: {
         // Render environment map from splat scene and apply reflections
-        metalness: 0.85, // Metallic for vintage brass/metal look
-        roughness: 0.15, // Some roughness for aged metal surface
-        envMapIntensity: 1.0, // Boosted for visibility
+        //metalness: 0.85, // Metallic for vintage brass/metal look
+        //roughness: 0.15, // Some roughness for aged metal surface
+        envMapIntensity: 0.75, // Boosted for visibility
         // hideObjects defaults to [this object]
       },
     },
