@@ -85,8 +85,12 @@ spark.renderOrder = 9998;
 scene.add(spark);
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
-// Pass loadingScreen for progress tracking and renderer for contact shadows
-const sceneManager = new SceneManager(scene, { loadingScreen, renderer });
+// Pass loadingScreen for progress tracking, renderer for contact shadows, and spark for env maps
+const sceneManager = new SceneManager(scene, {
+  loadingScreen,
+  renderer,
+  sparkRenderer: spark,
+});
 
 // Make scene manager globally accessible for mesh lookups
 window.sceneManager = sceneManager;

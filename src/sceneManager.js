@@ -41,6 +41,7 @@ class SceneManager {
   constructor(scene, options = {}) {
     this.scene = scene;
     this.renderer = options.renderer || null; // For contact shadows
+    this.sparkRenderer = options.sparkRenderer || null; // For environment mapping
     this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
     this.physicsManager = options.physicsManager || null; // For creating physics colliders
@@ -59,6 +60,9 @@ class SceneManager {
 
     // Contact shadow management
     this.contactShadows = new Map(); // Map of objectId -> ContactShadow instance
+
+    // Environment map cache (stores promises to ensure only one render per position)
+    this.envMapCache = new Map(); // Map of cacheKey -> Promise<envMap texture>
 
     // Event listeners
     this.eventListeners = {};
@@ -451,6 +455,49 @@ class SceneManager {
             this._createPhysicsCollider(id, finalObject, position, rotation);
           }
 
+          // Apply environment mapping if requested
+          if (options && options.envMap) {
+            if (this.sparkRenderer) {
+              // Debug: log what finalObject is BEFORE async envMap
+              if (id === "candlestickPhone") {
+                this.logger.log(
+                  `PRE-ENVMAP: finalObject type: ${finalObject.type}, name: "${
+                    finalObject.name || "unnamed"
+                  }", children: ${finalObject.children.length}`
+                );
+                const logHierarchy = (obj, depth = 0) => {
+                  const indent = "  ".repeat(depth);
+                  this.logger.log(
+                    `${indent}${obj.type} "${obj.name || "unnamed"}" (${
+                      obj.children.length
+                    } children)${obj.isMesh ? " [MESH]" : ""}`
+                  );
+                  if (depth < 3) {
+                    obj.children.forEach((child) =>
+                      logHierarchy(child, depth + 1)
+                    );
+                  }
+                };
+                logHierarchy(finalObject);
+              }
+              this.logger.log(
+                `Starting environment map application for "${id}"`
+              );
+              this._applyEnvMap(id, finalObject, options.envMap).catch(
+                (error) => {
+                  this.logger.error(
+                    `Failed to apply environment map to "${id}":`,
+                    error
+                  );
+                }
+              );
+            } else {
+              this.logger.warn(
+                `Cannot apply environment map to "${id}" - sparkRenderer not provided to SceneManager`
+              );
+            }
+          }
+
           resolve(finalObject);
         },
         (xhr) => {
@@ -494,6 +541,286 @@ class SceneManager {
     });
 
     this.logger.log(`Applied debug material to "${id}"`);
+  }
+
+  /**
+   * Apply environment mapping to a GLTF object
+   * @param {string} id - Object ID
+   * @param {THREE.Object3D} object - The loaded THREE.js object
+   * @param {Object} envMapConfig - Environment map configuration
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _applyEnvMap(id, object, envMapConfig) {
+    if (!this.sparkRenderer) {
+      this.logger.warn(`Cannot apply env map - sparkRenderer not available`);
+      return;
+    }
+
+    // IMPORTANT: Collect all meshes and materials NOW before async operations
+    // Other scripts might reparent or modify the object during the async waits
+    const meshesToProcess = [];
+    object.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        meshesToProcess.push({ mesh: child, materials });
+      }
+    });
+    this.logger.log(
+      `Collected ${meshesToProcess.length} meshes before async operations`
+    );
+
+    // Wait for all objects that are currently loading to finish
+    // This ensures splat scenes that are loading in parallel are ready
+    this.logger.log(`Waiting for all loading objects to complete...`);
+    const loadingPromises = Array.from(this.loadingPromises.entries());
+    if (loadingPromises.length > 0) {
+      this.logger.log(`  ${loadingPromises.length} object(s) still loading`);
+      await Promise.all(
+        loadingPromises.map(([objId, promise]) => {
+          this.logger.log(`  Waiting for "${objId}"...`);
+          return promise.catch(() => {
+            // Ignore errors, we just want to wait
+          });
+        })
+      );
+      this.logger.log(`  All loading objects complete ✓`);
+    }
+
+    // Now wait for all splat meshes to be fully initialized before rendering envMap
+    this.logger.log(`Waiting for splat scenes to initialize before envMap...`);
+    const splatWaitPromises = [];
+    for (const [objId, obj] of this.objects) {
+      // Check if this is a SplatMesh (has initialized property)
+      if (obj.initialized && typeof obj.initialized.then === "function") {
+        this.logger.log(`  Waiting for splat "${objId}" to initialize...`);
+        splatWaitPromises.push(
+          obj.initialized.then(() => {
+            this.logger.log(`  Splat "${objId}" initialized ✓`);
+          })
+        );
+      }
+    }
+
+    if (splatWaitPromises.length > 0) {
+      await Promise.all(splatWaitPromises);
+      this.logger.log(
+        `All ${splatWaitPromises.length} splat(s) initialized, proceeding with envMap`
+      );
+    } else {
+      this.logger.warn(
+        `No splat meshes found - envMap may not capture environment correctly`
+      );
+    }
+
+    // Get world center from the splat scene's envMapWorldCenter property
+    const worldCenter = new THREE.Vector3();
+    let worldCenterFound = false;
+
+    // Look for a splat with envMapWorldCenter defined
+    for (const [splatId, splatObj] of this.objects) {
+      const splatData = this.objectData.get(splatId);
+      if (splatData && splatData.envMapWorldCenter) {
+        worldCenter.set(
+          splatData.envMapWorldCenter.x,
+          splatData.envMapWorldCenter.y,
+          splatData.envMapWorldCenter.z
+        );
+        worldCenterFound = true;
+        this.logger.log(`  Using envMapWorldCenter from splat "${splatId}"`);
+        break;
+      }
+    }
+
+    // Fallback to object position if no splat defines envMapWorldCenter
+    if (!worldCenterFound) {
+      object.getWorldPosition(worldCenter);
+      this.logger.warn(
+        `  No splat with envMapWorldCenter found, using object position`
+      );
+    }
+
+    // Build list of objects to hide (defaults to this object)
+    const hideObjects = [];
+    if (envMapConfig.hideObjects) {
+      // Convert object IDs to actual THREE.Object3D references
+      for (const objId of envMapConfig.hideObjects) {
+        const obj = this.getObject(objId);
+        if (obj) {
+          hideObjects.push(obj);
+        } else {
+          this.logger.warn(
+            `EnvMap hideObjects: object "${objId}" not found, skipping`
+          );
+        }
+      }
+    } else {
+      // Default: hide this object
+      hideObjects.push(object);
+    }
+
+    // Create cache key from worldCenter position (rounded to avoid floating point issues)
+    const cacheKey = `${worldCenter.x.toFixed(2)}_${worldCenter.y.toFixed(
+      2
+    )}_${worldCenter.z.toFixed(2)}`;
+
+    this.logger.log(`Environment map for "${id}":`);
+    this.logger.log(
+      `  World center: (${worldCenter.x.toFixed(2)}, ${worldCenter.y.toFixed(
+        2
+      )}, ${worldCenter.z.toFixed(2)})`
+    );
+
+    try {
+      let envMap;
+
+      // Check if we already have a cached envMap promise for this position
+      if (this.envMapCache.has(cacheKey)) {
+        this.logger.log(`  ⏳ Waiting for cached envMap (key: ${cacheKey})`);
+        envMap = await this.envMapCache.get(cacheKey);
+        this.logger.log(`  ✓ Using cached envMap (key: ${cacheKey})`);
+      } else {
+        // Start rendering and immediately cache the promise
+        // This ensures only the first object renders, others will wait
+        this.logger.log(`  🎨 Rendering new envMap (key: ${cacheKey})...`);
+        this.logger.log(
+          `  Hiding ${hideObjects.length} object(s) during render`
+        );
+
+        const renderPromise = this.sparkRenderer.renderEnvMap({
+          scene: this.scene,
+          worldCenter: worldCenter,
+          hideObjects: hideObjects,
+          update: true, // Guard against first-render issues
+        });
+
+        // Cache the promise immediately (before awaiting)
+        // This prevents other objects from starting their own render
+        this.envMapCache.set(cacheKey, renderPromise);
+
+        envMap = await renderPromise;
+        this.logger.log(`  ✓ EnvMap rendered and cached (key: ${cacheKey})`);
+      }
+
+      // Apply envMap to materials
+      const defaultMetalness =
+        envMapConfig.metalness !== undefined ? envMapConfig.metalness : 1.0;
+      const defaultRoughness =
+        envMapConfig.roughness !== undefined ? envMapConfig.roughness : 0.02;
+      const defaultEnvMapIntensity =
+        envMapConfig.envMapIntensity !== undefined
+          ? envMapConfig.envMapIntensity
+          : 1.0;
+      const materialNames = envMapConfig.materials || null; // null = all materials
+      const excludeMaterials = envMapConfig.excludeMaterials || [];
+      const materialOverrides = envMapConfig.materialOverrides || {};
+
+      let appliedCount = 0;
+
+      // Process the meshes we collected earlier (before async operations)
+      this.logger.log(`Processing ${meshesToProcess.length} collected meshes`);
+
+      meshesToProcess.forEach(({ mesh, materials }) => {
+        this.logger.log(`  Processing mesh: "${mesh.name || "unnamed"}"`);
+
+        materials.forEach((material) => {
+          // Debug: log material type and properties for candlestickPhone
+          if (id === "candlestickPhone") {
+            this.logger.log(
+              `    Material debug: name="${material.name || "NONE"}", type="${
+                material.type
+              }", uuid="${material.uuid.substring(0, 8)}"`
+            );
+          }
+
+          // Skip contact shadow shader materials (but not regular materials with "Shader" in the name)
+          if (
+            material.name &&
+            (material.name.includes("BlurShader") ||
+              material.name.includes("ContactShadow"))
+          ) {
+            this.logger.log(`  ✗ Skipped "${material.name}" (shader material)`);
+            return;
+          }
+
+          // Skip excluded materials
+          if (excludeMaterials.includes(material.name)) {
+            this.logger.log(`  ✗ Skipped "${material.name}" (excluded)`);
+            return;
+          }
+
+          // Check if we should apply to this specific material
+          if (
+            !materialNames ||
+            materialNames.includes(material.name) ||
+            materialNames.length === 0
+          ) {
+            // Check for material-specific overrides
+            const override = materialOverrides[material.name];
+            const metalness = override?.metalness ?? defaultMetalness;
+            const roughness = override?.roughness ?? defaultRoughness;
+            const envMapIntensity =
+              override?.envMapIntensity ?? defaultEnvMapIntensity;
+
+            // Store original color if not already stored (and material has color)
+            if (!material.userData) material.userData = {};
+            if (!material.userData.original_color && material.color) {
+              material.userData.original_color = material.color.clone();
+            }
+
+            material.envMap = envMap;
+            material.metalness = metalness;
+            material.roughness = roughness;
+            material.envMapIntensity = envMapIntensity;
+            material.needsUpdate = true;
+            appliedCount++;
+
+            const colorHex = material.color
+              ? material.color.getHexString()
+              : "no-color";
+            const overrideNote = override ? " [OVERRIDE]" : "";
+            this.logger.log(
+              `  ✓ "${
+                material.name || "unnamed"
+              }" | color: #${colorHex} | M=${metalness.toFixed(
+                2
+              )} R=${roughness.toFixed(2)} I=${envMapIntensity.toFixed(
+                1
+              )}${overrideNote}`
+            );
+          }
+        });
+      });
+
+      this.logger.log(
+        `✓ Applied environment map to ${appliedCount} material(s) on "${id}"`
+      );
+      this.logger.log(
+        `  Default settings: metalness=${defaultMetalness}, roughness=${defaultRoughness}, envMapIntensity=${defaultEnvMapIntensity}`
+      );
+      if (Object.keys(materialOverrides).length > 0) {
+        this.logger.log(
+          `  Material overrides: ${Object.keys(materialOverrides).join(", ")}`
+        );
+      }
+      if (excludeMaterials.length > 0) {
+        this.logger.log(`  Excluded materials: ${excludeMaterials.join(", ")}`);
+      }
+      if (envMap) {
+        this.logger.log(
+          `  EnvMap texture: ✓ Created (${envMap.image?.width || "unknown"}x${
+            envMap.image?.height || "unknown"
+          })`
+        );
+      } else {
+        this.logger.error(`  EnvMap texture: ✗ Failed to create`);
+      }
+    } catch (error) {
+      this.logger.error(`Error rendering environment map for "${id}":`, error);
+      throw error;
+    }
   }
 
   /**
@@ -941,6 +1268,9 @@ class SceneManager {
       contactShadow.dispose();
     }
     this.contactShadows.clear();
+
+    // Clear environment map cache
+    this.envMapCache.clear();
 
     // Remove all physics colliders
     if (this.physicsManager) {

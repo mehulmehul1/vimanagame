@@ -131,10 +131,10 @@ export const lights = {
     id: "office-lamp-key",
     type: "PointLight",
     color: 0xffcc66, // Warm amber
-    intensity: 80,
+    intensity: 30,
     distance: 12,
     decay: 2,
-    position: { x: -6, y: 1.8, z: 86 },
+    position: { x: -6, y: 2.8, z: 86 },
     castShadow: false,
     criteria: {
       currentState: {
@@ -147,10 +147,10 @@ export const lights = {
     id: "office-lamp-fill",
     type: "PointLight",
     color: 0xffd98c,
-    intensity: 60,
+    intensity: 20,
     distance: 12,
     decay: 2,
-    position: { x: -3, y: 1.8, z: 86 },
+    position: { x: -3, y: 2.8, z: 86 },
     castShadow: false,
     criteria: {
       currentState: {

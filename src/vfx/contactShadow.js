@@ -4,7 +4,7 @@ import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurS
 import { VerticalBlurShader } from "three/examples/jsm/shaders/VerticalBlurShader.js";
 
 // Create module-level logger
-const logger = new Logger("ContactShadow", true);
+const logger = new Logger("ContactShadow", false);
 
 /**
  * ContactShadow

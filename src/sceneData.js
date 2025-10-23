@@ -16,6 +16,16 @@
  *   - visible: If false, object will be invisible (useful for animation helpers)
  *   - physicsCollider: (GLTF) If true, create a Rapier trimesh collider from mesh geometry
  *   - debugMaterial: (GLTF) If true, apply semi-transparent wireframe material for debugging
+ *   - envMap: (GLTF) Render environment map from splat scene and apply to materials
+ *     - Note: World center position comes from the splat's envMapWorldCenter property
+ *     - hideObjects: Array of object IDs to hide when rendering env map (default: [this object])
+ *     - metalness: Default material metalness 0-1 (default: 1.0)
+ *     - roughness: Default material roughness 0-1 (default: 0.02)
+ *     - envMapIntensity: Default intensity/strength of reflection 0-5+ (default: 1.0)
+ *     - materials: Array of material names to apply to (default: all materials)
+ *     - excludeMaterials: Array of material names to skip (e.g., ["wood"])
+ *     - materialOverrides: Object with per-material settings { materialName: { metalness, roughness, envMapIntensity } }
+ * - envMapWorldCenter: (Splat) {x, y, z} position to render environment map from for this scene
  *   - contactShadow: (GLTF) Create contact shadows under the object using depth rendering
  *     - size: {x, y} - Plane dimensions (default: {x: 0.5, y: 0.5})
  *     - offset: {x, y, z} - Position offset relative to object (default: {x: 0, y: -0.05, z: 0})
@@ -90,6 +100,7 @@ export const sceneObjects = {
     rotation: { x: 0.0, y: -1.0385, z: -3.1416 },
     scale: { x: 1, y: 1, z: 1 },
     priority: 100, // Load first
+    envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -296,6 +307,13 @@ export const sceneObjects = {
         cameraHeight: 0.5, // Height for shadow camera
         debug: false,
       },
+      envMap: {
+        // Render environment map from splat scene and apply reflections
+        metalness: 0.85, // Metallic for vintage brass/metal look
+        roughness: 0.15, // Some roughness for aged metal surface
+        envMapIntensity: 1.0, // Boosted for visibility
+        // hideObjects defaults to [this object]
+      },
     },
     criteria: {
       currentState: {
@@ -319,9 +337,25 @@ export const sceneObjects = {
         offset: { x: 0, y: 0, z: 0 }, // Position offset
         blur: 1.5, // Shadow blur amount
         darkness: 1.5, // Shadow darkness multiplier
-        opacity: 0.75, // Overall shadow opacity
+        opacity: 0.85, // Overall shadow opacity
         cameraHeight: 1.35, // Height for shadow camera
         debug: false, // Set to true to visualize the shadow camera AND see texture
+      },
+      envMap: {
+        // Render environment map from splat scene and apply reflections
+        metalness: 0.85, // Metallic for vintage brass/metal look
+        roughness: 0.15, // Some roughness for aged metal surface
+        envMapIntensity: 1.0, // Boosted for visibility
+        excludeMaterials: ["wood", "03 - frame"], // Don't apply to wood
+        materialOverrides: {
+          // Make deepbluepaint extremely reflective
+          deepbluepaint: {
+            metalness: 1.0,
+            roughness: 0.1,
+            envMapIntensity: 1.0,
+          },
+        },
+        // hideObjects defaults to [this object]
       },
     },
     criteria: {
@@ -342,6 +376,7 @@ export const sceneObjects = {
     rotation: { x: -0.0001, y: 1.5114, z: 0.0001 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
+      useContainer: true, // Wrap in container to preserve original model structure
       contactShadow: {
         size: { x: 0.4, y: 0.4 }, // Plane dimensions
         offset: { x: 0, y: -0.05, z: 0 }, // Position offset
@@ -350,6 +385,13 @@ export const sceneObjects = {
         opacity: 0.7, // Overall shadow opacity
         cameraHeight: 0.25, // Height for shadow camera
         debug: false, // Set to true to visualize the shadow camera
+      },
+      envMap: {
+        // Render environment map from splat scene and apply reflections
+        //metalness: 0.85, // Metallic for vintage brass/metal look
+        // /roughness: 0.5, // Some roughness for aged metal surface
+        envMapIntensity: 0.5, // Boosted for visibility
+        // hideObjects defaults to [this object]
       },
     },
     criteria: {
