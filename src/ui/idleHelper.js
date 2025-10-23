@@ -1,4 +1,5 @@
 import { Logger } from "../utils/logger.js";
+import "../styles/idleHelper.css";
 
 export class IdleHelper {
   constructor(
@@ -11,11 +12,8 @@ export class IdleHelper {
   ) {
     this.helperElement = null;
     this.lastMovementTime = null; // Don't start tracking until controls are enabled
-    this.idleThreshold = 5000; // 5 seconds
-    this.cycleInterval = 20000; // 20 seconds
+    this.idleThreshold = 10000; // 10 seconds
     this.isAnimating = false;
-    this.currentAnimation = null; // Store the Web Animation instance
-    this.cycleTimeout = null;
     this.dialogManager = dialogManager;
     this.cameraAnimationSystem = cameraAnimationSystem;
     this.dialogChoiceUI = dialogChoiceUI;
@@ -43,9 +41,6 @@ export class IdleHelper {
       // Hide any active animation immediately
       if (this.isAnimating) {
         this.stopAnimation();
-        if (this.helperElement) {
-          this.helperElement.style.opacity = "0";
-        }
       }
     } else {
       // Reset timer on re-enable to avoid immediate popup
@@ -65,19 +60,11 @@ export class IdleHelper {
     // Create the helper image element
     this.helperElement = document.createElement("div");
     this.helperElement.id = "idle-helper";
-    this.helperElement.style.position = "fixed";
-    this.helperElement.style.bottom = "5%";
-    this.helperElement.style.left = "5%";
-    this.helperElement.style.opacity = "0";
-    this.helperElement.style.pointerEvents = "none";
-    this.helperElement.style.zIndex = "1000";
 
     // Create the image
     const img = document.createElement("img");
     img.src = "/images/WASD.svg";
-    img.style.width = "auto";
-    img.style.height = "120px";
-    img.style.display = "block";
+    img.alt = "WASD controls";
 
     this.helperElement.appendChild(img);
     document.body.appendChild(this.helperElement);
@@ -220,37 +207,9 @@ export class IdleHelper {
       return;
     }
 
-    // Cancel the current animation
-    if (this.currentAnimation) {
-      this.currentAnimation.cancel();
-      this.currentAnimation = null;
-    }
-
-    // Get current opacity (from computed style for accuracy)
-    const computedStyle = window.getComputedStyle(this.helperElement);
-    const startOpacity = parseFloat(computedStyle.opacity) || 0;
-
-    if (startOpacity === 0) {
-      this.isAnimating = false;
-      return;
-    }
-
-    const fadeOutDuration = 300; // 0.3 seconds
-
-    // Use Web Animations API for hardware-accelerated animation
-    this.currentAnimation = this.helperElement.animate(
-      [{ opacity: startOpacity }, { opacity: 0 }],
-      {
-        duration: fadeOutDuration,
-        easing: "ease-in",
-        fill: "forwards",
-      }
-    );
-
-    this.currentAnimation.onfinish = () => {
-      this.isAnimating = false;
-      this.currentAnimation = null;
-    };
+    // Remove animation class and let CSS transition handle the fade out
+    this.helperElement.classList.remove("animating");
+    this.isAnimating = false;
   }
 
   startIdleCheck() {
@@ -275,9 +234,6 @@ export class IdleHelper {
       if (!isFullyEnabled && this.wasControlEnabled) {
         if (this.isAnimating) {
           this.stopAnimation();
-          if (this.helperElement) {
-            this.helperElement.style.opacity = "0";
-          }
         }
         // Don't reset lastMovementTime here - it will be reset when controls are re-enabled
       }
@@ -305,9 +261,6 @@ export class IdleHelper {
       if (this.globalDisable || hasGizmoInData || isIOS) {
         if (this.isAnimating) {
           this.stopAnimation();
-          if (this.helperElement) {
-            this.helperElement.style.opacity = "0";
-          }
         }
         return;
       }
@@ -426,9 +379,6 @@ export class IdleHelper {
         this.isAnimating
       ) {
         this.stopAnimation();
-        if (this.helperElement) {
-          this.helperElement.style.opacity = "0";
-        }
       }
     }, 100); // Check every 100ms for responsive gamepad detection
   }
@@ -442,114 +392,26 @@ export class IdleHelper {
 
     this.isAnimating = true;
 
-    // Animation timings
-    const fadeInDuration = 1500; // 1.5s fade in
-    const pulseDuration = 4000; // 4s pulsing
-    const fadeOutDuration = 1500; // 1.5s fade out
-    const totalDuration = fadeInDuration + pulseDuration + fadeOutDuration;
+    // Add the animating class to trigger CSS animation
+    this.helperElement.classList.add("animating");
 
-    // Pulse opacity range (easy to adjust)
-    const pulseMin = 0.4; // Low end of pulse
-    const pulseMax = 1.0; // High end of pulse
-
-    // Generate keyframes for the animation
-    const keyframes = this.generateAnimationKeyframes(
-      fadeInDuration,
-      pulseDuration,
-      fadeOutDuration,
-      pulseMin,
-      pulseMax
-    );
-
-    // Use Web Animations API for hardware-accelerated animation
-    this.currentAnimation = this.helperElement.animate(keyframes, {
-      duration: totalDuration,
-      easing: "linear", // We bake easing into the keyframes
-      fill: "forwards",
-    });
-
-    this.currentAnimation.onfinish = () => {
+    // Listen for animation end to reset state
+    const handleAnimationEnd = () => {
+      this.helperElement.classList.remove("animating");
       this.isAnimating = false;
-      this.currentAnimation = null;
-    };
-  }
-
-  generateAnimationKeyframes(
-    fadeInDuration,
-    pulseDuration,
-    fadeOutDuration,
-    pulseMin,
-    pulseMax
-  ) {
-    const totalDuration = fadeInDuration + pulseDuration + fadeOutDuration;
-    const keyframes = [];
-
-    // Calculated pulse parameters
-    const midPoint = (pulseMin + pulseMax) / 2;
-    const amplitude = (pulseMax - pulseMin) / 2;
-    const frequency = (Math.PI * 2) / 2000; // One complete cycle per 2 seconds
-
-    // Unified easing function (smooth cubic ease-in-out)
-    const easeInOutCubic = (t) => {
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      this.helperElement.removeEventListener(
+        "animationend",
+        handleAnimationEnd
+      );
     };
 
-    // Generate keyframes at regular intervals for smooth animation
-    const frameInterval = 50; // Generate a keyframe every 50ms
-
-    for (let time = 0; time <= totalDuration; time += frameInterval) {
-      let opacity;
-      let offset = time / totalDuration; // Normalized time (0 to 1)
-
-      if (time < fadeInDuration) {
-        // Phase 1: Fade in from 0 to the peak of the pulse
-        const progress = time / fadeInDuration;
-        opacity = pulseMax * easeInOutCubic(progress);
-      } else if (time < fadeInDuration + pulseDuration) {
-        // Phase 2: Pulse between pulseMin and pulseMax
-        const pulseElapsed = time - fadeInDuration;
-        const phaseOffset = Math.PI / 2; // Start at peak of sine wave
-        const pulseValue = Math.sin(pulseElapsed * frequency + phaseOffset);
-        opacity = midPoint + amplitude * pulseValue;
-      } else {
-        // Phase 3: Fade out from current pulse value to 0
-        const fadeOutElapsed = time - fadeInDuration - pulseDuration;
-        const progress = fadeOutElapsed / fadeOutDuration;
-
-        // Calculate where the pulse was at the transition point
-        const pulseEndTime = pulseDuration;
-        const phaseOffset = Math.PI / 2;
-        const pulseEndValue = Math.sin(pulseEndTime * frequency + phaseOffset);
-        const startOpacity = midPoint + amplitude * pulseEndValue;
-
-        opacity = startOpacity * (1 - easeInOutCubic(progress));
-      }
-
-      keyframes.push({ opacity, offset });
-    }
-
-    // Ensure we end at opacity 0
-    keyframes.push({ opacity: 0, offset: 1 });
-
-    return keyframes;
-  }
-
-  startFlashing() {
-    // This method is no longer needed as everything is unified in startAnimation
-    // Kept for backward compatibility but does nothing
+    this.helperElement.addEventListener("animationend", handleAnimationEnd);
   }
 
   stopAnimation() {
-    // Cancel Web Animation
-    if (this.currentAnimation) {
-      this.currentAnimation.cancel();
-      this.currentAnimation = null;
+    if (this.helperElement) {
+      this.helperElement.classList.remove("animating");
     }
-    if (this.cycleTimeout) {
-      clearTimeout(this.cycleTimeout);
-      this.cycleTimeout = null;
-    }
-
     this.isAnimating = false;
   }
 

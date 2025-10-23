@@ -57,7 +57,7 @@ export const dialogTracks = {
         duration: 2.0,
       },
       {
-        text: "Time to answer some tough questions, Ms. Petit.",
+        text: "Time to answer some tough questions, Ms. LeClaire.",
         duration: 2.5,
       },
     ],
@@ -363,6 +363,40 @@ export const dialogTracks = {
     delay: 0.5,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_VIEWMASTER });
+    },
+  },
+
+  preViewmaster: {
+    id: "preViewmaster",
+    audio: "./audio/dialog/leclaire-une-technologie.mp3",
+    captions: [
+      { text: "Une technologie incroyable...", duration: 2.0 },
+      { text: "It can show you many things.", duration: 2.0 },
+    ],
+    criteria: { currentState: GAME_STATES.PRE_VIEWMASTER },
+    once: true,
+    autoPlay: true,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER });
+    },
+  },
+
+  whatTheHeck: {
+    id: "whatTheHeck",
+    audio: "./audio/dialog/cole-what-the-heck.mp3",
+    captions: [
+      { text: "But I don't...", duration: 3.0 },
+      { text: "Ah...", duration: 3.0 },
+      { text: "What the heck?", duration: 3.0 },
+      { text: "This... this is...", duration: 3.0 },
+      { text: "This is really something!", duration: 3.0 },
+    ],
+    criteria: { currentState: GAME_STATES.VIEWMASTER },
+    once: true,
+    autoPlay: true,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
     },
   },
 };

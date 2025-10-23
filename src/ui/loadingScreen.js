@@ -133,10 +133,53 @@ export class LoadingScreen {
       this.progressText.textContent = `${Math.round(progress)}%`;
     }
 
-    // Check if complete
+    // Check if complete and automatically trigger completion flow
     if (progress >= 100 && !this.isComplete) {
       this.isComplete = true;
+      this.handleLoadingComplete();
     }
+  }
+
+  /**
+   * Set references to managers for deferred asset loading
+   * @param {Object} managers - Object containing renderer and asset managers
+   */
+  setManagers(managers) {
+    this.renderer = managers.renderer;
+    this.musicManager = managers.musicManager;
+    this.sfxManager = managers.sfxManager;
+    this.dialogManager = managers.dialogManager;
+    this.cameraAnimationManager = managers.cameraAnimationManager;
+  }
+
+  /**
+   * Handle loading completion - hide screen, fade in renderer, load deferred assets
+   */
+  handleLoadingComplete() {
+    if (!this.isLoadingComplete()) return;
+
+    const fadeDuration = 0.5;
+
+    // Hide loading screen
+    this.hide(fadeDuration);
+
+    // Fade in renderer
+    if (this.renderer && this.renderer.domElement) {
+      this.renderer.domElement.style.transition = `opacity ${fadeDuration}s ease-in`;
+      setTimeout(() => {
+        this.renderer.domElement.style.opacity = "1";
+      }, 100);
+    }
+
+    // Load deferred assets after loading screen hides
+    setTimeout(() => {
+      this.logger.log("Loading deferred assets...");
+      if (this.musicManager) this.musicManager.loadDeferredTracks();
+      if (this.sfxManager) this.sfxManager.loadDeferredSounds();
+      if (this.dialogManager) this.dialogManager.loadDeferredDialogs();
+      if (this.cameraAnimationManager)
+        this.cameraAnimationManager.loadDeferredAnimations();
+    }, 600); // Start loading after fade completes
   }
 
   /**

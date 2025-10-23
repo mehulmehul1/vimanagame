@@ -23,7 +23,7 @@ import { GAME_STATES } from "./gameData.js";
 import CameraAnimationManager from "./cameraAnimationManager.js";
 import cameraAnimations from "./cameraAnimationData.js";
 import GizmoManager from "./utils/gizmoManager.js";
-import { VFXSystemManager } from "./vfx/vfxManager.js";
+import { VFXSystemManager } from "./vfxManager.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import "./styles/optionsMenu.css";
@@ -184,7 +184,11 @@ const cameraAnimationManager = new CameraAnimationManager(
   camera,
   characterController,
   gameManager,
-  { loadingScreen: loadingScreen }
+  {
+    loadingScreen: loadingScreen,
+    physicsManager: physicsManager,
+    sceneManager: sceneManager,
+  }
 );
 
 // Load camera animations from data
@@ -222,13 +226,22 @@ const dialogManager = new DialogManager({
   loadingScreen: loadingScreen, // For progress tracking
 });
 
+// Set manager references for loading screen (for deferred asset loading)
+loadingScreen.setManagers({
+  renderer: renderer,
+  musicManager: musicManager,
+  sfxManager: sfxManager,
+  dialogManager: dialogManager,
+  cameraAnimationManager: cameraAnimationManager,
+});
+
 // Initialize start screen - will be created when state transitions to START_SCREEN
 let startScreen = null;
 
-// One-time listener to initialize StartScreen when transitioning from LOADING to START_SCREEN
+// One-time listener to initialize StartScreen
 const initStartScreen = (newState, oldState) => {
   if (newState.currentState === GAME_STATES.START_SCREEN && !startScreen) {
-    logger.log("Creating StartScreen after loading complete");
+    logger.log("Creating StartScreen");
     // Calculate camera target position based on actual character spawn
     const cameraTargetPos = new THREE.Vector3(
       spawnPos.x,
@@ -403,26 +416,6 @@ gizmoManager.setIntegration(uiManager?.components?.idleHelper, inputManager);
 // Allow InputManager to detect gizmo hover/drag to enable drag-to-look when not over gizmo
 if (typeof inputManager.setGizmoProbe === "function") {
   inputManager.setGizmoProbe(() => gizmoManager.isPointerOverGizmo());
-}
-
-// Hide loading screen and show renderer
-if (loadingScreen.isLoadingComplete()) {
-  loadingScreen.hide(0.5);
-  // Fade in renderer
-  renderer.domElement.style.transition = "opacity 0.5s ease-in";
-  setTimeout(() => {
-    renderer.domElement.style.opacity = "1";
-  }, 100);
-
-  // Load deferred assets after loading screen hides
-  setTimeout(() => {
-    logger.log("Loading deferred assets...");
-    musicManager.loadDeferredTracks();
-    sfxManager.loadDeferredSounds();
-    dialogManager.loadDeferredDialogs();
-    cameraAnimationManager.loadDeferredAnimations();
-    // TODO: Load deferred videos (if needed)
-  }, 600); // Start loading after fade completes
 }
 
 let lastTime;

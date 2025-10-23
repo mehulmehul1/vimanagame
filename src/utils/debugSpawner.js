@@ -139,7 +139,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: -4.69,
-      y: 1.05,
+      y: 2,
       z: 83.05,
     },
   },

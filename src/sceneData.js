@@ -313,6 +313,7 @@ export const sceneObjects = {
         //roughness: 0.15, // Some roughness for aged metal surface
         envMapIntensity: 0.75, // Boosted for visibility
         // hideObjects defaults to [this object]
+        materials: ["Glass"], // Apply to specific materials
       },
     },
     criteria: {

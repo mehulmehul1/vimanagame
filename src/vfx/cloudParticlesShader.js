@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SplatMesh, dyno } from "@sparkjsdev/spark";
 import { Logger } from "../utils/logger.js";
-import { VFXManager } from "./vfxManager.js";
+import { VFXManager } from "../vfxManager.js";
 
 /**
  * Cloud Particles System (Shader-based)

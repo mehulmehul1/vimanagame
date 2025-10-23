@@ -1,6 +1,5 @@
 import * as THREE from "three";
-import { Logger } from "../utils/logger.js";
-import { VFXManager } from "./vfxManager.js";
+import { VFXManager } from "../vfxManager.js";
 
 /**
  * DesaturationEffect - Post-processing shader for animating color to grayscale

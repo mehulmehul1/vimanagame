@@ -22,6 +22,8 @@ class CameraAnimationManager {
     this.characterController = characterController;
     this.gameManager = gameManager;
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
+    this.physicsManager = options.physicsManager || null; // For floor height calculations
+    this.sceneManager = options.sceneManager || null; // For object animations
 
     // Playback state
     this.isPlaying = false;
@@ -69,6 +71,9 @@ class CameraAnimationManager {
 
     // Lookat sequence state
     this.activeSequence = null; // { animData, currentIndex, isWaitingForNext } or null
+
+    // Object animation state
+    this.activeObjectAnimations = new Map(); // Map of animId -> { animData, elapsed, direction, sceneManager } or null
 
     // Post-animation settle-up to ensure clearance above floor
     this.isSettlingUp = false;
@@ -215,16 +220,26 @@ class CameraAnimationManager {
    * @param {Object} oldState - Previous game state
    */
   onStateChanged(newState, oldState = {}) {
-    // Only check animations when currentState actually changes
-    if (newState.currentState === oldState.currentState) {
+    // Check if any state properties have changed
+    const stateChanged = Object.keys(newState).some(
+      (key) => newState[key] !== oldState[key]
+    );
+
+    if (!stateChanged) {
       this.logger.log(
-        `[CameraAnimationManager] currentState unchanged (${newState.currentState}), skipping animation check`
+        `[CameraAnimationManager] No state changes detected, skipping animation check`
       );
       return;
     }
 
+    // Log what changed for debugging
+    const changedKeys = Object.keys(newState).filter(
+      (key) => newState[key] !== oldState[key]
+    );
     this.logger.log(
-      `[CameraAnimationManager] currentState changed from ${oldState.currentState} to ${newState.currentState}, checking for animations...`
+      `[CameraAnimationManager] State changed (${changedKeys.join(
+        ", "
+      )}), checking for animations...`
     );
 
     // Get all animations that should play for this state (pass playedAnimations for playOnce filtering)
@@ -234,7 +249,7 @@ class CameraAnimationManager {
     );
     if (!animations || animations.length === 0) {
       this.logger.log(
-        `CameraAnimationManager: No animations match current state ${newState.currentState}`
+        `CameraAnimationManager: No animations match current state`
       );
       return;
     }
@@ -356,6 +371,12 @@ class CameraAnimationManager {
     // Handle moveTo type
     if (animData.type === "moveTo") {
       this.playMoveTo(animData);
+      return true;
+    }
+
+    // Handle objectAnimation type
+    if (animData.type === "objectAnimation") {
+      this.playObjectAnimation(animData);
       return true;
     }
 
@@ -824,6 +845,419 @@ class CameraAnimationManager {
   }
 
   /**
+   * Play an object animation from data config
+   * @param {Object} animData - Object animation data from cameraAnimationData.js
+   */
+  playObjectAnimation(animData) {
+    if (this.debug) this.logger.log(`Playing objectAnimation '${animData.id}'`);
+
+    // Mark as played if playOnce
+    if (animData.playOnce) {
+      this.playedAnimations.add(animData.id);
+    }
+
+    // Check if we have sceneManager
+    if (!this.sceneManager) {
+      this.logger.warn(
+        `Cannot play objectAnimation '${animData.id}', no sceneManager`
+      );
+      return;
+    }
+
+    // Get target object from scene
+    const targetObject = this.sceneManager.getObject(animData.targetObjectId);
+    if (!targetObject) {
+      this.logger.warn(
+        `Cannot play objectAnimation '${animData.id}', object '${animData.targetObjectId}' not found`
+      );
+      return;
+    }
+
+    // Parse properties and set up animation state
+    const properties = animData.properties || {};
+    const duration = animData.duration || 1.0;
+
+    // Handle reparenting to camera (like phone receiver)
+    let originalParent = null;
+    let worldPosition = null;
+    let worldQuaternion = null;
+    let worldScale = null;
+
+    if (animData.reparentToCamera && this.camera) {
+      // Store original parent
+      originalParent = targetObject.parent;
+
+      // Store world transform before reparenting
+      worldPosition = new THREE.Vector3();
+      worldQuaternion = new THREE.Quaternion();
+      worldScale = new THREE.Vector3();
+      targetObject.getWorldPosition(worldPosition);
+      targetObject.getWorldQuaternion(worldQuaternion);
+      targetObject.getWorldScale(worldScale);
+
+      // Remove from current parent
+      if (originalParent) {
+        originalParent.remove(targetObject);
+      }
+
+      // Add to camera
+      this.camera.add(targetObject);
+
+      // Convert world transform to camera-local space
+      const cameraWorldInverse = new THREE.Matrix4()
+        .copy(this.camera.matrixWorld)
+        .invert();
+      const localMatrix = new THREE.Matrix4()
+        .compose(worldPosition, worldQuaternion, worldScale)
+        .premultiply(cameraWorldInverse);
+
+      // Apply local transform
+      localMatrix.decompose(
+        targetObject.position,
+        targetObject.quaternion,
+        targetObject.scale
+      );
+
+      this.logger.log(
+        `Reparented '${
+          animData.targetObjectId
+        }' to camera. Local pos: (${targetObject.position.x.toFixed(
+          2
+        )}, ${targetObject.position.y.toFixed(
+          2
+        )}, ${targetObject.position.z.toFixed(2)})`
+      );
+    }
+
+    // Store animation state
+    this.activeObjectAnimations.set(animData.id, {
+      animData,
+      targetObject,
+      elapsed: 0,
+      duration,
+      direction: 1, // 1 for forward, -1 for reverse (yoyo)
+      loopCount: 0,
+      properties: this._parseObjectAnimationProperties(
+        targetObject,
+        properties,
+        animData.reparentToCamera
+      ),
+      originalParent, // Store for cleanup
+      reparentedToCamera: !!animData.reparentToCamera,
+    });
+
+    this.logger.log(
+      `Started objectAnimation '${animData.id}' on '${
+        animData.targetObjectId
+      }' (duration: ${duration.toFixed(2)}s)`
+    );
+  }
+
+  /**
+   * Parse and prepare animation properties
+   * @param {THREE.Object3D} targetObject - Target object
+   * @param {Object} properties - Animation properties config
+   * @param {boolean} isReparentedToCamera - If true, object is in camera-local space
+   * @returns {Object} Parsed properties with from/to values
+   * @private
+   */
+  _parseObjectAnimationProperties(
+    targetObject,
+    properties,
+    isReparentedToCamera = false
+  ) {
+    const parsed = {};
+
+    // Position
+    if (properties.position) {
+      const from = properties.position.from || {
+        x: targetObject.position.x,
+        y: targetObject.position.y,
+        z: targetObject.position.z,
+      };
+
+      let to = properties.position.to || from;
+
+      // Handle dynamic camera-relative positioning (only for non-reparented objects)
+      if (to === "CAMERA_FRONT" && this.camera && !isReparentedToCamera) {
+        // Calculate position in front of camera
+        const cameraPos = this.camera.position;
+        const cameraDir = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDir);
+
+        // Position object 30cm in front of camera, slightly below eye level
+        const offset = new THREE.Vector3(0, -0.1, -0.3);
+        const worldOffset = offset.applyQuaternion(this.camera.quaternion);
+
+        to = {
+          x: cameraPos.x + worldOffset.x,
+          y: cameraPos.y + worldOffset.y,
+          z: cameraPos.z + worldOffset.z,
+        };
+
+        this.logger.log(
+          `Dynamic camera-front position calculated: (${to.x.toFixed(
+            2
+          )}, ${to.y.toFixed(2)}, ${to.z.toFixed(2)})`
+        );
+      }
+
+      // Check if to is an array of keyframes
+      const isKeyframes = Array.isArray(to);
+      if (isKeyframes) {
+        // Build keyframe array with from as first keyframe
+        const keyframes = [from, ...to];
+        parsed.position = { keyframes, isKeyframes: true };
+      } else {
+        parsed.position = { from, to, isKeyframes: false };
+      }
+    }
+
+    // Rotation - use quaternions for reparented objects, euler angles otherwise
+    if (properties.rotation) {
+      const to = properties.rotation.to;
+      const isKeyframes = Array.isArray(to);
+
+      if (isReparentedToCamera) {
+        // Use quaternions for smooth interpolation when attached to camera
+        const fromQuat = targetObject.quaternion.clone();
+
+        if (isKeyframes) {
+          // Convert keyframe eulers to quaternions
+          const keyframes = [
+            fromQuat,
+            ...to.map((euler) =>
+              new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(euler.x, euler.y, euler.z, "XYZ")
+              )
+            ),
+          ];
+          parsed.rotation = {
+            keyframes,
+            useQuaternion: true,
+            isKeyframes: true,
+          };
+        } else {
+          // Convert single target euler to quaternion
+          const toEuler = to || { x: 0, y: 0, z: 0 };
+          const toQuat = new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(toEuler.x, toEuler.y, toEuler.z, "XYZ")
+          );
+          parsed.rotation = {
+            from: fromQuat,
+            to: toQuat,
+            useQuaternion: true,
+            isKeyframes: false,
+          };
+        }
+      } else {
+        // Use euler angles for world-space objects
+        const from = properties.rotation.from || {
+          x: targetObject.rotation.x,
+          y: targetObject.rotation.y,
+          z: targetObject.rotation.z,
+        };
+
+        if (isKeyframes) {
+          const keyframes = [from, ...to];
+          parsed.rotation = {
+            keyframes,
+            useQuaternion: false,
+            isKeyframes: true,
+          };
+        } else {
+          const toValue = to || from;
+          parsed.rotation = {
+            from,
+            to: toValue,
+            useQuaternion: false,
+            isKeyframes: false,
+          };
+        }
+      }
+    }
+
+    // Scale (can be number or {x, y, z})
+    if (properties.scale) {
+      let from, to;
+      if (typeof properties.scale.from === "number") {
+        from = {
+          x: properties.scale.from,
+          y: properties.scale.from,
+          z: properties.scale.from,
+        };
+      } else if (properties.scale.from) {
+        from = properties.scale.from;
+      } else {
+        from = {
+          x: targetObject.scale.x,
+          y: targetObject.scale.y,
+          z: targetObject.scale.z,
+        };
+      }
+
+      if (typeof properties.scale.to === "number") {
+        to = {
+          x: properties.scale.to,
+          y: properties.scale.to,
+          z: properties.scale.to,
+        };
+      } else if (properties.scale.to) {
+        to = properties.scale.to;
+      } else {
+        to = from;
+      }
+
+      parsed.scale = { from, to };
+    }
+
+    // Opacity
+    if (properties.opacity) {
+      const from =
+        properties.opacity.from !== undefined
+          ? properties.opacity.from
+          : this._getObjectOpacity(targetObject);
+      const to =
+        properties.opacity.to !== undefined ? properties.opacity.to : from;
+      parsed.opacity = { from, to };
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Get current opacity of an object's materials
+   * @param {THREE.Object3D} obj - Object to check
+   * @returns {number} Opacity value (0-1)
+   * @private
+   */
+  _getObjectOpacity(obj) {
+    // Try to get opacity from first material found
+    let opacity = 1.0;
+    obj.traverse((child) => {
+      if (child.material && opacity === 1.0) {
+        if (Array.isArray(child.material)) {
+          opacity = child.material[0].opacity || 1.0;
+        } else {
+          opacity = child.material.opacity || 1.0;
+        }
+      }
+    });
+    return opacity;
+  }
+
+  /**
+   * Set opacity for all materials in an object
+   * @param {THREE.Object3D} obj - Object to modify
+   * @param {number} opacity - Opacity value (0-1)
+   * @private
+   */
+  _setObjectOpacity(obj, opacity) {
+    obj.traverse((child) => {
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach((mat) => {
+            mat.transparent = opacity < 1.0;
+            mat.opacity = opacity;
+            mat.needsUpdate = true;
+          });
+        } else {
+          child.material.transparent = opacity < 1.0;
+          child.material.opacity = opacity;
+          child.material.needsUpdate = true;
+        }
+      }
+    });
+  }
+
+  /**
+   * Get the two keyframes and local interpolation value for a given global time
+   * @param {Array} keyframes - Array of keyframe values
+   * @param {number} globalT - Global interpolation value 0-1
+   * @returns {Object} { from, to, localT }
+   * @private
+   */
+  _getKeyframeSegment(keyframes, globalT) {
+    if (keyframes.length < 2) {
+      return { from: keyframes[0], to: keyframes[0], localT: 0 };
+    }
+
+    // Calculate which segment we're in
+    const numSegments = keyframes.length - 1;
+    const segmentLength = 1.0 / numSegments;
+    const segmentIndex = Math.min(
+      Math.floor(globalT / segmentLength),
+      numSegments - 1
+    );
+
+    // Calculate local t within this segment (0-1)
+    const segmentStart = segmentIndex * segmentLength;
+    const localT = (globalT - segmentStart) / segmentLength;
+
+    return {
+      from: keyframes[segmentIndex],
+      to: keyframes[segmentIndex + 1],
+      localT: localT,
+    };
+  }
+
+  /**
+   * Get easing function by name
+   * @param {string} name - Easing function name
+   * @returns {Function} Easing function
+   * @private
+   */
+  _getEasingFunction(name) {
+    const easingFunctions = {
+      linear: (t) => t,
+      easeInQuad: (t) => t * t,
+      easeOutQuad: (t) => t * (2 - t),
+      easeInOutQuad: (t) =>
+        t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+      easeInCubic: (t) => t * t * t,
+      easeOutCubic: (t) => 1 - Math.pow(1 - t, 3),
+      easeInOutCubic: (t) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+      easeInOutElastic: (t) => {
+        const c5 = (2 * Math.PI) / 4.5;
+        return t === 0
+          ? 0
+          : t === 1
+          ? 1
+          : t < 0.5
+          ? -(Math.pow(2, 20 * t - 10) * Math.sin((20 * t - 11.125) * c5)) / 2
+          : (Math.pow(2, -20 * t + 10) * Math.sin((20 * t - 11.125) * c5)) / 2 +
+            1;
+      },
+    };
+
+    return easingFunctions[name] || easingFunctions.linear;
+  }
+
+  /**
+   * Stop an object animation
+   * @param {string} animId - Animation ID to stop
+   */
+  stopObjectAnimation(animId) {
+    if (this.activeObjectAnimations.has(animId)) {
+      this.logger.log(`Stopping objectAnimation '${animId}'`);
+      this.activeObjectAnimations.delete(animId);
+    }
+  }
+
+  /**
+   * Stop all object animations
+   */
+  stopAllObjectAnimations() {
+    if (this.activeObjectAnimations.size > 0) {
+      this.logger.log(
+        `Stopping ${this.activeObjectAnimations.size} object animation(s)`
+      );
+      this.activeObjectAnimations.clear();
+    }
+  }
+
+  /**
    * Play a moveTo from data config
    * @param {Object} moveToData - MoveTo data from cameraAnimationData.js
    */
@@ -839,11 +1273,52 @@ class CameraAnimationManager {
     const transitionTime =
       moveToData.transitionTime || moveToData.duration || 2.0;
 
+    // Calculate final position with auto-height if enabled
+    let finalPosition = { ...moveToData.position };
+
+    if (moveToData.autoHeight && this.physicsManager) {
+      // Raycast down to find floor height at the target X/Z coordinates
+      const floorY = this.physicsManager.getFloorHeightAt(
+        moveToData.position.x,
+        moveToData.position.z,
+        100, // Start ray from Y=100
+        200 // Max ray distance
+      );
+
+      if (floorY !== null) {
+        // Calculate body center Y (character center is at floor + half height)
+        // Character capsule: halfHeight=0.6, radius=0.3, so center is at floor + 0.9
+        const characterCenterY = 0.9; // From physicsManager.createCharacter: halfHeight=0.6 + radius=0.3
+        const cameraHeight = this.characterController?.cameraHeight ?? 1.6;
+
+        // Final Y = floor + character center + camera offset
+        finalPosition.y = floorY + characterCenterY + cameraHeight;
+
+        this.logger.log(
+          `MoveTo '${
+            moveToData.id
+          }': Auto-calculated Y=${finalPosition.y.toFixed(2)} ` +
+            `(floor=${floorY.toFixed(
+              2
+            )} + center=${characterCenterY} + camera=${cameraHeight})`
+        );
+      } else {
+        this.logger.warn(
+          `MoveTo '${
+            moveToData.id
+          }': Failed to find floor at (${moveToData.position.x.toFixed(2)}, ` +
+            `${moveToData.position.z.toFixed(
+              2
+            )}), using provided Y=${moveToData.position.y.toFixed(2)}`
+        );
+      }
+    }
+
     // Emit moveTo event through gameManager
     // Note: This doesn't block isPlaying - moveTos can happen during JSON animations
     if (this.gameManager) {
       this.gameManager.emit("character:moveto", {
-        position: moveToData.position,
+        position: finalPosition,
         rotation: moveToData.rotation || null,
         lookat: moveToData.lookat || null, // Pass lookat position if provided
         duration: transitionTime, // Still use 'duration' for the event for compatibility with characterController
@@ -1217,6 +1692,137 @@ class CameraAnimationManager {
             );
         }
         this.pendingInputRestore = null;
+      }
+    }
+
+    // Update active object animations
+    if (this.activeObjectAnimations.size > 0) {
+      const completedAnimations = [];
+
+      for (const [animId, animState] of this.activeObjectAnimations) {
+        const { animData, targetObject, duration, direction, properties } =
+          animState;
+
+        // Update elapsed time
+        animState.elapsed += dt * direction;
+
+        // Calculate normalized time (0-1)
+        let t = Math.max(0, Math.min(1, animState.elapsed / duration));
+
+        // Apply easing
+        const easingName = animData.easing || "linear";
+        const easingFunc = this._getEasingFunction(easingName);
+        const easedT = easingFunc(t);
+
+        // Apply property animations
+        if (properties.position) {
+          const { isKeyframes } = properties.position;
+          if (isKeyframes) {
+            // Keyframe animation
+            const { keyframes } = properties.position;
+            const { from, to, localT } = this._getKeyframeSegment(
+              keyframes,
+              easedT
+            );
+            targetObject.position.x = from.x + (to.x - from.x) * localT;
+            targetObject.position.y = from.y + (to.y - from.y) * localT;
+            targetObject.position.z = from.z + (to.z - from.z) * localT;
+          } else {
+            // Simple two-point animation
+            const { from, to } = properties.position;
+            targetObject.position.x = from.x + (to.x - from.x) * easedT;
+            targetObject.position.y = from.y + (to.y - from.y) * easedT;
+            targetObject.position.z = from.z + (to.z - from.z) * easedT;
+          }
+        }
+
+        if (properties.rotation) {
+          const { useQuaternion, isKeyframes } = properties.rotation;
+          if (isKeyframes) {
+            // Keyframe animation
+            const { keyframes } = properties.rotation;
+            const { from, to, localT } = this._getKeyframeSegment(
+              keyframes,
+              easedT
+            );
+            if (useQuaternion) {
+              targetObject.quaternion.slerpQuaternions(from, to, localT);
+            } else {
+              targetObject.rotation.x = from.x + (to.x - from.x) * localT;
+              targetObject.rotation.y = from.y + (to.y - from.y) * localT;
+              targetObject.rotation.z = from.z + (to.z - from.z) * localT;
+            }
+          } else {
+            // Simple two-point animation
+            const { from, to } = properties.rotation;
+            if (useQuaternion) {
+              // Use quaternion slerp for smooth rotation (reparented objects)
+              targetObject.quaternion.slerpQuaternions(from, to, easedT);
+            } else {
+              // Use euler lerp for world-space objects
+              targetObject.rotation.x = from.x + (to.x - from.x) * easedT;
+              targetObject.rotation.y = from.y + (to.y - from.y) * easedT;
+              targetObject.rotation.z = from.z + (to.z - from.z) * easedT;
+            }
+          }
+        }
+
+        if (properties.scale) {
+          const { from, to } = properties.scale;
+          targetObject.scale.x = from.x + (to.x - from.x) * easedT;
+          targetObject.scale.y = from.y + (to.y - from.y) * easedT;
+          targetObject.scale.z = from.z + (to.z - from.z) * easedT;
+        }
+
+        if (properties.opacity) {
+          const { from, to } = properties.opacity;
+          const opacity = from + (to - from) * easedT;
+          this._setObjectOpacity(targetObject, opacity);
+        }
+
+        // Check if animation is complete
+        const isComplete =
+          (direction > 0 && animState.elapsed >= duration) ||
+          (direction < 0 && animState.elapsed <= 0);
+
+        if (isComplete) {
+          const shouldLoop = animData.loop || false;
+          const shouldYoyo = animData.yoyo || false;
+
+          if (shouldLoop) {
+            if (shouldYoyo) {
+              // Reverse direction for yoyo
+              animState.direction *= -1;
+              // Clamp elapsed to stay within bounds
+              if (direction > 0) {
+                animState.elapsed = duration;
+              } else {
+                animState.elapsed = 0;
+              }
+            } else {
+              // Reset to start for normal loop
+              animState.elapsed = 0;
+            }
+            animState.loopCount++;
+          } else {
+            // Animation complete, mark for removal
+            completedAnimations.push(animId);
+
+            // Call onComplete callback
+            if (animData.onComplete) {
+              animData.onComplete(this.gameManager);
+            }
+
+            if (this.debug) {
+              this.logger.log(`objectAnimation '${animId}' complete`);
+            }
+          }
+        }
+      }
+
+      // Remove completed animations
+      for (const animId of completedAnimations) {
+        this.activeObjectAnimations.delete(animId);
       }
     }
 

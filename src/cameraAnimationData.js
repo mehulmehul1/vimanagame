@@ -1,11 +1,11 @@
 /**
  * Camera Animation Data Structure
  *
- * Defines camera animations, lookats, and character movements triggered by game state changes.
+ * Defines camera animations, lookats, character movements, and object animations triggered by game state changes.
  *
  * Common properties:
  * - id: Unique identifier
- * - type: "animation", "lookat", or "moveTo"
+ * - type: "animation", "lookat", "moveTo", "fade", or "objectAnimation"
  * - description: Human-readable description
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
@@ -75,6 +75,9 @@
  * - rotation: {yaw, pitch} target rotation in radians (optional, ignored if lookat is set)
  * - lookat: {x, y, z} world position to look at during movement (optional, overrides rotation)
  * - transitionTime: Time for the movement transition in seconds (default: 2.0)
+ * - autoHeight: If true, automatically calculate Y position based on floor collider at X/Z coordinates (default: false)
+ *   - When enabled, the Y value in position is ignored and calculated via raycast
+ *   - Prevents character from falling after animation when floor height changes
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
  *   - disableRotation: Disable rotation input (default: true)
@@ -87,6 +90,35 @@
  * - fadeOutTime: Time to fade out (go to zero opacity) in seconds (default: 1.0)
  * - maxOpacity: Maximum opacity to reach (0-1, default: 1.0)
  * - onComplete: Optional callback when fade completes (no parameters passed)
+ *
+ * For type "objectAnimation":
+ * - targetObjectId: ID of the scene object from sceneData.js to animate
+ * - duration: Animation duration in seconds (default: 1.0)
+ * - properties: Object containing properties to animate
+ *   - position: { from: {x, y, z}, to: {x, y, z} } or { to: [{x, y, z}, {x, y, z}, ...] } - Animate position (optional)
+ *   - rotation: { from: {x, y, z}, to: {x, y, z} } or { to: [{x, y, z}, {x, y, z}, ...] } - Animate rotation in radians (optional)
+ *   - scale: { from: {x, y, z}, to: {x, y, z} } or { from: number, to: number } - Animate scale (optional)
+ *   - opacity: { from: number, to: number } - Animate material opacity 0-1 (optional)
+ *   - Note: If "from" is omitted, uses current value.
+ *   - Note: "to" can be a single value OR an array for keyframe animation
+ *   - Keyframes are evenly distributed across the duration (e.g., 3 keyframes = 0%, 50%, 100%)
+ * - easing: Easing function name (default: "linear")
+ *   - Options: "linear", "easeInQuad", "easeOutQuad", "easeInOutQuad", "easeInCubic",
+ *     "easeOutCubic", "easeInOutCubic", "easeInOutElastic"
+ * - loop: If true, continuously loop the animation (default: false)
+ * - yoyo: If true, reverse animation on alternate loops (requires loop: true) (default: false)
+ * - reparentToCamera: If true, reparent object to camera before animating (default: false)
+ * - onComplete: Optional callback when animation completes. Receives gameManager as parameter.
+ *   Example: onComplete: (gameManager) => { gameManager.setState({...}); }
+ *
+ * For type "cameraMoveTo":
+ * - position: {x, y, z} target camera world position
+ * - rotation: {yaw, pitch} target camera rotation in radians (optional, uses current if omitted)
+ * - duration: Animation duration in seconds (default: 1.0)
+ * - easing: Easing function name (default: "easeInOutQuad")
+ * - disableInput: If true, disable character controller input during animation (default: true)
+ * - restoreInput: If true, restore input when complete (default: true)
+ * - onComplete: Optional callback when animation completes. Receives gameManager as parameter.
  *
  * Usage:
  * import { cameraAnimations, getCameraAnimationForState } from './cameraAnimationData.js';
@@ -201,7 +233,7 @@ export const cameraAnimations = {
     description: "Move character into phone booth when player enters trigger",
     position: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0.4,
+      y: 0, // Y will be auto-calculated based on floor collider
       z: sceneObjects.phonebooth.position.z - 0.2,
     },
     rotation: {
@@ -209,6 +241,7 @@ export const cameraAnimations = {
       pitch: 0,
     },
     transitionTime: 1.5,
+    autoHeight: true, // Automatically calculate Y based on floor at X/Z
     inputControl: {
       disableMovement: true, // Disable movement
       disableRotation: false, // Allow rotation (player can look around)
@@ -323,11 +356,12 @@ export const cameraAnimations = {
     description: "Move character near Viewmaster and look down at it",
     position: {
       x: -6.46,
-      y: 1.93,
+      y: 1.8, // Y will be auto-calculated based on floor collider
       z: 87.77,
     },
     lookat: sceneObjects.viewmaster.position, // Look at viewmaster (below eye level)
     transitionTime: 1.5,
+    autoHeight: true, // Automatically calculate Y based on floor at X/Z
     inputControl: {
       disableMovement: true, // Disable movement
       disableRotation: false, // Allow rotation (player can look around)
@@ -335,6 +369,39 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.PRE_VIEWMASTER },
     priority: 100,
     playOnce: true,
+  },
+
+  viewmasterPeering: {
+    id: "viewmasterPeering",
+    type: "objectAnimation",
+    description:
+      "Animate viewmaster up to player's face for first-person viewing",
+    targetObjectId: "viewmaster",
+    duration: 3.0,
+    properties: {
+      position: {
+        // This will be dynamically calculated to be in front of camera (camera-local space)
+        to: [
+          { x: 0, y: 0, z: -0.4 },
+          { x: 0, y: 0, z: -0.2 },
+          { x: 0, y: 0, z: 0.1 },
+        ],
+      },
+      rotation: {
+        to: [
+          { x: 0, y: 0, z: 0 },
+          { x: 0, y: 0, z: 0 },
+        ],
+      },
+    },
+    reparentToCamera: true, // Reparent to camera before animating (like phone receiver)
+    easing: "easeInOutQuad",
+    criteria: { currentState: GAME_STATES.VIEWMASTER },
+    priority: 100,
+    playOnce: true,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
+    },
   },
 
   shoulderTap: {
@@ -396,6 +463,65 @@ export const cameraAnimations = {
     playOnce: true,
     delay: 1.5, // Delay after falling
   },
+
+  // Example of objectAnimation (simple):
+  // radioFloat: {
+  //   id: "radioFloat",
+  //   type: "objectAnimation",
+  //   description: "Make radio float up and down",
+  //   targetObjectId: "radio", // Must match ID in sceneData.js
+  //   duration: 2.0,
+  //   properties: {
+  //     position: {
+  //       from: { x: 4.04, y: -0.28, z: 35.45 },
+  //       to: { x: 4.04, y: 0.5, z: 35.45 }
+  //     },
+  //     rotation: {
+  //       to: { x: 0, y: 3.14159, z: 0 } // Omit "from" to use current value
+  //     },
+  //     scale: {
+  //       from: 2.46, // Can use single number for uniform scale
+  //       to: 3.0
+  //     }
+  //   },
+  //   easing: "easeInOutQuad",
+  //   loop: true,
+  //   yoyo: true, // Reverse on alternate loops (float up, then down, repeat)
+  //   criteria: { currentState: GAME_STATES.NEAR_RADIO },
+  //   priority: 50,
+  //   playOnce: false,
+  // },
+  //
+  // Example of objectAnimation (keyframes):
+  // radioSpin: {
+  //   id: "radioSpin",
+  //   type: "objectAnimation",
+  //   description: "Make radio move through multiple positions",
+  //   targetObjectId: "radio",
+  //   duration: 3.0,
+  //   properties: {
+  //     position: {
+  //       // Array of positions - will be evenly distributed across duration
+  //       to: [
+  //         { x: 4.04, y: 0.5, z: 35.45 },   // 33% of time
+  //         { x: 4.5, y: 0.8, z: 35.0 },     // 66% of time
+  //         { x: 4.04, y: -0.28, z: 35.45 }  // 100% of time (back to start)
+  //       ]
+  //     },
+  //     rotation: {
+  //       // Can also keyframe rotation
+  //       to: [
+  //         { x: 0, y: Math.PI / 2, z: 0 },
+  //         { x: 0, y: Math.PI, z: 0 },
+  //         { x: 0, y: Math.PI * 2, z: 0 }
+  //       ]
+  //     }
+  //   },
+  //   easing: "easeInOutQuad",
+  //   loop: true,
+  //   criteria: { currentState: GAME_STATES.NEAR_RADIO },
+  //   priority: 50,
+  // },
 
   // Example of a lookat sequence with per-position settings:
   // sequenceExample: {

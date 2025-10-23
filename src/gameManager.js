@@ -106,6 +106,11 @@ class GameManager {
     // Set up internal event handlers
     this.setupEventHandlers();
 
+    // Handle initial state (important for debug spawning with controlEnabled: true)
+    if (this.state.controlEnabled === true) {
+      this.updateCharacterController();
+    }
+
     // Load initial scene objects based on starting state
     if (this.sceneManager) {
       await this.updateSceneForState();
@@ -212,7 +217,6 @@ class GameManager {
       this.logger.log(
         `[GameManager] currentState changed from ${oldState.currentState} to ${newState.currentState}`
       );
-      console.trace("[GameManager] setState stack trace:");
     } else if (Object.keys(newState).length > 0) {
       this.logger.log(
         "[GameManager] setState called with (no currentState change):",
