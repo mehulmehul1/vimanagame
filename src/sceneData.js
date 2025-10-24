@@ -306,6 +306,9 @@ export const sceneObjects = {
         opacity: 0.8, // Overall shadow opacity
         cameraHeight: 0.5, // Height for shadow camera
         debug: false,
+        criteria: {
+          currentState: { $lte: GAME_STATES.PRE_VIEWMASTER },
+        },
       },
       envMap: {
         // Render environment map from splat scene and apply reflections
@@ -313,7 +316,8 @@ export const sceneObjects = {
         //roughness: 0.15, // Some roughness for aged metal surface
         envMapIntensity: 0.75, // Boosted for visibility
         // hideObjects defaults to [this object]
-        materials: ["Glass"], // Apply to specific materials
+
+        excludeMaterials: ["Glass"], // Apply to specific materials
       },
     },
     criteria: {

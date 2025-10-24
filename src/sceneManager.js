@@ -45,6 +45,7 @@ class SceneManager {
     this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
     this.physicsManager = options.physicsManager || null; // For creating physics colliders
+    this.gameManager = options.gameManager || null; // For state-based updates
     this.objects = new Map(); // Map of id -> THREE.Object3D
     this.objectData = new Map(); // Map of id -> original config data (for gizmo flag)
     this.gltfLoader = new GLTFLoader();
@@ -60,6 +61,7 @@ class SceneManager {
 
     // Contact shadow management
     this.contactShadows = new Map(); // Map of objectId -> ContactShadow instance
+    this.contactShadowCriteria = new Map(); // Map of objectId -> criteria config
 
     // Environment map cache (stores promises to ensure only one render per position)
     this.envMapCache = new Map(); // Map of cacheKey -> Promise<envMap texture>
@@ -71,7 +73,15 @@ class SceneManager {
     this.assetProgress = new Map(); // Map of asset id -> { loaded, total }
 
     // Logger for debug messages
-    this.logger = new Logger("SceneManager", false);
+    this.logger = new Logger("SceneManager", true);
+
+    // Listen for state changes if gameManager provided
+    if (this.gameManager) {
+      this.gameManager.on("state:changed", (newState) => {
+        this.updateContactShadowsForState(newState);
+      });
+      this.logger.log("Listening for game state changes (contact shadows)");
+    }
   }
 
   /**
@@ -431,7 +441,21 @@ class SceneManager {
               shadowConfig
             );
             this.contactShadows.set(id, contactShadow);
-            this.logger.log(`Created contact shadow for "${id}"`);
+
+            // Store criteria if provided (optional)
+            if (options.contactShadow.criteria) {
+              this.contactShadowCriteria.set(
+                id,
+                options.contactShadow.criteria
+              );
+              this.logger.log(
+                `Created contact shadow for "${id}" with criteria`
+              );
+            } else {
+              this.logger.log(
+                `Created contact shadow for "${id}" (always enabled)`
+              );
+            }
           } else if (options && options.contactShadow && !this.renderer) {
             this.logger.warn(
               `Cannot create contact shadow for "${id}" - renderer not provided to SceneManager`
@@ -1207,6 +1231,32 @@ class SceneManager {
   updateContactShadows() {
     for (const contactShadow of this.contactShadows.values()) {
       contactShadow.render();
+    }
+  }
+
+  /**
+   * Update contact shadow enabled state based on game state
+   * Uses criteria to determine whether shadows should be enabled
+   * Called automatically on state changes if gameManager is available
+   * @param {Object} gameState - Current game state
+   */
+  updateContactShadowsForState(gameState) {
+    // Only run if we have criteria to check
+    if (this.contactShadowCriteria.size === 0) return;
+
+    for (const [id, criteria] of this.contactShadowCriteria) {
+      const contactShadow = this.contactShadows.get(id);
+      if (!contactShadow) continue;
+
+      const matches = checkCriteria(gameState, criteria);
+      contactShadow.enabled = matches;
+
+      // Always log for debugging
+      this.logger.log(
+        `Contact shadow "${id}" ${matches ? "enabled" : "disabled"} (state=${
+          gameState.currentState
+        }, criteria check ${matches ? "passed" : "failed"})`
+      );
     }
   }
 

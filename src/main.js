@@ -43,7 +43,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
-  0.1,
+  0.01,
   200
 );
 camera.position.set(0, 5, 0);
@@ -69,24 +69,25 @@ const spark = new SparkRenderer({
 spark.renderOrder = 9998;
 scene.add(spark);
 
+// Initialize game manager early to check for debug spawn
+const gameManager = new GameManager();
+
+// Expose for debug console access
+window.gameManager = gameManager;
+
 // Initialize scene manager (objects will be loaded by gameManager based on state)
-// Pass loadingScreen for progress tracking, renderer for contact shadows, and spark for env maps
+// Pass loadingScreen for progress tracking, renderer for contact shadows, gameManager for state updates
 const sceneManager = new SceneManager(scene, {
   loadingScreen,
   renderer,
   sparkRenderer: spark,
+  gameManager,
 });
 
 // Make scene manager globally accessible for mesh lookups
 window.sceneManager = sceneManager;
 
 // Note: gizmoManager will be passed to sceneManager after initialization
-
-// Initialize game manager early to check for debug spawn
-const gameManager = new GameManager();
-
-// Expose for debug console access
-window.gameManager = gameManager;
 
 // Connect loading screen to game manager so it can transition state when done
 loadingScreen.setGameManager(gameManager);

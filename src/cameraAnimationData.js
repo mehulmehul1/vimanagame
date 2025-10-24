@@ -399,6 +399,7 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.VIEWMASTER },
     priority: 100,
     playOnce: true,
+
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
     },

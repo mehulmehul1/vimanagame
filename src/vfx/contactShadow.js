@@ -241,6 +241,15 @@ export class ContactShadow {
    * Call this in your animation loop
    */
   render() {
+    // Hide plane and skip rendering if disabled
+    if (!this.enabled) {
+      this.plane.visible = false;
+      return;
+    }
+
+    // Show plane if enabled
+    this.plane.visible = true;
+
     // Update position to follow the tracked object (handles animated objects)
     if (this.trackedObject !== this.parentObject) {
       // Get the tracked object's position in parent's local space
