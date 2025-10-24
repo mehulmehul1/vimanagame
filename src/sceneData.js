@@ -76,7 +76,7 @@ export const sceneObjects = {
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior-edit.sog",
+    path: "/exterior-nan.sog",
     description: "Main exterior environment splat mesh",
     position: { x: 0, y: 0, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
@@ -300,13 +300,14 @@ export const sceneObjects = {
     options: {
       contactShadow: {
         size: { x: 0.9, y: 0.9 }, // Plane dimensions
-        offset: { x: 0, y: -0.275, z: 0 }, // Position offset (lowered to ground)
-        blur: 3.5, // Shadow blur amount
-        darkness: 1.5, // Shadow darkness multiplier
-        opacity: 0.8, // Overall shadow opacity
-        cameraHeight: 0.5, // Height for shadow camera
+        offset: { x: 0, y: -0.275, z: 0 },
+        blur: 3.5,
+        darkness: 1.5,
+        opacity: 0.8,
+        cameraHeight: 0.5,
         debug: false,
         criteria: {
+          // Don't want the state
           currentState: { $lte: GAME_STATES.PRE_VIEWMASTER },
         },
       },
