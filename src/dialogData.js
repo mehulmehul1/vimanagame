@@ -436,8 +436,8 @@ export const dialogTracks = {
     captions: [
       { text: "Remain here too long", duration: 1.5 },
       { text: "And you'll see the world only as they wish it.", duration: 3.5 },
-      { text: "Mind control!", duration: 1.5 },
-      { text: "Exactement!", duration: 1.5 },
+      { text: "Mind control!", duration: 1.75 },
+      { text: "Exactement!", duration: 1.75 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER_HELL },
     once: true,
