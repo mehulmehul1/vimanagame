@@ -104,7 +104,7 @@ export const colliders = [
     type: "sphere",
     position: sceneObjects.radio.position,
     rotation: { x: 0, y: 0, z: 0 },
-    dimensions: { radius: 10 },
+    dimensions: { radius: 8 },
     setStateOnEnter: { nearRadio: true },
     setStateOnExit: { nearRadio: false },
     once: false, // Repeatable - toggles on/off
@@ -120,9 +120,9 @@ export const colliders = [
   {
     id: "shadow-glimpse-trigger",
     type: "sphere",
-    position: { x: -9.29, y: 0.27, z: 37.47 },
+    position: { x: -10.45, y: 1.21, z: 40.64 },
     rotation: { x: 0, y: 0, z: 0 },
-    dimensions: { radius: 2 },
+    dimensions: { radius: 3 },
     setStateOnEnter: { shadowGlimpse: true },
     once: true, // Only trigger once
     enabled: true,

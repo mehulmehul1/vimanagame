@@ -54,7 +54,7 @@ export const videos = {
     id: "shadowGlimpse",
     videoPath: "/video/shadow-glimpse.webm",
     preload: false, // Load after loading screen
-    position: { x: -20.11, y: 0.27, z: 37.32 },
+    position: { x: -17.95, y: 1.22, z: 39.24 },
     rotation: { x: 0.0, y: 1.4075, z: 0.0 },
     scale: { x: 0.95, y: 0.88, z: 1.0 },
     loop: false,
@@ -71,7 +71,7 @@ export const videos = {
     id: "cat",
     videoPath: "/video/cat.webm",
     preload: false, // Load after loading screen
-    position: { x: -31.38, y: -2.29, z: 18.56 },
+    position: { x: -24.13, y: -1.48, z: 21.46 },
     rotation: { x: 0.0, y: 1.5708, z: 0.0 },
     scale: { x: 1, y: 1, z: 1 },
     loop: false,

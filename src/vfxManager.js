@@ -258,7 +258,7 @@ export class VFXSystemManager {
     this.camera = camera;
     this.renderer = renderer;
     this.loadingScreen = loadingScreen;
-    this.logger = new Logger("VFXSystemManager", false);
+    this.logger = new Logger("VFXSystemManager", true);
 
     this.effects = {};
     this.gameManager = null;
@@ -275,29 +275,39 @@ export class VFXSystemManager {
       this.loadingScreen.registerTask("vfx-system", 1);
     }
 
-    this.logger.log("Loading VFX modules...");
+    this.logger.log("Initializing VFX effects...");
 
-    // Dynamically import VFX modules
-    const [{ DesaturationEffect }, { createCloudParticlesShader }] =
-      await Promise.all([
-        import("./vfx/desaturationEffect.js"),
-        import("./vfx/cloudParticlesShader.js"),
-      ]);
+    try {
+      // Dynamic imports to avoid circular dependency (VFX extends VFXManager)
+      const { DesaturationEffect } = await import(
+        "./vfx/desaturationEffect.js"
+      );
+      const { createCloudParticlesShader } = await import(
+        "./vfx/cloudParticlesShader.js"
+      );
 
-    // Create desaturation post-processing effect
-    this.effects.desaturation = new DesaturationEffect(this.renderer);
+      // Create desaturation post-processing effect
+      this.logger.log("Creating DesaturationEffect...");
+      this.effects.desaturation = new DesaturationEffect(this.renderer);
+      this.logger.log("✅ DesaturationEffect created");
 
-    // Create cloud particles shader
-    this.effects.cloudParticles = createCloudParticlesShader(
-      this.scene,
-      this.camera
-    );
+      // Create cloud particles shader
+      this.logger.log("Creating CloudParticles...");
+      this.effects.cloudParticles = createCloudParticlesShader(
+        this.scene,
+        this.camera
+      );
+      this.logger.log("✅ CloudParticles created");
 
-    this.logger.log("VFX effects initialized:", Object.keys(this.effects));
+      this.logger.log("VFX effects initialized:", Object.keys(this.effects));
 
-    // Complete loading task
-    if (this.loadingScreen) {
-      this.loadingScreen.completeTask("vfx-system");
+      // Complete loading task
+      if (this.loadingScreen) {
+        this.loadingScreen.completeTask("vfx-system");
+      }
+    } catch (error) {
+      this.logger.error("❌ Failed to initialize VFX:", error);
+      throw error;
     }
   }
 

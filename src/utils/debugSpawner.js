@@ -43,9 +43,9 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: {
-      x: sceneObjects.radio.position.x - 3,
+      x: 0,
       y: 0.8,
-      z: sceneObjects.radio.position.z - 14,
+      z: 28,
     },
   },
 
@@ -64,8 +64,8 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0,
-      z: sceneObjects.phonebooth.position.z,
+      y: 0.8,
+      z: sceneObjects.phonebooth.position.z - 0.15,
     },
   },
 
@@ -79,8 +79,8 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0,
-      z: sceneObjects.phonebooth.position.z,
+      y: 1.9,
+      z: sceneObjects.phonebooth.position.z - 0.15,
     },
   },
 
@@ -89,7 +89,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0,
+      y: 0.8,
       z: sceneObjects.phonebooth.position.z,
     },
   },
@@ -99,7 +99,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: 11.68,
-      y: 1.34,
+      y: 0.8,
       z: 64.35,
     },
   },
@@ -109,7 +109,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: 7.16,
-      y: 0.38,
+      y: 0.8,
       z: 77.44,
     },
   },
@@ -119,7 +119,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: -4.69,
-      y: 1.05,
+      y: 1.5,
       z: 83.05,
     },
   },
@@ -129,7 +129,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: -4.69,
-      y: 1.05,
+      y: 1.5,
       z: 83.05,
     },
   },
@@ -139,7 +139,7 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: {
       x: -4.69,
-      y: 2,
+      y: 1.5,
       z: 83.05,
     },
   },

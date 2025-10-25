@@ -108,7 +108,7 @@ export const sfxSounds = {
       enabled: true,
       type: "PointLight", // THREE.js light type
       color: 0xff0000, // Dramatic red light
-      position: { x: 0, y: 1.7, z: 0 }, // Offset from sound position (above phone booth)
+      position: { x: 0, y: 1, z: 0 }, // Offset from sound position (above phone booth)
       baseIntensity: 0.0, // Completely off when silent
       reactivityMultiplier: 50.0, // Much more dramatic
       distance: 20, // Wider reach
@@ -290,7 +290,7 @@ export const sfxSounds = {
     id: "radio",
     src: ["/audio/dialog/newsman-czar-strikes-again.mp3"], // Radio playing classical music
     volume: 1.0,
-    delay: 0.5,
+    delay: 2.0,
     loop: true,
     loopDelay: 40.0,
     spatial: true,

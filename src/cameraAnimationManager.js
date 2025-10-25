@@ -1326,6 +1326,10 @@ class CameraAnimationManager {
           disableMovement: true,
           disableRotation: true,
         },
+        restoreInput:
+          moveToData.restoreInput !== undefined
+            ? moveToData.restoreInput
+            : true, // Default to true for backwards compatibility
         onComplete: moveToData.onComplete || null,
       });
     } else {

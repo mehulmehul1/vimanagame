@@ -81,6 +81,8 @@
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
  *   - disableRotation: Disable rotation input (default: true)
+ * - restoreInput: If true, restore input controls when complete (default: true)
+ *   - If false, inputs remain disabled after animation - you must manually re-enable them
  * - onComplete: Optional callback when movement completes (no parameters passed)
  *
  * For type "fade":
@@ -204,7 +206,7 @@ export const cameraAnimations = {
     description: "Look at phone booth when it starts ringing",
     position: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0.9,
+      y: 1.5,
       z: sceneObjects.phonebooth.position.z,
     },
     transitionTime: 1,
@@ -234,7 +236,7 @@ export const cameraAnimations = {
     position: {
       x: sceneObjects.phonebooth.position.x,
       y: 0, // Y will be auto-calculated based on floor collider
-      z: sceneObjects.phonebooth.position.z - 0.2,
+      z: sceneObjects.phonebooth.position.z - 0.15,
     },
     rotation: {
       yaw: Math.PI, // Face the phone (90 degrees)
@@ -246,6 +248,7 @@ export const cameraAnimations = {
       disableMovement: true, // Disable movement
       disableRotation: false, // Allow rotation (player can look around)
     },
+    restoreInput: false, // Keep movement disabled after animation completes
     criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
     priority: 100,
     playOnce: true,
@@ -270,7 +273,7 @@ export const cameraAnimations = {
     restoreInput: false,
     priority: 100,
     playOnce: true,
-    delay: 0, // Wait 0.5 seconds before looking at phone booth
+    delay: 0.3, // Wait 0.5 seconds before looking at phone booth
   },
 
   lookAndJump: {
@@ -283,9 +286,9 @@ export const cameraAnimations = {
     playOnce: true,
     syncController: true,
     restoreInput: true,
-    delay: 1.5, // Wait 2 seconds after DRIVE_BY state before animation
-    scaleY: 0.8, // Optional: reduce vertical motion by 20%
-    playbackRate: 1.25, // Optional: adjust playback speed (1.0 = normal, 0.5 = half speed, 2.0 = double speed)
+    delay: 1.0,
+    scaleY: 0.425,
+    playbackRate: 1.175,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.POST_DRIVE_BY });
     },
@@ -301,7 +304,7 @@ export const cameraAnimations = {
         y: 0.9,
         z: sceneObjects.phonebooth.position.z,
       },
-      sceneObjects.interior.position,
+      { x: 4.73, y: 1.29, z: 79.05 },
     ],
     transitionTime: 1,
     lookAtHoldDuration: 4.0,
@@ -354,11 +357,7 @@ export const cameraAnimations = {
     id: "viewmasterMoveTo",
     type: "moveTo",
     description: "Move character near Viewmaster and look down at it",
-    position: {
-      x: -6.46,
-      y: 1.8, // Y will be auto-calculated based on floor collider
-      z: 87.77,
-    },
+    position: { x: -5.14, y: 3.05, z: 84.66 },
     lookat: sceneObjects.viewmaster.position, // Look at viewmaster (below eye level)
     transitionTime: 1.5,
     autoHeight: true, // Automatically calculate Y based on floor at X/Z

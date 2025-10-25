@@ -85,7 +85,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 0.2,
+    delay: 0,
   },
 
   heyYouBeingWatched: {
@@ -388,7 +388,7 @@ export const dialogTracks = {
       { text: "But I don't...", duration: 3.0 },
       { text: "Ah...", duration: 3.0 },
       { text: "What the heck?", duration: 3.0 },
-      { text: "This... this is...", duration: 3.0 },
+      { text: "This... this is...", duration: 2.5 },
       { text: "This is really something!", duration: 3.0 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER },

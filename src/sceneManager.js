@@ -353,7 +353,8 @@ class SceneManager {
                     } else {
                       child.material = customMaterial;
                     }
-                    // Set render order to ensure it renders after splats (SparkRenderer is 9998)
+                    // Set render order to ensure it renders before splats (SparkRenderer is 9998)
+                    // This allows splats to properly occlude the beam
                     child.renderOrder = 9999;
                   } else {
                     material.needsUpdate = true;
@@ -1229,6 +1230,9 @@ class SceneManager {
    * Call this in your animation loop to render contact shadows
    */
   updateContactShadows() {
+    // Early exit if no contact shadows (performance optimization)
+    if (this.contactShadows.size === 0) return;
+
     for (const contactShadow of this.contactShadows.values()) {
       contactShadow.render();
     }

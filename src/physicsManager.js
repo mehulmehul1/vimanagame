@@ -8,21 +8,21 @@ class PhysicsManager {
     this.gravity = { x: 0.0, y: -9.81, z: 0.0 };
     this.world = new RAPIER.World(this.gravity);
     this.trimeshColliders = new Map(); // Map of id -> { collider, body }
-    this.logger = new Logger("PhysicsManager", true);
-    this.createFloor();
+    this.logger = new Logger("PhysicsManager", false);
+    //this.createFloor();
   }
 
-  createFloor() {
-    const floorDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
-    const floor = this.world.createRigidBody(floorDesc);
-    const floorColliderDesc = RAPIER.ColliderDesc.cuboid(
-      1000,
-      0.1,
-      1000
-    ).setFriction(1.0);
-    this.world.createCollider(floorColliderDesc, floor);
-    return floor;
-  }
+  // createFloor() {
+  //   const floorDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
+  //   const floor = this.world.createRigidBody(floorDesc);
+  //   const floorColliderDesc = RAPIER.ColliderDesc.cuboid(
+  //     1000,
+  //     0.1,
+  //     1000
+  //   ).setFriction(1.0);
+  //   this.world.createCollider(floorColliderDesc, floor);
+  //   return floor;
+  // }
 
   createCharacter(
     position = { x: 0, y: 0, z: 0 },
@@ -39,9 +39,13 @@ class PhysicsManager {
     const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(position.x, position.y, position.z)
       .setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w })
-      .setLinearDamping(0.2);
+      .setLinearDamping(0.2)
+      .lockRotations(); // Lock all rotations so capsule stays upright
     const body = this.world.createRigidBody(bodyDesc);
-    // Capsule with full height 1.6m: 2*halfHeight + 2*radius = 1.6 => halfHeight=0.5, radius=0.3
+
+    // Character capsule collider
+    // halfHeight=0.6, radius=0.3
+    // Total height = 2*halfHeight + 2*radius = 1.8m
     const colliderDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3)
       .setFriction(0.9)
       .setMass(60);

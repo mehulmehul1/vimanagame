@@ -14,18 +14,32 @@ const logger = new Logger("ContactShadow", false);
  *
  * Based on the three.js contact shadows example.
  *
+ * Performance: Each shadow renders 3 times per update (depth + 2 blur passes).
+ * Use isStatic:true for objects that never move, or updateFrequency to throttle updates.
+ *
  * Usage:
  * import { ContactShadow } from './vfx/contactShadow.js';
  *
- * const contactShadow = new ContactShadow(renderer, scene, parentObject, {
+ * // Static object (renders once, never updates):
+ * const staticShadow = new ContactShadow(renderer, scene, parentObject, {
  *   size: { x: 0.5, y: 0.5 },
  *   blur: 3.5,
  *   darkness: 1.5,
- *   opacity: 0.5
+ *   opacity: 0.5,
+ *   isStatic: true  // Render once and stop
+ * });
+ *
+ * // Animated object (updates every frame):
+ * const dynamicShadow = new ContactShadow(renderer, scene, parentObject, {
+ *   updateFrequency: 1,  // Every frame
+ *   trackMesh: "CarMesh"
  * });
  *
  * // In animation loop:
  * contactShadow.render();
+ *
+ * // For static objects that need to re-render after moving:
+ * staticShadow.requestUpdate();
  */
 
 /**
@@ -48,6 +62,8 @@ export class ContactShadow {
       name = "contactShadow",
       debug = false,
       trackMesh = null, // Optional: name of specific child mesh to track (for animated models)
+      updateFrequency = 3, // Update every N frames (1 = every frame, higher = better performance)
+      isStatic = false, // If true, render once and never again (for static objects)
     } = config;
 
     this.config = {
@@ -58,10 +74,21 @@ export class ContactShadow {
       opacity,
       cameraHeight,
       debug,
+      isStatic,
     };
 
     logger.log(
-      `Creating contact shadow "${name}" with size=(${size.x}, ${size.y}), blur=${blur}, darkness=${darkness}`
+      `Creating contact shadow "${name}" with size=(${size.x}, ${
+        size.y
+      }), blur=${blur}, darkness=${darkness}, ${
+        isStatic
+          ? "static (render once)"
+          : `updateFrequency=${updateFrequency} (${
+              updateFrequency === 1
+                ? "every frame"
+                : `every ${updateFrequency} frames`
+            })`
+      }`
     );
 
     // Create the shadow group
@@ -177,6 +204,15 @@ export class ContactShadow {
 
     logger.log(`Contact shadow "${name}" created successfully`);
 
+    // Initialize enabled state (default to true)
+    this.enabled = true;
+
+    // Performance optimization: track frame updates
+    this.frameCounter = 0;
+    this.updateFrequency = updateFrequency; // Update every N frames (1 = every frame, higher = better perf)
+    this.needsUpdate = true; // Force first render
+    this.hasRenderedOnce = false; // Track if static shadow has rendered
+
     // Store the actual model to track (for containers with useContainer: true)
     if (trackMesh) {
       // Search for specific mesh by name in the hierarchy
@@ -246,6 +282,26 @@ export class ContactShadow {
       this.plane.visible = false;
       return;
     }
+
+    // Performance optimization: static shadows render once and never again
+    if (this.config.isStatic && this.hasRenderedOnce) {
+      // Keep plane visible with cached texture, but skip all rendering
+      this.plane.visible = true;
+      return;
+    }
+
+    // Performance optimization: throttle updates for non-static shadows
+    if (!this.config.isStatic) {
+      this.frameCounter++;
+      if (!this.needsUpdate && this.frameCounter % this.updateFrequency !== 0) {
+        // Skip rendering this frame, but keep plane visible with cached texture
+        this.plane.visible = true;
+        return;
+      }
+    }
+
+    // Reset needsUpdate flag after rendering
+    this.needsUpdate = false;
 
     // Show plane if enabled
     this.plane.visible = true;
@@ -321,6 +377,23 @@ export class ContactShadow {
     this.renderer.setRenderTarget(initialRenderTarget);
     this.renderer.setClearAlpha(initialClearAlpha);
     this.scene.background = initialBackground;
+
+    // Mark as rendered for static shadows
+    if (this.config.isStatic) {
+      this.hasRenderedOnce = true;
+    }
+  }
+
+  /**
+   * Request an immediate update on next render
+   * Useful when the object moves or changes
+   * For static shadows, this resets the "rendered once" flag
+   */
+  requestUpdate() {
+    this.needsUpdate = true;
+    if (this.config.isStatic) {
+      this.hasRenderedOnce = false;
+    }
   }
 
   /**
@@ -328,21 +401,34 @@ export class ContactShadow {
    * @param {Object} updates - Properties to update
    */
   update(updates = {}) {
+    let changed = false;
+
     if (updates.opacity !== undefined) {
       this.plane.material.opacity = updates.opacity;
       this.config.opacity = updates.opacity;
+      changed = true;
     }
 
     if (updates.darkness !== undefined) {
       this.depthMaterial.userData.darkness.value = updates.darkness;
       this.config.darkness = updates.darkness;
+      changed = true;
     }
 
     if (updates.blur !== undefined) {
       this.config.blur = updates.blur;
+      changed = true;
     }
 
-    logger.log(`Updated contact shadow properties`);
+    if (updates.updateFrequency !== undefined) {
+      this.updateFrequency = updates.updateFrequency;
+      changed = true;
+    }
+
+    if (changed) {
+      this.needsUpdate = true; // Request re-render when properties change
+      logger.log(`Updated contact shadow properties`);
+    }
   }
 
   /**

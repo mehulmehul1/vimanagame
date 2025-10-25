@@ -257,7 +257,7 @@ class CandlestickPhone {
         if (newState.currentState === GAME_STATES.OFFICE_PHONE_ANSWERED) {
           this.handleOfficePhoneAnswered();
         }
-        if (newState.currentState === GAME_STATES.VIEWMASTER_COLOR) {
+        if (newState.currentState === GAME_STATES.PRE_VIEWMASTER) {
           this.putDownToOriginal();
         }
       });

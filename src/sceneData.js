@@ -35,6 +35,8 @@
  *     - cameraHeight: Height of orthographic camera for shadow (default: 0.25)
  *     - renderTargetSize: Shadow texture resolution (default: 512)
  *     - trackMesh: Name of child mesh to track (for animated models, e.g. "Old_Car_01")
+ *     - updateFrequency: Update every N frames (default: 3, lower = smoother/slower, higher = faster)
+ *     - isStatic: If true, render once and never update again (best for objects that never move)
  *     - debug: Show camera helper for debugging (default: false)
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
@@ -69,6 +71,9 @@ import { Logger } from "./utils/logger.js";
 // Create module-level logger
 const logger = new Logger("SceneData", false);
 
+const originPosition = { x: 0, y: 0, z: 0 };
+const originRotation = { x: 0, y: 0, z: 0 };
+
 const interiorPosition = { x: 4.55, y: -0.22, z: 78.51 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
@@ -76,12 +81,11 @@ export const sceneObjects = {
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior-nan.sog",
+    path: "/exterior-nan-2.sog",
     description: "Main exterior environment splat mesh",
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0 },
+    position: originPosition,
+    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
-    quaternion: { x: 1, y: 0, z: 0, w: 0 },
     priority: 100, // Load first
     criteria: {
       currentState: {
@@ -91,16 +95,63 @@ export const sceneObjects = {
     },
   },
 
+  exteriorCollider: {
+    id: "exteriorCollider",
+    type: "gltf",
+    path: "/gltf/colliders/ExteriorColliderOrigin.glb",
+    description: "Exterior physics collider mesh",
+    position: originPosition,
+    rotation: originRotation,
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+      visible: false, // Set to true to see debug material
+      physicsCollider: true, // Flag to create physics trimesh collider
+      debugMaterial: false, // Apply semi-transparent debug material to visualize collider
+    },
+    loadByDefault: false,
+    priority: 90,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.START_SCREEN,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
   interior: {
     id: "interior",
     type: "splat",
-    path: "/stairs-and-green-room.sog",
+    path: "/interior-nan-2.sog",
     description: "Main exterior environment splat mesh",
-    position: interiorPosition,
-    rotation: { x: 0.0, y: -1.0385, z: -3.1416 },
-    scale: { x: 1, y: 1, z: 1 },
+    position: { x: -0.04, y: 0.17, z: -2.11 },
+    rotation: { x: -3.1416, y: 0.0, z: 0.0 },
+    scale: { x: 1.0, y: 1.0, z: 1.0 },
     priority: 100, // Load first
     envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+      },
+    },
+  },
+
+  officeCollider: {
+    id: "officeCollider",
+    type: "gltf",
+    path: "/gltf/colliders/office-collider-v01.glb",
+    description: "Office interior physics collider mesh",
+    position: originPosition,
+    rotation: originRotation,
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+      visible: false, // Set to true to see debug material
+      physicsCollider: true, // Flag to create physics trimesh collider
+      debugMaterial: false, // Apply semi-transparent debug material to visualize collider
+    },
+    loadByDefault: false,
+    priority: 90,
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -114,9 +165,9 @@ export const sceneObjects = {
     path: "/gltf/phonebooth.glb",
     description:
       "Phone booth GLTF model with CordAttach and Receiver children (uses PhoneCord module)",
-    position: { x: 5.94, y: -0.76, z: 65.76 },
-    rotation: { x: 0, y: Math.PI / 2, z: 0 }, // 90 degrees around Y axis
-    scale: { x: 1.25, y: 1.25, z: 1.25 },
+    position: { x: 5.94, y: 0.27, z: 65.76 },
+    rotation: { x: 0.0, y: Math.PI / 1.7, z: 0.0 },
+    scale: { x: 1.5, y: 1.5, z: 1.5 },
     options: {
       // Create a container group for proper scaling
       useContainer: true,
@@ -151,7 +202,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/radio-1.glb",
     description: "Radio GLTF model",
-    position: { x: 4.04, y: -0.28, z: 35.45 },
+    position: { x: 4.35, y: 0.82, z: 37.29 },
     rotation: { x: 3.1293, y: 1.1503, z: -2.9357 },
     scale: { x: 2.46, y: 2.46, z: 2.46 },
     options: {
@@ -171,19 +222,20 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/Old_Car_01.glb",
     description: "Car GLTF model",
-    position: { x: -15.67, y: -0.42, z: 62.5 },
+    position: { x: -15.67, y: 0.2, z: 62.5 },
     rotation: { x: 0.0, y: 0.8859, z: 0.0 },
     scale: { x: 0.9, y: 0.9, z: 0.9 },
     options: {
       useContainer: true,
       contactShadow: {
-        size: { x: 3, y: 5.5 }, // Larger plane for car
+        size: { x: 2.5, y: 5.25 }, // Larger plane for car
         offset: { x: 0, y: 0.0, z: 0 }, // Position offset
-        blur: 1.0, // Slightly more blur for larger shadow
-        darkness: 0.5, // Shadow darkness multiplier
+        blur: 1.25, // Slightly more blur for larger shadow
+        darkness: 1.0, // Shadow darkness multiplier
         opacity: 0.4, // Overall shadow opacity
         cameraHeight: 2.5, // Taller camera for car
         trackMesh: "Old_Car_01", // Track the actual car mesh (for animated models)
+        updateFrequency: 1, // Update every frame (animated object)
         debug: false,
       },
     },
@@ -212,42 +264,20 @@ export const sceneObjects = {
     ],
   },
 
-  carTestSplat: {
-    id: "carTestSplat",
+  splatCar50k: {
+    id: "splatCar50k",
     type: "splat",
-    path: "/car-test.sog",
+    path: "/car-test-50k.sog",
+    gizmo: true,
     description: "Car test splat - positioned at origin for testing",
-    position: { x: 8.42, y: -0.37, z: 32.46 },
-    rotation: { x: -2.6226, y: 1.2478, z: -0.5263 },
-    scale: { x: 2.92, y: 2.92, z: 2.92 },
+    position: { x: 9.15, y: 0.59, z: 35.16 },
+    rotation: { x: 2.8129, y: -1.1301, z: -0.2943 },
+    scale: { x: 2.58, y: 2.58, z: 2.58 },
     priority: 100,
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
-      },
-    },
-  },
-
-  officeCollider: {
-    id: "officeCollider",
-    type: "gltf",
-    path: "/gltf/colliders/office-collider-v01.glb",
-    description: "Office interior physics collider mesh",
-    position: interiorPosition,
-    rotation: interiorRotation,
-    scale: { x: 1, y: 1, z: 1 },
-    options: {
-      useContainer: true,
-      visible: false, // Set to true to see debug material
-      physicsCollider: true, // Flag to create physics trimesh collider
-      debugMaterial: false, // Apply semi-transparent debug material to visualize collider
-    },
-    loadByDefault: false,
-    priority: 90,
-    criteria: {
-      currentState: {
-        $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.PHONE_BOOTH_RINGING,
       },
     },
   },
@@ -257,7 +287,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/ConeCurve.glb",
     description: "Camera curve animation for start screen",
-    position: { x: 0, y: 0, z: 0 },
+    position: { x: 0, y: 0, z: -0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     options: {
@@ -294,9 +324,9 @@ export const sceneObjects = {
     path: "/gltf/viewmaster.glb",
     preload: false,
     description: "Viewmaster GLTF model",
-    position: { x: -7.01, y: 1.41, z: 88.8 },
-    rotation: { x: 0.2324, y: 0.0, z: 0.2949 },
-    scale: { x: 1, y: 1, z: 1 },
+    position: { x: -7.63, y: 2.61, z: 85.3 },
+    rotation: { x: -1.4084, y: 1.2006, z: 1.3865 },
+    scale: { x: 1.0, y: 1.0, z: 1.0 },
     options: {
       contactShadow: {
         size: { x: 0.9, y: 0.9 }, // Plane dimensions
@@ -305,6 +335,7 @@ export const sceneObjects = {
         darkness: 1.5,
         opacity: 0.8,
         cameraHeight: 0.5,
+        updateFrequency: 5, // Interactive object - update more frequently
         debug: false,
         criteria: {
           // Don't want the state
@@ -334,7 +365,7 @@ export const sceneObjects = {
     path: "/gltf/edison.glb",
     preload: false,
     description: "edison cylinder player",
-    position: { x: -3.66, y: 1.1, z: 89.43 },
+    position: { x: -4.78, y: 2.24, z: 87.0 },
     rotation: { x: 3.1416, y: -0.0245, z: 3.1416 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
@@ -345,6 +376,7 @@ export const sceneObjects = {
         darkness: 1.5, // Shadow darkness multiplier
         opacity: 0.85, // Overall shadow opacity
         cameraHeight: 1.35, // Height for shadow camera
+        isStatic: true, // Never moves - render once
         debug: false, // Set to true to visualize the shadow camera AND see texture
       },
       envMap: {
@@ -378,8 +410,8 @@ export const sceneObjects = {
     preload: false,
     description:
       "Candlestick phone with CordAttach and Receiver children (uses PhoneCord module)",
-    position: { x: -4.69, y: 1.1, z: 85.05 },
-    rotation: { x: -0.0001, y: 1.5114, z: 0.0001 },
+    position: { x: -4.69, y: 2.27, z: 82.39 },
+    rotation: { x: 0, y: 1.5114, z: 0 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
       useContainer: true, // Wrap in container to preserve original model structure
@@ -390,6 +422,7 @@ export const sceneObjects = {
         darkness: 20.0, // Shadow darkness multiplier
         opacity: 0.7, // Overall shadow opacity
         cameraHeight: 0.25, // Height for shadow camera
+        isStatic: true, // Never moves - render once
         debug: false, // Set to true to visualize the shadow camera
       },
       envMap: {

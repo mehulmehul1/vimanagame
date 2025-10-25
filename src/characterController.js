@@ -68,6 +68,7 @@ class CharacterController {
     this.moveToProgress = 0;
     this.moveToOnComplete = null;
     this.moveToInputControl = null;
+    this.moveToRestoreInput = true; // Default to true
 
     // Depth of Field system
     this.dofEnabled = true; // Can be controlled externally
@@ -152,7 +153,7 @@ class CharacterController {
     // Settings
     this.baseSpeed = 2.5;
     this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
-    this.cameraHeight = 0.8; // Distance from capsule center (0.8 = top of capsule, 0.7 = eye height)
+    this.cameraHeight = 0.9; // Camera offset from capsule center (eye height)
     this.cameraSmoothingFactor = 0.15;
 
     // Initialize FOV from camera
@@ -533,6 +534,10 @@ class CharacterController {
         disableRotation: true,
       };
 
+      // Parse restoreInput setting (whether to restore input on completion)
+      const restoreInput =
+        data.restoreInput !== undefined ? data.restoreInput : true;
+
       const onComplete = data.onComplete || null;
 
       this.moveTo(
@@ -540,7 +545,8 @@ class CharacterController {
         targetRotation,
         data.duration,
         onComplete,
-        inputControl
+        inputControl,
+        restoreInput
       );
     });
 
@@ -838,19 +844,22 @@ class CharacterController {
    * @param {number} duration - Time to complete the move in seconds
    * @param {Function} onComplete - Optional callback when complete
    * @param {Object} inputControl - Control what input to disable {disableMovement: true/false, disableRotation: true/false}
+   * @param {boolean} restoreInput - Whether to restore input controls on completion (default: true)
    */
   moveTo(
     targetPosition,
     targetRotation = null,
     duration = 2.0,
     onComplete = null,
-    inputControl = { disableMovement: true, disableRotation: true }
+    inputControl = { disableMovement: true, disableRotation: true },
+    restoreInput = true
   ) {
     this.isMovingTo = true;
     this.moveToDuration = duration;
     this.moveToProgress = 0;
     this.moveToOnComplete = onComplete;
     this.moveToInputControl = inputControl; // Store for restoration later
+    this.moveToRestoreInput = restoreInput; // Store whether to restore input on completion
 
     // Disable input based on inputControl settings
     // Only set inputDisabled if BOTH movement and rotation are disabled
@@ -1906,8 +1915,8 @@ class CharacterController {
         this.targetPitch = this.pitch;
         this.bodyYaw = this.yaw; // Update body yaw to match
 
-        // Restore input based on what was disabled
-        if (this.moveToInputControl) {
+        // Restore input based on what was disabled (only if restoreInput is true)
+        if (this.moveToRestoreInput && this.moveToInputControl) {
           if (
             this.moveToInputControl.disableMovement &&
             this.moveToInputControl.disableRotation
@@ -1926,6 +1935,14 @@ class CharacterController {
             this.logger.log("Move-to complete, restored rotation input");
           }
           this.moveToInputControl = null;
+          this.moveToRestoreInput = true; // Reset to default
+        } else if (!this.moveToRestoreInput) {
+          // Input restoration disabled - keep controls disabled
+          this.logger.log(
+            "Move-to complete, input NOT restored (restoreInput: false)"
+          );
+          this.moveToInputControl = null;
+          this.moveToRestoreInput = true; // Reset to default for next moveTo
         }
 
         // Call completion callback if provided

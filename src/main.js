@@ -31,10 +31,22 @@ import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
 import "./styles/fullscreenButton.css";
 
-const logger = new Logger("Main", false);
+const logger = new Logger("Main", true);
+
+// Add global error handlers to catch silent failures
+window.addEventListener("unhandledrejection", (event) => {
+  logger.error("❌ Unhandled promise rejection:", event.reason);
+});
+
+window.addEventListener("error", (event) => {
+  logger.error("❌ Global error:", event.error || event.message);
+});
+
+logger.log("🚀 Main.js starting...");
 
 // Initialize loading screen immediately (before any asset loading)
 const loadingScreen = new LoadingScreen();
+logger.log("✅ Loading screen created");
 
 // Register loading tasks (scene assets and audio files will register themselves as they load)
 loadingScreen.registerTask("initialization", 1);
@@ -61,6 +73,7 @@ const apertureSize = 0.01; // Very small aperture for subtle DoF
 const focalDistance = 6.0;
 const apertureAngle = 2 * Math.atan((0.5 * apertureSize) / focalDistance);
 
+logger.log("Creating SparkRenderer...");
 const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
@@ -68,6 +81,7 @@ const spark = new SparkRenderer({
 });
 spark.renderOrder = 9998;
 scene.add(spark);
+logger.log("✅ SparkRenderer created");
 
 // Initialize game manager early to check for debug spawn
 const gameManager = new GameManager();
@@ -93,17 +107,27 @@ window.sceneManager = sceneManager;
 loadingScreen.setGameManager(gameManager);
 
 // Initialize the physics manager
+logger.log("Creating PhysicsManager...");
 const physicsManager = new PhysicsManager();
+logger.log("✅ PhysicsManager created");
 
 // Initialize light manager BEFORE fog so splat lights can affect fog particles
 // Pass sceneManager so lights can be parented under specific scene objects
 // Pass gameManager so lights can check criteria before loading
+logger.log("Creating LightManager...");
 const lightManager = new LightManager(scene, sceneManager, gameManager);
+logger.log("✅ LightManager created");
 
 // Initialize VFX system manager AFTER light manager (so splat lights can affect fog)
 // Pass loadingScreen for progress tracking
 const vfxManager = new VFXSystemManager(scene, camera, renderer, loadingScreen);
-await vfxManager.initialize();
+try {
+  await vfxManager.initialize();
+  logger.log("✅ VFX Manager initialized");
+} catch (error) {
+  logger.error("❌ Failed to initialize VFX Manager:", error);
+  throw error;
+}
 
 // Make VFX manager globally accessible
 window.vfxManager = vfxManager;
@@ -116,10 +140,6 @@ window.addEventListener("resize", () => {
   vfxManager.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Create character rigid body (capsule)
-// Capsule: halfHeight=0.5, radius=0.3, total height = 1.6m
-// Floor top at Y=0.1, character center at Y=0.9 (rests on ground)
-// Camera at top of capsule: Y=0.9+0.8=1.7 (1.6m off ground)
 // Use debug spawn position if available, otherwise default
 
 const defaultSpawnPos = {
@@ -315,21 +335,28 @@ if (sfxManager && dialogManager) {
 }
 
 // Initialize gameManager with all managers (async - loads initial scene objects)
-await gameManager.initialize({
-  dialogManager: dialogManager,
-  musicManager: musicManager,
-  sfxManager: sfxManager,
-  uiManager: uiManager,
-  characterController: characterController,
-  cameraAnimationManager: cameraAnimationManager,
-  sceneManager: sceneManager,
-  lightManager: lightManager,
-  physicsManager: physicsManager,
-  inputManager: inputManager,
-  scene: scene,
-  camera: camera,
-});
-loadingScreen.completeTask("initialization");
+try {
+  logger.log("Starting gameManager initialization...");
+  await gameManager.initialize({
+    dialogManager: dialogManager,
+    musicManager: musicManager,
+    sfxManager: sfxManager,
+    uiManager: uiManager,
+    characterController: characterController,
+    cameraAnimationManager: cameraAnimationManager,
+    sceneManager: sceneManager,
+    lightManager: lightManager,
+    physicsManager: physicsManager,
+    inputManager: inputManager,
+    scene: scene,
+    camera: camera,
+  });
+  logger.log("✅ GameManager initialized");
+  loadingScreen.completeTask("initialization");
+} catch (error) {
+  logger.error("❌ Failed to initialize GameManager:", error);
+  throw error;
+}
 
 // Set up event listeners for managers
 characterController.setGameManager(gameManager);
