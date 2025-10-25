@@ -381,14 +381,13 @@ export const dialogTracks = {
     },
   },
 
-  whatTheHeck: {
-    id: "whatTheHeck",
-    audio: "./audio/dialog/cole-what-the-heck.mp3",
+  butIDont: {
+    id: "butIDont",
+    audio: "./audio/dialog/cole-but-i-dont.mp3",
     captions: [
       { text: "But I don't...", duration: 3.0 },
-      { text: "Ah...", duration: 3.0 },
-      { text: "What the heck?", duration: 3.0 },
-      { text: "This... this is...", duration: 2.5 },
+      { text: "Ah...", duration: 2.75 },
+      { text: "Gee, this... this is...", duration: 2.5 },
       { text: "This is really something!", duration: 3.0 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER },
@@ -397,6 +396,55 @@ export const dialogTracks = {
     delay: 0.5,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
+    },
+  },
+
+  itIsBeautiful: {
+    id: "itIsBeautiful",
+    audio: "./audio/dialog/leclaire-it-is-beautiful.mp3",
+    captions: [
+      { text: "It is beautiful, non?", duration: 2.0 },
+      { text: "And yet they can control your perception.", duration: 3.25 },
+      { text: "Observe.", duration: 1.5 },
+      { text: "", duration: 3.0 },
+    ],
+    criteria: { currentState: GAME_STATES.VIEWMASTER_COLOR },
+    once: true,
+    autoPlay: true,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_HELL });
+    },
+  },
+
+  whatTheHeck: {
+    id: "whatTheHeck",
+    audio: "./audio/dialog/cole-what-the-heck.mp3",
+    captions: [{ text: "What the heck?!", duration: 1.5 }],
+    criteria: { currentState: GAME_STATES.VIEWMASTER_HELL },
+    once: true,
+    autoPlay: true,
+    delay: 3.5,
+    onComplete: (gameManager) => {
+      //gameManager.setState({ currentState: GAME_STATES.POST_VIEWMASTER });
+    },
+  },
+
+  remainHereTooLong: {
+    id: "remainHereTooLong",
+    audio: "./audio/dialog/leclaire-remain-here-too-long.mp3",
+    captions: [
+      { text: "Remain here too long", duration: 1.5 },
+      { text: "And you'll see the world only as they wish it.", duration: 3.5 },
+      { text: "Mind control!", duration: 1.5 },
+      { text: "Exactement!", duration: 1.5 },
+    ],
+    criteria: { currentState: GAME_STATES.VIEWMASTER_HELL },
+    once: true,
+    autoPlay: true,
+    delay: 11.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.POST_VIEWMASTER });
     },
   },
 };

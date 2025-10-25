@@ -187,28 +187,22 @@ class DialogManager {
 
         // If there are matching dialogs for the new state
         if (matchingDialogs.length > 0) {
-          const dialog = matchingDialogs[0];
+          // Process ALL matching dialogs, not just the first one
+          // This allows multiple dialogs with the same criteria to be scheduled with their own delays
+          for (const dialog of matchingDialogs) {
+            this.logger.log(`Auto-playing dialog "${dialog.id}"`);
 
-          // Cancel any pending dialogs if we have a higher priority one
-          if (this.hasDialogsPending()) {
-            this.logger.log(
-              `Canceling pending dialogs for new dialog "${dialog.id}"`
-            );
-            this.cancelAllDelayedDialogs();
+            // Track that this dialog has been played
+            this.playedDialogs.add(dialog.id);
+
+            // Emit event for tracking
+            this.gameManager.emit("dialog:trigger", dialog.id, dialog);
+
+            // Play the dialog (will be scheduled with its delay if specified)
+            this.playDialog(dialog, (completedDialog) => {
+              this.gameManager.emit("dialog:finished", completedDialog);
+            });
           }
-
-          this.logger.log(`Auto-playing dialog "${dialog.id}"`);
-
-          // Track that this dialog has been played
-          this.playedDialogs.add(dialog.id);
-
-          // Emit event for tracking
-          this.gameManager.emit("dialog:trigger", dialog.id, dialog);
-
-          // Play the dialog
-          this.playDialog(dialog, (completedDialog) => {
-            this.gameManager.emit("dialog:finished", completedDialog);
-          });
         }
       });
 

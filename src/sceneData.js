@@ -74,7 +74,7 @@ const logger = new Logger("SceneData", false);
 const originPosition = { x: 0, y: 0, z: 0 };
 const originRotation = { x: 0, y: 0, z: 0 };
 
-const interiorPosition = { x: 4.55, y: -0.22, z: 78.51 };
+const interiorPosition = { x: 5.36, y: 0.83, z: 78.39 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
 export const sceneObjects = {
@@ -122,16 +122,35 @@ export const sceneObjects = {
   interior: {
     id: "interior",
     type: "splat",
-    path: "/interior-nan-2.sog",
-    description: "Main exterior environment splat mesh",
-    position: { x: -0.04, y: 0.17, z: -2.11 },
-    rotation: { x: -3.1416, y: 0.0, z: 0.0 },
+    path: "/stairs-and-green-room.sog",
+    description: "Main interior office environment splat mesh",
+    position: interiorPosition,
+    rotation: { x: 0.0, y: -1.283, z: -3.1416 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
     priority: 100, // Load first
     envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
+        // Note: Stays loaded during VIEWMASTER_HELL for morph transition (visibility controlled by VFX)
+      },
+    },
+  },
+
+  officeHell: {
+    id: "officeHell",
+    type: "splat",
+    path: "/office-hell.sog",
+    description:
+      "Hell version of office interior (morphs from interior-nan-2.sog during VIEWMASTER_HELL)",
+    position: { x: -2.36, y: 2.73, z: 84.04 },
+    rotation: { x: -0.0, y: -1.3373, z: 3.1416 },
+    scale: { x: 2.06, y: 2.06, z: 2.06 },
+    priority: 95, // Load slightly after main interior
+    envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Same environment map center as interior
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.VIEWMASTER_HELL,
       },
     },
   },
@@ -264,11 +283,29 @@ export const sceneObjects = {
     ],
   },
 
+  doors: {
+    id: "doors",
+    type: "gltf",
+    path: "/gltf/Basement_Door.glb",
+    description: "Doors GLTF model",
+    position: { x: 6.34, y: 2.04, z: 78.1 },
+    rotation: { x: -3.1416, y: 1.1453, z: -3.1416 },
+    scale: { x: 0.28, y: 0.29, z: 0.38 },
+    options: {
+      useContainer: true,
+    },
+    criteria: {
+      currentState: {
+        $lte: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+    priority: 100,
+  },
+
   splatCar50k: {
     id: "splatCar50k",
     type: "splat",
     path: "/car-test-50k.sog",
-    gizmo: true,
     description: "Car test splat - positioned at origin for testing",
     position: { x: 9.15, y: 0.59, z: 35.16 },
     rotation: { x: 2.8129, y: -1.1301, z: -0.2943 },

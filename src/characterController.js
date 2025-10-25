@@ -508,11 +508,11 @@ class CharacterController {
         // Calculate yaw (horizontal rotation) - negate because camera faces -Z
         const yaw = Math.atan2(-direction.x, -direction.z);
 
-        // Calculate pitch (vertical rotation)
+        // Calculate pitch (vertical rotation) - negate to match camera convention
         const horizontalDistance = Math.sqrt(
           direction.x * direction.x + direction.z * direction.z
         );
-        const pitch = Math.atan2(direction.y, horizontalDistance);
+        const pitch = -Math.atan2(direction.y, horizontalDistance);
 
         targetRotation = { yaw, pitch };
 

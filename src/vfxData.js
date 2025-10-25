@@ -5,10 +5,11 @@
  * Each VFX type has its own section with effect definitions.
  *
  * Structure:
- * - Each effect has: id, parameters, criteria, priority
+ * - Each effect has: id, parameters, criteria, priority, delay (optional)
  * - parameters: VFX-specific settings (opacity, color, speed, etc.)
  * - criteria: Game state conditions using the criteria helper
  * - priority: Higher priority effects override lower ones
+ * - delay: Optional delay in seconds before applying effect after criteria is met
  *
  * Usage:
  * import { getVfxEffectForState } from './vfxData.js';
@@ -66,10 +67,11 @@ export const desaturationEffects = {
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.VIEWMASTER_COLOR,
+        $gte: GAME_STATES.VIEWMASTER,
       },
     },
     priority: 20,
+    delay: 3.0, // Wait 2 seconds after criteria is met before applying
   },
 };
 
@@ -129,12 +131,63 @@ export const titleSequenceEffects = {
 };
 
 /**
+ * Splat Fractal Effect
+ * Applies shader-based fractal effects to splat meshes
+ */
+export const splatFractalEffects = {
+  // Apply waves effect to BOTH interior and office-hell during VIEWMASTER_HELL
+  // Ramps from 0 to 0.8 intensity over 4 seconds
+  hellWaves: {
+    id: "hellWaves",
+    parameters: {
+      effectType: "waves",
+      intensity: 0.8,
+      rampDuration: 4.0, // Ramp up over 4 seconds before morph
+      targetMeshIds: ["interior", "officeHell"], // Apply to both splats
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.VIEWMASTER_HELL,
+      },
+    },
+    priority: 10,
+  },
+};
+
+/**
+ * Splat Morph Effect
+ * Controls morphing transition between two splat scenes
+ */
+export const splatMorphEffects = {
+  // Trigger the morph transition during VIEWMASTER_HELL state
+  hellTransition: {
+    id: "hellTransition",
+    parameters: {
+      speedMultiplier: 1.0,
+      staySeconds: 4, // How long to stay on current splat before transitioning
+      transitionSeconds: 4.0, // Duration of the morph transition
+      randomRadius: 8.0, // Radius of scatter cloud (about the size of the office room)
+      scatterCenter: { x: -5.14, y: 3.05, z: 84.66 }, // Center point of scatter cloud
+      trigger: "start", // Start the transition
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.VIEWMASTER_HELL,
+      },
+    },
+    priority: 10,
+  },
+};
+
+/**
  * All VFX effects organized by type
  */
 export const vfxEffects = {
   desaturation: desaturationEffects,
   cloudParticles: cloudParticleEffects,
   titleSequence: titleSequenceEffects,
+  splatFractal: splatFractalEffects,
+  splatMorph: splatMorphEffects,
 };
 
 /**
@@ -165,6 +218,14 @@ export function getCloudParticleEffectForState(gameState) {
 
 export function getTitleSequenceEffectForState(gameState) {
   return getVfxEffectForState("titleSequence", gameState);
+}
+
+export function getSplatFractalEffectForState(gameState) {
+  return getVfxEffectForState("splatFractal", gameState);
+}
+
+export function getSplatMorphEffectForState(gameState) {
+  return getVfxEffectForState("splatMorph", gameState);
 }
 
 export default vfxEffects;

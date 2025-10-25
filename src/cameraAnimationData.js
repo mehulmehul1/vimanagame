@@ -95,6 +95,7 @@
  *
  * For type "objectAnimation":
  * - targetObjectId: ID of the scene object from sceneData.js to animate
+ * - childMeshName: Optional name of child mesh to animate (if not specified, animates root object)
  * - duration: Animation duration in seconds (default: 1.0)
  * - properties: Object containing properties to animate
  *   - position: { from: {x, y, z}, to: {x, y, z} } or { to: [{x, y, z}, {x, y, z}, ...] } - Animate position (optional)
@@ -110,6 +111,9 @@
  * - loop: If true, continuously loop the animation (default: false)
  * - yoyo: If true, reverse animation on alternate loops (requires loop: true) (default: false)
  * - reparentToCamera: If true, reparent object to camera before animating (default: false)
+ * - reverseOnCriteria: Optional criteria object - when matched, animation reverses direction
+ *   - Uses same criteria format as main criteria (simple equality or comparison operators)
+ *   - Example: { currentState: GAME_STATES.NEXT_STATE } to reverse when entering next state
  * - onComplete: Optional callback when animation completes. Receives gameManager as parameter.
  *   Example: onComplete: (gameManager) => { gameManager.setState({...}); }
  *
@@ -357,7 +361,7 @@ export const cameraAnimations = {
     id: "viewmasterMoveTo",
     type: "moveTo",
     description: "Move character near Viewmaster and look down at it",
-    position: { x: -5.14, y: 3.05, z: 84.66 },
+    position: { x: -5.14, y: 2.15, z: 84.66 },
     lookat: sceneObjects.viewmaster.position, // Look at viewmaster (below eye level)
     transitionTime: 1.5,
     autoHeight: true, // Automatically calculate Y based on floor at X/Z
@@ -398,10 +402,6 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.VIEWMASTER },
     priority: 100,
     playOnce: true,
-
-    onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
-    },
   },
 
   shoulderTap: {
@@ -415,6 +415,46 @@ export const cameraAnimations = {
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PUNCH_OUT });
     },
+  },
+
+  doorsOpenLeft: {
+    id: "doorsOpenLeft",
+    type: "objectAnimation",
+    description: "Open left door by rotating 120 degrees on Y axis",
+    targetObjectId: "doors",
+    childMeshName: "Big_Door_L",
+    duration: 3.0,
+    properties: {
+      rotation: {
+        to: { y: (Math.PI * 2) / 3 }, // 120 degrees on Y only (preserves X and Z)
+      },
+    },
+    easing: "easeInOutQuad",
+    criteria: { currentState: GAME_STATES.POST_DRIVE_BY },
+    reverseOnCriteria: { currentState: GAME_STATES.ENTERING_OFFICE }, // Close doors when entering office
+    priority: 50,
+    playOnce: true,
+    delay: 6.25,
+  },
+
+  doorsOpenRight: {
+    id: "doorsOpenRight",
+    type: "objectAnimation",
+    description: "Open right door by rotating 120 degrees on Y axis",
+    targetObjectId: "doors",
+    childMeshName: "Big_Door_R",
+    duration: 3.0,
+    properties: {
+      rotation: {
+        to: { y: (Math.PI * 2) / 3 }, // 120 degrees on Y only (preserves X and Z)
+      },
+    },
+    easing: "easeInOutQuad",
+    criteria: { currentState: GAME_STATES.POST_DRIVE_BY },
+    reverseOnCriteria: { currentState: GAME_STATES.ENTERING_OFFICE }, // Close doors when entering office
+    priority: 50,
+    playOnce: true,
+    delay: 6.25,
   },
 
   punchOut: {

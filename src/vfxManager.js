@@ -16,6 +16,7 @@ import { Logger } from "./utils/logger.js";
  *        parameters: { ... }, // Your VFX-specific parameters
  *        criteria: { currentState: { $gte: GAME_STATES.INTRO } },
  *        priority: 10,
+ *        delay: 2.0, // Optional: delay in seconds before applying effect
  *      },
  *    };
  *
@@ -57,6 +58,8 @@ export class VFXManager {
     this.logger = new Logger(loggerName, debugMode);
     this._getEffectForState = null;
     this._hasEverBeenEnabled = false; // Track if VFX has ever been activated
+    this._pendingEffect = null; // Effect waiting for delay
+    this._delayTimeout = null; // Timeout for delayed effects
   }
 
   /**
@@ -119,6 +122,9 @@ export class VFXManager {
 
     // If no effect matches
     if (!effect) {
+      // Cancel any pending delayed effect
+      this._cancelDelayedEffect();
+
       // Only call onNoEffect if we've previously been enabled
       if (this._hasEverBeenEnabled) {
         this.logger.log("No effect matches current state - disabling");
@@ -137,21 +143,59 @@ export class VFXManager {
       this.onFirstEnable(effect, state);
     }
 
-    // Skip if this is the same effect already applied (unless you want to re-apply)
-    if (
-      this.currentEffectId === effect.id &&
-      !this.shouldReapplyEffect(effect)
-    ) {
+    // Skip if this is the same effect already applied or pending (unless you want to re-apply)
+    const isSameEffect =
+      this.currentEffectId === effect.id ||
+      (this._pendingEffect && this._pendingEffect.id === effect.id);
+
+    if (isSameEffect && !this.shouldReapplyEffect(effect)) {
       return;
     }
 
-    this.logger.log(`Applying effect: ${effect.id}`, effect);
+    // If a different effect is now matching, cancel any pending delayed effect
+    if (this._pendingEffect && this._pendingEffect.id !== effect.id) {
+      this._cancelDelayedEffect();
+    }
 
-    // Store current effect ID
-    this.currentEffectId = effect.id;
+    // Check if effect has a delay
+    const delay = effect.delay || 0;
 
-    // Call hook to apply effect
-    this.applyEffect(effect, state);
+    if (delay > 0) {
+      // Effect should be delayed
+      this.logger.log(
+        `Effect ${effect.id} will be applied in ${delay} seconds`
+      );
+      this._pendingEffect = effect;
+
+      // Set timeout to apply effect after delay
+      this._delayTimeout = setTimeout(() => {
+        this.logger.log(`Applying delayed effect: ${effect.id}`, effect);
+        this.currentEffectId = effect.id;
+        this._pendingEffect = null;
+        this._delayTimeout = null;
+        this.applyEffect(effect, state);
+      }, delay * 1000);
+    } else {
+      // No delay, apply immediately
+      this.logger.log(`Applying effect: ${effect.id}`, effect);
+      this.currentEffectId = effect.id;
+      this.applyEffect(effect, state);
+    }
+  }
+
+  /**
+   * Cancel any pending delayed effect
+   * @private
+   */
+  _cancelDelayedEffect() {
+    if (this._delayTimeout) {
+      clearTimeout(this._delayTimeout);
+      this._delayTimeout = null;
+      if (this._pendingEffect) {
+        this.logger.log(`Cancelled delayed effect: ${this._pendingEffect.id}`);
+      }
+      this._pendingEffect = null;
+    }
   }
 
   /**
@@ -247,7 +291,7 @@ export function findMatchingEffect(effects, gameState, checkCriteria) {
  *
  * Usage in main.js:
  *   const vfxManager = new VFXSystemManager(scene, camera, renderer, loadingScreen);
- *   await vfxManager.initialize();
+ *   await vfxManager.initialize(sceneManager); // Pass sceneManager for splatMorph
  *   vfxManager.setGameManager(gameManager);
  *   vfxManager.update(deltaTime);
  *   vfxManager.render(scene, camera);
@@ -268,8 +312,9 @@ export class VFXSystemManager {
 
   /**
    * Initialize all VFX effects
+   * @param {Object} sceneManager - SceneManager instance (required for splatMorph)
    */
-  async initialize() {
+  async initialize(sceneManager = null) {
     // Register loading task
     if (this.loadingScreen) {
       this.loadingScreen.registerTask("vfx-system", 1);
@@ -285,6 +330,10 @@ export class VFXSystemManager {
       const { createCloudParticlesShader } = await import(
         "./vfx/cloudParticlesShader.js"
       );
+      const { SplatFractalEffect } = await import(
+        "./vfx/splatFractalEffect.js"
+      );
+      const { SplatMorphEffect } = await import("./vfx/splatMorph.js");
 
       // Create desaturation post-processing effect
       this.logger.log("Creating DesaturationEffect...");
@@ -298,6 +347,30 @@ export class VFXSystemManager {
         this.camera
       );
       this.logger.log("✅ CloudParticles created");
+
+      // Create splat fractal effect (requires sceneManager)
+      if (sceneManager) {
+        this.logger.log("Creating SplatFractalEffect...");
+        this.effects.splatFractal = new SplatFractalEffect(
+          this.scene,
+          sceneManager
+        );
+        this.logger.log("✅ SplatFractalEffect created");
+      }
+
+      // Create splat morph effect (requires sceneManager)
+      if (sceneManager) {
+        this.logger.log("Creating SplatMorphEffect...");
+        this.effects.splatMorph = new SplatMorphEffect(
+          this.scene,
+          sceneManager
+        );
+        this.logger.log("✅ SplatMorphEffect created");
+      } else {
+        this.logger.warn(
+          "⚠️ SceneManager not provided - Splat effects not initialized"
+        );
+      }
 
       this.logger.log("VFX effects initialized:", Object.keys(this.effects));
 
@@ -327,6 +400,14 @@ export class VFXSystemManager {
       this.effects.cloudParticles.setGameManager(gameManager, "cloudParticles");
     }
 
+    if (this.effects.splatFractal) {
+      this.effects.splatFractal.setGameManager(gameManager, "splatFractal");
+    }
+
+    if (this.effects.splatMorph) {
+      this.effects.splatMorph.setGameManager(gameManager, "splatMorph");
+    }
+
     this.logger.log("All VFX effects connected to game manager");
   }
 
@@ -341,6 +422,14 @@ export class VFXSystemManager {
 
     if (this.effects.cloudParticles) {
       this.effects.cloudParticles.update(deltaTime);
+    }
+
+    if (this.effects.splatFractal) {
+      this.effects.splatFractal.update(deltaTime);
+    }
+
+    if (this.effects.splatMorph) {
+      this.effects.splatMorph.update(deltaTime);
     }
   }
 

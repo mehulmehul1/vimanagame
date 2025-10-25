@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { getCameraAnimationsForState } from "./cameraAnimationData.js";
 import { Logger } from "./utils/logger.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 
 /**
  * CameraAnimationManager - Manages playback of recorded camera animations
@@ -865,12 +866,36 @@ class CameraAnimationManager {
     }
 
     // Get target object from scene
-    const targetObject = this.sceneManager.getObject(animData.targetObjectId);
+    let targetObject = this.sceneManager.getObject(animData.targetObjectId);
     if (!targetObject) {
       this.logger.warn(
         `Cannot play objectAnimation '${animData.id}', object '${animData.targetObjectId}' not found`
       );
       return;
+    }
+
+    // If childMeshName is specified, find that child mesh
+    if (animData.childMeshName) {
+      let childMesh = null;
+      targetObject.traverse((child) => {
+        if (child.name === animData.childMeshName) {
+          childMesh = child;
+        }
+      });
+
+      if (!childMesh) {
+        this.logger.warn(
+          `Cannot play objectAnimation '${animData.id}', child mesh '${animData.childMeshName}' not found in '${animData.targetObjectId}'`
+        );
+        return;
+      }
+
+      targetObject = childMesh;
+      if (this.debug) {
+        this.logger.log(
+          `Found child mesh '${animData.childMeshName}' in '${animData.targetObjectId}'`
+        );
+      }
     }
 
     // Parse properties and set up animation state
@@ -935,8 +960,9 @@ class CameraAnimationManager {
       targetObject,
       elapsed: 0,
       duration,
-      direction: 1, // 1 for forward, -1 for reverse (yoyo)
+      direction: 1, // 1 for forward, -1 for reverse (yoyo or reverseOnCriteria)
       loopCount: 0,
+      hasReversed: false, // Track if reverseOnCriteria has triggered
       properties: this._parseObjectAnimationProperties(
         targetObject,
         properties,
@@ -1066,10 +1092,16 @@ class CameraAnimationManager {
             isKeyframes: true,
           };
         } else {
+          // Allow partial rotation specs - preserve axes not specified in "to"
           const toValue = to || from;
+          const toWithDefaults = {
+            x: toValue.x !== undefined ? toValue.x : from.x,
+            y: toValue.y !== undefined ? toValue.y : from.y,
+            z: toValue.z !== undefined ? toValue.z : from.z,
+          };
           parsed.rotation = {
             from,
-            to: toValue,
+            to: toWithDefaults,
             useQuaternion: false,
             isKeyframes: false,
           };
@@ -1707,8 +1739,32 @@ class CameraAnimationManager {
         const { animData, targetObject, duration, direction, properties } =
           animState;
 
+        // Check if we should reverse based on criteria
+        if (
+          animData.reverseOnCriteria &&
+          !animState.hasReversed &&
+          this.gameManager
+        ) {
+          const currentState = this.gameManager.getState();
+          const shouldReverse = checkCriteria(
+            currentState,
+            animData.reverseOnCriteria
+          );
+
+          if (shouldReverse && animState.direction === 1) {
+            // Reverse the animation direction
+            animState.direction = -1;
+            animState.hasReversed = true;
+            if (this.debug) {
+              this.logger.log(
+                `Reversing objectAnimation '${animId}' due to criteria match`
+              );
+            }
+          }
+        }
+
         // Update elapsed time
-        animState.elapsed += dt * direction;
+        animState.elapsed += dt * animState.direction;
 
         // Calculate normalized time (0-1)
         let t = Math.max(0, Math.min(1, animState.elapsed / duration));

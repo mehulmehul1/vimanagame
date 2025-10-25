@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { VFXManager } from "../vfxManager.js";
+import { ProceduralAudio } from "./proceduralAudio.js";
 
 /**
  * DesaturationEffect - Post-processing shader for animating color to grayscale
@@ -29,6 +30,38 @@ export class DesaturationEffect extends VFXManager {
     this.wipeSoftness = 0.002; // Very sharp line for hard wipe
     this.bleedScale = 3; // Scale of noise pattern
     this.bleedSoftness = 0.2; // Softness of bleed edges
+
+    // Audio control
+    this.enableAudio = false; // Set to true to enable procedural audio
+
+    // Procedural audio (lower volume than splat morph)
+    this.audio = new ProceduralAudio({
+      name: "DesaturationAudio",
+      baseFrequency: 155.56, // Eb3
+      volume: 0.1, // Quieter for more subtlety
+      baseOscType: "sine", // Pure sine for smooth tone
+      subOscType: "sine", // Pure sine sub for warmth
+      modOscType: "triangle", // Triangle wave for softer harmonics
+      filterType: "lowpass",
+      filterFreq: 2000, // Sweet spot for warmth
+      filterQ: 1.2, // Low Q = gentle, non-resonant
+      distortionAmount: 3, // Minimal distortion = cleaner
+      delayTime: 0.25, // Longer = more spacious/reverb-like
+      delayFeedback: 0.2, // Moderate feedback
+      lfoFreq: 0.4, // Slow, gentle modulation
+      lfoDepth: 15, // Subtle depth
+      fadeInTime: 0, // Gentle fade in
+      fadeOutTime: 1.0, // Long fade out
+      fadeInCurve: "exponential", // Natural-sounding fade
+      fadeOutCurve: "exponential", // Natural-sounding fade
+      // Radio tuning sweep effect (high-frequency oscillating)
+      enableSweep: true,
+      sweepBaseFreq: 3500, // High frequency center
+      sweepRange: 1200, // Sweep range in Hz
+      sweepRate: 3.0, // 3 sweeps per second
+      sweepGain: 0.2, // Sweep volume multiplier
+    });
+    this.lastProgress = 0;
 
     // Create desaturation shader
     this.shader = {
@@ -205,11 +238,20 @@ export class DesaturationEffect extends VFXManager {
    * @param {Object} effect - Effect data from vfxData.js
    * @param {Object} state - Current game state
    */
-  onFirstEnable(effect, state) {
+  async onFirstEnable(effect, state) {
     this.logger.log("Enabling desaturation effect for first time");
     this.enable(true);
+    // Initialize audio if enabled
+    if (this.enableAudio) {
+      await this.audio.initialize();
+    }
     // Apply the initial effect
     this.applyEffect(effect, state);
+
+    // Start audio if we're in color mode (progress < 0.5)
+    if (this.enableAudio && this.currentState < 0.5 && !this.audio.isPlaying) {
+      this.audio.start();
+    }
   }
 
   /**
@@ -240,6 +282,10 @@ export class DesaturationEffect extends VFXManager {
    */
   onNoEffect(state) {
     this.logger.log("No desaturation effect needed - disabling");
+    // Stop audio when effect is disabled
+    if (this.enableAudio && this.audio.isPlaying) {
+      this.audio.stop();
+    }
     // Optionally fade to color before disabling
     // this.animateTo(0.0, { mode: "fade", duration: 1.0 });
     // For now, just keep last state but could disable if desired
@@ -253,6 +299,15 @@ export class DesaturationEffect extends VFXManager {
     this.progress = THREE.MathUtils.clamp(amount, 0, 1);
     this.currentState = this.progress;
     this.animating = false;
+
+    // Update audio state: on when in color (< 0.5), off when grayscale (>= 0.5)
+    if (this.enableAudio) {
+      if (this.currentState < 0.5 && !this.audio.isPlaying) {
+        this.audio.start();
+      } else if (this.currentState >= 0.5 && this.audio.isPlaying) {
+        this.audio.stop();
+      }
+    }
   }
 
   /**
@@ -273,6 +328,20 @@ export class DesaturationEffect extends VFXManager {
     this.animationTarget = THREE.MathUtils.clamp(targetAmount, 0, 1);
     this.animationSpeed = 1.0 / this.animationDuration;
     this.animating = true;
+
+    // Audio logic: sound is on when in color (progress close to 0)
+    if (this.enableAudio) {
+      // Start audio if we're in or transitioning to color
+      if (targetAmount < 0.5 && !this.audio.isPlaying) {
+        this.audio.start();
+      }
+      // Also start if currently in color and animating
+      if (this.currentState < 0.5 && !this.audio.isPlaying) {
+        this.audio.start();
+      }
+    }
+
+    this.lastProgress = this.progress;
 
     // Configure transition mode (default to noise-based bleed)
     const mode = options.mode || "bleed";
@@ -332,7 +401,18 @@ export class DesaturationEffect extends VFXManager {
    * @param {number} deltaTime - Time since last frame in seconds
    */
   update(deltaTime) {
-    if (!this.animating) return;
+    if (!this.animating) {
+      // Even when not animating, manage audio state based on current progress
+      // Audio should be on when in color (progress close to 0)
+      if (this.enableAudio) {
+        if (this.currentState < 0.5 && !this.audio.isPlaying) {
+          this.audio.start();
+        } else if (this.currentState >= 0.5 && this.audio.isPlaying) {
+          this.audio.stop();
+        }
+      }
+      return;
+    }
 
     // Move toward target
     const distance = this.animationTarget - this.progress;
@@ -345,6 +425,17 @@ export class DesaturationEffect extends VFXManager {
 
       // Update current state when animation completes
       this.currentState = this.animationTarget;
+
+      // Stop audio if we've reached grayscale (progress >= 0.5)
+      if (this.enableAudio) {
+        if (this.animationTarget >= 0.5 && this.audio.isPlaying) {
+          this.audio.stop();
+        }
+        // Start audio if we've reached color (progress < 0.5)
+        else if (this.animationTarget < 0.5 && !this.audio.isPlaying) {
+          this.audio.start();
+        }
+      }
     } else {
       // Continue animating
       this.progress += step;
@@ -352,6 +443,11 @@ export class DesaturationEffect extends VFXManager {
       // For non-wipe modes, update currentState with progress
       if (this.transitionMode !== "wipe") {
         this.currentState = this.progress;
+      }
+
+      // Update audio parameters based on progress and velocity
+      if (this.enableAudio) {
+        this._updateAudio(deltaTime);
       }
     }
 
@@ -363,6 +459,71 @@ export class DesaturationEffect extends VFXManager {
       this.postMaterial.uniforms.goingToGray.value = goingToGray ? 1.0 : 0.0;
       this.postMaterial.uniforms.wipeFromTop.value = goingToGray ? 0.0 : 1.0;
     }
+  }
+
+  /**
+   * Update audio parameters based on desaturation progress
+   * @private
+   */
+  _updateAudio(deltaTime) {
+    // Calculate velocity (rate of change of progress)
+    const velocity =
+      Math.abs(this.progress - this.lastProgress) / Math.max(deltaTime, 0.001);
+    // Normalize to roughly 0-1 range
+    const normalizedVelocity = Math.min(velocity * 2, 1);
+
+    // Map progress to filter frequency
+    // More color (progress close to 0): higher frequency (brighter)
+    // More grayscale (progress close to 1): lower frequency (darker)
+    const minFreq = 300;
+    const maxFreq = 4000;
+    const targetFilterFreq = maxFreq - (maxFreq - minFreq) * this.progress;
+
+    // Map velocity to filter resonance (faster = more resonant)
+    const minQ = 2;
+    const maxQ = 10;
+    const targetQ = minQ + (maxQ - minQ) * normalizedVelocity;
+
+    // Map velocity to pitch (subtle pitch variation with speed)
+    const pitchMultiplier = 1.0 + normalizedVelocity * 0.2;
+
+    // Map progress to stereo pan (slow sweep)
+    const panAmount = Math.sin(this.progress * Math.PI) * 0.5;
+
+    // Volume inversely related to progress (high when color, low when grayscale)
+    // Full color (progress = 0): max volume
+    // Full grayscale (progress = 1): silent
+    const colorAmount = 1.0 - this.progress; // 1 when color, 0 when grayscale
+    const minVolume = 0.0;
+    const maxVolume = this.audio.config.volume;
+
+    // Base volume uses a gentle squared curve
+    const baseCurve = colorAmount * colorAmount;
+    let baseVolume = minVolume + (maxVolume - minVolume) * baseCurve;
+
+    // Add a LARGE boost during active transitions (high velocity)
+    // This makes the audio immediately perceptible when transition starts
+    const velocityBoost = normalizedVelocity * maxVolume * 0.8; // Up to 80% boost
+
+    // Combine base volume with velocity boost, but cap at max
+    const targetVolume = Math.min(baseVolume + velocityBoost, maxVolume * 1.2);
+
+    // Sweep amount increases as desaturation increases (radio tuning effect)
+    // More grayscale = more sweep. Use squared curve for smooth ramp
+    const desatAmount = this.progress; // 0 = color, 1 = grayscale
+    const sweepAmount = desatAmount * desatAmount; // Squared for smooth buildup
+
+    this.audio.updateParams({
+      filterFreq: targetFilterFreq,
+      filterQ: targetQ,
+      pitchMultiplier,
+      pan: panAmount,
+      volume: targetVolume,
+      sweepAmount: sweepAmount, // Control radio tuning sweep
+      transitionTime: 0.1,
+    });
+
+    this.lastProgress = this.progress;
   }
 
   /**
@@ -415,6 +576,10 @@ export class DesaturationEffect extends VFXManager {
   dispose() {
     this.renderTarget.dispose();
     this.postMaterial.dispose();
+    if (this.enableAudio && this.audio) {
+      this.audio.dispose();
+      this.audio = null;
+    }
   }
 }
 

@@ -122,7 +122,7 @@ logger.log("✅ LightManager created");
 // Pass loadingScreen for progress tracking
 const vfxManager = new VFXSystemManager(scene, camera, renderer, loadingScreen);
 try {
-  await vfxManager.initialize();
+  await vfxManager.initialize(sceneManager); // Pass sceneManager for splatMorph effect
   logger.log("✅ VFX Manager initialized");
 } catch (error) {
   logger.error("❌ Failed to initialize VFX Manager:", error);

@@ -285,6 +285,18 @@ export const sfxSounds = {
     delay: 1.5,
   },
 
+  "view-master-warp": {
+    id: "view-master-warp",
+    src: ["/audio/sfx/view-master-warp.mp3"],
+    volume: 0.5,
+    loop: false,
+    spatial: false,
+    preload: true,
+    criteria: { currentState: GAME_STATES.VIEWMASTER },
+    playOnce: true,
+    delay: 2.0,
+  },
+
   // Radio audio (3D spatial audio with reactive light)
   radio: {
     id: "radio",
