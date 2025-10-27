@@ -40,6 +40,9 @@ export class SplatFractalEffect extends VFXManager {
     this.rampStartTime = 0;
     this.rampDuration = 0;
     this.isRamping = false;
+    this.rampOutDuration = 0;
+    this.isRampingOut = false;
+    this.rampOutStartIntensity = 0;
 
     // Effect type mapping
     this.effectTypeMap = {
@@ -354,10 +357,18 @@ export class SplatFractalEffect extends VFXManager {
       params.intensity !== undefined ? params.intensity : 0.8;
     const rampDuration =
       params.rampDuration !== undefined ? params.rampDuration : 0;
+    const rampOutDuration =
+      params.rampOutDuration !== undefined ? params.rampOutDuration : 0;
 
     this.logger.log(
-      `Applying fractal effect: ${params.effectType} (type=${effectType}), target intensity=${targetIntensity}, ramp=${rampDuration}s`
+      `Applying fractal effect: ${params.effectType} (type=${effectType}), target intensity=${targetIntensity}, ramp=${rampDuration}s, rampOut=${rampOutDuration}s`
     );
+
+    // Store ramp-out duration for when effect ends
+    this.rampOutDuration = rampOutDuration;
+
+    // Cancel any ongoing ramp-out
+    this.isRampingOut = false;
 
     // Setup intensity ramping
     if (rampDuration > 0) {
@@ -396,14 +407,26 @@ export class SplatFractalEffect extends VFXManager {
       this.audio.stop();
     }
 
-    // Remove modifiers from meshes
-    this.targetMeshes.forEach((mesh) => {
-      if (mesh.objectModifier) {
-        mesh.objectModifier = null;
-        mesh.updateGenerator();
-      }
-    });
-    this.logger.log("No effect - removed fractal modifiers");
+    // If we have a ramp-out duration, start ramping out
+    if (this.rampOutDuration > 0 && this.currentIntensity > 0) {
+      this.isRamping = false;
+      this.isRampingOut = true;
+      this.rampStartTime = this.animateT.value;
+      this.rampOutStartIntensity = this.currentIntensity;
+      this.targetIntensity = 0;
+      this.logger.log(
+        `Starting ramp-out from ${this.currentIntensity} to 0 over ${this.rampOutDuration}s`
+      );
+    } else {
+      // No ramp-out, remove modifiers immediately
+      this.targetMeshes.forEach((mesh) => {
+        if (mesh.objectModifier) {
+          mesh.objectModifier = null;
+          mesh.updateGenerator();
+        }
+      });
+      this.logger.log("No effect - removed fractal modifiers immediately");
+    }
   }
 
   /**
@@ -416,7 +439,7 @@ export class SplatFractalEffect extends VFXManager {
     // Update animation time
     this.animateT.value += dt;
 
-    // Handle intensity ramping
+    // Handle intensity ramping (ramp in)
     if (this.isRamping) {
       const elapsed = this.animateT.value - this.rampStartTime;
       const progress = Math.min(elapsed / this.rampDuration, 1.0);
@@ -449,6 +472,42 @@ export class SplatFractalEffect extends VFXManager {
 
       // Sync audio with visual intensity ramp
       this._updateAudio(easedProgress);
+    }
+
+    // Handle intensity ramping out
+    if (this.isRampingOut) {
+      const elapsed = this.animateT.value - this.rampStartTime;
+      const progress = Math.min(elapsed / this.rampOutDuration, 1.0);
+
+      // Smooth easing function (same as ramp in)
+      const easedProgress = progress * progress * (3 - 2 * progress);
+
+      // Ramp from start intensity to 0
+      this.currentIntensity =
+        this.rampOutStartIntensity * (1.0 - easedProgress);
+
+      // Update modifiers with new intensity
+      const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
+      this.targetMeshes.forEach((mesh) => {
+        mesh.objectModifier = this._getFractalModifier(
+          effectType,
+          this.currentIntensity
+        );
+        mesh.updateGenerator();
+      });
+
+      // When ramp-out complete, remove modifiers
+      if (progress >= 1.0) {
+        this.isRampingOut = false;
+        this.currentIntensity = 0;
+        this.targetMeshes.forEach((mesh) => {
+          if (mesh.objectModifier) {
+            mesh.objectModifier = null;
+            mesh.updateGenerator();
+          }
+        });
+        this.logger.log("Ramp-out complete - removed fractal modifiers");
+      }
     }
 
     // Update all target meshes

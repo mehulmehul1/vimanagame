@@ -275,6 +275,7 @@ export class DesaturationEffect extends VFXManager {
       direction: params.direction || params.wipeDirection || "bottom-to-top",
       softness:
         params.softness !== undefined ? params.softness : params.wipeSoftness,
+      suppressAudio: params.suppressAudio || false,
     };
 
     this.animateTo(params.target, options);
@@ -331,7 +332,7 @@ export class DesaturationEffect extends VFXManager {
     this.animating = true;
 
     // Audio logic: sound is on when in color (progress close to 0)
-    if (this.enableAudio) {
+    if (this.enableAudio && !options.suppressAudio) {
       // Start audio if we're in or transitioning to color
       if (targetAmount < 0.5 && !this.audio.isPlaying) {
         this.audio.start();

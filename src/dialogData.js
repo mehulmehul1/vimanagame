@@ -17,8 +17,14 @@
  * - priority: Higher priority dialogs are checked first (default: 0)
  * - autoPlay: If true, automatically play when conditions are met (default: false)
  * - delay: Delay in seconds before playing after state conditions are met (default: 0)
+ * - playNext: Chain to another dialog after this one completes
+ *   - Can be a dialog object (e.g., dialogTracks.nextDialog) or string ID (e.g., "nextDialog")
+ *   - Allows creating dialog sequences without requiring game state changes between lines
+ *   - The chained dialog's delay property is respected if specified
+ *   - Example: playNext: dialogTracks.continueConversation
  * - onComplete: Optional function called when dialog completes, receives gameManager
  *   - Example: (gameManager) => gameManager.setState({ currentState: GAME_STATES.NEXT_STATE })
+ *   - Note: When using playNext, onComplete is called before moving to the next dialog
  *
  * Note: For multiple choice dialogs, see dialogChoiceData.js
  *
@@ -35,7 +41,7 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 export const dialogTracks = {
   intro: {
     id: "intro",
-    audio: "./audio/dialog/00-on-her-trail.mp3",
+    audio: "./audio/dialog/cole-on-her-trail.mp3",
     preload: true,
     captions: [
       { text: "I'd been on her trail for weeks.", duration: 2.0 },
@@ -106,7 +112,7 @@ export const dialogTracks = {
   // Dialog that plays when phone starts ringing
   okayICanTakeAHint: {
     id: "okayICanTakeAHint",
-    audio: "./audio/dialog/01-okay-i-can-take-a-hint.mp3",
+    audio: "./audio/dialog/cole-okay-i-can-take-a-hint.mp3",
     preload: false, // Load after loading screen
     captions: [{ text: "Okay, I can take a hint.", duration: 2.0 }],
     criteria: { currentState: GAME_STATES.PHONE_BOOTH_RINGING },
@@ -119,7 +125,7 @@ export const dialogTracks = {
   // Dialog that triggers first choice moment
   bonsoir: {
     id: "bonsoir",
-    audio: "./audio/dialog/02-bonsoir.mp3",
+    audio: "./audio/dialog/leclaire-bonsoir.mp3",
     preload: false, // Load after loading screen
     captions: [
       { text: "Bonsoir...", duration: 1.5 },
@@ -387,7 +393,7 @@ export const dialogTracks = {
     captions: [
       { text: "But I don't...", duration: 3.0 },
       { text: "Ah...", duration: 2.75 },
-      { text: "Gee, this... this is...", duration: 2.5 },
+      { text: "Gee, this... this is...", duration: 2.75 },
       { text: "This is really something!", duration: 3.0 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER },
@@ -406,14 +412,13 @@ export const dialogTracks = {
       { text: "It is beautiful, non?", duration: 2.0 },
       { text: "And yet they can control your perception.", duration: 3.25 },
       { text: "Observe.", duration: 1.5 },
-      { text: "", duration: 3.0 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER_COLOR },
     once: true,
     autoPlay: true,
     delay: 0.5,
     onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_HELL });
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_DISSOLVE });
     },
   },
 
@@ -421,30 +426,247 @@ export const dialogTracks = {
     id: "whatTheHeck",
     audio: "./audio/dialog/cole-what-the-heck.mp3",
     captions: [{ text: "What the heck?!", duration: 1.5 }],
-    criteria: { currentState: GAME_STATES.VIEWMASTER_HELL },
+    criteria: { currentState: GAME_STATES.VIEWMASTER_DISSOLVE },
     once: true,
     autoPlay: true,
-    delay: 3.5,
+    delay: 4.5,
     onComplete: (gameManager) => {
-      //gameManager.setState({ currentState: GAME_STATES.POST_VIEWMASTER });
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_DIALOG });
     },
   },
 
-  remainHereTooLong: {
-    id: "remainHereTooLong",
-    audio: "./audio/dialog/leclaire-remain-here-too-long.mp3",
+  thatWasNothing: {
+    id: "thatWasNothing",
+    audio: "./audio/dialog/leclaire-that-was-nothing.mp3",
+    captions: [{ text: "That was nothing...", duration: 1.5 }],
+    criteria: { currentState: GAME_STATES.VIEWMASTER_DIALOG },
+    once: true,
+    autoPlay: true,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_HELL });
+    },
+  },
+
+  hachiMachi: {
+    id: "hachiMachi",
+    audio: "./audio/dialog/cole-hachi-machi.mp3",
     captions: [
-      { text: "Remain here too long", duration: 1.5 },
-      { text: "And you'll see the world only as they wish it.", duration: 3.5 },
-      { text: "Mind control!", duration: 1.75 },
-      { text: "Exactement!", duration: 1.75 },
+      { text: "Hachi machi...", duration: 2.5 },
+      { text: "", duration: 0.5 },
+      { text: "Is this real?", duration: 2.5 },
     ],
     criteria: { currentState: GAME_STATES.VIEWMASTER_HELL },
     once: true,
     autoPlay: true,
-    delay: 11.5,
+    delay: 4.0,
+    playNext: "remainHereTooLong",
+  },
+
+  remainHereTooLong: {
+    id: "remainHereTooLong",
+    audio: "./audio/dialog/leclaire-is-anything.mp3",
+    captions: [
+      { text: "Is anything?", duration: 1.5 },
+      { text: "They can make of this world a hellish place.", duration: 3.5 },
+      { text: "Remain here too long", duration: 2.5 },
+      { text: "And you'll see the world only as they wish it.", duration: 3.5 },
+      { text: "Mind control!", duration: 1.75 },
+      { text: "Exactement!", duration: 1.75 },
+    ],
+    once: true,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.POST_VIEWMASTER });
+    },
+  },
+
+  cat2DialogFriend: {
+    id: "cat2DialogFriend",
+    audio: "./audio/dialog/cole-theres-my-friend.mp3",
+    captions: [{ text: "Hey, there's my friend.", duration: 2.3 }],
+    criteria: {
+      currentState: GAME_STATES.CAT_DIALOG_CHOICE_2,
+      catDialogChoice2: DIALOG_RESPONSE_TYPES.CAT_MY_FRIEND,
+    },
+    once: true,
+    autoPlay: true,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
+    },
+  },
+
+  cat2DialogGit: {
+    id: "cat2DialogGit",
+    audio: "./audio/dialog/cole-you-again-git.mp3",
+    captions: [{ text: "You again? Git!", duration: 2.3 }],
+    criteria: {
+      currentState: GAME_STATES.CAT_DIALOG_CHOICE_2,
+      catDialogChoice2: DIALOG_RESPONSE_TYPES.CAT_GIT,
+    },
+    once: true,
+    autoPlay: true,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
+    },
+  },
+
+  whatColeFocus: {
+    id: "whatColeFocus",
+    audio: "./audio/dialog/leclaire-what-cole-focus.mp3",
+    captions: [
+      { text: "What?", duration: 1.5 },
+      { text: "Cole, focus!", duration: 1.5 },
+      { text: "This time we've got him - on the record!", duration: 3.0 },
+      { text: "Check the Edison...", duration: 1.5 },
+    ],
+    once: true,
+    autoPlay: true,
+    criteria: { currentState: GAME_STATES.PRE_EDISON },
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.EDISON });
+    },
+  },
+
+  iGetMyCorners: {
+    id: "iGetMyCorners",
+    audio: "./audio/dialog/czar-i-get-my-corners.mp3",
+    captions: [
+      { text: "I get my corners,", duration: 1.5 },
+      { text: "the drug trade,", duration: 1.5 },
+      { text: "the speakeasies,", duration: 1.5 },
+      { text: "and you get...", duration: 1.5 },
+      { text: "what you want, eh? [laughs]", duration: 2.0 },
+      { text: "", duration: 1.5 },
+      { text: "Quite.", duration: 1.5 },
+    ],
+    once: true,
+    autoPlay: true,
+    delay: 5.0,
+    criteria: { currentState: GAME_STATES.EDISON },
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.DIALOG_CHOICE_2 });
+    },
+  },
+
+  dialogChoice2Empath: {
+    id: "dialogChoice2Empath",
+    audio: "./audio/dialog/choice-2_empath_caught-red-handed.mp3",
+    preload: false,
+    captions: [{ text: "We've caught the Czar red-handed!", duration: 2.5 }],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ dialogChoice2Response: true });
+    },
+  },
+
+  dialogChoice2Psychologist: {
+    id: "dialogChoice2Psychologist",
+    audio: "./audio/dialog/choice-2_psych_cant-say-who.mp3",
+    preload: false,
+    captions: [{ text: "I can't say who's responsible yet.", duration: 2.5 }],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ dialogChoice2Response: true });
+    },
+  },
+
+  dialogChoice2Lawful: {
+    id: "dialogChoice2Lawful",
+    audio: "./audio/dialog/choice-2_lawful_some-ruse.mp3",
+    preload: false,
+    captions: [{ text: "How do I know this isn't some ruse?", duration: 2.5 }],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.LAWFUL,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 100,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ dialogChoice2Response: true });
+    },
+  },
+
+  dialogChoice2EmpathResponse: {
+    id: "dialogChoice2EmpathResponse",
+    audio: "./audio/dialog/resp-2_empath_merci-cole.mp3",
+    preload: false,
+    captions: [
+      { text: "Merci, Cole!", duration: 1.5 }
+      { text: "I knew you would help!", duration: 2.0 }],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+      dialogChoice2Response: true,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 99,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
+    },
+  },
+
+  dialogChoice2PsychologistResponse: {
+    id: "dialogChoice2PsychologistResponse",
+    audio: "./audio/dialog/resp-2_psych_youre-kidding.mp3",
+    preload: false,
+    captions: [
+      { text: "You're kidding... It’s so obvious!", duration: 3.0 },
+    ],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
+      dialogChoice2Response: true,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 99,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
+    },
+  },
+
+  dialogChoice2LawfulResponse: {
+    id: "dialogChoice2LawfulResponse",
+    audio: "./audio/dialog/resp-2_lawful_those-goons.mp3",
+    preload: false,
+    captions: [
+      {
+        text: "Those goons were going to hang this on you, dummy!",
+        duration: 2.0,
+      },
+    ],
+    criteria: {
+      currentState: GAME_STATES.DIALOG_CHOICE_2,
+      dialogChoice2: DIALOG_RESPONSE_TYPES.LAWFUL,
+      dialogChoice2Response: true,
+    },
+    once: true,
+    autoPlay: true,
+    priority: 99,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
     },
   },
 };
@@ -490,9 +712,30 @@ export function getDialogsForState(gameState, playedDialogs = new Set()) {
 
 export default dialogTracks;
 
-// { text: "I didn't paint those paintings!", duration: 2.0 },
-// { text: "And I just saved your life!", duration: 3.5 },
-// {
-//   text: "Those goons were going to hang this on you, dummy!",
-//   duration: 2.5,
+// Example: Using playNext to chain dialogs without game state changes
+//
+// petitDialogPart1: {
+//   id: "petitDialogPart1",
+//   audio: "./audio/dialog/petit-part1.mp3",
+//   captions: [{ text: "I didn't paint those paintings!", duration: 2.0 }],
+//   criteria: { currentState: GAME_STATES.SOME_STATE },
+//   once: true,
+//   autoPlay: true,
+//   playNext: "petitDialogPart2", // String ID reference
+// },
+//
+// petitDialogPart2: {
+//   id: "petitDialogPart2",
+//   audio: "./audio/dialog/petit-part2.mp3",
+//   captions: [{ text: "And I just saved your life!", duration: 3.5 }],
+//   playNext: "petitDialogPart3", // Chain multiple dialogs
+// },
+//
+// petitDialogPart3: {
+//   id: "petitDialogPart3",
+//   audio: "./audio/dialog/petit-part3.mp3",
+//   captions: [{ text: "Those goons were going to hang this on you, dummy!", duration: 2.5 }],
+//   onComplete: (gameManager) => {
+//     gameManager.setState({ currentState: GAME_STATES.NEXT_STATE });
+//   },
 // },

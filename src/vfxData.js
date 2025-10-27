@@ -80,10 +80,11 @@ export const desaturationEffects = {
     id: "postViewmasterWipe",
     parameters: {
       target: 1.0, // Full grayscale
-      duration: 3.0, // Match splatMorph hellReverseTransition
+      duration: 2.25, // Match splatMorph hellReverseTransition
       mode: "wipe",
       wipeDirection: "bottom-to-top",
       wipeSoftness: 0.15,
+      suppressAudio: true, // Don't play audio on reverse transition
     },
     criteria: {
       currentState: {
@@ -130,6 +131,7 @@ export const splatFractalEffects = {
       effectType: "waves",
       intensity: 0.8,
       rampDuration: 4.0, // Ramp up over 4 seconds before morph
+      rampOutDuration: 1.0, // Ramp down over 1 second when leaving state
       targetMeshIds: ["interior", "officeHell"], // Apply to both splats
     },
     criteria: {
@@ -176,6 +178,7 @@ export const splatMorphEffects = {
       wipeDirection: "bottom-to-top", // Wipe from bottom to top
       wipeSoftness: 0.15, // Soft edge for smooth transition
       trigger: "start",
+      suppressAudio: true, // Don't play audio on reverse transition
     },
     criteria: {
       currentState: {
@@ -207,16 +210,17 @@ export const dissolveEffects = {
       frequency: 4, // Noise frequency (0-5) - higher = more varied, less banding
       edgeWidth: 0.5, // Subtle edge width
       bloomStrength: 12.0, // Optional bloom strength (0-20)
-      particleIntensity: 0.6, // Particle brightness multiplier
+      particleIntensity: 1.0, // Particle brightness multiplier
+      enableAudio: true, // Enable wishy-washy oscillating static audio
       // Particle system parameters
       particleSize: 50.0, // Base particle size (20-100)
       particleDecimation: 5, // 1=all vertices, 10=every 10th (fewer particles)
-      particleDispersion: 4.0, // Max travel distance (2-20)
-      particleVelocitySpread: 0.15, // Velocity randomness (0.05-0.3)
+      particleDispersion: 2.0, // Max travel distance (2-20)
+      particleVelocitySpread: 0.1, // Velocity randomness (0.05-0.3)
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.VIEWMASTER_COLOR,
+        $gte: GAME_STATES.VIEWMASTER_DISSOLVE,
         $lt: GAME_STATES.POST_VIEWMASTER,
       },
     },
@@ -231,10 +235,11 @@ export const dissolveEffects = {
       progress: 15.0, // Start fully dissolved (progress > max dissolveValue)
       targetProgress: -15.0, // End fully visible (progress < min dissolveValue)
       autoAnimate: false,
-      transitionDuration: 1.5, // Match desaturation and splatMorph wipe duration
+      transitionDuration: 2.5, // Match desaturation and splatMorph wipe duration
       mode: "wipe", // Use wipe mode instead of noise
       wipeDirection: "bottom-to-top", // Match desaturation wipe
       wipeSoftness: 0.15, // Match desaturation wipe softness
+      suppressAudio: true, // Don't play audio on reverse transition
       // No particles for wipe mode
       particleSize: 0, // Disable particles
       particleDecimation: 999, // Effectively no particles

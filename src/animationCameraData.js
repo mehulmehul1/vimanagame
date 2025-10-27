@@ -141,6 +141,31 @@ export const cameraAnimations = {
     },
   },
 
+  cat2Lookat: {
+    id: "cat2Lookat",
+    type: "lookat",
+    description: "Look at cat2 video in POST_VIEWMASTER state",
+    position: videos.cat2.position,
+    transitionTime: 0.75,
+    returnToOriginalView: false,
+    enableZoom: true,
+    zoomOptions: {
+      zoomFactor: 1.8,
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.7,
+      transitionDuration: 2.0,
+      holdDuration: 2.9,
+    },
+    criteria: { currentState: GAME_STATES.POST_VIEWMASTER },
+    playOnce: true,
+    priority: 100,
+    delay: 3.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.CAT_DIALOG_CHOICE_2 });
+    },
+  },
+
   radioLookat: {
     id: "radioLookat",
     type: "lookat",
@@ -333,6 +358,23 @@ export const cameraAnimations = {
     delay: 0.25, // Wait 0.5 seconds before looking at phone booth
   },
 
+  edisonColorLookat: {
+    id: "edisonColorLookat",
+    type: "lookat",
+    description: "Look at edison phonograph during viewmaster color phase",
+    position: {
+      x: sceneObjects.edison.position.x,
+      y: sceneObjects.edison.position.y + 0.75,
+      z: sceneObjects.edison.position.z,
+    },
+    transitionTime: 1.0,
+    criteria: {
+      currentState: GAME_STATES.VIEWMASTER_DISSOLVE,
+    },
+    priority: 100,
+    playOnce: true,
+  },
+
   viewmasterMoveTo: {
     id: "viewmasterMoveTo",
     type: "moveTo",
@@ -346,6 +388,34 @@ export const cameraAnimations = {
       disableRotation: false, // Allow rotation (player can look around)
     },
     criteria: { currentState: GAME_STATES.PRE_VIEWMASTER },
+    priority: 100,
+    playOnce: true,
+  },
+
+  candlestickPhoneLookat: {
+    id: "candlestickPhoneLookat",
+    type: "lookat",
+    description: "Look at candlestick phone",
+    position: sceneObjects.candlestickPhone.position,
+    transitionTime: 1.0,
+    criteria: { currentState: GAME_STATES.PRE_EDISON },
+    priority: 100,
+    playOnce: true,
+  },
+
+  edisonMoveTo: {
+    id: "edisonMoveTo",
+    type: "moveTo",
+    description: "Move character near Edison phonograph and look at it",
+    position: { x: -5.14, y: 2.15, z: 84.66 },
+    lookat: sceneObjects.edison.position,
+    transitionTime: 1.5,
+    autoHeight: true,
+    inputControl: {
+      disableMovement: true,
+      disableRotation: false,
+    },
+    criteria: { currentState: GAME_STATES.EDISON },
     priority: 100,
     playOnce: true,
   },

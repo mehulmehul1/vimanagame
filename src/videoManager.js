@@ -72,6 +72,9 @@ class VideoManager {
       if (matchesSpawnCriteria) {
         // Video should exist - create player if it doesn't exist yet
         if (!exists) {
+          // Check if we should delay playback
+          const hasDelay = videoConfig.autoPlay && (videoConfig.delay || 0) > 0;
+
           this.playVideo(videoId); // Creates player
 
           // If we have spawnCriteria but no explicit playCriteria, schedule delayed play
@@ -148,6 +151,28 @@ class VideoManager {
                   newPlayer.video.pause();
                   newPlayer.isPlaying = false;
                 });
+            }
+          }
+          // State-based play WITH delay: pause and schedule delayed playback
+          else if (matchesPlayCriteria && hasDelay && !useTimedDelay) {
+            const newPlayer = this.videoPlayers.get(videoId);
+            if (newPlayer && newPlayer.video) {
+              // Pause the video that was just auto-played
+              newPlayer.video.pause();
+              newPlayer.video.currentTime = 0;
+              newPlayer.isPlaying = false;
+
+              // Schedule delayed playback
+              const delay = videoConfig.delay || 0;
+              const timeoutId = setTimeout(() => {
+                this.pendingDelays.delete(videoId);
+                this.playVideo(videoId);
+              }, delay * 1000);
+
+              this.pendingDelays.set(videoId, timeoutId);
+              this.logger.log(
+                `Spawned video "${videoId}" (paused), will play in ${delay}s`
+              );
             }
           }
         }

@@ -80,6 +80,58 @@ export const dialogChoices = {
     },
   },
 
+  // Second cat encounter choice
+  cat2Choice: {
+    id: "cat2Choice",
+    criteria: { currentState: GAME_STATES.CAT_DIALOG_CHOICE_2 },
+    triggerDialog: null,
+    choiceStateKey: "catDialogChoice2",
+    prompt: null,
+    choices: [
+      {
+        text: "Hey, there's my friend.",
+        responseType: DIALOG_RESPONSE_TYPES.CAT_MY_FRIEND,
+        dialog: dialogTracks.cat2DialogFriend,
+      },
+      {
+        text: "You again? Git!",
+        responseType: DIALOG_RESPONSE_TYPES.CAT_GIT,
+        dialog: dialogTracks.cat2DialogGit,
+      },
+    ],
+    onSelect: (gameManager, selectedChoice) => {
+      return {};
+    },
+  },
+
+  choice2: {
+    id: "choice2",
+    criteria: { currentState: GAME_STATES.DIALOG_CHOICE_2 },
+    triggerDialog: null,
+    choiceStateKey: "dialogChoice2",
+    prompt: null,
+    choices: [
+      {
+        text: "We've caught the Czar red-handed!",
+        responseType: DIALOG_RESPONSE_TYPES.EMPATH,
+        dialog: dialogTracks.dialogChoice2Empath,
+      },
+      {
+        text: "I can't say who's responsible yet...",
+        responseType: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
+        dialog: dialogTracks.dialogChoice2Psychologist,
+      },
+      {
+        text: "How do I know this isn't some ruse?",
+        responseType: DIALOG_RESPONSE_TYPES.LAWFUL,
+        dialog: dialogTracks.dialogChoice2Lawful,
+      },
+    ],
+    onSelect: (gameManager, selectedChoice) => {
+      return { currentState: GAME_STATES.DIALOG_CHOICE_2 };
+    },
+  },
+
   // Example: Second choice moment
   // choice2: {
   //   id: "choice2",

@@ -60,8 +60,8 @@
  *     - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  *     - If criteria matches and not playing → play it
  *     - If criteria doesn't match and playing → stop it
+ *     - Non-looping animations (loop: false) will not restart once finished
  *   - autoPlay: If true, automatically play when criteria are met
- *   - playOnce: If true, only play once per game session
  *   - timeScale: Playback speed (1.0 = normal)
  *   - removeObjectOnFinish: If true, remove parent object from scene when animation finishes
  *
@@ -232,18 +232,17 @@ export const sceneObjects = {
     },
     animations: [
       {
-        id: "phonebooth-ring", // Identifier for this animation
-        clipName: null, // null = use first animation clip from GLTF
-        loop: false, // Whether the animation should loop
+        id: "phonebooth-ring",
+        clipName: null,
+        loop: false,
         criteria: {
           currentState: {
             $gte: GAME_STATES.ANSWERED_PHONE,
             $lt: GAME_STATES.DIALOG_CHOICE_1,
           },
         },
-        autoPlay: true, // Automatically play when criteria are met
-        playOnce: true, // Only play once per session
-        timeScale: 1.0, // Playback speed (1.0 = normal)
+        autoPlay: true,
+        timeScale: 1.0,
       },
     ],
   },
@@ -496,6 +495,21 @@ export const sceneObjects = {
         $gte: GAME_STATES.POST_DRIVE_BY,
       },
     },
+    animations: [
+      {
+        id: "edison-anim",
+        clipName: null,
+        loop: false,
+        autoPlay: true,
+        timeScale: 0.5,
+        delay: 1.5,
+        criteria: {
+          currentState: {
+            $gte: GAME_STATES.EDISON,
+          },
+        },
+      },
+    ],
   },
 
   candlestickPhone: {

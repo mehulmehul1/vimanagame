@@ -33,6 +33,7 @@ export const musicTracks = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.ENTERING_OFFICE,
+        $lte: GAME_STATES.PRE_EDISON,
       },
     },
     fadeTime: 2.0,

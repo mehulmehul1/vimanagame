@@ -33,6 +33,7 @@ import {
 import { setupUniforms, setupShaderSnippets } from "../utils/shaderHelper.js";
 import { DissolveParticleSystem } from "./dissolveParticleSystem.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { ProceduralAudio } from "./proceduralAudio.js";
 
 export class DissolveEffect extends VFXManager {
   constructor(scene, sceneManager, renderer) {
@@ -58,7 +59,49 @@ export class DissolveEffect extends VFXManager {
     this.animationDirection = 1; // 1 = forward, -1 = reverse
     this.animationSpeed = 1.5;
 
+    // Audio control
+    this.enableAudio = false;
+    this.suppressAudio = false; // Can be set per-effect to temporarily disable audio
+
+    // Procedural audio - wishy-washy oscillating static effect
+    this.audio = new ProceduralAudio({
+      name: "DissolveAudio",
+      baseFrequency: 220.0, // A3 - higher for brightness
+      volume: 0.12,
+      baseOscType: "triangle",
+      subOscType: "sine",
+      modOscType: "sine",
+      filterType: "bandpass",
+      filterFreq: 4000,
+      filterQ: 3,
+      distortionAmount: 12,
+      delayTime: 0.08,
+      delayFeedback: 0.5,
+      lfoFreq: 10.0, // Fast oscillation - 10 Hz
+      lfoDepth: 80,
+      fadeInTime: 0.2,
+      fadeOutTime: 0.3,
+      fadeInCurve: "exponential",
+      fadeOutCurve: "exponential",
+      enableSweep: true,
+      sweepBaseFreq: 5000,
+      sweepRange: 2000,
+      sweepRate: 12.0, // Fast sweeps - 12 per second
+      sweepGain: 0.3,
+    });
+    this.lastProgress = 0;
+
     this.logger.log("DissolveEffect initialized");
+  }
+
+  /**
+   * Override: Called when first effect matches - initialize audio
+   * @param {Object} effect - Effect data from vfxData.js
+   * @param {Object} state - Current game state
+   */
+  async onFirstEnable(effect, state) {
+    this.logger.log("Enabling dissolve effect for first time");
+    this.applyEffect(effect, state);
   }
 
   /**
@@ -66,13 +109,38 @@ export class DissolveEffect extends VFXManager {
    * @param {Object} effect - Effect data from vfxData.js
    * @param {Object} state - Current game state
    */
-  applyEffect(effect, state) {
+  async applyEffect(effect, state) {
     const params = effect.parameters || {};
 
     this.logger.log(
       `🔥 Applying effect: ${effect.id} (state: ${state?.currentState})`,
       params
     );
+
+    // Enable/disable audio based on effect parameters and initialize if needed
+    if (params.enableAudio !== undefined) {
+      const wasEnabled = this.enableAudio;
+      this.enableAudio = params.enableAudio;
+
+      // Initialize audio if it's being enabled for the first time
+      if (this.enableAudio && !wasEnabled && !this.audio.audioContext) {
+        await this.audio.initialize();
+        this.logger.log("Audio initialized for dissolve effect");
+      }
+    }
+
+    // Handle suppressAudio parameter (for reverse transitions)
+    if (params.suppressAudio !== undefined) {
+      this.suppressAudio = params.suppressAudio;
+      // If suppressing audio and it's currently playing, stop it
+      if (
+        this.suppressAudio &&
+        this.audio.audioContext &&
+        this.audio.isPlaying
+      ) {
+        this.audio.stop();
+      }
+    }
 
     // Extract parameters
     const targetObjectIds = params.targetObjectIds || [];
@@ -642,7 +710,15 @@ export class DissolveEffect extends VFXManager {
    * @param {number} deltaTime - Time since last frame in seconds
    */
   update(deltaTime) {
-    if (this.activeDissolves.size === 0) return;
+    if (this.activeDissolves.size === 0) {
+      if (this.enableAudio && this.audio.audioContext && this.audio.isPlaying) {
+        this.audio.stop();
+      }
+      return;
+    }
+
+    let anyTransitioning = false;
+    let maxAbsProgress = 0;
 
     this.activeDissolves.forEach((dissolveState, objectId) => {
       // Animate towards target progress
@@ -735,7 +811,79 @@ export class DissolveEffect extends VFXManager {
           dissolveState.contactShadowEnabled = false; // Mark as disabled
         }
       }
+
+      // Track if any dissolve is actively transitioning
+      const inTransition = currentProgress > -14.0 && currentProgress < 14.0;
+      if (inTransition) {
+        anyTransitioning = true;
+        maxAbsProgress = Math.max(maxAbsProgress, Math.abs(currentProgress));
+      }
     });
+
+    // Audio: Play during active transitions, update based on progress
+    // Check both enableAudio and !suppressAudio (suppressAudio is for reverse transitions)
+    if (this.enableAudio && !this.suppressAudio && this.audio.audioContext) {
+      if (anyTransitioning) {
+        if (!this.audio.isPlaying) {
+          this.audio.start();
+        }
+        this._updateAudio(maxAbsProgress, deltaTime);
+      } else if (this.audio.isPlaying) {
+        this.audio.stop();
+      }
+    } else if (this.audio.audioContext && this.audio.isPlaying) {
+      // If audio is suppressed or disabled, stop it if playing
+      this.audio.stop();
+    }
+  }
+
+  /**
+   * Update audio parameters based on dissolve progress
+   * @private
+   */
+  _updateAudio(absProgress, deltaTime) {
+    const normalizedProgress = Math.min(absProgress / 14.0, 1.0);
+
+    const velocity =
+      Math.abs(normalizedProgress - this.lastProgress) /
+      Math.max(deltaTime, 0.001);
+    const normalizedVelocity = Math.min(velocity * 2, 1);
+
+    const minFreq = 3000;
+    const maxFreq = 6000;
+    const targetFilterFreq = minFreq + (maxFreq - minFreq) * normalizedProgress;
+
+    const minQ = 2;
+    const maxQ = 6;
+    const targetQ = minQ + (maxQ - minQ) * normalizedVelocity;
+
+    const pitchMultiplier = 1.0 + normalizedVelocity * 0.15;
+
+    const panAmount = Math.sin(normalizedProgress * Math.PI * 2) * 0.4;
+
+    // Keep volume around 0.3 of max with minimal variation
+    const baseVolumeLevel = 0.3; // Stay around 30% of max
+    const variationAmount = 0.15; // ±15% variation
+    const variation =
+      Math.sin(normalizedProgress * Math.PI * 4) * variationAmount;
+    const velocityVariation = normalizedVelocity * 0.1; // Small boost during fast changes
+    const targetVolume =
+      this.audio.config.volume *
+      (baseVolumeLevel + variation + velocityVariation);
+
+    const sweepAmount = normalizedProgress * normalizedProgress;
+
+    this.audio.updateParams({
+      filterFreq: targetFilterFreq,
+      filterQ: targetQ,
+      pitchMultiplier,
+      pan: panAmount,
+      volume: targetVolume,
+      sweepAmount: sweepAmount,
+      transitionTime: 0.1,
+    });
+
+    this.lastProgress = normalizedProgress;
   }
 
   /**
@@ -746,6 +894,10 @@ export class DissolveEffect extends VFXManager {
     this.logger.log(
       `❌ No effect matches (state: ${state?.currentState}) - cleaning up dissolves`
     );
+
+    if (this.enableAudio && this.audio.audioContext && this.audio.isPlaying) {
+      this.audio.stop();
+    }
 
     // Remove all active dissolves
     const activeIds = Array.from(this.activeDissolves.keys());
@@ -766,6 +918,11 @@ export class DissolveEffect extends VFXManager {
 
     if (this.particleTexture) {
       this.particleTexture.dispose();
+    }
+
+    if (this.audio && this.audio.audioContext) {
+      this.audio.dispose();
+      this.audio = null;
     }
   }
 }

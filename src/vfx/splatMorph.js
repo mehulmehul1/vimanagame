@@ -468,7 +468,9 @@ export class SplatMorphEffect extends VFXManager {
       this.time.value = 0.0; // Reset animation
       this.lastPhase = 0;
       this.lastVelocity = 0;
-      this.audio.start(); // Start procedural audio
+      if (!params.suppressAudio) {
+        this.audio.start();
+      }
     } else if (params.trigger === "pause") {
       this.isPaused = true;
       this.isTransitioning = false;

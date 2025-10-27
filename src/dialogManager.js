@@ -464,7 +464,7 @@ class DialogManager {
   /**
    * Handle dialog completion
    */
-  handleDialogComplete() {
+  async handleDialogComplete() {
     this.hideCaption();
     this.isPlaying = false;
 
@@ -473,6 +473,53 @@ class DialogManager {
     this.currentAudio = null;
     this.currentProgressTriggers = [];
     this.progressTriggersFired.clear();
+
+    // Check if this dialog chains to another via playNext
+    if (completedDialog && completedDialog.playNext) {
+      this.logger.log(`Chaining to next dialog from "${completedDialog.id}"`);
+
+      // Resolve the next dialog (could be an object or string ID)
+      let nextDialog;
+      if (typeof completedDialog.playNext === "string") {
+        nextDialog = await this.resolveDialogById(completedDialog.playNext);
+      } else {
+        nextDialog = completedDialog.playNext;
+      }
+
+      if (nextDialog) {
+        // Mark the next dialog as played if it has "once" flag
+        if (nextDialog.once && this.playedDialogs) {
+          this.playedDialogs.add(nextDialog.id);
+          this.logger.log(`Marked chained dialog "${nextDialog.id}" as played`);
+        }
+
+        // Call onComplete before moving to next dialog (if specified)
+        this.handleOnComplete(completedDialog);
+
+        // Emit completion event for the current dialog
+        this.emit("dialog:complete", completedDialog);
+
+        // Store the onCompleteCallback to preserve it through the chain
+        const chainedCallback = this.onCompleteCallback;
+
+        // Check if next dialog has a delay
+        const delay = nextDialog.delay || 0;
+        if (delay > 0) {
+          this.logger.log(
+            `Chaining to "${nextDialog.id}" with ${delay}s delay`
+          );
+          this.scheduleDelayedDialog(nextDialog, chainedCallback, delay);
+        } else {
+          // Play immediately
+          this._playDialogImmediate(nextDialog, chainedCallback);
+        }
+        return;
+      } else {
+        this.logger.warn(
+          `playNext dialog not found for "${completedDialog.id}"`
+        );
+      }
+    }
 
     // Check if this dialog should trigger choices
     if (completedDialog && this.dialogChoiceUI) {
@@ -520,6 +567,16 @@ class DialogManager {
         }
       }
     }
+  }
+
+  /**
+   * Resolve a dialog by ID from the dialogData
+   * @param {string} dialogId - Dialog ID to resolve
+   * @returns {Promise<Object|null>} Dialog object or null if not found
+   */
+  async resolveDialogById(dialogId) {
+    const { dialogTracks } = await import("./dialogData.js");
+    return dialogTracks[dialogId] || null;
   }
 
   /**

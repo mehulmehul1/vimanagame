@@ -203,6 +203,18 @@ export const sfxSounds = {
     playOnce: true, // One-shot sound triggered by state
   },
 
+  "record-scratch": {
+    id: "record-scratch",
+    src: ["/audio/sfx/record-scratch.mp3"],
+    volume: 0.2,
+    loop: false,
+    spatial: false,
+    preload: true,
+    criteria: { currentState: GAME_STATES.EDISON },
+    playOnce: true,
+    delay: 0.0,
+  },
+
   "engine-and-gun": {
     id: "engine-and-gun",
     src: ["/audio/sfx/engine-guns-glass.mp3"],

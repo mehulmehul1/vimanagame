@@ -57,7 +57,6 @@ class SceneManager {
     this.animationActions = new Map(); // Map of animationId -> THREE.AnimationAction
     this.animationData = new Map(); // Map of animationId -> animation data config
     this.animationToObject = new Map(); // Map of animationId -> objectId
-    this.playedAnimations = new Set(); // Track animations that have been played once (for playOnce)
 
     // Contact shadow management
     this.contactShadows = new Map(); // Map of objectId -> ContactShadow instance
@@ -1231,7 +1230,6 @@ class SceneManager {
             this.animationActions.delete(animId);
             this.animationData.delete(animId);
             this.animationToObject.delete(animId);
-            this.playedAnimations.delete(animId);
           }
         }
         // Remove the mixer
@@ -1417,20 +1415,18 @@ class SceneManager {
 
       const matchesCriteria = checkCriteria(gameState, config.criteria);
       const isPlaying = this.isAnimationPlaying(animationId);
-      const hasPlayedOnce = this.playedAnimations.has(animationId);
+      const action = this.animationActions.get(animationId);
 
       // If criteria matches and animation is not playing
       if (matchesCriteria && !isPlaying) {
-        // Check playOnce - skip if already played
-        if (config.playOnce && hasPlayedOnce) {
-          continue;
+        // For non-looping animations, check if they've already finished
+        // (if action exists but not running, it means it finished)
+        if (!config.loop && action && action.time > 0) {
+          continue; // Animation finished, don't restart
         }
 
         // Play the animation
         this.playAnimation(animationId);
-        if (config.playOnce) {
-          this.playedAnimations.add(animationId);
-        }
       }
       // If criteria doesn't match and animation is playing, stop it
       else if (!matchesCriteria && isPlaying) {
