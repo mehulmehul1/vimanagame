@@ -493,7 +493,20 @@ export class SplatMorphEffect extends VFXManager {
     this.isPaused = true;
     this.isTransitioning = false;
     this.audio.stop();
-    this.logger.log("No effect - pausing morph");
+
+    // Remove world modifiers from both splats to prevent them staying in broken state
+    if (this.sourceMesh) {
+      this.sourceMesh.worldModifier = null;
+      this.sourceMesh.updateGenerator();
+      this.sourceMesh.updateVersion();
+    }
+    if (this.targetMesh) {
+      this.targetMesh.worldModifier = null;
+      this.targetMesh.updateGenerator();
+      this.targetMesh.updateVersion();
+    }
+
+    this.logger.log("No effect - removed worldModifiers and paused morph");
   }
 
   /**

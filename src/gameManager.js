@@ -26,7 +26,7 @@ class GameManager {
     this.isDebugMode = isDebugSpawnActive();
 
     // Logger for debug messages
-    this.logger = new Logger("GameManager", false);
+    this.logger = new Logger("GameManager", true);
 
     if (this.isDebugMode) {
       this.logger.log("Debug mode active", this.state);
@@ -290,7 +290,8 @@ class GameManager {
     // Unload objects that no longer match criteria
     if (objectsToUnload.length > 0) {
       this.logger.log(
-        `Unloading ${objectsToUnload.length} scene objects no longer needed`
+        `Unloading ${objectsToUnload.length} scene objects no longer needed`,
+        objectsToUnload[0]
       );
       objectsToUnload.forEach((id) => {
         this.sceneManager.removeObject(id);

@@ -172,6 +172,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.VIEWMASTER_HELL,
+        $lte: GAME_STATES.POST_VIEWMASTER,
       },
     },
   },

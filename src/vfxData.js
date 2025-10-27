@@ -88,11 +88,26 @@ export const desaturationEffects = {
     },
     criteria: {
       currentState: {
-        $eq: GAME_STATES.POST_VIEWMASTER,
+        $gte: GAME_STATES.POST_VIEWMASTER,
       },
     },
     priority: 30, // Higher than officeColor
   },
+
+  // postViewmasterGrayscale: {
+  //   id: "postViewmasterGrayscale",
+  //   parameters: {
+  //     target: 1.0, // Grayscale
+  //     duration: 0.0,
+  //     mode: "fade",
+  //   },
+  //   criteria: {
+  //     currentState: {
+  //       $gt: GAME_STATES.POST_VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
+  //     },
+  //   },
+  //   priority: 0,
+  // },
 };
 
 /**
@@ -173,7 +188,7 @@ export const splatMorphEffects = {
     parameters: {
       speedMultiplier: 1.0,
       staySeconds: 0, // No delay, start immediately
-      transitionSeconds: 3.0, // Slightly faster wipe back
+      transitionSeconds: 2.75, // Slightly faster wipe back
       mode: "wipe", // Use wipe effect for reverse transition
       wipeDirection: "bottom-to-top", // Wipe from bottom to top
       wipeSoftness: 0.15, // Soft edge for smooth transition
@@ -182,7 +197,7 @@ export const splatMorphEffects = {
     },
     criteria: {
       currentState: {
-        $eq: GAME_STATES.POST_VIEWMASTER, // Triggers at POST_VIEWMASTER
+        $eq: GAME_STATES.POST_VIEWMASTER, // Only trigger at POST_VIEWMASTER, not states after
       },
     },
     priority: 20, // Higher priority than forward transition
@@ -246,7 +261,7 @@ export const dissolveEffects = {
       edgeWidth: 0.005, // Subtle edge width
     },
     criteria: {
-      currentState: GAME_STATES.POST_VIEWMASTER,
+      currentState: { $eq: GAME_STATES.POST_VIEWMASTER },
     },
     priority: 20, // Higher priority than dissolve
   },

@@ -31,7 +31,7 @@
  *
  * For type "lookat":
  * SINGLE LOOKAT (simple position):
- * - position: {x, y, z} world position to look at
+ * - position: {x, y, z} world position to look at OR function(gameManager) => {x, y, z} for dynamic positioning
  * - transitionTime: Time for the initial look-at transition in seconds (default: 2.0)
  * - lookAtHoldDuration: How long to hold at target before returning or restoring control (default: 0)
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
@@ -154,8 +154,8 @@ export const cameraAnimations = {
       minAperture: 0.15,
       maxAperture: 0.35,
       transitionStart: 0.7,
-      transitionDuration: 2.0,
-      holdDuration: 2.9,
+      transitionDuration: 1,
+      holdDuration: 1.8,
     },
     criteria: { currentState: GAME_STATES.POST_VIEWMASTER },
     playOnce: true,
@@ -401,6 +401,18 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.PRE_EDISON },
     priority: 100,
     playOnce: true,
+    delay: 1.0,
+  },
+
+  candlestickPhoneLookatCzarStruggle: {
+    id: "candlestickPhoneLookatCzarStruggle",
+    type: "lookat",
+    description: "Look at candlestick phone during Czar struggle",
+    position: sceneObjects.candlestickPhone.position,
+    transitionTime: 1.0,
+    criteria: { currentState: GAME_STATES.CZAR_STRUGGLE },
+    priority: 100,
+    playOnce: true,
   },
 
   edisonMoveTo: {
@@ -423,7 +435,18 @@ export const cameraAnimations = {
   shoulderTap: {
     id: "shoulderTap",
     type: "lookat",
-    position: videos.punch.position,
+    position: (gameManager) => {
+      const basePos =
+        typeof videos.punch.position === "function"
+          ? videos.punch.position(gameManager)
+          : videos.punch.position;
+
+      return {
+        x: basePos.x,
+        y: basePos.y - 0.3,
+        z: basePos.z,
+      };
+    },
     transitionTime: 0.75,
     criteria: { currentState: GAME_STATES.SHOULDER_TAP },
     priority: 100,
@@ -462,7 +485,7 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.PUNCH_OUT },
     priority: 100,
     playOnce: true,
-    delay: 0.15, // Sync with video punch impact
+    delay: 0.05, // Sync with video punch impact
   },
 
   fallenBlackout: {
@@ -471,7 +494,7 @@ export const cameraAnimations = {
     description: "Blackout effect after falling",
     color: { r: 0, g: 0, b: 0 }, // Black
     fadeInTime: 3.0, // Slow fade to black
-    holdTime: 10, // Long hold in darkness
+    holdTime: 100, // Long hold in darkness
     fadeOutTime: 1.5, // Fade back to normal
     maxOpacity: 1.0, // Full blackout
     criteria: { currentState: GAME_STATES.FALLEN },

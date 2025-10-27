@@ -5,7 +5,7 @@
  * - id: Unique identifier for the video
  * - videoPath: Path to the video file (WebM with alpha channel)
  * - preload: If true, load during loading screen; if false, load after (default: false)
- * - position: {x, y, z} position in 3D space
+ * - position: {x, y, z} position in 3D space OR function(gameManager) => {x, y, z} for dynamic positioning
  * - rotation: {x, y, z} rotation in radians
  * - scale: {x, y, z} scale multipliers
  * - loop: Whether the video should loop
@@ -95,7 +95,10 @@ export const videos = {
     muted: false,
     billboard: true,
     criteria: {
-      currentState: { $gte: GAME_STATES.POST_VIEWMASTER },
+      currentState: {
+        $gte: GAME_STATES.POST_VIEWMASTER,
+        $lte: GAME_STATES.PUNCH_OUT,
+      },
     },
     autoPlay: true,
     once: true,
@@ -106,19 +109,52 @@ export const videos = {
     id: "punch",
     videoPath: "/video/punch.webm",
     preload: false, // Load after loading screen
-    position: { x: -0.2, y: 1.8, z: -0.2 },
+    position: (gameManager) => {
+      // Calculate position behind player
+      if (!gameManager?.characterController) {
+        logger.warn("Cannot get player position, using origin");
+        return { x: 0, y: 1.8, z: 0 };
+      }
+
+      const playerPos = gameManager.characterController.character.translation();
+      const yaw = gameManager.characterController.yaw;
+
+      // Calculate behind player (opposite of forward direction)
+      // Distance behind player
+      const distanceBehind = 1.55;
+      const heightOffset = 1.05;
+
+      // Forward vector is: x = -sin(yaw), z = -cos(yaw)
+      // Behind is the opposite: x = sin(yaw), z = cos(yaw)
+      const behindX = playerPos.x + Math.sin(yaw) * distanceBehind;
+      const behindZ = playerPos.z + Math.cos(yaw) * distanceBehind;
+
+      logger.log(
+        `Punch video spawning behind player at: { x: ${behindX.toFixed(
+          2
+        )}, y: ${(playerPos.y + heightOffset).toFixed(2)}, z: ${behindZ.toFixed(
+          2
+        )} }`
+      );
+
+      return {
+        x: behindX,
+        y: playerPos.y + heightOffset,
+        z: behindZ,
+      };
+    },
     rotation: { x: 0, y: 0, z: 0 },
-    scale: { x: 1.4, y: 1.4, z: 1.4 },
-    loop: true,
+    scale: { x: 0.76, y: 0.76, z: 0.76 },
+    loop: false,
     muted: true,
     billboard: true,
-    autoPlay: true,
     once: true,
     priority: 0,
     spawnCriteria: {
       currentState: { $gte: GAME_STATES.SHOULDER_TAP }, // Video stays spawned from shoulder tap onward
     },
-    delay: 0.625, // Play immediately when playCriteria match
+    autoPlay: true,
+    delay: 0.3, // Play immediately when playCriteria match
   },
 };
 

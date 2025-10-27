@@ -206,7 +206,7 @@ export const sfxSounds = {
   "record-scratch": {
     id: "record-scratch",
     src: ["/audio/sfx/record-scratch.mp3"],
-    volume: 0.2,
+    volume: 0.1,
     loop: false,
     spatial: false,
     preload: true,

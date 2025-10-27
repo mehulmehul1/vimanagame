@@ -175,6 +175,18 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
   },
+
+  CZAR_STRUGGLE: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
+
+  SHOULDER_TAP: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
 };
 
 /**

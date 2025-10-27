@@ -251,12 +251,18 @@ class VideoManager {
     let player = this.videoPlayers.get(videoId);
 
     if (!player) {
+      // Resolve position (support functions for dynamic positioning)
+      const position =
+        typeof videoConfig.position === "function"
+          ? videoConfig.position(this.gameManager)
+          : videoConfig.position;
+
       player = new VideoPlayer({
         scene: this.scene,
         gameManager: this.gameManager,
         camera: this.camera,
         videoPath: videoConfig.videoPath,
-        position: videoConfig.position,
+        position: position,
         rotation: videoConfig.rotation,
         scale: videoConfig.scale,
         loop: videoConfig.loop,

@@ -83,11 +83,13 @@ export const musicTracks = {
     path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",
     description: "Rachmaninoff 3 - Movement 1 (0:00-0:40) - Main gameplay",
     preload: true, // Load before showing game
-    // Play when currentState progresses beyond START_SCREEN but before DRIVE_BY
+    // Play when currentState progresses beyond START_SCREEN but before DRIVE_BY, AND during EDISON
     criteria: {
       currentState: {
-        $gt: GAME_STATES.START_SCREEN,
-        $lt: GAME_STATES.DRIVE_BY,
+        $in: [
+          ...Array.from({ length: 9 }, (_, i) => i + 1), // States 1-9
+          GAME_STATES.EDISON, // State 24
+        ],
       },
     },
     fadeTime: 0.25,

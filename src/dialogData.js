@@ -533,10 +533,10 @@ export const dialogTracks = {
     id: "iGetMyCorners",
     audio: "./audio/dialog/czar-i-get-my-corners.mp3",
     captions: [
-      { text: "I get my corners,", duration: 1.5 },
-      { text: "the drug trade,", duration: 1.5 },
-      { text: "the speakeasies,", duration: 1.5 },
-      { text: "and you get...", duration: 1.5 },
+      { text: "I get my corners,", duration: 2.0 },
+      { text: "the drug trade,", duration: 2.0 },
+      { text: "the speakeasies,", duration: 2.0 },
+      { text: "and you get...", duration: 2.5 },
       { text: "what you want, eh? [laughs]", duration: 2.0 },
       { text: "", duration: 1.5 },
       { text: "Quite.", duration: 1.5 },
@@ -554,7 +554,9 @@ export const dialogTracks = {
     id: "dialogChoice2Empath",
     audio: "./audio/dialog/choice-2_empath_caught-red-handed.mp3",
     preload: false,
-    captions: [{ text: "We've caught the Czar red-handed!", duration: 2.5 }],
+    captions: [
+      { text: "Why, we've caught the Czar red-handed!", duration: 2.5 },
+    ],
     criteria: {
       currentState: GAME_STATES.DIALOG_CHOICE_2,
       dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
@@ -562,7 +564,8 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 1.0,
+    delay: 0.5,
+    playNext: "dialogChoice2EmpathResponse",
     onComplete: (gameManager) => {
       gameManager.setState({ dialogChoice2Response: true });
     },
@@ -580,7 +583,8 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 1.0,
+    delay: 0.5,
+    playNext: "dialogChoice2PsychologistResponse",
     onComplete: (gameManager) => {
       gameManager.setState({ dialogChoice2Response: true });
     },
@@ -598,7 +602,8 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
-    delay: 1.0,
+    delay: 0.5,
+    playNext: "dialogChoice2LawfulResponse",
     onComplete: (gameManager) => {
       gameManager.setState({ dialogChoice2Response: true });
     },
@@ -609,19 +614,13 @@ export const dialogTracks = {
     audio: "./audio/dialog/resp-2_empath_merci-cole.mp3",
     preload: false,
     captions: [
-      { text: "Merci, Cole!", duration: 1.5 }
-      { text: "I knew you would help!", duration: 2.0 }],
-    criteria: {
-      currentState: GAME_STATES.DIALOG_CHOICE_2,
-      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
-      dialogChoice2Response: true,
-    },
+      { text: "Merci, Cole!", duration: 1.5 },
+      { text: "I knew you would help!", duration: 2.0 },
+    ],
     once: true,
-    autoPlay: true,
-    priority: 99,
-    delay: 0.5,
+    delay: 0,
     onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
+      gameManager.setState({ currentState: GAME_STATES.CZAR_STRUGGLE });
     },
   },
 
@@ -629,20 +628,11 @@ export const dialogTracks = {
     id: "dialogChoice2PsychologistResponse",
     audio: "./audio/dialog/resp-2_psych_youre-kidding.mp3",
     preload: false,
-    captions: [
-      { text: "You're kidding... It’s so obvious!", duration: 3.0 },
-    ],
-    criteria: {
-      currentState: GAME_STATES.DIALOG_CHOICE_2,
-      dialogChoice2: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
-      dialogChoice2Response: true,
-    },
+    captions: [{ text: "You're kidding... It's so obvious!", duration: 3.0 }],
     once: true,
-    autoPlay: true,
-    priority: 99,
-    delay: 0.5,
+    delay: 0,
     onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
+      gameManager.setState({ currentState: GAME_STATES.CZAR_STRUGGLE });
     },
   },
 
@@ -656,17 +646,61 @@ export const dialogTracks = {
         duration: 2.0,
       },
     ],
-    criteria: {
-      currentState: GAME_STATES.DIALOG_CHOICE_2,
-      dialogChoice2: DIALOG_RESPONSE_TYPES.LAWFUL,
-      dialogChoice2Response: true,
+    once: true,
+    delay: 0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.CZAR_STRUGGLE });
     },
+  },
+
+  bravoDetective: {
+    id: "bravoDetective",
+    audio: "./audio/dialog/czar-bravo-detective.mp3",
+    captions: [
+      { text: "[LeClaire screams]", duration: 3.0 },
+      { text: "[A commotion]", duration: 3.5 },
+      { text: "Bravo, detective!", duration: 2.5 },
+      { text: "Nothing gets by you.", duration: 3.0 },
+      { text: "This... is the Czar.", duration: 4.0 },
+    ],
+    criteria: { currentState: GAME_STATES.CZAR_STRUGGLE },
     once: true,
     autoPlay: true,
-    priority: 99,
-    delay: 0.5,
+    priority: 100,
+    playNext: "twoBitCrook",
+  },
+
+  twoBitCrook: {
+    id: "twoBitCrook",
+    audio: "./audio/dialog/cole-you-mean-the-two-bit-crook.mp3",
+    captions: [
+      {
+        text: "You mean the two-bit crook what fanicies himself a king?",
+        duration: 4.0,
+      },
+      {
+        text: "The one way in over his head with cultists and madmen?",
+        duration: 3.0,
+      },
+      { text: "That Czar?", duration: 2.0 },
+    ],
+    once: true,
+    priority: 100,
+    playNext: "theVerySame",
+  },
+
+  theVerySame: {
+    id: "theVerySame",
+    audio: "./audio/dialog/czar-the-very-same.mp3",
+    captions: [
+      { text: "The very same, Cole.", duration: 2.0 },
+      { text: "Now meet my new friend.", duration: 2.0 },
+      { text: "Oh mister Shadow?", duration: 2.0 },
+    ],
+    once: true,
+    priority: 100,
     onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.POST_EDISON });
+      gameManager.setState({ currentState: GAME_STATES.SHOULDER_TAP });
     },
   },
 };

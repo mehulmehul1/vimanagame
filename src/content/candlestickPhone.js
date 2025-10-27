@@ -260,6 +260,11 @@ class CandlestickPhone {
         if (newState.currentState === GAME_STATES.PRE_VIEWMASTER) {
           this.putDownToOriginal();
         }
+        if (newState.currentState === GAME_STATES.CZAR_STRUGGLE) {
+          setTimeout(() => {
+            this.handleOfficePhoneAnswered();
+          }, 8000);
+        }
         // Hide cord during dissolve effect (VIEWMASTER_COLOR to POST_VIEWMASTER)
         if (
           newState.currentState >= GAME_STATES.VIEWMASTER_COLOR &&

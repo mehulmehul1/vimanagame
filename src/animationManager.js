@@ -496,22 +496,34 @@ class AnimationManager {
       this.playedAnimations.add(lookAtData.id);
     }
 
+    // Resolve position if it's a function (support dynamic positioning)
+    const resolvedData = { ...lookAtData };
+    if (typeof lookAtData.position === "function") {
+      resolvedData.position = lookAtData.position(this.gameManager);
+      if (this.debug) {
+        this.logger.log(
+          `Resolved lookat position for '${lookAtData.id}':`,
+          resolvedData.position
+        );
+      }
+    }
+
     // Check if this is a sequence (positions array) or single position
-    const isSequence = Array.isArray(lookAtData.positions);
+    const isSequence = Array.isArray(resolvedData.positions);
 
     if (isSequence) {
       // Start sequence at first position
       this.activeSequence = {
-        animData: lookAtData,
+        animData: resolvedData,
         currentIndex: 0,
         isWaitingForNext: false,
       };
-      this._playLookatAtIndex(lookAtData, 0);
+      this._playLookatAtIndex(resolvedData, 0);
       return;
     }
 
     // Single position - use existing logic
-    this._playSingleLookat(lookAtData);
+    this._playSingleLookat(resolvedData);
   }
 
   /**
