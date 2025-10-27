@@ -52,7 +52,7 @@ export const desaturationEffects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
-        $lte: GAME_STATES.VIEWMASTER_COLOR,
+        $lt: GAME_STATES.VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
       },
     },
     priority: 0,
@@ -68,10 +68,29 @@ export const desaturationEffects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.VIEWMASTER,
+        $lt: GAME_STATES.POST_VIEWMASTER, // Stop before POST_VIEWMASTER
       },
     },
     priority: 20,
-    delay: 3.0, // Wait 2 seconds after criteria is met before applying
+    delay: 3.0,
+  },
+
+  // Wipe to grayscale synchronized with splatMorph reverse transition
+  postViewmasterWipe: {
+    id: "postViewmasterWipe",
+    parameters: {
+      target: 1.0, // Full grayscale
+      duration: 3.0, // Match splatMorph hellReverseTransition
+      mode: "wipe",
+      wipeDirection: "bottom-to-top",
+      wipeSoftness: 0.15,
+    },
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.POST_VIEWMASTER,
+      },
+    },
+    priority: 30, // Higher than officeColor
   },
 };
 
@@ -96,38 +115,6 @@ export const cloudParticleEffects = {
     },
     priority: 0,
   },
-
-  // Add more cloud particle effects here as needed
-  // heavyFog: {
-  //   id: "heavyFog",
-  //   parameters: {
-  //     opacity: 0.02,
-  //     windSpeed: -0.8,
-  //   },
-  //   criteria: {
-  //     currentState: GAME_STATES.SOME_STATE,
-  //   },
-  //   priority: 10,
-  // },
-};
-
-/**
- * Title Sequence Effect
- * Controls title animation behavior
- */
-export const titleSequenceEffects = {
-  // Add title sequence effects here
-  // mainTitle: {
-  //   id: "mainTitle",
-  //   parameters: {
-  //     visible: true,
-  //     fadeSpeed: 1.0,
-  //   },
-  //   criteria: {
-  //     currentState: GAME_STATES.TITLE_SEQUENCE,
-  //   },
-  //   priority: 0,
-  // },
 };
 
 /**
@@ -146,9 +133,7 @@ export const splatFractalEffects = {
       targetMeshIds: ["interior", "officeHell"], // Apply to both splats
     },
     criteria: {
-      currentState: {
-        $gte: GAME_STATES.VIEWMASTER_HELL,
-      },
+      currentState: GAME_STATES.VIEWMASTER_HELL,
     },
     priority: 10,
   },
@@ -159,7 +144,7 @@ export const splatFractalEffects = {
  * Controls morphing transition between two splat scenes
  */
 export const splatMorphEffects = {
-  // Trigger the morph transition during VIEWMASTER_HELL state
+  // Forward transition: scatter effect when entering VIEWMASTER_HELL
   hellTransition: {
     id: "hellTransition",
     parameters: {
@@ -168,14 +153,97 @@ export const splatMorphEffects = {
       transitionSeconds: 4.0, // Duration of the morph transition
       randomRadius: 8.0, // Radius of scatter cloud (about the size of the office room)
       scatterCenter: { x: -5.14, y: 3.05, z: 84.66 }, // Center point of scatter cloud
+      mode: "scatter", // Use scatter effect for forward transition
       trigger: "start", // Start the transition
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.VIEWMASTER_HELL,
+        $eq: GAME_STATES.VIEWMASTER_HELL, // Only at VIEWMASTER_HELL state
       },
     },
     priority: 10,
+  },
+
+  // Reverse transition: wipe effect when leaving hell (returning to normal)
+  // Triggers at POST_VIEWMASTER state
+  hellReverseTransition: {
+    id: "hellReverseTransition",
+    parameters: {
+      speedMultiplier: 1.0,
+      staySeconds: 0, // No delay, start immediately
+      transitionSeconds: 3.0, // Slightly faster wipe back
+      mode: "wipe", // Use wipe effect for reverse transition
+      wipeDirection: "bottom-to-top", // Wipe from bottom to top
+      wipeSoftness: 0.15, // Soft edge for smooth transition
+      trigger: "start",
+    },
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.POST_VIEWMASTER, // Triggers at POST_VIEWMASTER
+      },
+    },
+    priority: 20, // Higher priority than forward transition
+  },
+};
+
+/**
+ * Dissolve Effect
+ * Controls dissolve transitions on GLTF objects with particle emission
+ */
+export const dissolveEffects = {
+  // Dissolve edison phonograph and candlestick phone during VIEWMASTER_COLOR (noise-based with particles)
+  edisonDissolve: {
+    id: "edisonDissolve",
+    parameters: {
+      targetObjectIds: ["edison", "candlestickPhone"], // Both office objects
+      progress: -14.0, // Start fully visible
+      targetProgress: 14.0, // End fully dissolved
+      autoAnimate: false, // Don't bounce back and forth - one-way transition
+      transitionDuration: 5.0, // Duration in seconds to dissolve
+      mode: "noise", // Use noise-based dissolve
+      edgeColor1: "#66bbff", // Medium bright cyan
+      edgeColor2: "#3388cc", // Deeper blue
+      particleColor: "#4499dd", // Medium blue particles
+      frequency: 4, // Noise frequency (0-5) - higher = more varied, less banding
+      edgeWidth: 0.5, // Subtle edge width
+      bloomStrength: 12.0, // Optional bloom strength (0-20)
+      particleIntensity: 0.6, // Particle brightness multiplier
+      // Particle system parameters
+      particleSize: 50.0, // Base particle size (20-100)
+      particleDecimation: 5, // 1=all vertices, 10=every 10th (fewer particles)
+      particleDispersion: 4.0, // Max travel distance (2-20)
+      particleVelocitySpread: 0.15, // Velocity randomness (0.05-0.3)
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.VIEWMASTER_COLOR,
+        $lt: GAME_STATES.POST_VIEWMASTER,
+      },
+    },
+    priority: 10,
+  },
+
+  // Reverse transition: wipe both objects back in at POST_VIEWMASTER (synchronized with desaturation/morph wipes)
+  edisonWipeIn: {
+    id: "edisonWipeIn",
+    parameters: {
+      targetObjectIds: ["edison", "candlestickPhone"], // Both office objects
+      progress: 15.0, // Start fully dissolved (progress > max dissolveValue)
+      targetProgress: -15.0, // End fully visible (progress < min dissolveValue)
+      autoAnimate: false,
+      transitionDuration: 1.5, // Match desaturation and splatMorph wipe duration
+      mode: "wipe", // Use wipe mode instead of noise
+      wipeDirection: "bottom-to-top", // Match desaturation wipe
+      wipeSoftness: 0.15, // Match desaturation wipe softness
+      // No particles for wipe mode
+      particleSize: 0, // Disable particles
+      particleDecimation: 999, // Effectively no particles
+      edgeWidth: 0.005, // Subtle edge width
+    },
+    criteria: {
+      currentState: GAME_STATES.POST_VIEWMASTER,
+    },
+    priority: 20, // Higher priority than dissolve
   },
 };
 
@@ -185,9 +253,9 @@ export const splatMorphEffects = {
 export const vfxEffects = {
   desaturation: desaturationEffects,
   cloudParticles: cloudParticleEffects,
-  titleSequence: titleSequenceEffects,
   splatFractal: splatFractalEffects,
   splatMorph: splatMorphEffects,
+  dissolve: dissolveEffects,
 };
 
 /**
@@ -216,16 +284,16 @@ export function getCloudParticleEffectForState(gameState) {
   return getVfxEffectForState("cloudParticles", gameState);
 }
 
-export function getTitleSequenceEffectForState(gameState) {
-  return getVfxEffectForState("titleSequence", gameState);
-}
-
 export function getSplatFractalEffectForState(gameState) {
   return getVfxEffectForState("splatFractal", gameState);
 }
 
 export function getSplatMorphEffectForState(gameState) {
   return getVfxEffectForState("splatMorph", gameState);
+}
+
+export function getDissolveEffectForState(gameState) {
+  return getVfxEffectForState("dissolve", gameState);
 }
 
 export default vfxEffects;

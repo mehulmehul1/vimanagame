@@ -334,6 +334,7 @@ export class VFXSystemManager {
         "./vfx/splatFractalEffect.js"
       );
       const { SplatMorphEffect } = await import("./vfx/splatMorph.js");
+      const { DissolveEffect } = await import("./vfx/dissolveEffect.js");
 
       // Create desaturation post-processing effect
       this.logger.log("Creating DesaturationEffect...");
@@ -366,9 +367,18 @@ export class VFXSystemManager {
           sceneManager
         );
         this.logger.log("✅ SplatMorphEffect created");
+
+        // Create dissolve effect (requires sceneManager)
+        this.logger.log("Creating DissolveEffect...");
+        this.effects.dissolve = new DissolveEffect(
+          this.scene,
+          sceneManager,
+          this.renderer
+        );
+        this.logger.log("✅ DissolveEffect created");
       } else {
         this.logger.warn(
-          "⚠️ SceneManager not provided - Splat effects not initialized"
+          "⚠️ SceneManager not provided - Splat effects and Dissolve effect not initialized"
         );
       }
 
@@ -408,6 +418,10 @@ export class VFXSystemManager {
       this.effects.splatMorph.setGameManager(gameManager, "splatMorph");
     }
 
+    if (this.effects.dissolve) {
+      this.effects.dissolve.setGameManager(gameManager, "dissolve");
+    }
+
     this.logger.log("All VFX effects connected to game manager");
   }
 
@@ -430,6 +444,10 @@ export class VFXSystemManager {
 
     if (this.effects.splatMorph) {
       this.effects.splatMorph.update(deltaTime);
+    }
+
+    if (this.effects.dissolve) {
+      this.effects.dissolve.update(deltaTime);
     }
   }
 

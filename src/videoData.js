@@ -84,6 +84,24 @@ export const videos = {
     once: true,
     priority: 0,
   },
+  cat2: {
+    id: "cat2",
+    videoPath: "/video/cat.webm",
+    preload: false, // Load after loading screen
+    position: { x: -24.13, y: -1.48, z: 21.46 },
+    rotation: { x: 0.0, y: 1.5708, z: 0.0 },
+    scale: { x: 1, y: 1, z: 1 },
+    loop: true,
+    muted: false,
+    billboard: true,
+    gizmo: true,
+    criteria: {
+      currentState: GAME_STATES.POST_VIEWMASTER,
+    },
+    autoPlay: true,
+    once: true,
+    priority: 0,
+  },
   punch: {
     id: "punch",
     videoPath: "/video/punch.webm",

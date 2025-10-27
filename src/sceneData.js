@@ -25,6 +25,11 @@
  *     - materials: Array of material names to apply to (default: all materials)
  *     - excludeMaterials: Array of material names to skip (e.g., ["wood"])
  *     - materialOverrides: Object with per-material settings { materialName: { metalness, roughness, envMapIntensity } }
+ *   - materialRenderOrder: (GLTF) Set renderOrder on meshes with specific materials
+ *     - Object mapping material names to config: { materialName: { renderOrder, criteria } }
+ *     - renderOrder: THREE.js renderOrder value (higher = rendered later)
+ *     - criteria: Optional state criteria for conditional application
+ *     - Example: { Vignette: { renderOrder: 9999, criteria: { currentState: { $gte: GAME_STATES.POST_DRIVE_BY } } } }
  * - envMapWorldCenter: (Splat) {x, y, z} position to render environment map from for this scene
  *   - contactShadow: (GLTF) Create contact shadows under the object using depth rendering
  *     - size: {x, y} - Plane dimensions (default: {x: 0.5, y: 0.5})
@@ -62,6 +67,22 @@
  *
  * Usage:
  * import { sceneObjects, getSceneObjectsForState } from './sceneData.js';
+ *
+ * Console Commands:
+ * - List all available envMapWorldCenter positions:
+ *   window.getEnvMapWorldCenters()
+ *
+ * - Generate environment map (for in-engine use):
+ *   const envMap = await window.sceneManager.captureEnvMap({
+ *     position: {x: -5.32, y: 2.5, z: 87.95},
+ *     hideObjectIds: ['candlestickPhone', 'edison'],
+ *     download: false
+ *   })
+ *
+ * - For Blender IBL (manual screenshot approach):
+ *   1. window.sceneManager.moveCameraToEnvMapCenter('interior')
+ *   2. Take screenshot (F12 > Console > right-click canvas > Save image)
+ *   3. Use screenshot as environment map in Blender
  */
 
 import { GAME_STATES } from "./gameData.js";
@@ -122,7 +143,7 @@ export const sceneObjects = {
   interior: {
     id: "interior",
     type: "splat",
-    path: "/stairs-and-green-room.sog",
+    path: "/green-room-clean.sog",
     description: "Main interior office environment splat mesh",
     position: interiorPosition,
     rotation: { x: 0.0, y: -1.283, z: -3.1416 },
@@ -186,10 +207,21 @@ export const sceneObjects = {
       "Phone booth GLTF model with CordAttach and Receiver children (uses PhoneCord module)",
     position: { x: 5.94, y: 0.27, z: 65.76 },
     rotation: { x: 0.0, y: Math.PI / 1.7, z: 0.0 },
-    scale: { x: 1.5, y: 1.5, z: 1.5 },
+    scale: { x: 1.5, y: 1.575, z: 1.5 },
     options: {
       // Create a container group for proper scaling
       useContainer: true,
+      contactShadow: {
+        size: { x: 2, y: 2 }, // Larger plane for car
+        offset: { x: 0, y: -0.01, z: 0 }, // Position offset
+        blur: 1.25, // Slightly more blur for larger shadow
+        darkness: 3.0, // Shadow darkness multiplier
+        opacity: 0.8, // Overall shadow opacity
+        cameraHeight: 2.5, // Taller camera for car
+        trackMesh: "Old_Car_01", // Track the actual car mesh (for animated models)
+        updateFrequency: 1, // Update every frame (animated object)
+        debug: false,
+      },
     },
     priority: 50,
     criteria: {
@@ -271,7 +303,7 @@ export const sceneObjects = {
         clipName: null,
         loop: false,
         autoPlay: true,
-        timeScale: 0.475,
+        timeScale: 0.5,
         removeObjectOnFinish: true, // Despawn car after animation completes
         criteria: {
           currentState: {
@@ -288,7 +320,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/Basement_Door.glb",
     description: "Doors GLTF model",
-    position: { x: 6.34, y: 2.04, z: 78.1 },
+    position: { x: 6.34, y: 1.95, z: 78.1 },
     rotation: { x: -3.1416, y: 1.1453, z: -3.1416 },
     scale: { x: 0.28, y: 0.29, z: 0.38 },
     options: {
@@ -302,19 +334,35 @@ export const sceneObjects = {
     priority: 100,
   },
 
-  splatCar50k: {
-    id: "splatCar50k",
+  rustedCar: {
+    id: "rustedCar",
     type: "splat",
-    path: "/car-test-50k.sog",
+    path: "/rusted-car-2.sog",
     description: "Car test splat - positioned at origin for testing",
-    position: { x: 9.15, y: 0.59, z: 35.16 },
-    rotation: { x: 2.8129, y: -1.1301, z: -0.2943 },
-    scale: { x: 2.58, y: 2.58, z: 2.58 },
+    position: { x: 14.06, y: 0.91, z: 35.28 },
+    rotation: { x: 0.0937, y: -1.048, z: -3.0978 },
+    scale: { x: 3.65, y: 2.13, z: 2.13 },
     priority: 100,
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.PHONE_BOOTH_RINGING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  train: {
+    id: "train",
+    type: "splat",
+    path: "/train.sog",
+    description: "Train splat",
+    position: { x: -38.47, y: -1.22, z: 65.74 },
+    rotation: { x: -0.0119, y: 0.6863, z: -3.0486 },
+    scale: { x: 7.1, y: 7.1, z: 7.1 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
       },
     },
   },
@@ -361,7 +409,7 @@ export const sceneObjects = {
     path: "/gltf/viewmaster.glb",
     preload: false,
     description: "Viewmaster GLTF model",
-    position: { x: -7.63, y: 2.61, z: 85.3 },
+    position: { x: -8.24, y: 2.48, z: 85.39 },
     rotation: { x: -1.4084, y: 1.2006, z: 1.3865 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
     options: {
@@ -385,8 +433,17 @@ export const sceneObjects = {
         //roughness: 0.15, // Some roughness for aged metal surface
         envMapIntensity: 0.75, // Boosted for visibility
         // hideObjects defaults to [this object]
-
-        excludeMaterials: ["Glass"], // Apply to specific materials
+      },
+      materialRenderOrder: {
+        Vignette: {
+          renderOrder: 10000,
+          criteria: {
+            currentState: {
+              $gte: GAME_STATES.VIEWMASTER_COLOR,
+              $lte: GAME_STATES.POST_VIEWMASTER,
+            },
+          },
+        },
       },
     },
     criteria: {
@@ -402,7 +459,7 @@ export const sceneObjects = {
     path: "/gltf/edison.glb",
     preload: false,
     description: "edison cylinder player",
-    position: { x: -4.78, y: 2.24, z: 87.0 },
+    position: { x: -5.3, y: 2.11, z: 86.97 },
     rotation: { x: 3.1416, y: -0.0245, z: 3.1416 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
@@ -414,6 +471,7 @@ export const sceneObjects = {
         opacity: 0.85, // Overall shadow opacity
         cameraHeight: 1.35, // Height for shadow camera
         isStatic: true, // Never moves - render once
+        fadeDuration: 0.6, // Fade in/out duration in seconds
         debug: false, // Set to true to visualize the shadow camera AND see texture
       },
       envMap: {
@@ -447,8 +505,8 @@ export const sceneObjects = {
     preload: false,
     description:
       "Candlestick phone with CordAttach and Receiver children (uses PhoneCord module)",
-    position: { x: -4.69, y: 2.27, z: 82.39 },
-    rotation: { x: 0, y: 1.5114, z: 0 },
+    position: { x: -5.24, y: 2.13, z: 82.47 },
+    rotation: { x: 3.1416, y: -0.0904, z: 3.1416 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
       useContainer: true, // Wrap in container to preserve original model structure
@@ -460,6 +518,7 @@ export const sceneObjects = {
         opacity: 0.7, // Overall shadow opacity
         cameraHeight: 0.25, // Height for shadow camera
         isStatic: true, // Never moves - render once
+        fadeDuration: 0.6, // Fade in/out duration in seconds
         debug: false, // Set to true to visualize the shadow camera
       },
       envMap: {
@@ -574,6 +633,52 @@ export function getAllSceneObjectIds() {
  */
 export function getSceneObjectsByType(type) {
   return Object.values(sceneObjects).filter((obj) => obj.type === type);
+}
+
+/**
+ * Get all objects that have envMapWorldCenter defined
+ * Useful for finding capture positions for environment maps
+ * @returns {Array<Object>} Array of { id, position } objects
+ */
+export function getEnvMapWorldCenters() {
+  const centers = [];
+  for (const [id, obj] of Object.entries(sceneObjects)) {
+    if (obj.envMapWorldCenter) {
+      centers.push({
+        id: id,
+        position: obj.envMapWorldCenter,
+      });
+    }
+  }
+  return centers;
+}
+
+/**
+ * Console helper: Capture environment map at a named scene's envMapWorldCenter
+ * @param {string} sceneId - ID of scene object with envMapWorldCenter (e.g., "interior", "officeHell")
+ * @param {Object} options - Additional options (hideObjectIds, filename)
+ * @returns {Promise<THREE.Texture>} The captured environment map
+ */
+export async function captureEnvMapAtScene(sceneId, options = {}) {
+  if (!window.sceneManager) {
+    throw new Error("window.sceneManager not available");
+  }
+
+  const sceneObj = sceneObjects[sceneId];
+  if (!sceneObj) {
+    throw new Error(`Scene "${sceneId}" not found`);
+  }
+
+  if (!sceneObj.envMapWorldCenter) {
+    throw new Error(
+      `Scene "${sceneId}" does not have envMapWorldCenter defined`
+    );
+  }
+
+  return window.sceneManager.captureEnvMap({
+    position: sceneObj.envMapWorldCenter,
+    ...options,
+  });
 }
 
 export default sceneObjects;

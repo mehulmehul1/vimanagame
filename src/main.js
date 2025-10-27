@@ -15,13 +15,18 @@ import UIManager from "./ui/uiManager.js";
 import ColliderManager from "./colliderManager.js";
 import SceneManager from "./sceneManager.js";
 import colliders from "./colliderData.js";
-import { sceneObjects } from "./sceneData.js";
+import {
+  sceneObjects,
+  getEnvMapWorldCenters,
+  captureEnvMapAtScene,
+} from "./sceneData.js";
 import { videos } from "./videoData.js";
 import { lights } from "./lightData.js";
 import { StartScreen } from "./ui/startScreen.js";
 import { GAME_STATES } from "./gameData.js";
-import CameraAnimationManager from "./cameraAnimationManager.js";
-import cameraAnimations from "./cameraAnimationData.js";
+import AnimationManager from "./animationManager.js";
+import cameraAnimations from "./animationCameraData.js";
+import objectAnimations from "./animationObjectData.js";
 import GizmoManager from "./utils/gizmoManager.js";
 import { VFXSystemManager } from "./vfxManager.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
@@ -65,6 +70,9 @@ const renderer = new THREE.WebGLRenderer({ alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+renderer.toneMapping = THREE.CineonToneMapping; // Better HDR tone mapping for bloom effects
+renderer.toneMappingExposure = 1.0; // Adjust exposure for bloom
+renderer.outputColorSpace = THREE.SRGBColorSpace; // Proper color space
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
 document.body.appendChild(renderer.domElement);
 
@@ -100,6 +108,10 @@ const sceneManager = new SceneManager(scene, {
 
 // Make scene manager globally accessible for mesh lookups
 window.sceneManager = sceneManager;
+
+// Expose environment map utilities for console debugging
+window.getEnvMapWorldCenters = getEnvMapWorldCenters;
+window.captureEnvMapAtScene = captureEnvMapAtScene;
 
 // Note: gizmoManager will be passed to sceneManager after initialization
 
@@ -200,8 +212,8 @@ sfxManager.registerSoundsFromData(sfxSounds);
 window.characterController = characterController;
 window.inputManager = inputManager;
 
-// Initialize camera animation manager now that all dependencies exist
-const cameraAnimationManager = new CameraAnimationManager(
+// Initialize animation manager now that all dependencies exist
+const cameraAnimationManager = new AnimationManager(
   camera,
   characterController,
   gameManager,
@@ -214,6 +226,7 @@ const cameraAnimationManager = new CameraAnimationManager(
 
 // Load camera animations from data
 cameraAnimationManager.loadAnimationsFromData(cameraAnimations);
+// Object animations are loaded directly in animationManager.js
 
 // Make it globally accessible for debugging/scripting
 window.cameraAnimationManager = cameraAnimationManager;
@@ -532,7 +545,7 @@ renderer.setAnimationLoop(function animate(time) {
   sceneManager.updateAnimationsForState(gameManager.state);
 
   // Update contact shadows (must be called before rendering)
-  sceneManager.updateContactShadows();
+  sceneManager.updateContactShadows(dt);
 
   // Always update game manager (handles receiver lerp, etc.)
   gameManager.update(dt);

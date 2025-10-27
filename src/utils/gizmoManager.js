@@ -630,8 +630,8 @@ class GizmoManager {
         this.setVisible(!this.isVisible);
         this.logger.log(`${this.isVisible ? "Shown" : "Hidden"} (all gizmos)`);
         break;
-      case "f":
-      case "F":
+      case "u":
+      case "U":
         this.cycleAndTeleportToNextGizmo();
         break;
       case "Escape":

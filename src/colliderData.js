@@ -28,7 +28,7 @@
  * - gizmo: If true, indicates this collider is part of gizmo authoring mode (blocks idle behaviors)
  *
  * Note: All game behaviors should be triggered by state changes, not directly by colliders.
- * Use cameraAnimationData.js, musicData.js, dialogData.js, etc. with state-based criteria.
+ * Use animationCameraData.js, animationObjectData.js, musicData.js, dialogData.js, etc. with state-based criteria.
  */
 
 import { GAME_STATES } from "./gameData.js";

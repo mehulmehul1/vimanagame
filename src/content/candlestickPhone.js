@@ -260,6 +260,15 @@ class CandlestickPhone {
         if (newState.currentState === GAME_STATES.PRE_VIEWMASTER) {
           this.putDownToOriginal();
         }
+        // Hide cord during dissolve effect (VIEWMASTER_COLOR to POST_VIEWMASTER)
+        if (
+          newState.currentState >= GAME_STATES.VIEWMASTER_COLOR &&
+          newState.currentState <= GAME_STATES.POST_VIEWMASTER
+        ) {
+          this.setCordVisibility(false);
+        } else if (newState.currentState > GAME_STATES.POST_VIEWMASTER) {
+          this.setCordVisibility(true);
+        }
       });
     }
 
@@ -920,6 +929,20 @@ class CandlestickPhone {
    */
   getPhoneCord() {
     return this.phoneCord;
+  }
+
+  /**
+   * Set visibility of the phone cord
+   * @param {boolean} visible - Whether the cord should be visible
+   */
+  setCordVisibility(visible) {
+    if (!this.phoneCord) return;
+
+    // PhoneCord uses cordLineMesh for rendering
+    if (this.phoneCord.cordLineMesh) {
+      this.phoneCord.cordLineMesh.visible = visible;
+      this.logger.log(`Phone cord visibility: ${visible}`);
+    }
   }
 
   /**

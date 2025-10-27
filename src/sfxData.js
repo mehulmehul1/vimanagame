@@ -143,7 +143,6 @@ export const sfxSounds = {
       currentState: GAME_STATES.OFFICE_INTERIOR,
     },
     delay: 2.75,
-    rate: 1.3,
     reactiveLight: {
       enabled: true,
       type: "PointLight", // THREE.js light type
@@ -206,13 +205,19 @@ export const sfxSounds = {
 
   "engine-and-gun": {
     id: "engine-and-gun",
-    src: ["/audio/sfx/engine-and-gun.mp3"],
+    src: ["/audio/sfx/engine-guns-glass.mp3"],
     volume: 0.9,
     loop: false,
     spatial: false, // Non-spatial for dramatic effect
     preload: true,
-    criteria: { currentState: GAME_STATES.DRIVE_BY },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.DRIVE_BY_PREAMBLE,
+        $lte: GAME_STATES.DRIVE_BY,
+      },
+    },
     playOnce: true, // One-shot sound triggered by state
+    rate: 1.05,
   },
 
   // Typewriter sounds for dialog choices

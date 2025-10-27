@@ -258,6 +258,7 @@ class SFXManager {
         src: sound.src,
         loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
+        ...(sound.rate !== undefined && { rate: sound.rate }),
         preload: preload,
         onload: () => {
           this.logger.log(`Loaded sound "${sound.id}"`);
@@ -330,6 +331,7 @@ class SFXManager {
         src: sound.src,
         loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
+        ...(sound.rate !== undefined && { rate: sound.rate }),
         preload: true, // Load now
         onload: () => {
           this.logger.log(`Loaded deferred sound "${sound.id}"`);
@@ -458,6 +460,7 @@ class SFXManager {
         src: sound.src,
         loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
+        ...(sound.rate !== undefined && { rate: sound.rate }),
         preload: true, // Load now
         onend: hasLoopDelay ? () => this._handleLoopEnd(sound.id) : undefined,
       });

@@ -146,7 +146,19 @@ const stateOverrides = {
     playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
   },
 
+  VIEWMASTER_COLOR: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
+
   VIEWMASTER_HELL: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
+
+  POST_VIEWMASTER: {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 84.66 },

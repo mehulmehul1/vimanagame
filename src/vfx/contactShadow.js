@@ -26,6 +26,7 @@ const logger = new Logger("ContactShadow", false);
  *   blur: 3.5,
  *   darkness: 1.5,
  *   opacity: 0.5,
+ *   fadeDuration: 0.3,  // Fade in/out duration (seconds)
  *   isStatic: true  // Render once and stop
  * });
  *
@@ -35,8 +36,13 @@ const logger = new Logger("ContactShadow", false);
  *   trackMesh: "CarMesh"
  * });
  *
- * // In animation loop:
+ * // In animation loop (call update before render):
+ * contactShadow.update(deltaTime);  // For fade animations
  * contactShadow.render();
+ *
+ * // Enable/disable with fade:
+ * contactShadow.enable();  // Fade in
+ * contactShadow.disable(); // Fade out
  *
  * // For static objects that need to re-render after moving:
  * staticShadow.requestUpdate();
@@ -64,6 +70,7 @@ export class ContactShadow {
       trackMesh = null, // Optional: name of specific child mesh to track (for animated models)
       updateFrequency = 3, // Update every N frames (1 = every frame, higher = better performance)
       isStatic = false, // If true, render once and never again (for static objects)
+      fadeDuration = 0.3, // Fade in/out duration in seconds
     } = config;
 
     this.config = {
@@ -207,6 +214,12 @@ export class ContactShadow {
     // Initialize enabled state (default to true)
     this.enabled = true;
 
+    // Fade animation properties
+    this.fadeDuration = config.fadeDuration || 0.3; // Default 0.3 seconds
+    this.fadeState = "visible"; // "visible", "fading-in", "fading-out", "hidden"
+    this.fadeProgress = 1.0; // 0 = fully transparent, 1 = fully opaque
+    this.targetOpacity = opacity; // Store original opacity
+
     // Performance optimization: track frame updates
     this.frameCounter = 0;
     this.updateFrequency = updateFrequency; // Update every N frames (1 = every frame, higher = better perf)
@@ -245,6 +258,61 @@ export class ContactShadow {
   }
 
   /**
+   * Update fade animation
+   * Call this in your animation loop before render()
+   * @param {number} deltaTime - Time elapsed since last frame in seconds
+   */
+  update(deltaTime) {
+    // Update fade animation
+    if (this.fadeState === "fading-in") {
+      this.fadeProgress += deltaTime / this.fadeDuration;
+      if (this.fadeProgress >= 1.0) {
+        this.fadeProgress = 1.0;
+        this.fadeState = "visible";
+        logger.log(`Shadow "${this.shadowGroup.name}" fade in complete`);
+      }
+      // Update plane opacity
+      this.plane.material.opacity = this.targetOpacity * this.fadeProgress;
+    } else if (this.fadeState === "fading-out") {
+      this.fadeProgress -= deltaTime / this.fadeDuration;
+      if (this.fadeProgress <= 0.0) {
+        this.fadeProgress = 0.0;
+        this.fadeState = "hidden";
+        this.plane.visible = false;
+        logger.log(`Shadow "${this.shadowGroup.name}" fade out complete`);
+      }
+      // Update plane opacity
+      this.plane.material.opacity = this.targetOpacity * this.fadeProgress;
+    }
+  }
+
+  /**
+   * Enable the shadow with fade in
+   */
+  enable() {
+    if (this.enabled && this.fadeState !== "hidden") return;
+
+    this.enabled = true;
+    this.fadeState = "fading-in";
+    this.fadeProgress = 0.0;
+    this.plane.material.opacity = 0.0;
+    this.plane.visible = true;
+    logger.log(`Shadow "${this.shadowGroup.name}" fading in`);
+  }
+
+  /**
+   * Disable the shadow with fade out
+   */
+  disable() {
+    if (!this.enabled && this.fadeState === "hidden") return;
+
+    this.enabled = false;
+    this.fadeState = "fading-out";
+    this.fadeProgress = 1.0;
+    logger.log(`Shadow "${this.shadowGroup.name}" fading out`);
+  }
+
+  /**
    * Blur the shadow texture
    * @param {number} amount - Blur amount
    * @private
@@ -274,11 +342,14 @@ export class ContactShadow {
 
   /**
    * Render the contact shadow
-   * Call this in your animation loop
+   * Call this in your animation loop (after update())
    */
   render() {
-    // Hide plane and skip rendering if disabled
-    if (!this.enabled) {
+    // Skip rendering if hidden or disabled (but allow fade-out state to continue showing)
+    if (
+      this.fadeState === "hidden" ||
+      (!this.enabled && this.fadeState !== "fading-out")
+    ) {
       this.plane.visible = false;
       return;
     }
@@ -400,12 +471,18 @@ export class ContactShadow {
    * Update shadow properties
    * @param {Object} updates - Properties to update
    */
-  update(updates = {}) {
+  updateProperties(updates = {}) {
     let changed = false;
 
     if (updates.opacity !== undefined) {
-      this.plane.material.opacity = updates.opacity;
+      this.targetOpacity = updates.opacity;
       this.config.opacity = updates.opacity;
+      // Update current opacity based on fade state
+      if (this.fadeState === "visible") {
+        this.plane.material.opacity = updates.opacity;
+      } else {
+        this.plane.material.opacity = updates.opacity * this.fadeProgress;
+      }
       changed = true;
     }
 
@@ -422,6 +499,11 @@ export class ContactShadow {
 
     if (updates.updateFrequency !== undefined) {
       this.updateFrequency = updates.updateFrequency;
+      changed = true;
+    }
+
+    if (updates.fadeDuration !== undefined) {
+      this.fadeDuration = updates.fadeDuration;
       changed = true;
     }
 

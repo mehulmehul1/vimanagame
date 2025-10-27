@@ -63,6 +63,9 @@ class SceneManager {
     this.contactShadows = new Map(); // Map of objectId -> ContactShadow instance
     this.contactShadowCriteria = new Map(); // Map of objectId -> criteria config
 
+    // Material render order management
+    this.materialRenderOrders = new Map(); // Map of objectId -> { materialName: { renderOrder, criteria, meshes: [] } }
+
     // Environment map cache (stores promises to ensure only one render per position)
     this.envMapCache = new Map(); // Map of cacheKey -> Promise<envMap texture>
 
@@ -79,8 +82,11 @@ class SceneManager {
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState) => {
         this.updateContactShadowsForState(newState);
+        this.updateMaterialRenderOrdersForState(newState);
       });
-      this.logger.log("Listening for game state changes (contact shadows)");
+      this.logger.log(
+        "Listening for game state changes (contact shadows, material render orders)"
+      );
     }
   }
 
@@ -473,6 +479,15 @@ class SceneManager {
             this._setupAnimations(id, model, gltf.animations, animations);
           }
 
+          // Setup material render orders if specified
+          if (options && options.materialRenderOrder) {
+            this._setupMaterialRenderOrders(
+              id,
+              finalObject,
+              options.materialRenderOrder
+            );
+          }
+
           this.scene.add(finalObject);
 
           // Create physics collider if flag is set
@@ -714,11 +729,23 @@ class SceneManager {
           `  Hiding ${hideObjects.length} object(s) during render`
         );
 
-        const renderPromise = this.sparkRenderer.renderEnvMap({
-          scene: this.scene,
-          worldCenter: worldCenter,
-          hideObjects: hideObjects,
-          update: true, // Guard against first-render issues
+        // Defer environment map rendering to avoid "Only one sort at a time" error
+        // Wait for next animation frame to ensure SparkRenderer isn't busy with main render
+        const renderPromise = new Promise((resolve, reject) => {
+          requestAnimationFrame(async () => {
+            try {
+              const envMapTexture = await this.sparkRenderer.renderEnvMap({
+                scene: this.scene,
+                worldCenter: worldCenter,
+                hideObjects: hideObjects,
+                update: true, // Guard against first-render issues
+              });
+              resolve(envMapTexture);
+            } catch (error) {
+              this.logger.error(`EnvMap render failed for "${id}":`, error);
+              reject(error);
+            }
+          });
         });
 
         // Cache the promise immediately (before awaiting)
@@ -966,6 +993,102 @@ class SceneManager {
   }
 
   /**
+   * Setup material render orders for a GLTF object
+   * @param {string} objectId - Object ID
+   * @param {THREE.Object3D} object - The loaded object
+   * @param {Object} materialRenderOrderConfig - Material render order configuration
+   * @private
+   */
+  _setupMaterialRenderOrders(objectId, object, materialRenderOrderConfig) {
+    const configMap = new Map();
+
+    for (const [materialName, config] of Object.entries(
+      materialRenderOrderConfig
+    )) {
+      const meshes = [];
+
+      object.traverse((child) => {
+        if (child.isMesh && child.material) {
+          const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
+
+          materials.forEach((material) => {
+            if (material.name === materialName) {
+              meshes.push(child);
+            }
+          });
+        }
+      });
+
+      if (meshes.length > 0) {
+        configMap.set(materialName, {
+          renderOrder: config.renderOrder,
+          criteria: config.criteria,
+          meshes: meshes,
+        });
+
+        this.logger.log(
+          `Found ${meshes.length} mesh(es) with material "${materialName}" for object "${objectId}"`
+        );
+
+        if (!config.criteria) {
+          meshes.forEach((mesh) => {
+            mesh.renderOrder = config.renderOrder;
+          });
+          this.logger.log(
+            `Applied renderOrder ${config.renderOrder} to material "${materialName}" (no criteria)`
+          );
+        } else {
+          this.logger.log(
+            `Material "${materialName}" renderOrder will be applied when criteria match`
+          );
+        }
+      } else {
+        this.logger.warn(
+          `Material "${materialName}" not found in object "${objectId}"`
+        );
+      }
+    }
+
+    if (configMap.size > 0) {
+      this.materialRenderOrders.set(objectId, configMap);
+    }
+  }
+
+  /**
+   * Update material render orders based on game state
+   * @param {Object} gameState - Current game state
+   */
+  updateMaterialRenderOrdersForState(gameState) {
+    if (this.materialRenderOrders.size === 0) return;
+
+    for (const [objectId, materialMap] of this.materialRenderOrders) {
+      for (const [materialName, config] of materialMap) {
+        if (!config.criteria) continue;
+
+        const matches = checkCriteria(gameState, config.criteria);
+
+        config.meshes.forEach((mesh) => {
+          if (matches) {
+            mesh.renderOrder = config.renderOrder;
+          } else {
+            mesh.renderOrder = 0;
+          }
+        });
+
+        this.logger.log(
+          `Material "${materialName}" on "${objectId}": renderOrder ${
+            matches ? config.renderOrder : 0
+          } (state=${gameState.currentState}, criteria ${
+            matches ? "matched" : "not matched"
+          })`
+        );
+      }
+    }
+  }
+
+  /**
    * Get a loaded object by ID
    * @param {string} id - Object ID
    * @returns {THREE.Object3D|null}
@@ -1123,6 +1246,12 @@ class SceneManager {
         this.logger.log(`Removed contact shadow for "${id}"`);
       }
 
+      // Clean up material render orders if this object has any
+      if (this.materialRenderOrders.has(id)) {
+        this.materialRenderOrders.delete(id);
+        this.logger.log(`Removed material render orders for "${id}"`);
+      }
+
       // Clean up physics collider if this object has one
       if (this.physicsColliderObjects.has(id) && this.physicsManager) {
         const removed = this.physicsManager.removeTrimeshCollider(id);
@@ -1228,12 +1357,14 @@ class SceneManager {
   /**
    * Update all contact shadows
    * Call this in your animation loop to render contact shadows
+   * @param {number} deltaTime - Time since last frame in seconds
    */
-  updateContactShadows() {
+  updateContactShadows(deltaTime = 0) {
     // Early exit if no contact shadows (performance optimization)
     if (this.contactShadows.size === 0) return;
 
     for (const contactShadow of this.contactShadows.values()) {
+      contactShadow.update(deltaTime); // Update fade animations
       contactShadow.render();
     }
   }
@@ -1253,7 +1384,13 @@ class SceneManager {
       if (!contactShadow) continue;
 
       const matches = checkCriteria(gameState, criteria);
-      contactShadow.enabled = matches;
+
+      // Use enable/disable methods to trigger fade animations
+      if (matches) {
+        contactShadow.enable();
+      } else {
+        contactShadow.disable();
+      }
 
       // Always log for debugging
       this.logger.log(
@@ -1299,6 +1436,246 @@ class SceneManager {
       else if (!matchesCriteria && isPlaying) {
         this.stopAnimation(animationId);
       }
+    }
+  }
+
+  /**
+   * Capture an environment map at a specific position and optionally download it
+   * Useful for debugging and creating reusable environment map assets
+   *
+   * @param {Object} options - Capture options
+   * @param {THREE.Vector3|Object} options.position - World position to capture from (default: {x:0, y:0, z:0})
+   * @param {Array<string>} options.hideObjectIds - Array of object IDs to hide during capture
+   * @param {boolean} options.download - Whether to download the resulting texture (default: true)
+   * @param {string} options.filename - Filename for download (default: "envmap.png")
+   * @returns {Promise<THREE.Texture>} The captured environment map texture
+   */
+  async captureEnvMap(options = {}) {
+    if (!this.sparkRenderer) {
+      throw new Error(
+        "SparkRenderer not available - cannot capture environment map"
+      );
+    }
+
+    // Parse options
+    const position = options.position || { x: 0, y: 0, z: 0 };
+    const worldCenter = new THREE.Vector3(position.x, position.y, position.z);
+    const hideObjectIds = options.hideObjectIds || [];
+    const shouldDownload = options.download !== false; // Default true
+    const filename = options.filename || "envmap.png";
+
+    // Convert object IDs to THREE.Object3D references
+    const hideObjects = [];
+    for (const objId of hideObjectIds) {
+      const obj = this.getObject(objId);
+      if (obj) {
+        hideObjects.push(obj);
+      } else {
+        this.logger.warn(`captureEnvMap: object "${objId}" not found`);
+      }
+    }
+
+    this.logger.log(
+      `Capturing environment map at position (${worldCenter.x.toFixed(
+        2
+      )}, ${worldCenter.y.toFixed(2)}, ${worldCenter.z.toFixed(2)})`
+    );
+    if (hideObjects.length > 0) {
+      this.logger.log(
+        `  Hiding ${hideObjects.length} object(s): ${hideObjectIds.join(", ")}`
+      );
+    }
+
+    // Wait for all loading to complete
+    const loadingPromises = Array.from(this.loadingPromises.values());
+    if (loadingPromises.length > 0) {
+      this.logger.log(
+        `  Waiting for ${loadingPromises.length} object(s) to finish loading...`
+      );
+      await Promise.all(loadingPromises.map((p) => p.catch(() => {})));
+    }
+
+    // Wait for splat initialization
+    const splatWaitPromises = [];
+    for (const [objId, obj] of this.objects) {
+      if (obj.initialized && typeof obj.initialized.then === "function") {
+        splatWaitPromises.push(obj.initialized);
+      }
+    }
+    if (splatWaitPromises.length > 0) {
+      await Promise.all(splatWaitPromises);
+    }
+
+    // Render the environment map
+    this.logger.log(`  Rendering environment map...`);
+
+    // Defer to next frame to avoid "Only one sort at a time" error
+    const envMap = await new Promise((resolve, reject) => {
+      requestAnimationFrame(async () => {
+        try {
+          const texture = await this.sparkRenderer.renderEnvMap({
+            scene: this.scene,
+            worldCenter: worldCenter,
+            hideObjects: hideObjects,
+            update: true,
+          });
+          resolve(texture);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    this.logger.log(
+      `  ✓ Environment map captured (${envMap.image?.width || "unknown"}x${
+        envMap.image?.height || "unknown"
+      })`
+    );
+
+    // Download if requested
+    if (shouldDownload) {
+      await this._downloadTexture(envMap, filename);
+    }
+
+    return envMap;
+  }
+
+  /**
+   * Download a rendered view of the scene using SparkRenderer
+   * Captures the splat scene from the envMapWorldCenter position
+   * @param {THREE.Texture} texture - Texture (unused, we render fresh from scene)
+   * @param {string} filename - Filename for download
+   * @private
+   */
+  async _downloadTexture(texture, filename) {
+    if (!this.renderer) {
+      this.logger.error("THREE.WebGLRenderer not available");
+      return;
+    }
+
+    // Create shader to convert cube/PMREM texture to equirectangular
+    const vertexShader = `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragmentShader = `
+      #include <common>
+      varying vec2 vUv;
+      uniform samplerCube envMap;
+      
+      void main() {
+        vec2 uv = vUv;
+        float theta = uv.x * PI * 2.0;
+        float phi = uv.y * PI;
+        
+        vec3 dir = vec3(
+          sin(phi) * cos(theta),
+          cos(phi),
+          sin(phi) * sin(theta)
+        );
+        
+        gl_FragColor = textureCube(envMap, dir);
+      }
+    `;
+
+    // Create render target
+    const width = 2048;
+    const height = 1024;
+    const renderTarget = new THREE.WebGLRenderTarget(width, height, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+    });
+
+    // Create scene with plane
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+    const geometry = new THREE.PlaneGeometry(2, 2);
+    const material = new THREE.ShaderMaterial({
+      vertexShader,
+      fragmentShader,
+      uniforms: {
+        envMap: { value: texture },
+      },
+    });
+
+    const plane = new THREE.Mesh(geometry, material);
+    scene.add(plane);
+
+    // Render to target
+    this.renderer.setRenderTarget(renderTarget);
+    this.renderer.render(scene, camera);
+    this.renderer.setRenderTarget(null);
+
+    // Read pixels
+    const buffer = new Uint8Array(width * height * 4);
+    this.renderer.readRenderTargetPixels(
+      renderTarget,
+      0,
+      0,
+      width,
+      height,
+      buffer
+    );
+
+    // Create canvas and draw pixels
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(width, height);
+    imageData.data.set(buffer);
+    ctx.putImageData(imageData, 0, 0);
+
+    // Download
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      this.logger.log(`  ✓ Downloaded equirectangular map as "${filename}"`);
+    }, "image/png");
+
+    // Cleanup
+    geometry.dispose();
+    material.dispose();
+    renderTarget.dispose();
+  }
+
+  /**
+   * Move the camera to an envMapWorldCenter position for manual screenshot capture
+   * @param {string} sceneId - ID of scene object with envMapWorldCenter (e.g., "interior")
+   */
+  moveCameraToEnvMapCenter(sceneId) {
+    const sceneData = this.objectData.get(sceneId);
+    if (!sceneData || !sceneData.envMapWorldCenter) {
+      this.logger.error(
+        `Scene "${sceneId}" not found or doesn't have envMapWorldCenter`
+      );
+      return;
+    }
+
+    const pos = sceneData.envMapWorldCenter;
+    if (window.camera) {
+      window.camera.position.set(pos.x, pos.y, pos.z);
+      this.logger.log(
+        `✓ Camera moved to envMapWorldCenter: (${pos.x}, ${pos.y}, ${pos.z})`
+      );
+      this.logger.log(
+        "Take a screenshot now! This is what your environment map sees."
+      );
+    } else {
+      this.logger.error("window.camera not available");
     }
   }
 

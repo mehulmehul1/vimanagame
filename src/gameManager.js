@@ -26,7 +26,7 @@ class GameManager {
     this.isDebugMode = isDebugSpawnActive();
 
     // Logger for debug messages
-    this.logger = new Logger("GameManager", true);
+    this.logger = new Logger("GameManager", false);
 
     if (this.isDebugMode) {
       this.logger.log("Debug mode active", this.state);

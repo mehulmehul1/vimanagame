@@ -63,6 +63,10 @@ export class SplatMorphEffect extends VFXManager {
       y: dyno.dynoFloat(0),
       z: dyno.dynoFloat(0),
     };
+    // Wipe mode parameters
+    this.transitionModeDyn = dyno.dynoInt(0); // 0 = scatter, 1 = wipe
+    this.wipeDirectionDyn = dyno.dynoInt(0); // 0 = bottom-to-top, 1 = top-to-bottom
+    this.wipeSoftnessDyn = dyno.dynoFloat(0.1); // Wipe edge softness
 
     this.logger.log("SplatMorphEffect created");
   }
@@ -172,6 +176,9 @@ export class SplatMorphEffect extends VFXManager {
         scatterCenterX: "float",
         scatterCenterY: "float",
         scatterCenterZ: "float",
+        transitionMode: "int", // 0 = scatter, 1 = wipe
+        wipeDirection: "int", // 0 = bottom-to-top, 1 = top-to-bottom
+        wipeSoftness: "float",
       },
       outTypes: { gsplat: dyno.Gsplat },
       globals: () => [
@@ -211,66 +218,122 @@ export class SplatMorphEffect extends VFXManager {
           float uPhase = inTrans ? clamp((w - stay) / trans, 0.0, 1.0) : 0.0;
           if (afterTrans) uPhase = 1.0;
           
-          bool phaseScatter = uPhase < 0.5;
-          float s = phaseScatter ? (uPhase / 0.5) : ((uPhase - 0.5) / 0.5);
           int idx = ${inputs.objectIndex};
-
-          vec3 scatterCenter = vec3(${inputs.scatterCenterX}, ${inputs.scatterCenterY}, ${inputs.scatterCenterZ});
-          vec3 rp = randPos(int(${inputs.gsplat}.index), ${inputs.randomRadius}, scatterCenter);
-          rp.y -= ${inputs.offsetY};
-          vec3 rpMid = mix(${inputs.gsplat}.center, rp, 0.7);
-
-          float alpha = 0.0;
-          vec3 pos = ${inputs.gsplat}.center;
+          int mode = ${inputs.transitionMode};
+          
           vec3 origScale = ${inputs.gsplat}.scales;
           vec3 small = ${inputs.gsplat}.scales * 0.2;
+          float alpha = 0.0;
+          vec3 pos = ${inputs.gsplat}.center;
 
-          // Source splat (idx 0)
-          if (idx == 0) {
-            if (!inTrans && !afterTrans) {
-              // Before transition: show source
-              alpha = 1.0;
-              pos = ${inputs.gsplat}.center;
-              ${outputs.gsplat}.scales = origScale;
-            } else if (inTrans && phaseScatter) {
-              // First half of transition: scatter source
-              alpha = 1.0 - ease(s) * 0.5;
-              pos = mix(${inputs.gsplat}.center, rpMid, ease(s));
-              ${outputs.gsplat}.scales = mix(origScale, small, ease(s));
-            } else {
-              // Second half and after: hide source
-              alpha = 0.0;
-              pos = rpMid;
-              ${outputs.gsplat}.scales = small;
+          // Mode 1: Wipe transition
+          if (mode == 1) {
+            // Get Y coordinate of splat (for bottom-to-top or top-to-bottom wipe)
+            float splatY = ${inputs.gsplat}.center.y;
+            
+            // Estimate scene bounds (adjust these based on your scene)
+            float minY = -5.0;  // Approximate floor
+            float maxY = 10.0;  // Approximate ceiling
+            
+            // Normalize Y to 0-1 range
+            float normalizedY = clamp((splatY - minY) / (maxY - minY), 0.0, 1.0);
+            
+            // Flip for top-to-bottom (wipeDirection = 1)
+            if (${inputs.wipeDirection} == 1) {
+              normalizedY = 1.0 - normalizedY;
+            }
+            
+            // Calculate wipe threshold with softness
+            float softness = ${inputs.wipeSoftness};
+            float wipeMask = smoothstep(
+              uPhase - softness,
+              uPhase + softness,
+              normalizedY
+            );
+            
+            // Source splat (idx 0): fades out as wipe progresses
+            if (idx == 0) {
+              if (!inTrans && !afterTrans) {
+                // Before transition: show source
+                alpha = 1.0;
+                ${outputs.gsplat}.scales = origScale;
+              } else {
+                // During/after transition: fade out based on wipe
+                alpha = 1.0 - wipeMask;
+                ${outputs.gsplat}.scales = mix(origScale, small, wipeMask);
+              }
+            }
+            // Target splat (idx 1): fades in as wipe progresses
+            else if (idx == 1) {
+              if (!inTrans) {
+                // Before transition: hide target
+                alpha = 0.0;
+                ${outputs.gsplat}.scales = small;
+              } else {
+                // During/after transition: fade in based on wipe
+                alpha = wipeMask;
+                ${outputs.gsplat}.scales = mix(small, origScale, wipeMask);
+              }
             }
           }
-          // Target splat (idx 1)
-          else if (idx == 1) {
-            if (!inTrans) {
-              // Before transition: hide target
-              alpha = 0.0;
-              pos = rpMid;
-              ${outputs.gsplat}.scales = small;
-            } else if (phaseScatter) {
-              // First half of transition: keep hidden
-              alpha = 0.0;
-              pos = rpMid;
-              ${outputs.gsplat}.scales = small;
-            } else {
-              // Second half and after: show target
-              alpha = max(ease(s), 0.5);
-              pos = mix(rpMid, ${inputs.gsplat}.center, ease(s));
-              ${outputs.gsplat}.scales = mix(small, origScale, ease(s));
+          // Mode 0: Scatter transition (original behavior)
+          else {
+            bool phaseScatter = uPhase < 0.5;
+            float s = phaseScatter ? (uPhase / 0.5) : ((uPhase - 0.5) / 0.5);
+
+            vec3 scatterCenter = vec3(${inputs.scatterCenterX}, ${inputs.scatterCenterY}, ${inputs.scatterCenterZ});
+            vec3 rp = randPos(int(${inputs.gsplat}.index), ${inputs.randomRadius}, scatterCenter);
+            rp.y -= ${inputs.offsetY};
+            vec3 rpMid = mix(${inputs.gsplat}.center, rp, 0.7);
+
+            // Source splat (idx 0)
+            if (idx == 0) {
+              if (!inTrans && !afterTrans) {
+                // Before transition: show source
+                alpha = 1.0;
+                pos = ${inputs.gsplat}.center;
+                ${outputs.gsplat}.scales = origScale;
+              } else if (inTrans && phaseScatter) {
+                // First half of transition: scatter source
+                alpha = 1.0 - ease(s) * 0.5;
+                pos = mix(${inputs.gsplat}.center, rpMid, ease(s));
+                ${outputs.gsplat}.scales = mix(origScale, small, ease(s));
+              } else {
+                // Second half and after: hide source
+                alpha = 0.0;
+                pos = rpMid;
+                ${outputs.gsplat}.scales = small;
+              }
             }
-            if (afterTrans) {
-              // After transition: fully show target
-              alpha = 1.0;
-              pos = ${inputs.gsplat}.center;
-              ${outputs.gsplat}.scales = origScale;
+            // Target splat (idx 1)
+            else if (idx == 1) {
+              if (!inTrans) {
+                // Before transition: hide target
+                alpha = 0.0;
+                pos = rpMid;
+                ${outputs.gsplat}.scales = small;
+              } else if (phaseScatter) {
+                // First half of transition: keep hidden
+                alpha = 0.0;
+                pos = rpMid;
+                ${outputs.gsplat}.scales = small;
+              } else {
+                // Second half and after: show target
+                alpha = max(ease(s), 0.5);
+                pos = mix(rpMid, ${inputs.gsplat}.center, ease(s));
+                ${outputs.gsplat}.scales = mix(small, origScale, ease(s));
+              }
+              if (afterTrans) {
+                // After transition: fully show target
+                alpha = 1.0;
+                pos = ${inputs.gsplat}.center;
+                ${outputs.gsplat}.scales = origScale;
+              }
             }
+
+            pos.y += ${inputs.offsetY};
           }
 
-          pos.y += ${inputs.offsetY};
           ${outputs.gsplat}.center = pos;
           ${outputs.gsplat}.rgba.a = ${inputs.gsplat}.rgba.a * alpha;
         `),
@@ -289,7 +352,10 @@ export class SplatMorphEffect extends VFXManager {
     numObjects,
     randomRadius,
     offsetY,
-    scatterCenter
+    scatterCenter,
+    transitionMode,
+    wipeDirection,
+    wipeSoftness
   ) {
     const dyn = this._createMorphDyno();
     return dyno.dynoBlock(
@@ -308,6 +374,9 @@ export class SplatMorphEffect extends VFXManager {
           scatterCenterX: scatterCenter.x,
           scatterCenterY: scatterCenter.y,
           scatterCenterZ: scatterCenter.z,
+          transitionMode,
+          wipeDirection,
+          wipeSoftness,
         }).gsplat,
       })
     );
@@ -334,7 +403,10 @@ export class SplatMorphEffect extends VFXManager {
         this.numObjectsDyn,
         this.radiusDyn,
         offsetYValues[i],
-        this.scatterCenterDyn
+        this.scatterCenterDyn,
+        this.transitionModeDyn,
+        this.wipeDirectionDyn,
+        this.wipeSoftnessDyn
       );
       mesh.updateGenerator();
     });
@@ -367,6 +439,25 @@ export class SplatMorphEffect extends VFXManager {
       this.scatterCenterDyn.x.value = params.scatterCenter.x;
       this.scatterCenterDyn.y.value = params.scatterCenter.y;
       this.scatterCenterDyn.z.value = params.scatterCenter.z;
+    }
+
+    // Update transition mode (scatter vs wipe)
+    if (params.mode !== undefined) {
+      const mode = params.mode === "wipe" ? 1 : 0;
+      this.transitionModeDyn.value = mode;
+      this.logger.log(`Transition mode: ${params.mode} (${mode})`);
+    }
+
+    // Update wipe direction (bottom-to-top vs top-to-bottom)
+    if (params.wipeDirection !== undefined) {
+      const direction = params.wipeDirection === "top-to-bottom" ? 1 : 0;
+      this.wipeDirectionDyn.value = direction;
+      this.logger.log(`Wipe direction: ${params.wipeDirection} (${direction})`);
+    }
+
+    // Update wipe softness
+    if (params.wipeSoftness !== undefined) {
+      this.wipeSoftnessDyn.value = params.wipeSoftness;
     }
 
     // Control animation state

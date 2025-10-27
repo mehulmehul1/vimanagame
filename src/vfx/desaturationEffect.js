@@ -25,11 +25,11 @@ export class DesaturationEffect extends VFXManager {
     this.currentState = 0; // Track current state: 0 = color, 1 = grayscale
 
     // Transition properties
-    this.transitionMode = "bleed"; // 'fade', 'wipe', 'bleed'
-    this.wipeDirection = "vertical"; // For wipe mode: 'horizontal' = vertical line moving L/R, 'vertical' = horizontal line moving up/down
-    this.wipeSoftness = 0.002; // Very sharp line for hard wipe
+    this.transitionMode = "bleed"; // 'fade', 'bleed', or 'wipe'
     this.bleedScale = 3; // Scale of noise pattern
     this.bleedSoftness = 0.2; // Softness of bleed edges
+    this.wipeDirection = "bottom-to-top"; // 'bottom-to-top' or 'top-to-bottom'
+    this.wipeSoftness = 0.15; // Softness of wipe edge
 
     // Audio control
     this.enableAudio = false; // Set to true to enable procedural audio
@@ -69,15 +69,11 @@ export class DesaturationEffect extends VFXManager {
         tDiffuse: { value: null },
         desatAmount: { value: 0.0 },
         animProgress: { value: 0.0 },
-        transitionMode: { value: 2.0 }, // 0=fade, 1=wipe, 2=bleed
-        wipePosition: { value: 0.0 },
-        wipeDirection: { value: 0.0 },
-        wipeSoftness: { value: this.wipeSoftness },
-        // Wipe control
-        goingToGray: { value: 0.0 }, // 1 when transitioning to grayscale
-        wipeFromTop: { value: 1.0 }, // 1 = top->bottom, 0 = bottom->top
+        transitionMode: { value: 1.0 }, // 0=fade, 1=bleed, 2=wipe
         bleedScale: { value: this.bleedScale },
         bleedSoftness: { value: this.bleedSoftness },
+        wipeDirection: { value: 0.0 }, // 0=bottom-to-top, 1=top-to-bottom
+        wipeSoftness: { value: this.wipeSoftness },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -91,13 +87,10 @@ export class DesaturationEffect extends VFXManager {
         uniform float desatAmount;
         uniform float animProgress;
         uniform float transitionMode;
-        uniform float wipePosition;
-        uniform float wipeDirection;
-        uniform float wipeSoftness;
-        uniform float goingToGray;
-        uniform float wipeFromTop;
         uniform float bleedScale;
         uniform float bleedSoftness;
+        uniform float wipeDirection;
+        uniform float wipeSoftness;
         varying vec2 vUv;
         
         // Constants
@@ -152,27 +145,32 @@ export class DesaturationEffect extends VFXManager {
           
           float desatAmountFinal = desatAmount;
           
-          // Mode 1: Wipe transition (disabled by default, use mode: 'wipe')
-          if (transitionMode > 0.5 && transitionMode < 1.5) {
-            float coord = mix(vUv.x, vUv.y, wipeDirection);
-            // Compute line position based on desired entry side
-            float thresholdTop = 1.0 - wipePosition;
-            float thresholdBottom = wipePosition;
-            float threshold = mix(thresholdBottom, thresholdTop, wipeFromTop);
-
-            // Edge mask: smooth transition across wipe line
-            float wipeEdge = smoothstep(
-              threshold - wipeSoftness,
-              threshold + wipeSoftness,
-              coord
+          // Mode 2: Wipe transition (vertical sweep)
+          if (transitionMode > 1.5) {
+            // Get Y coordinate of pixel (0 = bottom, 1 = top in UV space)
+            float pixelY = vUv.y;
+            
+            // Flip for top-to-bottom wipe
+            if (wipeDirection > 0.5) {
+              pixelY = 1.0 - pixelY;
+            }
+            
+            // Remap animProgress to account for softness so wipe completes at boundaries
+            // When animProgress = 1.0, we want the wipe edge to be past the top (at 1.0 + wipeSoftness)
+            float wipeEdge = animProgress * (1.0 + wipeSoftness);
+            
+            // Calculate wipe mask with smoothstep for soft edge
+            // Invert so grayscale is LEFT BEHIND the wipe (below), not ahead (above)
+            float wipeMask = 1.0 - smoothstep(
+              wipeEdge - wipeSoftness,
+              wipeEdge,
+              pixelY
             );
-
-            // Mix between current state and target state
-            float targetState = 1.0 - desatAmount;
-            desatAmountFinal = mix(desatAmount, targetState, wipeEdge);
+            
+            desatAmountFinal = wipeMask;
           }
-          // Mode 2: Bleed transition (noise-based) - default
-          else if (transitionMode > 1.5 || transitionMode < 0.5) {
+          // Mode 1: Bleed transition (noise-based)
+          else if (transitionMode > 0.5) {
             // Generate noise pattern [0, 1]
             float noiseValue = fractalNoise(vUv * bleedScale);
             
@@ -189,6 +187,10 @@ export class DesaturationEffect extends VFXManager {
             );
             
             desatAmountFinal = bleedMask;
+          }
+          // Mode 0: Fade transition (simple linear)
+          else {
+            desatAmountFinal = desatAmount;
           }
           
           // Lerp between color and grayscale
@@ -270,7 +272,9 @@ export class DesaturationEffect extends VFXManager {
     // Animate to the target amount with specified options
     const options = {
       mode: params.mode || "bleed",
-      direction: params.direction || "vertical",
+      direction: params.direction || params.wipeDirection || "bottom-to-top",
+      softness:
+        params.softness !== undefined ? params.softness : params.wipeSoftness,
     };
 
     this.animateTo(params.target, options);
@@ -314,10 +318,7 @@ export class DesaturationEffect extends VFXManager {
    * Animate to a target desaturation amount
    * @param {number} targetAmount - 0 = color, 1 = grayscale
    * @param {Object} options - Transition settings:
-   *   - mode: 'fade' | 'wipe' | 'bleed' (default: 'bleed')
-   *   - direction: 'horizontal' | 'vertical' (for wipe mode, default: 'vertical')
-   *     'horizontal' = vertical line moving left/right
-   *     'vertical' = horizontal line moving top/bottom
+   *   - mode: 'fade' | 'bleed' (default: 'bleed')
    */
   animateTo(targetAmount, options = {}) {
     if (!this.enabled) {
@@ -348,25 +349,23 @@ export class DesaturationEffect extends VFXManager {
     this.transitionMode = mode;
 
     if (mode === "wipe") {
-      const direction = options.direction || this.wipeDirection;
-      this.postMaterial.uniforms.transitionMode.value = 1.0;
-      this.postMaterial.uniforms.wipeDirection.value =
-        direction === "vertical" ? 1.0 : 0.0;
-      this.postMaterial.uniforms.wipeSoftness.value = this.wipeSoftness;
-
-      // Configure wipe entry side per requested behavior:
-      // - Color -> Grayscale: wipe from bottom to top
-      // - Grayscale -> Color: wipe from top to bottom
-      const goingToGray = this.animationTarget > this.currentState ? 1.0 : 0.0;
-      this.postMaterial.uniforms.goingToGray.value = goingToGray;
-      this.postMaterial.uniforms.wipeFromTop.value =
-        goingToGray < 0.5 ? 1.0 : 0.0;
-    } else if (mode === "bleed") {
+      // Wipe mode
       this.postMaterial.uniforms.transitionMode.value = 2.0;
+      const direction = options.direction || this.wipeDirection;
+      this.wipeDirection = direction;
+      this.postMaterial.uniforms.wipeDirection.value =
+        direction === "top-to-bottom" ? 1.0 : 0.0;
+      const softness =
+        options.softness !== undefined ? options.softness : this.wipeSoftness;
+      this.wipeSoftness = softness;
+      this.postMaterial.uniforms.wipeSoftness.value = softness;
+    } else if (mode === "bleed") {
+      // Bleed mode
+      this.postMaterial.uniforms.transitionMode.value = 1.0;
       this.postMaterial.uniforms.bleedScale.value = this.bleedScale;
       this.postMaterial.uniforms.bleedSoftness.value = this.bleedSoftness;
     } else {
-      // Fade mode (default)
+      // Fade mode
       this.postMaterial.uniforms.transitionMode.value = 0.0;
     }
   }
@@ -439,25 +438,12 @@ export class DesaturationEffect extends VFXManager {
     } else {
       // Continue animating
       this.progress += step;
-
-      // For non-wipe modes, update currentState with progress
-      if (this.transitionMode !== "wipe") {
-        this.currentState = this.progress;
-      }
+      this.currentState = this.progress;
 
       // Update audio parameters based on progress and velocity
       if (this.enableAudio) {
         this._updateAudio(deltaTime);
       }
-    }
-
-    // Update shader uniform for wipe mode (noop for non-wipe)
-    if (this.transitionMode === "wipe") {
-      const goingToGray = this.animationTarget > this.currentState;
-      const wipePos = goingToGray ? this.progress : 1.0 - this.progress;
-      this.postMaterial.uniforms.wipePosition.value = wipePos;
-      this.postMaterial.uniforms.goingToGray.value = goingToGray ? 1.0 : 0.0;
-      this.postMaterial.uniforms.wipeFromTop.value = goingToGray ? 0.0 : 1.0;
     }
   }
 
@@ -541,15 +527,10 @@ export class DesaturationEffect extends VFXManager {
    * @param {THREE.Camera} camera
    */
   render(scene, camera) {
-    // Render through post-processing when:
-    // - Currently in desaturated state (currentState > 0)
-    // - Or currently animating
-    // - Or progress > 0 (for fade/bleed modes)
-    const shouldRender =
-      this.enabled &&
-      (this.currentState > 0 || this.animating || this.progress > 0);
-
-    if (shouldRender) {
+    // Once enabled, always render through post-processing to avoid switching
+    // between rendering paths (which can cause visual pops)
+    // Only skip post-processing if effect has never been enabled
+    if (this.enabled && this._hasEverBeenEnabled) {
       // Render scene to texture
       this.renderer.setRenderTarget(this.renderTarget);
       this.renderer.render(scene, camera);
@@ -565,7 +546,7 @@ export class DesaturationEffect extends VFXManager {
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.postScene, this.postCamera);
     } else {
-      // No desaturation, render normally
+      // Effect not yet enabled, render normally
       this.renderer.render(scene, camera);
     }
   }
