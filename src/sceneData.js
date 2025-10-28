@@ -99,13 +99,30 @@ const interiorPosition = { x: 5.36, y: 0.83, z: 78.39 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
 export const sceneObjects = {
+  // exterior: {
+  //   id: "exterior",
+  //   type: "splat",
+  //   path: "/exterior-nan-2.sog",
+  //   description: "Main exterior environment splat mesh",
+  //   position: originPosition,
+  //   rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+  //   scale: { x: 1, y: 1, z: 1 },
+  //   priority: 100, // Load first
+  //   criteria: {
+  //     currentState: {
+  //       $gte: GAME_STATES.LOADING,
+  //       $lt: GAME_STATES.OFFICE_INTERIOR,
+  //     },
+  //   },
+  // },
+
   exterior: {
     id: "exterior",
     type: "splat",
-    path: "/exterior-nan-2.sog",
+    path: "/exterior-clean-final.sog",
     description: "Main exterior environment splat mesh",
-    position: originPosition,
-    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
     scale: { x: 1, y: 1, z: 1 },
     priority: 100, // Load first
     criteria: {
@@ -521,7 +538,7 @@ export const sceneObjects = {
     description:
       "Candlestick phone with CordAttach and Receiver children (uses PhoneCord module)",
     position: { x: -5.24, y: 2.13, z: 82.47 },
-    rotation: { x: 3.1416, y: -0.0904, z: 3.1416 },
+    rotation: { x: 3.1416, y: 2.0904, z: 3.1416 },
     scale: { x: 1.32, y: 1.32, z: 1.32 },
     options: {
       useContainer: true, // Wrap in container to preserve original model structure

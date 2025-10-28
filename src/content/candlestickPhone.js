@@ -265,6 +265,9 @@ class CandlestickPhone {
             this.handleOfficePhoneAnswered();
           }, 8000);
         }
+        if (newState.currentState === GAME_STATES.SHOULDER_TAP) {
+          this.putDownToOriginal();
+        }
         // Hide cord during dissolve effect (VIEWMASTER_COLOR to POST_VIEWMASTER)
         if (
           newState.currentState >= GAME_STATES.VIEWMASTER_COLOR &&
@@ -426,6 +429,9 @@ class CandlestickPhone {
     // Disable local colliders while held to avoid clipping/pushback
     this.removeHeldPhysics();
 
+    // Disable contact shadow while phone is held
+    this.disableContactShadow();
+
     // Mark as held to camera so we can enforce target pose
     this.isHeldToCamera = true;
   }
@@ -531,6 +537,9 @@ class CandlestickPhone {
         elapsed: 0,
       };
     }
+
+    // Re-enable contact shadow when phone is put back down
+    this.enableContactShadow();
 
     // Optionally restore local physics now that it's back down
     // (leave disabled unless you want cord collisions with the table again)
@@ -947,6 +956,34 @@ class CandlestickPhone {
     if (this.phoneCord.cordLineMesh) {
       this.phoneCord.cordLineMesh.visible = visible;
       this.logger.log(`Phone cord visibility: ${visible}`);
+    }
+  }
+
+  /**
+   * Disable the contact shadow for the phone
+   */
+  disableContactShadow() {
+    if (!this.sceneManager || !this.sceneManager.contactShadows) return;
+
+    const contactShadow =
+      this.sceneManager.contactShadows.get("candlestickPhone");
+    if (contactShadow && typeof contactShadow.disable === "function") {
+      contactShadow.disable();
+      this.logger.log("Disabled contact shadow");
+    }
+  }
+
+  /**
+   * Enable the contact shadow for the phone
+   */
+  enableContactShadow() {
+    if (!this.sceneManager || !this.sceneManager.contactShadows) return;
+
+    const contactShadow =
+      this.sceneManager.contactShadows.get("candlestickPhone");
+    if (contactShadow && typeof contactShadow.enable === "function") {
+      contactShadow.enable();
+      this.logger.log("Enabled contact shadow");
     }
   }
 

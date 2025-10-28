@@ -121,8 +121,8 @@ export const videos = {
 
       // Calculate behind player (opposite of forward direction)
       // Distance behind player
-      const distanceBehind = 1.55;
-      const heightOffset = 1.05;
+      const distanceBehind = 1.35;
+      const heightOffset = 1.5;
 
       // Forward vector is: x = -sin(yaw), z = -cos(yaw)
       // Behind is the opposite: x = sin(yaw), z = cos(yaw)
@@ -144,7 +144,7 @@ export const videos = {
       };
     },
     rotation: { x: 0, y: 0, z: 0 },
-    scale: { x: 0.76, y: 0.76, z: 0.76 },
+    scale: { x: 0.79, y: 0.79, z: 0.79 },
     loop: false,
     muted: true,
     billboard: true,
@@ -154,7 +154,7 @@ export const videos = {
       currentState: { $gte: GAME_STATES.SHOULDER_TAP }, // Video stays spawned from shoulder tap onward
     },
     autoPlay: true,
-    delay: 0.3, // Play immediately when playCriteria match
+    delay: 0.2, // Play immediately when playCriteria match
   },
 };
 
