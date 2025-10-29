@@ -75,6 +75,30 @@ export class ParticleCanvas3D {
     this.rapidFadeDuration = 0.8; // Rapid fade when clearing (800ms)
     this.currentStrokeIndex = 0; // Counter for linking segments to strokes
 
+    // Color cycling for success feedback - advances on each correct drawing
+    this.colorStage = 0; // 0=blue, 1=orange, 2=red, then cycles back to 0
+    this.baseColor = new THREE.Color(0xaaeeff); // Bright whitish-blue
+    this.orangeColor = new THREE.Color(0xffddaa); // Whitish orange
+    this.redColor = new THREE.Color(0xff3333); // Angry red
+
+    // Color transition state
+    this.isTransitioningColor = false;
+    this.colorTransitionProgress = 0;
+    this.colorTransitionDuration = 1.5; // 1.5 seconds for smooth transition
+    this.currentColor = new THREE.Color().copy(this.baseColor);
+    this.startColor = new THREE.Color().copy(this.baseColor);
+    this.targetColor = new THREE.Color().copy(this.baseColor);
+
+    // Jitter transition state
+    this.currentJitterIntensity = 0.0;
+    this.startJitterIntensity = 0.0;
+    this.targetJitterIntensity = 0.0;
+
+    // Scale pulse state
+    this.isPulsing = false;
+    this.pulseProgress = 0;
+    this.pulseDuration = 1.0; // 0.5 seconds for pulse
+
     this.clearCanvas();
   }
 
@@ -188,6 +212,8 @@ export class ParticleCanvas3D {
         uSize: { value: 0.015 * scale }, // Scaled for denser particles
         uTouch: { value: this.touchTexture },
         uColor: { value: new THREE.Color(0xaaeeff) }, // Bright whitish-blue glow
+        uPulseScale: { value: 1.0 }, // Scale multiplier for pulse effect
+        uJitterIntensity: { value: 0.0 }, // Jitter intensity (0=calm, 1=bursting)
       },
       vertexShader: `
         attribute float pindex;
@@ -199,6 +225,8 @@ export class ParticleCanvas3D {
         uniform float uTime;
         uniform float uSize;
         uniform sampler2D uTouch;
+        uniform float uPulseScale;
+        uniform float uJitterIntensity;
         
         varying vec2 vUv;
         varying float vDisplacement;
@@ -246,6 +274,21 @@ export class ParticleCanvas3D {
           displaced.y += cos(timeScale + pindex * 1.3) * velocity.y * driftAmount;
           displaced.z += drift * velocity.z * driftAmount * 0.5;
           
+          // Add energetic jitter that builds with each round
+          if (uJitterIntensity > 0.0) {
+            // Fast, random jitter using multiple frequencies
+            float jitterTime = uTime * 15.0; // High frequency for energetic motion
+            float jitterX = sin(jitterTime + pindex * 43.0) * cos(jitterTime * 1.3 + pindex * 17.0);
+            float jitterY = cos(jitterTime * 1.1 + pindex * 31.0) * sin(jitterTime * 1.7 + pindex * 23.0);
+            float jitterZ = sin(jitterTime * 0.9 + pindex * 19.0) * cos(jitterTime * 1.5 + pindex * 29.0);
+            
+            // Scale jitter by intensity
+            float jitterScale = 0.008 * uJitterIntensity;
+            displaced.x += jitterX * jitterScale;
+            displaced.y += jitterY * jitterScale;
+            displaced.z += jitterZ * jitterScale * 0.5; // Less Z jitter
+          }
+          
           // Continuous avoidance force - particles flee from strokes with smooth momentum
           // Apply easing to touch for smoother acceleration/deceleration
           float touchSmooth = smoothstep(0.0, 1.0, touch); // Smooth curve
@@ -266,8 +309,8 @@ export class ParticleCanvas3D {
           
           // Transform to world space
           vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
-          // Apply random size variation (between 1/4 and full size)
-          mvPosition.xyz += position * uSize * particleSize;
+          // Apply random size variation (between 1/4 and full size) with pulse scale
+          mvPosition.xyz += position * uSize * particleSize * uPulseScale;
           
           gl_Position = projectionMatrix * mvPosition;
         }
@@ -539,6 +582,45 @@ export class ParticleCanvas3D {
     return false;
   }
 
+  triggerColorCycle() {
+    // Advance to next color stage on each success
+    this.colorStage = (this.colorStage + 1) % 3; // Cycle: 0 -> 1 -> 2 -> 0
+
+    if (!this.particleSystem || !this.particleSystem.material) return;
+
+    // Determine target color and jitter intensity based on stage
+    let newTargetColor;
+    let jitterIntensity;
+    switch (this.colorStage) {
+      case 0:
+        newTargetColor = this.baseColor; // Blue
+        jitterIntensity = 0.0; // Calm
+        break;
+      case 1:
+        newTargetColor = this.orangeColor; // Orange
+        jitterIntensity = 0.15; // Medium energy
+        break;
+      case 2:
+        newTargetColor = this.redColor; // Red
+        jitterIntensity = 0.5; // Intense, about to burst!
+        break;
+    }
+
+    // Start transition from current color to new target color
+    this.startColor.copy(this.currentColor);
+    this.targetColor.copy(newTargetColor);
+    this.startJitterIntensity = this.currentJitterIntensity;
+    this.targetJitterIntensity = jitterIntensity;
+    this.isTransitioningColor = true;
+    this.colorTransitionProgress = 0;
+  }
+
+  triggerPulse() {
+    // Start pulse animation
+    this.isPulsing = true;
+    this.pulseProgress = 0;
+  }
+
   getMesh() {
     return this.mesh;
   }
@@ -573,6 +655,58 @@ export class ParticleCanvas3D {
     // Update shader time
     if (this.particleSystem && this.particleSystem.material) {
       this.particleSystem.material.uniforms.uTime.value = this.time;
+
+      // Update color transition (and jitter ramp-up)
+      if (this.isTransitioningColor) {
+        this.colorTransitionProgress += dt / this.colorTransitionDuration;
+
+        if (this.colorTransitionProgress >= 1.0) {
+          // Transition complete
+          this.isTransitioningColor = false;
+          this.colorTransitionProgress = 0;
+          this.currentColor.copy(this.targetColor);
+          this.currentJitterIntensity = this.targetJitterIntensity;
+        } else {
+          // Smooth lerp between start and target
+          const t = this.colorTransitionProgress;
+          // Apply easing for smoother feel (ease-in-out)
+          const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          this.currentColor.lerpColors(
+            this.startColor,
+            this.targetColor,
+            eased
+          );
+
+          // Lerp jitter intensity at the same time
+          this.currentJitterIntensity =
+            this.startJitterIntensity +
+            (this.targetJitterIntensity - this.startJitterIntensity) * eased;
+        }
+
+        this.particleSystem.material.uniforms.uColor.value.copy(
+          this.currentColor
+        );
+        this.particleSystem.material.uniforms.uJitterIntensity.value =
+          this.currentJitterIntensity;
+      }
+
+      // Update scale pulse
+      if (this.isPulsing) {
+        this.pulseProgress += dt / this.pulseDuration;
+
+        if (this.pulseProgress >= 1.0) {
+          // Pulse complete
+          this.isPulsing = false;
+          this.pulseProgress = 0;
+          this.particleSystem.material.uniforms.uPulseScale.value = 1.0;
+        } else {
+          // Pulse in and out: 0->1 scales up, 1->0 scales back down
+          const t = this.pulseProgress;
+          // Create a pulse that goes 1.0 -> 1.5 -> 1.0 (sine wave)
+          const pulseScale = 1.0 + Math.sin(t * Math.PI) * 0.5;
+          this.particleSystem.material.uniforms.uPulseScale.value = pulseScale;
+        }
+      }
     }
 
     // Progressive fade: redraw strokes with age-based alpha

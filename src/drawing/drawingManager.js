@@ -409,18 +409,29 @@ export class DrawingManager {
     if (result.success) {
       this.logger.log("Success! Will pick new target in 2s");
       this.showResult("✅");
+
+      // Trigger particle pulse immediately on success
+      if (this.recognitionManager.drawingCanvas) {
+        this.recognitionManager.drawingCanvas.triggerPulse();
+      }
+
       setTimeout(() => {
-        this.handleClear();
+        this.handleClear(true); // true = success, trigger color change
         this.pickNewTarget();
-      }, 2000);
+      }, 1500);
     } else {
       this.logger.log("Failed. Try again!");
       this.showResult(`${predictedEmoji} ❌`);
     }
   }
 
-  handleClear() {
+  handleClear(advanceColor = false) {
     if (!this.isActive) return;
+
+    // Trigger color cycle on success (syncs with particle reformation)
+    if (advanceColor && this.recognitionManager.drawingCanvas) {
+      this.recognitionManager.drawingCanvas.triggerColorCycle();
+    }
 
     this.recognitionManager.clearCanvas();
     this.clearResult();
