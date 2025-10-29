@@ -216,6 +216,9 @@ const inputManager = new InputManager(renderer.domElement, gameManager);
 // Disable input initially - will be enabled when game starts
 inputManager.disable();
 
+// Pass input manager reference to drawing manager
+drawingManager.setInputManager(inputManager);
+
 // Initialize character controller (will be disabled until intro completes)
 const characterController = new CharacterController(
   character,

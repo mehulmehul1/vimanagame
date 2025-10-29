@@ -28,12 +28,23 @@ export class DrawingManager {
     this.canvasScale = 1;
     this.enableParticles = true; // Toggle to disable particle effects
 
+    // Input manager reference (will be set via setInputManager)
+    this.inputManager = null;
+
+    // Pointer lock monitor
+    this.pointerLockChangeHandler = null;
+
     this.labelPool = [];
     this.refillLabelPool();
 
     this.setupUI();
     this.setupKeyboardShortcuts();
     this.bindGameStateListener();
+  }
+
+  setInputManager(inputManager) {
+    this.inputManager = inputManager;
+    this.logger.log("Input manager reference set");
   }
 
   refillLabelPool() {
@@ -92,6 +103,22 @@ export class DrawingManager {
   setupUI() {
     const style = document.createElement("style");
     style.textContent = `
+      body.drawing-game-cursor {
+        cursor: grab !important;
+      }
+
+      body.drawing-game-cursor:active {
+        cursor: grabbing !important;
+      }
+
+      body.drawing-game-cursor * {
+        cursor: grab !important;
+      }
+
+      body.drawing-game-cursor *:active {
+        cursor: grabbing !important;
+      }
+
       .drawing-game-target {
         position: fixed;
         top: 5%;
@@ -140,6 +167,37 @@ export class DrawingManager {
   startGame() {
     this.logger.log("Starting drawing game...");
     this.isActive = true;
+
+    // Block pointer lock and enable drag-to-look
+    if (this.inputManager) {
+      this.inputManager.setPointerLockBlocked(true);
+      this.logger.log("Pointer lock blocked, drag-to-look enabled");
+    }
+
+    // Add gloved hand cursor to body
+    document.body.classList.add("drawing-game-cursor");
+
+    // Monitor pointer lock changes and force exit if engaged during CURSOR state
+    this.pointerLockChangeHandler = () => {
+      if (this.isActive && document.pointerLockElement) {
+        this.logger.log(
+          "Pointer lock engaged during CURSOR state, forcing exit"
+        );
+        document.exitPointerLock();
+      }
+    };
+    document.addEventListener(
+      "pointerlockchange",
+      this.pointerLockChangeHandler
+    );
+    document.addEventListener(
+      "mozpointerlockchange",
+      this.pointerLockChangeHandler
+    );
+    document.addEventListener(
+      "webkitpointerlockchange",
+      this.pointerLockChangeHandler
+    );
 
     if (this.targetEmojiElement) {
       this.targetEmojiElement.classList.add("active");
@@ -222,6 +280,32 @@ export class DrawingManager {
   stopGame() {
     this.logger.log("Stopping drawing game...");
     this.isActive = false;
+
+    // Remove pointer lock change listeners
+    if (this.pointerLockChangeHandler) {
+      document.removeEventListener(
+        "pointerlockchange",
+        this.pointerLockChangeHandler
+      );
+      document.removeEventListener(
+        "mozpointerlockchange",
+        this.pointerLockChangeHandler
+      );
+      document.removeEventListener(
+        "webkitpointerlockchange",
+        this.pointerLockChangeHandler
+      );
+      this.pointerLockChangeHandler = null;
+    }
+
+    // Unblock pointer lock (allow pointer lock outside CURSOR state)
+    if (this.inputManager) {
+      this.inputManager.setPointerLockBlocked(false);
+      this.logger.log("Pointer lock unblocked");
+    }
+
+    // Remove gloved hand cursor from body
+    document.body.classList.remove("drawing-game-cursor");
 
     if (this.targetEmojiElement) {
       this.targetEmojiElement.classList.remove("active");
