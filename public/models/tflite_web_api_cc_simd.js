@@ -440,7 +440,6 @@ var tflite_web_api_ModuleFactory = (function () {
     wasmBinaryFile = "tflite_web_api_cc_simd.wasm";
     if (!isDataURI(wasmBinaryFile)) {
       wasmBinaryFile = locateFile(wasmBinaryFile);
-      console.log("WASM binary file JAMES:", wasmBinaryFile);
     }
     function getBinary(file) {
       try {

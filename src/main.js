@@ -32,7 +32,7 @@ import { VFXSystemManager } from "./vfxManager.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
-import { DrawingGame } from "./drawing/drawingGame.js";
+import { DrawingManager } from "./drawing/drawingManager.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
@@ -156,18 +156,18 @@ try {
   logger.error("❌ Failed to initialize DrawingRecognitionManager:", error);
 }
 
-// Initialize Drawing Game
-logger.log("Creating DrawingGame...");
-const drawingGame = new DrawingGame(
+// Initialize Drawing Manager
+logger.log("Creating DrawingManager...");
+const drawingManager = new DrawingManager(
   scene,
   drawingRecognitionManager,
   gameManager
 );
-logger.log("✅ DrawingGame created");
+logger.log("✅ DrawingManager created");
 
 // Make drawing managers globally accessible for debugging
 window.drawingRecognitionManager = drawingRecognitionManager;
-window.drawingGame = drawingGame;
+window.drawingManager = drawingManager;
 
 // Handle window resize
 window.addEventListener("resize", () => {
@@ -585,7 +585,7 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Update drawing recognition manager
   if (drawingRecognitionManager) {
-    drawingRecognitionManager.update();
+    drawingRecognitionManager.update(dt);
   }
 
   // Render with VFX post-processing effects

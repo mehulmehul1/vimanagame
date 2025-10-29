@@ -676,7 +676,7 @@ class SceneManager {
     // Fallback to object position if no splat defines envMapWorldCenter
     if (!worldCenterFound) {
       object.getWorldPosition(worldCenter);
-      this.logger.warn(
+      this.logger.log(
         `  No splat with envMapWorldCenter found, using object position`
       );
     }

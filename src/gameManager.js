@@ -6,7 +6,6 @@ import {
 } from "./utils/debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
 import CandlestickPhone from "./content/candlestickPhone.js";
-import DrawingManager from "./content/drawingManager.js";
 import VideoManager from "./videoManager.js";
 import { Logger } from "./utils/logger.js";
 
@@ -41,7 +40,6 @@ class GameManager {
     this.sceneManager = null;
     this.phoneBooth = null;
     this.candlestickPhone = null;
-    this.drawingManager = null;
 
     // Track loaded scene objects
     this.loadedScenes = new Set();

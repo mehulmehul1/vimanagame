@@ -1,5 +1,6 @@
 import { GAME_STATES } from "../gameData.js";
 import * as THREE from "three";
+import { Logger } from "../utils/logger.js";
 
 const EMOJI_MAP = {
   lightning: "⚡",
@@ -9,11 +10,12 @@ const EMOJI_MAP = {
 
 const GAME_LABELS = ["lightning", "star", "circle"];
 
-export class DrawingGame {
+export class DrawingManager {
   constructor(scene, drawingRecognitionManager, gameManager) {
     this.scene = scene;
     this.recognitionManager = drawingRecognitionManager;
     this.gameManager = gameManager;
+    this.logger = new Logger("DrawingManager", true);
 
     this.targetLabel = null;
     this.targetEmojiElement = null;
@@ -24,10 +26,26 @@ export class DrawingGame {
 
     this.canvasPosition = { x: 0, y: 1.5, z: -2 };
     this.canvasScale = 1;
+    this.enableParticles = true; // Toggle to disable particle effects
+
+    this.labelPool = [];
+    this.refillLabelPool();
 
     this.setupUI();
     this.setupKeyboardShortcuts();
     this.bindGameStateListener();
+  }
+
+  refillLabelPool() {
+    this.labelPool = [...GAME_LABELS];
+    for (let i = this.labelPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.labelPool[i], this.labelPool[j]] = [
+        this.labelPool[j],
+        this.labelPool[i],
+      ];
+    }
+    this.logger.log("Label pool refilled and shuffled:", this.labelPool);
   }
 
   setupKeyboardShortcuts() {
@@ -120,25 +138,25 @@ export class DrawingGame {
   }
 
   startGame() {
-    console.log("🎮 [DrawingGame] Starting drawing game...");
+    this.logger.log("Starting drawing game...");
     this.isActive = true;
 
     if (this.targetEmojiElement) {
       this.targetEmojiElement.classList.add("active");
-      console.log("🎮 [DrawingGame] Target emoji element activated");
+      this.logger.log("Target emoji element activated");
     }
 
-    console.log("🎮 [DrawingGame] About to pick new target...");
+    this.logger.log("About to pick new target...");
     this.pickNewTarget();
-    console.log("🎮 [DrawingGame] Target picked, game ready");
+    this.logger.log("Target picked, game ready");
 
-    console.log(
-      "🎮 [DrawingGame] Checking if canvas exists:",
+    this.logger.log(
+      "Checking if canvas exists:",
       this.recognitionManager.drawingCanvas
     );
 
     if (!this.recognitionManager.drawingCanvas) {
-      console.log("🎮 [DrawingGame] Creating drawing canvas...");
+      this.logger.log("Creating drawing canvas...");
 
       // Use characterController's getPosition to place canvas in front of player
       // z: positive = forward, y: 0 = at eye level, x: 0 = centered
@@ -148,31 +166,43 @@ export class DrawingGame {
         z: -1.5,
       });
 
-      console.log("🎮 [DrawingGame] Canvas position:", canvasPos);
+      this.logger.log("Canvas position:", canvasPos);
 
       this.recognitionManager.createDrawingCanvas(
         this.scene,
         canvasPos,
-        this.canvasScale
+        this.canvasScale,
+        this.enableParticles
       );
 
       const canvas = this.recognitionManager.drawingCanvas;
       if (canvas) {
         // Make canvas face the camera
         const camera = window.camera;
-        canvas.mesh.lookAt(camera.position);
+        const mesh = canvas.getMesh();
+        if (mesh) {
+          mesh.lookAt(camera.position);
+        }
+
+        // Position particles toward camera from the plane
+        if (canvas.particleSystem) {
+          const direction = new THREE.Vector3()
+            .subVectors(camera.position, mesh.position)
+            .normalize();
+          canvas.particleSystem.position
+            .copy(mesh.position)
+            .add(direction.multiplyScalar(canvas.particleOffset));
+          canvas.particleSystem.lookAt(camera.position);
+        }
       }
 
-      console.log(
-        "🎮 [DrawingGame] Canvas created:",
-        this.recognitionManager.drawingCanvas
-      );
+      this.logger.log("Canvas created:", this.recognitionManager.drawingCanvas);
 
       const domElement =
         window.inputManager?.domElement || document.querySelector("canvas");
 
-      console.log(
-        "🎮 [DrawingGame] Enabling drawing mode with camera:",
+      this.logger.log(
+        "Enabling drawing mode with camera:",
         camera,
         "domElement:",
         domElement
@@ -180,17 +210,17 @@ export class DrawingGame {
 
       if (camera && domElement) {
         this.recognitionManager.enableDrawingMode(camera, domElement);
-        console.log("🎮 [DrawingGame] Drawing mode enabled");
+        this.logger.log("Drawing mode enabled");
       } else {
-        console.log("🎮 [DrawingGame] ⚠️ Missing camera or domElement!");
+        this.logger.warn("Missing camera or domElement!");
       }
     } else {
-      console.log("🎮 [DrawingGame] Canvas already exists, skipping creation");
+      this.logger.log("Canvas already exists, skipping creation");
     }
   }
 
   stopGame() {
-    console.log("Stopping drawing game...");
+    this.logger.log("Stopping drawing game...");
     this.isActive = false;
 
     if (this.targetEmojiElement) {
@@ -207,67 +237,70 @@ export class DrawingGame {
   }
 
   pickNewTarget() {
-    const randomIndex = Math.floor(Math.random() * GAME_LABELS.length);
-    this.targetLabel = GAME_LABELS[randomIndex];
+    if (this.labelPool.length === 0) {
+      this.refillLabelPool();
+    }
 
-    console.log(`🎮 [DrawingGame] Picked new target: ${this.targetLabel}`);
+    this.targetLabel = this.labelPool.pop();
+
+    this.logger.log(
+      `Picked new target: ${this.targetLabel} (${this.labelPool.length} remaining in pool)`
+    );
 
     const setResult = this.recognitionManager.setExpectedDrawing(
       this.targetLabel
     );
-    console.log(`🎮 [DrawingGame] setExpectedDrawing returned: ${setResult}`);
-    console.log(
-      `🎮 [DrawingGame] RecognitionManager.expectedDrawing is now: ${this.recognitionManager.expectedDrawing}`
+    this.logger.log(`setExpectedDrawing returned: ${setResult}`);
+    this.logger.log(
+      `RecognitionManager.expectedDrawing is now: ${this.recognitionManager.expectedDrawing}`
     );
 
     const emoji = EMOJI_MAP[this.targetLabel];
-    console.log(`🎮 [DrawingGame] Emoji to display: ${emoji}`);
+    this.logger.log(`Emoji to display: ${emoji}`);
 
     if (this.targetEmoji) {
       this.targetEmoji.textContent = emoji;
-      console.log(`🎮 [DrawingGame] Updated display element to: ${emoji}`);
+      this.logger.log(`Updated display element to: ${emoji}`);
     } else {
-      console.log(`🎮 [DrawingGame] ⚠️ targetEmoji is null!`);
+      this.logger.warn(`targetEmoji is null!`);
     }
   }
 
   async handleSubmit() {
     if (!this.isActive) {
-      console.log("❌ Submit ignored - game not active");
+      this.logger.log("Submit ignored - game not active");
       return;
     }
 
-    console.log("🎮 [DrawingGame] Submitting drawing...");
+    this.logger.log("Submitting drawing...");
 
     const result = await this.recognitionManager.predictAndEvaluate();
 
-    console.log("🎮 [DrawingGame] Result received:", result);
+    this.logger.log("Result received:", result);
 
     if (!result || !result.prediction) {
-      console.log("🎮 [DrawingGame] No prediction, showing failure");
+      this.logger.log("No prediction, showing failure");
       this.showResult("❌");
       return;
     }
 
     const predictedEmoji = EMOJI_MAP[result.prediction] || "❓";
 
-    console.log(
-      `🎮 [DrawingGame] Result: predicted=${
-        result.prediction
-      } (${result.confidence?.toFixed(2)}), expected=${
-        result.expected
-      }, success=${result.success}`
+    this.logger.log(
+      `Result: predicted=${result.prediction} (${result.confidence?.toFixed(
+        2
+      )}), expected=${result.expected}, success=${result.success}`
     );
 
     if (result.success) {
-      console.log("🎮 [DrawingGame] Success! Will pick new target in 2s");
+      this.logger.log("Success! Will pick new target in 2s");
       this.showResult("✅");
       setTimeout(() => {
         this.handleClear();
         this.pickNewTarget();
       }, 2000);
     } else {
-      console.log("🎮 [DrawingGame] Failed. Try again!");
+      this.logger.log("Failed. Try again!");
       this.showResult(`${predictedEmoji} ❌`);
     }
   }

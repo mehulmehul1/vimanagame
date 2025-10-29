@@ -75,6 +75,12 @@ class PhoneBooth {
 
     this.gameManager = gameManager;
 
+    // Check if phonebooth object is loaded before initializing
+    if (!this.sceneManager.hasObject("phonebooth")) {
+      this.logger.log("Phonebooth not loaded, skipping initialization");
+      return;
+    }
+
     // Listen for animation finished events
     this.sceneManager.on("animation:finished", (animId) => {
       if (animId === "phonebooth-ring") {
