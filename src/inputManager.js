@@ -125,8 +125,18 @@ class InputManager {
 
     // Pointer lock + mouse look
     this.rendererDomElement.addEventListener("click", () => {
+      console.log(
+        "[InputManager] Click handler - enabled:",
+        this.enabled,
+        "blocked:",
+        this.pointerLockBlocked
+      );
+
       if (!this.enabled) return;
-      if (this.pointerLockBlocked) return;
+      if (this.pointerLockBlocked) {
+        console.log("[InputManager] Pointer lock blocked, NOT requesting");
+        return;
+      }
 
       // Only allow pointer lock after game has started (past start screen and title sequence)
       if (this.gameManager && this.gameManager.state) {
@@ -136,6 +146,7 @@ class InputManager {
         }
       }
 
+      console.log("[InputManager] Requesting pointer lock");
       this.rendererDomElement.requestPointerLock();
     });
 
@@ -189,7 +200,12 @@ class InputManager {
    */
   setPointerLockBlocked(blocked) {
     this.pointerLockBlocked = !!blocked;
+    console.log(
+      "[InputManager] setPointerLockBlocked:",
+      this.pointerLockBlocked
+    );
     if (this.pointerLockBlocked && document.pointerLockElement) {
+      console.log("[InputManager] Exiting existing pointer lock");
       document.exitPointerLock();
     }
   }

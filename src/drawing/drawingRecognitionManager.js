@@ -16,6 +16,7 @@ export class DrawingRecognitionManager {
     this.recognitionThreshold = 0.4;
     this.isDrawingMode = false;
     this.logger = new Logger("DrawingRecognitionManager", false);
+    this.isPointerOverCanvas = false; // Track if pointer is over drawing canvas
   }
 
   loadScript(src) {
@@ -147,7 +148,12 @@ export class DrawingRecognitionManager {
     if (!this.isDrawingMode || !this.drawingCanvas) return;
 
     const uv = this.getCanvasUV(event);
+    this.isPointerOverCanvas = !!uv;
+
     if (uv) {
+      // Prevent default browser behavior but let event bubble to inputManager
+      // The gizmoProbe will handle blocking camera movement
+      event.preventDefault();
       this.drawingCanvas.startStroke(uv);
     }
   }
@@ -156,7 +162,12 @@ export class DrawingRecognitionManager {
     if (!this.isDrawingMode || !this.drawingCanvas) return;
 
     const uv = this.getCanvasUV(event);
+    this.isPointerOverCanvas = !!uv;
+
     if (uv) {
+      // Prevent default browser behavior but let event bubble to inputManager
+      // The gizmoProbe will handle blocking camera movement
+      event.preventDefault();
       this.drawingCanvas.addPoint(uv);
     }
   }
@@ -164,7 +175,13 @@ export class DrawingRecognitionManager {
   handlePointerUp(event) {
     if (!this.isDrawingMode || !this.drawingCanvas) return;
 
-    this.drawingCanvas.endStroke();
+    // Only end stroke if there's actually an active stroke
+    if (this.drawingCanvas.isDrawing) {
+      event.preventDefault();
+      this.drawingCanvas.endStroke();
+    }
+
+    this.isPointerOverCanvas = false;
   }
 
   getCanvasUV(event) {
@@ -186,6 +203,17 @@ export class DrawingRecognitionManager {
     }
 
     return null;
+  }
+
+  /**
+   * Returns true if pointer is over the drawing canvas (for InputManager probe)
+   * Similar to GizmoManager's isPointerOverGizmo()
+   */
+  isPointerOverDrawingCanvas() {
+    return (
+      this.isPointerOverCanvas ||
+      (this.drawingCanvas && this.drawingCanvas.isDrawing)
+    );
   }
 
   async predict() {

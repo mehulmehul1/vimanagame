@@ -30,6 +30,7 @@ export class DrawingManager {
 
     // Input manager reference (will be set via setInputManager)
     this.inputManager = null;
+    this.originalGizmoProbe = null; // Store original probe to restore later
 
     // Pointer lock monitor
     this.pointerLockChangeHandler = null;
@@ -166,12 +167,34 @@ export class DrawingManager {
 
   startGame() {
     this.logger.log("Starting drawing game...");
+    this.logger.log("InputManager reference:", this.inputManager);
     this.isActive = true;
 
+    // Use window.inputManager as fallback if not set
+    const inputMgr = this.inputManager || window.inputManager;
+    this.logger.log("Using inputManager:", inputMgr);
+
     // Block pointer lock and enable drag-to-look
-    if (this.inputManager) {
-      this.inputManager.setPointerLockBlocked(true);
-      this.logger.log("Pointer lock blocked, drag-to-look enabled");
+    if (inputMgr) {
+      this.logger.log("Calling setPointerLockBlocked(true)...");
+      inputMgr.setPointerLockBlocked(true);
+
+      // Store the existing gizmo probe (if any) and combine it with our canvas probe
+      const existingProbe = inputMgr.gizmoProbe;
+      this.originalGizmoProbe = existingProbe;
+
+      inputMgr.setGizmoProbe(() => {
+        // Check both the drawing canvas AND any existing probe (like gizmo manager)
+        const overCanvas = this.recognitionManager.isPointerOverDrawingCanvas();
+        const overExisting = existingProbe ? existingProbe() : false;
+        return overCanvas || overExisting;
+      });
+
+      this.logger.log(
+        "Pointer lock blocked, drag-to-look enabled, canvas probe combined"
+      );
+    } else {
+      this.logger.warn("No inputManager available!");
     }
 
     // Add gloved hand cursor to body
@@ -298,10 +321,17 @@ export class DrawingManager {
       this.pointerLockChangeHandler = null;
     }
 
+    // Use window.inputManager as fallback if not set
+    const inputMgr = this.inputManager || window.inputManager;
+
     // Unblock pointer lock (allow pointer lock outside CURSOR state)
-    if (this.inputManager) {
-      this.inputManager.setPointerLockBlocked(false);
-      this.logger.log("Pointer lock unblocked");
+    if (inputMgr) {
+      inputMgr.setPointerLockBlocked(false);
+
+      // Restore the original gizmo probe (if there was one)
+      inputMgr.setGizmoProbe(this.originalGizmoProbe || null);
+
+      this.logger.log("Pointer lock unblocked, canvas probe restored");
     }
 
     // Remove gloved hand cursor from body

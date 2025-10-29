@@ -112,15 +112,40 @@ export class ParticleCanvas3D {
     const velocities = new Float32Array(numParticles * 3);
     const sizes = new Float32Array(numParticles);
 
-    // Position particles in a grid
+    // Position particles in a grid with organic edge variation
     for (let i = 0; i < numParticles; i++) {
       const x = (i % PARTICLE_GRID_DENSITY) / PARTICLE_GRID_DENSITY;
       const y = Math.floor(i / PARTICLE_GRID_DENSITY) / PARTICLE_GRID_DENSITY;
 
       // Center the grid
-      offsets[i * 3 + 0] = (x - 0.5) * scale;
-      offsets[i * 3 + 1] = (y - 0.5) * scale;
-      offsets[i * 3 + 2] = 0;
+      const centeredX = x - 0.5;
+      const centeredY = y - 0.5;
+
+      // Calculate distance from center (0 at center, 1 at corners)
+      const distFromCenter =
+        Math.sqrt(centeredX * centeredX + centeredY * centeredY) * Math.sqrt(2);
+
+      // Calculate distance from edges (0 at edges, 1 at center)
+      const distFromEdgeX = 1.0 - Math.abs(centeredX) * 2.0;
+      const distFromEdgeY = 1.0 - Math.abs(centeredY) * 2.0;
+      const distFromEdge = Math.min(distFromEdgeX, distFromEdgeY);
+
+      // Edge decay factor: 0 at center, increases toward edges
+      // Use exponential curve for more dramatic edge variation
+      const edgeDecay = Math.pow(1.0 - distFromEdge, 2.5);
+
+      // Add organic variation that increases dramatically at edges
+      const edgeVariationStrength = edgeDecay * 0.15; // Max 15% of scale
+      const noiseX =
+        (Math.random() - 0.5) * 2.0 * edgeVariationStrength * scale;
+      const noiseY =
+        (Math.random() - 0.5) * 2.0 * edgeVariationStrength * scale;
+      const noiseZ =
+        (Math.random() - 0.5) * edgeVariationStrength * scale * 0.3;
+
+      offsets[i * 3 + 0] = centeredX * scale + noiseX;
+      offsets[i * 3 + 1] = centeredY * scale + noiseY;
+      offsets[i * 3 + 2] = noiseZ;
 
       indices[i] = i;
       angles[i] = Math.random() * Math.PI * 2;
@@ -130,8 +155,9 @@ export class ParticleCanvas3D {
       velocities[i * 3 + 1] = (Math.random() - 0.5) * 10.0;
       velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
 
-      // Random size between 0.25 and 1.0 (1/4 to full size)
-      sizes[i] = 0.25 + Math.random() * 0.75;
+      // Random size between 0.25 and 1.0, with smaller particles at edges
+      const sizeVariation = 0.25 + Math.random() * 0.75;
+      sizes[i] = sizeVariation * (1.0 - edgeDecay * 0.3); // Reduce size at edges by up to 30%
     }
 
     geometry.setAttribute(
