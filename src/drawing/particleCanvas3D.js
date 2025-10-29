@@ -3,6 +3,8 @@ import * as THREE from "three";
 const CANVAS_SIZE = 500;
 const STROKE_WEIGHT = 3;
 const PARTICLE_GRID_DENSITY = 100; // Particles per side (100x100 = 10000 particles, ~2x original)
+const TOUCH_INNER_RADIUS = 2.5;
+const TOUCH_OUTER_SCALE = 2.0;
 
 export class ParticleCanvas3D {
   constructor(
@@ -32,25 +34,25 @@ export class ParticleCanvas3D {
     this.touchTexture.magFilter = THREE.LinearFilter;
     this.touchTexture.needsUpdate = true;
 
-    // Create visible white plane (for drawing visibility)
+    // Create invisible plane (only for ML recognition, not visual display)
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.needsUpdate = true;
 
     const geometry = new THREE.PlaneGeometry(scale, scale);
     const material = new THREE.MeshBasicMaterial({
-      map: this.texture,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 1.0,
-      alphaTest: 0.01, // Only render where there's actual drawing
-      depthWrite: false, // Allow proper blending on top of splats
+      visible: false, // Hidden - ML canvas only
     });
 
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.position.set(position.x, position.y, position.z);
     this.mesh.userData.isDrawingCanvas = true;
-    this.mesh.renderOrder = 9999; // Render on top of splats (9998)
     this.scene.add(this.mesh);
+
+    // Create magical brush stroke mesh for visual display
+    this.strokeScale = scale;
+    this.strokeMesh = null;
+    this.strokeGeometry = null;
+    this.createStrokeMesh();
 
     // Conditionally create particle system (in front of the plane)
     this.particleSystem = null;
@@ -67,6 +69,7 @@ export class ParticleCanvas3D {
     this.currentStroke = [[], []];
     this.lastPoint = null;
     this.time = 0;
+    this.strokeUVPosition = 0; // Track absolute UV position along stroke
 
     // Track stroke segments with timestamps for progressive fade
     // ML strokes are dynamically built from active segments
@@ -100,6 +103,367 @@ export class ParticleCanvas3D {
     this.pulseDuration = 1.0; // 0.5 seconds for pulse
 
     this.clearCanvas();
+  }
+
+  createStrokeMesh() {
+    // Create the geometry and material for magical brush strokes
+    this.strokeGeometry = new THREE.BufferGeometry();
+
+    // Load brush texture (optional)
+    const textureLoader = new THREE.TextureLoader();
+    const brushTexture = textureLoader.load("/images/particle.png");
+    brushTexture.minFilter = THREE.LinearFilter;
+    brushTexture.magFilter = THREE.LinearFilter;
+    brushTexture.wrapS = THREE.RepeatWrapping; // Repeat along stroke length
+    brushTexture.wrapT = THREE.ClampToEdgeWrapping; // Clamp across width
+
+    const strokeMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: new THREE.Color(0xaaeeff).multiplyScalar(0.8) }, // Darker version of particle color
+        uBrushTexture: { value: brushTexture },
+        uUseBrushTexture: { value: 1.0 }, // 1.0 = use texture, 0.0 = procedural
+      },
+      vertexShader: `
+        attribute float segmentProgress; // 0-1 along segment
+        attribute float segmentLength; // Length of this segment
+        attribute float segmentTime; // When this segment was drawn
+        attribute float fadeAlpha; // Alpha for progressive fade
+        
+        uniform float uTime;
+        
+        varying float vProgress;
+        varying float vFadeAlpha;
+        varying float vSegmentLength;
+        varying vec2 vUv;
+        
+        void main() {
+          vProgress = segmentProgress;
+          vFadeAlpha = fadeAlpha;
+          vSegmentLength = segmentLength;
+          vUv = uv;
+          
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        uniform float uTime;
+        uniform sampler2D uBrushTexture;
+        uniform float uUseBrushTexture;
+        
+        varying float vProgress;
+        varying float vFadeAlpha;
+        varying float vSegmentLength;
+        varying vec2 vUv;
+        
+        // Simple noise function
+        float hash(float n) {
+          return fract(sin(n) * 43758.5453123);
+        }
+        
+        // Improved noise function for brush texture
+        float noise2d(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          
+          float n = i.x + i.y * 57.0;
+          return mix(
+            mix(hash(n + 0.0), hash(n + 1.0), f.x),
+            mix(hash(n + 57.0), hash(n + 58.0), f.x),
+            f.y
+          );
+        }
+        
+        void main() {
+          // Repeat brush texture smoothly along length
+          vec2 brushUV = vec2(fract(vUv.x), vProgress);
+          vec4 texColor = texture2D(uBrushTexture, brushUV);
+
+          // Base stroke body so texture never drops to zero
+          float centerDist = abs(vProgress - 0.5) * 2.0;
+          float baseCore = 1.0 - smoothstep(0.0, 1.0, centerDist);
+          baseCore = pow(baseCore, 1.2); // Softer falloff
+
+          // Blend texture detail with base core for continuity
+          float detail = mix(0.55, 1.0, texColor.r);
+          float strokeAlpha = baseCore * detail;
+
+          // Global pulse for steady, intense flashes
+          float globalPulse = 0.5 + 0.5 * sin(uTime * 6.0);
+          float alphaPulse = mix(0.8, 1.35, globalPulse); // Higher minimum alpha
+          float brightnessPulse = mix(1.1, 2.2, globalPulse); // Keep bright peaks, raise floor
+
+          // Subtle spatial banding to keep energy shimmering
+          float band = 0.85 + 0.15 * sin(vUv.x * 10.0);
+
+          // Apply pulses to alpha (clamped for stability)
+          float alpha = strokeAlpha * vFadeAlpha * alphaPulse * band;
+          alpha = clamp(alpha, 0.0, 1.2);
+
+          if (alpha < 0.01) discard;
+
+          // Pulse affects brightness too - magical energy effect
+          vec3 finalColor = uColor * brightnessPulse;
+
+          gl_FragColor = vec4(finalColor, min(alpha, 1.0));
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending, // Normal blending for solid strokes
+      side: THREE.DoubleSide,
+    });
+
+    this.strokeMesh = new THREE.Mesh(this.strokeGeometry, strokeMaterial);
+    this.strokeMesh.position.copy(this.mesh.position);
+    this.strokeMesh.quaternion.copy(this.mesh.quaternion);
+    this.strokeMesh.scale.copy(this.mesh.scale);
+    this.strokeMesh.renderOrder = 10000; // Render on top of particles
+    this.scene.add(this.strokeMesh);
+
+    console.log("[ParticleCanvas3D] Stroke mesh created:", {
+      position: this.strokeMesh.position,
+      rotation: this.strokeMesh.rotation,
+      visible: this.strokeMesh.visible,
+    });
+  }
+
+  updateStrokeMesh() {
+    if (!this.strokeGeometry) return;
+
+    // Build geometry from active stroke segments
+    const vertices = [];
+    const uvs = [];
+    const segmentProgress = [];
+    const segmentLength = [];
+    const segmentTime = [];
+    const fadeAlpha = [];
+    const indices = [];
+
+    let vertexIndex = 0;
+    const currentTime = this.time;
+
+    const width = 0.05; // Slightly narrower stroke width
+
+    const addStripGeometry = (points) => {
+      if (points.length < 2) return;
+
+      const baseIndex = vertexIndex;
+
+      for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        const prev = points[i - 1] || point;
+        const next = points[i + 1] || point;
+
+        let tx = next.x - prev.x;
+        let ty = next.y - prev.y;
+        let tangentLength = Math.sqrt(tx * tx + ty * ty);
+
+        if (tangentLength < 0.0001) {
+          tx = 0;
+          ty = 1;
+          tangentLength = 1;
+        }
+
+        tx /= tangentLength;
+        ty /= tangentLength;
+
+        const nx = -ty;
+        const ny = tx;
+
+        const uCoord =
+          point.u !== undefined
+            ? point.u
+            : point.length !== undefined
+            ? point.length * 8.0
+            : 0.0;
+        const timeValue = point.time;
+        const alphaValue = point.alpha;
+        const segLengthValue = point.segmentLength || 0.0;
+
+        const leftX = point.x + nx * width;
+        const leftY = point.y + ny * width;
+        const rightX = point.x - nx * width;
+        const rightY = point.y - ny * width;
+
+        vertices.push(leftX, leftY, 0.001, rightX, rightY, 0.001);
+        uvs.push(uCoord, 0.0, uCoord, 1.0);
+        segmentProgress.push(0.0, 1.0);
+        segmentLength.push(segLengthValue, segLengthValue);
+        segmentTime.push(timeValue, timeValue);
+        fadeAlpha.push(alphaValue, alphaValue);
+
+        vertexIndex += 2;
+      }
+
+      const stripSegments = points.length - 1;
+      for (let i = 0; i < stripSegments; i++) {
+        const a = baseIndex + i * 2;
+        const b = a + 1;
+        const c = a + 2;
+        const d = a + 3;
+        indices.push(a, b, c, b, d, c);
+      }
+    };
+
+    let currentStrokeIndex = null;
+    let currentPoints = [];
+
+    const flushCurrentStroke = () => {
+      if (currentPoints.length >= 2) {
+        addStripGeometry(currentPoints);
+      }
+      currentPoints = [];
+    };
+
+    for (const segment of this.strokeSegments) {
+      if (segment.strokeIndex !== currentStrokeIndex) {
+        flushCurrentStroke();
+        currentStrokeIndex = segment.strokeIndex;
+      }
+
+      const x1 = (segment.uvX1 - 0.5) * this.strokeScale;
+      const y1 = -(segment.uvY1 - 0.5) * this.strokeScale;
+      const x2 = (segment.uvX2 - 0.5) * this.strokeScale;
+      const y2 = -(segment.uvY2 - 0.5) * this.strokeScale;
+
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const segmentLengthWorld = Math.sqrt(dx * dx + dy * dy);
+      if (segmentLengthWorld < 0.00001) {
+        continue;
+      }
+
+      let alpha = 1.0;
+      if (segment.rapidFade) {
+        const rapidAge = currentTime - segment.rapidFadeStartTime;
+        if (rapidAge > this.rapidFadeDuration) {
+          flushCurrentStroke();
+          continue;
+        }
+        alpha = 1.0 - rapidAge / this.rapidFadeDuration;
+      } else {
+        const age = currentTime - segment.timestamp;
+        if (age > this.fadeDuration) {
+          flushCurrentStroke();
+          continue;
+        }
+
+        const fadeStart = this.fadeDuration * 0.7;
+        if (age > fadeStart) {
+          const fadeProgress =
+            (age - fadeStart) / (this.fadeDuration - fadeStart);
+          alpha = 1.0 - fadeProgress;
+        }
+      }
+
+      if (alpha <= 0.0) {
+        flushCurrentStroke();
+        continue;
+      }
+
+      if (currentPoints.length === 0) {
+        currentPoints.push({
+          x: x1,
+          y: y1,
+          length: segment.uvStart,
+          u: segment.uvStart,
+          alpha,
+          time: segment.timestamp,
+          segmentLength: segmentLengthWorld,
+        });
+      } else {
+        const lastPoint = currentPoints[currentPoints.length - 1];
+        const distToStart = Math.sqrt(
+          Math.pow(x1 - lastPoint.x, 2) + Math.pow(y1 - lastPoint.y, 2)
+        );
+        if (distToStart > 0.0005) {
+          flushCurrentStroke();
+          currentPoints.push({
+            x: x1,
+            y: y1,
+            length: segment.uvStart,
+            u: segment.uvStart,
+            alpha,
+            time: segment.timestamp,
+            segmentLength: segmentLengthWorld,
+          });
+        } else {
+          lastPoint.alpha = Math.max(lastPoint.alpha, alpha);
+          lastPoint.time = Math.max(lastPoint.time, segment.timestamp);
+          lastPoint.u =
+            lastPoint.u !== undefined ? lastPoint.u : segment.uvStart;
+        }
+      }
+
+      currentPoints.push({
+        x: x2,
+        y: y2,
+        length: segment.uvEnd,
+        u: segment.uvEnd,
+        alpha,
+        time: segment.timestamp,
+        segmentLength: segmentLengthWorld,
+      });
+    }
+
+    flushCurrentStroke();
+
+    // Update geometry
+    if (vertices.length > 0) {
+      if (Math.random() < 0.01) {
+        console.log(
+          "[ParticleCanvas3D] Building stroke mesh with",
+          vertices.length / 3,
+          "vertices"
+        );
+      }
+
+      this.strokeGeometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(vertices, 3)
+      );
+      this.strokeGeometry.setAttribute(
+        "uv",
+        new THREE.Float32BufferAttribute(uvs, 2)
+      );
+      this.strokeGeometry.setAttribute(
+        "segmentProgress",
+        new THREE.Float32BufferAttribute(segmentProgress, 1)
+      );
+      this.strokeGeometry.setAttribute(
+        "segmentLength",
+        new THREE.Float32BufferAttribute(segmentLength, 1)
+      );
+      this.strokeGeometry.setAttribute(
+        "segmentTime",
+        new THREE.Float32BufferAttribute(segmentTime, 1)
+      );
+      this.strokeGeometry.setAttribute(
+        "fadeAlpha",
+        new THREE.Float32BufferAttribute(fadeAlpha, 1)
+      );
+      this.strokeGeometry.setIndex(indices);
+
+      // Mark geometry for update
+      this.strokeGeometry.attributes.position.needsUpdate = true;
+      this.strokeGeometry.computeBoundingSphere();
+
+      // Ensure stroke mesh matches main mesh transform
+      if (this.strokeMesh && this.mesh) {
+        this.strokeMesh.position.copy(this.mesh.position);
+        this.strokeMesh.quaternion.copy(this.mesh.quaternion);
+        this.strokeMesh.scale.copy(this.mesh.scale);
+      }
+    } else {
+      // Clear geometry when no segments
+      this.strokeGeometry.setIndex([]);
+      if (this.strokeGeometry.attributes.position) {
+        this.strokeGeometry.deleteAttribute("position");
+      }
+    }
   }
 
   createParticleSystem(scale) {
@@ -290,20 +654,19 @@ export class ParticleCanvas3D {
           }
           
           // Continuous avoidance force - particles flee from strokes with smooth momentum
-          // Apply easing to touch for smoother acceleration/deceleration
-          float touchSmooth = smoothstep(0.0, 1.0, touch); // Smooth curve
-          touchSmooth = touchSmooth * touchSmooth; // Quadratic easing for gentler motion
+          // Use exponential easing so motion ramps up gently instead of snapping away
+          float touchSmooth = smoothstep(0.05, 1.0, touch);
+          float response = 1.0 - exp(-touchSmooth * 3.0); // Slow rise, fast settle
           
-          // Displacement with momentum (slower and smoother)
-          float displacementStrength = 0.12; // Reduced for gentler movement
-          float displacementZ = touchSmooth * displacementStrength;
-          displaced.z += displacementZ;
-          
-          // Lateral spread with smooth easing
-          float spreadAmount = 0.15; // Reduced spread
-          float spreadEased = touchSmooth * spreadAmount;
+          // Prioritize lateral displacement (XY) with strong pushback
+          float spreadAmount = 0.22; // Wider safety margin
+          float spreadEased = response * spreadAmount;
           displaced.x += cos(angle) * spreadEased;
           displaced.y += sin(angle) * spreadEased;
+          
+          // Minimal Z displacement just to lift particles slightly when repelled
+          float displacementStrength = 0.02;
+          displaced.z += response * displacementStrength;
           
           vDisplacement = touch;
           
@@ -383,12 +746,13 @@ export class ParticleCanvas3D {
     if (!uv) return;
 
     this.isDrawing = true;
+    this.strokeUVPosition = 0; // Reset UV position for new stroke
 
     // Record on high-res canvas for ML
     const x = Math.floor(uv.x * CANVAS_SIZE);
     const y = Math.floor((1 - uv.y) * CANVAS_SIZE);
 
-    this.lastPoint = { x, y };
+    this.lastPoint = { x, y, uvX: uv.x, uvY: 1 - uv.y };
     this.currentStroke = [[x], [y]];
 
     // Draw to touch texture
@@ -417,14 +781,34 @@ export class ParticleCanvas3D {
       this.currentStroke[1].push(iy);
     }
 
+    // Calculate segment length in world space for UV mapping
+    const worldX1 = this.lastPoint.uvX - 0.5;
+    const worldY1 = -(this.lastPoint.uvY - 0.5);
+    const worldX2 = uv.x - 0.5;
+    const worldY2 = -(1 - uv.y - 0.5);
+    const segmentLength = Math.sqrt(
+      Math.pow(worldX2 - worldX1, 2) + Math.pow(worldY2 - worldY1, 2)
+    );
+
+    // Store absolute UV position for this segment
+    // Scale the length to control texture repeat frequency (higher = more repeats)
+    const uvScale = 8.0; // Higher value = denser texture tiling along visual stroke
+    const uvStart = this.strokeUVPosition;
+    this.strokeUVPosition += segmentLength * uvScale;
+    const uvEnd = this.strokeUVPosition;
+
     // Record stroke segment with timestamp for progressive fade
     this.strokeSegments.push({
       x1: this.lastPoint.x,
       y1: this.lastPoint.y,
       x2: x,
       y2: y,
-      uvX: uv.x,
-      uvY: 1 - uv.y,
+      uvX1: this.lastPoint.uvX || uv.x,
+      uvY1: this.lastPoint.uvY || 1 - uv.y,
+      uvX2: uv.x,
+      uvY2: 1 - uv.y,
+      uvStart: uvStart, // Absolute UV position at segment start
+      uvEnd: uvEnd, // Absolute UV position at segment end
       timestamp: this.time,
       rapidFade: false,
       strokeIndex: this.currentStrokeIndex, // Link segment to its parent stroke
@@ -441,37 +825,67 @@ export class ParticleCanvas3D {
       this.texture.needsUpdate = true;
     }
 
-    this.lastPoint = { x, y };
+    this.lastPoint = { x, y, uvX: uv.x, uvY: 1 - uv.y };
+  }
+
+  stampTouchTexture(touchX, touchY, intensity = 1.0) {
+    const innerRadius = TOUCH_INNER_RADIUS;
+    const outerRadius = innerRadius * TOUCH_OUTER_SCALE;
+    const clamped = Math.min(Math.max(intensity, 0), 1);
+
+    this.touchCtx.globalCompositeOperation = "lighter";
+
+    const innerGradient = this.touchCtx.createRadialGradient(
+      touchX,
+      touchY,
+      0,
+      touchX,
+      touchY,
+      innerRadius
+    );
+    innerGradient.addColorStop(0.0, `rgba(255, 255, 255, ${clamped})`);
+    innerGradient.addColorStop(0.5, `rgba(255, 255, 255, ${clamped * 0.9})`);
+    innerGradient.addColorStop(1.0, "rgba(255, 255, 255, 0)");
+
+    this.touchCtx.fillStyle = innerGradient;
+    const innerSize = innerRadius * 2;
+    this.touchCtx.fillRect(
+      touchX - innerRadius,
+      touchY - innerRadius,
+      innerSize,
+      innerSize
+    );
+
+    const outerGradient = this.touchCtx.createRadialGradient(
+      touchX,
+      touchY,
+      innerRadius * 0.6,
+      touchX,
+      touchY,
+      outerRadius
+    );
+    const outerAlpha = clamped * 0.35;
+    outerGradient.addColorStop(0.0, `rgba(255, 255, 255, ${outerAlpha})`);
+    outerGradient.addColorStop(0.7, `rgba(255, 255, 255, ${outerAlpha * 0.6})`);
+    outerGradient.addColorStop(1.0, "rgba(255, 255, 255, 0)");
+
+    this.touchCtx.fillStyle = outerGradient;
+    const outerSize = outerRadius * 2;
+    this.touchCtx.fillRect(
+      touchX - outerRadius,
+      touchY - outerRadius,
+      outerSize,
+      outerSize
+    );
+
+    this.touchCtx.globalCompositeOperation = "source-over";
   }
 
   drawToTouchTexture(x, y) {
     const touchX = x * PARTICLE_GRID_DENSITY;
     const touchY = y * PARTICLE_GRID_DENSITY;
 
-    // Draw a bright circle at touch point (smaller radius for tighter displacement)
-    const radius = 1.5;
-
-    // Use lighter blending to ensure full coverage
-    this.touchCtx.globalCompositeOperation = "lighter";
-
-    const gradient = this.touchCtx.createRadialGradient(
-      touchX,
-      touchY,
-      0,
-      touchX,
-      touchY,
-      radius
-    );
-    gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-    gradient.addColorStop(0.5, "rgba(255, 255, 255, 1)"); // Stronger center
-    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-
-    this.touchCtx.fillStyle = gradient;
-    const size = radius * 2;
-    this.touchCtx.fillRect(touchX - radius, touchY - radius, size, size);
-
-    // Reset composite operation
-    this.touchCtx.globalCompositeOperation = "source-over";
+    this.stampTouchTexture(touchX, touchY, 1.0);
 
     this.touchTexture.needsUpdate = true;
   }
@@ -602,8 +1016,7 @@ export class ParticleCanvas3D {
         break;
       case 2:
         newTargetColor = this.redColor; // Red
-        jitterIntensity = 0.5; // Intense, about to burst!
-        break;
+        jitterIntensity = 0.5; // Intense, about to burst        break;
     }
 
     // Start transition from current color to new target color
@@ -621,12 +1034,25 @@ export class ParticleCanvas3D {
     this.pulseProgress = 0;
   }
 
+  setBrushTexture(enabled) {
+    // Toggle brush texture on/off
+    if (this.strokeMesh && this.strokeMesh.material) {
+      this.strokeMesh.material.uniforms.uUseBrushTexture.value = enabled
+        ? 1.0
+        : 0.0;
+      console.log(
+        "[ParticleCanvas3D] Brush texture",
+        enabled ? "enabled" : "disabled"
+      );
+    }
+  }
+
   getMesh() {
     return this.mesh;
   }
 
   dispose() {
-    // Dispose visible plane
+    // Dispose invisible plane
     if (this.mesh) {
       this.scene.remove(this.mesh);
       this.mesh.geometry.dispose();
@@ -634,6 +1060,15 @@ export class ParticleCanvas3D {
       if (this.texture) {
         this.texture.dispose();
       }
+    }
+
+    // Dispose stroke mesh
+    if (this.strokeMesh) {
+      this.scene.remove(this.strokeMesh);
+      if (this.strokeGeometry) {
+        this.strokeGeometry.dispose();
+      }
+      this.strokeMesh.material.dispose();
     }
 
     // Dispose particle system
@@ -690,6 +1125,14 @@ export class ParticleCanvas3D {
           this.currentJitterIntensity;
       }
 
+      // Always update stroke color to match particle color with offset
+      if (this.strokeMesh && this.strokeMesh.material) {
+        const strokeColor = this.currentColor.clone();
+        // Make it slightly darker and more saturated
+        strokeColor.multiplyScalar(0.8);
+        this.strokeMesh.material.uniforms.uColor.value.copy(strokeColor);
+      }
+
       // Update scale pulse
       if (this.isPulsing) {
         this.pulseProgress += dt / this.pulseDuration;
@@ -709,10 +1152,9 @@ export class ParticleCanvas3D {
       }
     }
 
-    // Progressive fade: redraw strokes with age-based alpha
+    // Progressive fade: update touch texture and filter expired segments
     if (this.strokeSegments.length > 0) {
-      // Clear both canvases
-      this.ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      // Clear touch canvas (ML canvas no longer needs visual drawing)
       this.touchCtx.fillStyle = "rgba(0, 0, 0, 1)";
       this.touchCtx.fillRect(
         0,
@@ -721,47 +1163,28 @@ export class ParticleCanvas3D {
         PARTICLE_GRID_DENSITY
       );
 
-      // Filter out expired segments and redraw active ones
+      // Filter out expired segments and update touch texture
       this.strokeSegments = this.strokeSegments.filter((segment) => {
-        let alpha;
-
-        // Handle rapid fade (triggered by clear)
+        // Check if segment is expired
         if (segment.rapidFade) {
           const rapidAge = this.time - segment.rapidFadeStartTime;
-
           if (rapidAge > this.rapidFadeDuration) {
             return false; // Remove expired rapid fade segment
           }
-
-          // Fade from current alpha to 0 over rapidFadeDuration
-          const rapidProgress = rapidAge / this.rapidFadeDuration;
-          alpha = segment.rapidFadeStartAlpha * (1.0 - rapidProgress);
         } else {
-          // Normal progressive fade
           const age = this.time - segment.timestamp;
-
           if (age > this.fadeDuration) {
             return false; // Remove expired segment
           }
-
-          // Calculate alpha based on age (fade from 1.0 to 0.0)
-          alpha = 1.0 - age / this.fadeDuration;
         }
 
-        // Draw to visible canvas
-        this.ctx.strokeStyle = `rgba(0, 255, 255, ${alpha})`;
-        this.ctx.lineWidth = STROKE_WEIGHT;
-        this.ctx.lineCap = "round";
-        this.ctx.beginPath();
-        this.ctx.moveTo(segment.x1, segment.y1);
-        this.ctx.lineTo(segment.x2, segment.y2);
-        this.ctx.stroke();
-
-        // Calculate separate alpha for particle displacement
+        // Calculate alpha for particle displacement
         // Keep particles displaced longer - only start returning in last 30% of fade
         let touchAlpha;
         if (segment.rapidFade) {
-          touchAlpha = alpha; // Rapid fade uses same curve
+          const rapidAge = this.time - segment.rapidFadeStartTime;
+          const rapidProgress = rapidAge / this.rapidFadeDuration;
+          touchAlpha = segment.rapidFadeStartAlpha * (1.0 - rapidProgress);
         } else {
           const age = this.time - segment.timestamp;
           const progress = age / this.fadeDuration;
@@ -777,36 +1200,24 @@ export class ParticleCanvas3D {
         }
 
         // Draw to touch texture for particle displacement
-        const touchX = segment.uvX * PARTICLE_GRID_DENSITY;
-        const touchY = segment.uvY * PARTICLE_GRID_DENSITY;
+        const touchX = segment.uvX2 * PARTICLE_GRID_DENSITY;
+        const touchY = segment.uvY2 * PARTICLE_GRID_DENSITY;
 
-        const radius = 1.5;
-        this.touchCtx.globalCompositeOperation = "lighter";
-        const gradient = this.touchCtx.createRadialGradient(
-          touchX,
-          touchY,
-          0,
-          touchX,
-          touchY,
-          radius
-        );
-        gradient.addColorStop(0, `rgba(255, 255, 255, ${touchAlpha})`);
-        gradient.addColorStop(0.5, `rgba(255, 255, 255, ${touchAlpha})`);
-        gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
-
-        this.touchCtx.fillStyle = gradient;
-        const size = radius * 2;
-        this.touchCtx.fillRect(touchX - radius, touchY - radius, size, size);
-        this.touchCtx.globalCompositeOperation = "source-over";
+        this.stampTouchTexture(touchX, touchY, touchAlpha);
 
         return true; // Keep active segment
       });
 
-      // Update textures
-      if (this.texture) {
-        this.texture.needsUpdate = true;
-      }
+      // Update touch texture for particle displacement
       this.touchTexture.needsUpdate = true;
+
+      // Rebuild stroke mesh with current segments
+      this.updateStrokeMesh();
+    }
+
+    // Update stroke shader time
+    if (this.strokeMesh && this.strokeMesh.material) {
+      this.strokeMesh.material.uniforms.uTime.value = this.time;
     }
 
     // Note: Strokes are now built dynamically in getStrokes() from active segments
