@@ -20,10 +20,11 @@ import { Logger } from "./logger.js";
  * - Add ?gizmo to URL to enable P key spawning (blocks pointer lock & idle)
  * - Click object to focus it for logging
  * - P = spawn gizmo 5m in front of camera (only with ?gizmo param)
- * - G = translate, R = rotate, Q = scale (all gizmos)
+ * - G = translate, R = rotate, X = scale (all gizmos)
  * - Space = toggle world/local space (all gizmos)
  * - H = toggle visibility (all gizmos)
- * - F = cycle through gizmos and teleport character 5m in front of each
+ * - U = cycle through gizmos and teleport character 5m in front of each
+ * - Q/E = fly down/up (flight mode enabled automatically with gizmo)
  * - Drag any gizmo to manipulate, release to log position
  */
 class GizmoManager {
@@ -159,6 +160,21 @@ class GizmoManager {
       typeof this.inputManager.setPointerLockBlocked === "function"
     ) {
       this.inputManager.setPointerLockBlocked(hasGizmo);
+    }
+
+    // Enable/disable flight mode based on gizmo presence
+    if (this.characterController) {
+      if (
+        hasGizmo &&
+        typeof this.characterController.enableFlightMode === "function"
+      ) {
+        this.characterController.enableFlightMode();
+      } else if (
+        !hasGizmo &&
+        typeof this.characterController.disableFlightMode === "function"
+      ) {
+        this.characterController.disableFlightMode();
+      }
     }
   }
 
@@ -603,8 +619,8 @@ class GizmoManager {
         }
         this.logger.log("Mode = Rotate (all gizmos)");
         break;
-      case "q":
-      case "Q":
+      case "x":
+      case "X":
         if (this.controls.size === 0) return;
         this.currentMode = "scale";
         for (const control of this.controls.values()) {

@@ -230,7 +230,11 @@ class VideoManager {
 
         // Stop and remove video if it exists
         if (exists) {
-          this.stopVideo(videoId);
+          player.destroy();
+          this.videoPlayers.delete(videoId);
+          this.logger.log(
+            `Removed video "${videoId}" (spawn criteria no longer met)`
+          );
         }
       }
     }
@@ -427,6 +431,7 @@ class VideoPlayer {
     this.isPlaying = false;
     this.isInitialized = false;
     this.canvasReady = false;
+    this.isDestroying = false;
 
     // Web Audio API for spatial audio
     this.audioContext = null;
@@ -562,9 +567,11 @@ class VideoPlayer {
     });
 
     this.video.addEventListener("error", (e) => {
-      this.logger.error("Video error:", e);
-      this.logger.error("Video error code:", this.video.error?.code);
-      this.logger.error("Video error message:", this.video.error?.message);
+      if (!this.isDestroying) {
+        this.logger.error("Video error:", e);
+        this.logger.error("Video error code:", this.video.error?.code);
+        this.logger.error("Video error message:", this.video.error?.message);
+      }
     });
 
     this.video.addEventListener("ended", () => {
@@ -904,6 +911,7 @@ class VideoPlayer {
    * Clean up
    */
   destroy() {
+    this.isDestroying = true;
     this.stop();
 
     // Clean up Web Audio API nodes
@@ -953,8 +961,10 @@ class VideoPlayer {
     }
 
     if (this.video) {
-      this.video.src = "";
+      this.video.pause();
+      this.video.removeAttribute("src");
       this.video.load();
+      this.video = null;
     }
   }
 }

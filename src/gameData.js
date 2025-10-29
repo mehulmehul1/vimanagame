@@ -9,13 +9,13 @@
  * Canonical state names/flags used across data files
  */
 export const GAME_STATES = {
-  LOADING: -1, // Game is loading
-  START_SCREEN: 0, // Game has loaded, START and OPTIONS buttons available, fullscreen available, camera animation plays
-  INTRO: 1, // Intro sequence plays, camera animation plays
-  TITLE_SEQUENCE: 2, // Title sequence plays, camera animation plays
-  TITLE_SEQUENCE_COMPLETE: 3, // Title sequence completes, intro narration starts, player starts
-  CAT_DIALOG_CHOICE: 4, // Player chooses reaction to cat
-  NEAR_RADIO: 5, // Player approaches the radio (triggers radio audio)
+  LOADING: -1,
+  START_SCREEN: 0,
+  INTRO: 1,
+  TITLE_SEQUENCE: 2,
+  TITLE_SEQUENCE_COMPLETE: 3,
+  CAT_DIALOG_CHOICE: 4,
+  NEAR_RADIO: 5,
   PHONE_BOOTH_RINGING: 6,
   ANSWERED_PHONE: 7,
   DIALOG_CHOICE_1: 8,
@@ -40,6 +40,9 @@ export const GAME_STATES = {
   SHOULDER_TAP: 27,
   PUNCH_OUT: 28,
   FALLEN: 29,
+  LIGHTS_OUT: 30,
+  WAKING_UP: 31,
+  CURSOR: 32,
 };
 
 export const DIALOG_RESPONSE_TYPES = {

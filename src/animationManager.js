@@ -467,8 +467,12 @@ class AnimationManager {
       holdTime: fadeData.holdTime || 0,
       fadeOutTime: fadeData.fadeOutTime || 1.0,
       maxOpacity: fadeData.maxOpacity !== undefined ? fadeData.maxOpacity : 1.0,
+      persistWhileCriteria: fadeData.persistWhileCriteria || false,
+      criteria: fadeData.criteria || null,
     };
     this.fadeOnComplete = fadeData.onComplete || null;
+    this.fadeOnFadeInComplete = fadeData.onFadeInComplete || null;
+    this.fadeInCompleteTriggered = false;
 
     // Get or create fade cube
     const cube = this._getOrCreateFadeCube();
@@ -1675,7 +1679,14 @@ class AnimationManager {
       const cube = this.fadeCube;
 
       if (cube) {
-        const { fadeInTime, holdTime, fadeOutTime, maxOpacity } = this.fadeData;
+        const {
+          fadeInTime,
+          holdTime,
+          fadeOutTime,
+          maxOpacity,
+          persistWhileCriteria,
+          criteria,
+        } = this.fadeData;
         const fadeInEnd = fadeInTime;
         const holdEnd = fadeInEnd + holdTime;
         const fadeOutEnd = holdEnd + fadeOutTime;
@@ -1689,24 +1700,67 @@ class AnimationManager {
         } else if (this.fadeElapsed < holdEnd) {
           // Hold phase
           opacity = maxOpacity;
-        } else if (this.fadeElapsed < fadeOutEnd) {
-          // Fade out phase
-          const t = (this.fadeElapsed - holdEnd) / fadeOutTime;
-          opacity = (1 - t) * maxOpacity;
-        } else {
-          // Complete
-          opacity = 0;
-          this.isFading = false;
 
-          const callback = this.fadeOnComplete;
-          this.fadeData = null;
-          this.fadeOnComplete = null;
-
-          if (callback) {
-            callback();
+          // Trigger onFadeInComplete callback once when we first reach max opacity
+          if (!this.fadeInCompleteTriggered && this.fadeOnFadeInComplete) {
+            this.fadeInCompleteTriggered = true;
+            this.fadeOnFadeInComplete(this.gameManager);
           }
+        } else {
+          // After hold phase - check if we should persist based on criteria
+          if (persistWhileCriteria && criteria) {
+            const stillMatches = checkCriteria(
+              this.gameManager.getState(),
+              criteria
+            );
 
-          this.logger.log(`Fade complete`);
+            if (stillMatches) {
+              // Persist at max opacity while criteria still match
+              opacity = maxOpacity;
+
+              // Trigger onFadeInComplete callback once if not already triggered
+              if (!this.fadeInCompleteTriggered && this.fadeOnFadeInComplete) {
+                this.fadeInCompleteTriggered = true;
+                this.fadeOnFadeInComplete(this.gameManager);
+              }
+            } else if (this.fadeElapsed < holdEnd + fadeOutTime) {
+              // Criteria no longer match, start/continue fade out
+              const t = (this.fadeElapsed - holdEnd) / fadeOutTime;
+              opacity = (1 - t) * maxOpacity;
+            } else {
+              // Fade out complete
+              opacity = 0;
+              this.isFading = false;
+
+              const callback = this.fadeOnComplete;
+              this.fadeData = null;
+              this.fadeOnComplete = null;
+
+              if (callback) {
+                callback(this.gameManager);
+              }
+
+              this.logger.log(`Fade complete`);
+            }
+          } else if (this.fadeElapsed < fadeOutEnd) {
+            // Normal fade out phase
+            const t = (this.fadeElapsed - holdEnd) / fadeOutTime;
+            opacity = (1 - t) * maxOpacity;
+          } else {
+            // Complete
+            opacity = 0;
+            this.isFading = false;
+
+            const callback = this.fadeOnComplete;
+            this.fadeData = null;
+            this.fadeOnComplete = null;
+
+            if (callback) {
+              callback(this.gameManager);
+            }
+
+            this.logger.log(`Fade complete`);
+          }
         }
 
         cube.material.opacity = opacity;

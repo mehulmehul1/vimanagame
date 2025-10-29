@@ -185,7 +185,19 @@ const stateOverrides = {
   SHOULDER_TAP: {
     isPlaying: true,
     controlEnabled: true,
-    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  WAKING_UP: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  CURSOR: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 }, // Inside club scene
   },
 };
 

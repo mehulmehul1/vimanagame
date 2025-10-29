@@ -88,26 +88,26 @@ export const desaturationEffects = {
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.POST_VIEWMASTER,
+        $eq: GAME_STATES.POST_VIEWMASTER,
       },
     },
     priority: 30, // Higher than officeColor
   },
 
-  // postViewmasterGrayscale: {
-  //   id: "postViewmasterGrayscale",
-  //   parameters: {
-  //     target: 1.0, // Grayscale
-  //     duration: 0.0,
-  //     mode: "fade",
-  //   },
-  //   criteria: {
-  //     currentState: {
-  //       $gt: GAME_STATES.POST_VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
-  //     },
-  //   },
-  //   priority: 0,
-  // },
+  postViewmasterGrayscale: {
+    id: "postViewmasterGrayscale",
+    parameters: {
+      target: 1.0, // Grayscale
+      duration: 0.0,
+      mode: "fade",
+    },
+    criteria: {
+      currentState: {
+        $gt: GAME_STATES.POST_VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
+      },
+    },
+    priority: 0,
+  },
 };
 
 /**

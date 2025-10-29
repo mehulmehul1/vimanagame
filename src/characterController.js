@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { Howl } from "howler";
-import BreathingSystem from "./wip/breathingSystem.js";
 import { Logger } from "./utils/logger.js";
 
 class CharacterController {
@@ -124,13 +123,6 @@ class CharacterController {
     this.footstepSound = null;
     this.isPlayingFootsteps = false;
 
-    // Breathing system
-    this.breathingSystem = new BreathingSystem(this.audioListener.context, {
-      idleBreathRate: 0.17, // Slower, deeper breathing - 10 breaths per minute
-      activeBreathRate: 0.5, // 30 breaths per minute when moving
-      volume: 0.8, // Louder breathing
-    });
-
     // First-person body model
     // Master toggle: set to true to enable loading/animating first-person body, false to disable all body code
     this.enableFirstPersonBody = false;
@@ -155,6 +147,11 @@ class CharacterController {
     this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
     this.cameraHeight = 0.9; // Camera offset from capsule center (eye height)
     this.cameraSmoothingFactor = 0.15;
+
+    // Flight mode (for gizmo debug mode)
+    this.flightMode = false;
+    this.flightSpeed = 5.0; // Speed for vertical flight
+    this.verticalInput = 0; // Q/E input for up/down
 
     // Initialize FOV from camera
     this.baseFov = this.camera.fov;
@@ -553,24 +550,6 @@ class CharacterController {
     this.logger.log("Event listeners registered");
   }
 
-  /**
-   * Enable breathing (call when character controller becomes active)
-   */
-  enableBreathing() {
-    if (this.breathingSystem) {
-      this.breathingSystem.start();
-    }
-  }
-
-  /**
-   * Disable breathing
-   */
-  disableBreathing() {
-    if (this.breathingSystem) {
-      this.breathingSystem.stop();
-    }
-  }
-
   loadFootstepAudio() {
     // Load footstep audio using Howler.js
     this.footstepSound = new Howl({
@@ -589,17 +568,6 @@ class CharacterController {
     // Register with SFX manager if available
     if (this.sfxManager) {
       this.sfxManager.registerSound("footsteps", this.footstepSound, 0.2);
-    }
-
-    // Register breathing system volume control with SFX manager
-    if (this.sfxManager && this.breathingSystem) {
-      // Create a proxy object that implements the setVolume interface
-      const breathingVolumeControl = {
-        setVolume: (volume) => {
-          this.breathingSystem.setVolume(volume * 0.2); // Scale to appropriate range (louder)
-        },
-      };
-      this.sfxManager.registerSound("breathing", breathingVolumeControl, 1.0);
     }
   }
 
@@ -934,6 +902,59 @@ class CharacterController {
   }
 
   /**
+   * Reset character to upright position and orientation
+   * Useful for resetting after animations that leave character in unusual positions
+   */
+  resetToUpright() {
+    const currentPos = this.character.translation();
+
+    const bodyY = 2.05;
+
+    this.character.setTranslation(
+      {
+        x: currentPos.x,
+        y: bodyY,
+        z: currentPos.z,
+      },
+      true
+    );
+
+    const bodyQuat = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(0, 0, 0, "YXZ")
+    );
+    this.character.setRotation(
+      { x: bodyQuat.x, y: bodyQuat.y, z: bodyQuat.z, w: bodyQuat.w },
+      true
+    );
+
+    this.character.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.character.setAngvel({ x: 0, y: 0, z: 0 }, true);
+
+    this.camera.position.set(
+      currentPos.x,
+      bodyY + this.cameraHeight,
+      currentPos.z
+    );
+
+    this.yaw = 0;
+    this.pitch = 0;
+    this.targetYaw = 0;
+    this.targetPitch = 0;
+    this.bodyYaw = 0;
+
+    const euler = new THREE.Euler(0, 0, 0, "YXZ");
+    this.camera.quaternion.setFromEuler(euler);
+
+    this.cameraSyncDisabled = false;
+    this.inputDisabled = false;
+    if (this.inputManager) {
+      this.inputManager.enable();
+    }
+
+    this.logger.log(`Character reset to upright at Y=${bodyY.toFixed(2)}`);
+  }
+
+  /**
    * Cancel the move-to and restore player control
    */
   cancelMoveTo() {
@@ -1043,6 +1064,76 @@ class CharacterController {
    */
   enableRotation() {
     this.inputManager.enableRotation();
+  }
+
+  /**
+   * Enable flight mode (for gizmo debug mode)
+   * Disables gravity and allows free movement in all directions
+   */
+  enableFlightMode() {
+    if (this.flightMode) return;
+
+    this.flightMode = true;
+    this.logger.log("Flight mode enabled (Q=down, E=up)");
+
+    // Set up keyboard listener for Q/E vertical movement
+    this.onFlightKeyDown = this.handleFlightKeyDown.bind(this);
+    this.onFlightKeyUp = this.handleFlightKeyUp.bind(this);
+    window.addEventListener("keydown", this.onFlightKeyDown);
+    window.addEventListener("keyup", this.onFlightKeyUp);
+  }
+
+  /**
+   * Disable flight mode and restore normal physics
+   */
+  disableFlightMode() {
+    if (!this.flightMode) return;
+
+    this.flightMode = false;
+    this.verticalInput = 0;
+    this.logger.log("Flight mode disabled");
+
+    // Remove keyboard listeners
+    if (this.onFlightKeyDown) {
+      window.removeEventListener("keydown", this.onFlightKeyDown);
+    }
+    if (this.onFlightKeyUp) {
+      window.removeEventListener("keyup", this.onFlightKeyUp);
+    }
+  }
+
+  /**
+   * Handle key down for flight controls
+   */
+  handleFlightKeyDown(event) {
+    // Ignore if typing in an input
+    if (
+      document.activeElement.tagName === "INPUT" ||
+      document.activeElement.tagName === "TEXTAREA"
+    ) {
+      return;
+    }
+
+    switch (event.key.toLowerCase()) {
+      case "q":
+        this.verticalInput = -1; // Down
+        break;
+      case "e":
+        this.verticalInput = 1; // Up
+        break;
+    }
+  }
+
+  /**
+   * Handle key up for flight controls
+   */
+  handleFlightKeyUp(event) {
+    switch (event.key.toLowerCase()) {
+      case "q":
+      case "e":
+        this.verticalInput = 0;
+        break;
+    }
   }
 
   /**
@@ -1255,6 +1346,28 @@ class CharacterController {
     this.logger.log(`  Bottom: y = ${bottomY.toFixed(2)}`);
     this.logger.log(`  Top: y = ${topY.toFixed(2)}`);
     this.logger.log(`  Height: ${height.toFixed(2)}`);
+  }
+
+  /**
+   * Get position relative to player with offset applied in player's local space
+   * @param {THREE.Vector3|Object} offset - Offset {x: left/right, y: up/down, z: forward/back} relative to player
+   * @returns {Object} World position {x, y, z}
+   */
+  getPosition(offset = { x: 0, y: 0, z: 0 }) {
+    const playerPos = this.character.translation();
+
+    // Create offset vector in player's local space
+    // x = left(-)/right(+), y = down(-)/up(+), z = back(-)/forward(+)
+    const localOffset = new THREE.Vector3(offset.x, offset.y, offset.z);
+
+    // Rotate offset by player's yaw to get world space offset
+    localOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+
+    return {
+      x: playerPos.x + localOffset.x,
+      y: playerPos.y + localOffset.y,
+      z: playerPos.z + localOffset.z,
+    };
   }
 
   /**
@@ -2092,21 +2205,51 @@ class CharacterController {
         this.bodyYaw += cameraBodyDiff * 0.06; // Balanced speed for smooth rotation
       }
 
-      // Apply velocity: preserve current Y velocity (gravity)
+      // Apply velocity
       const linvel = this.character.linvel();
-      // If not moving (or movement disabled), explicitly clear horizontal velocity
-      if (!isMoving || !this.inputManager.isMovementEnabled()) {
-        this.character.setLinvel({ x: 0, y: linvel.y, z: 0 }, true);
+
+      if (this.flightMode) {
+        // Flight mode: full 3D movement with Q/E for vertical
+        const up = new THREE.Vector3(0, 1, 0); // World up vector
+        const verticalVelocity = up
+          .clone()
+          .multiplyScalar(this.verticalInput * this.flightSpeed);
+
+        // If not moving (or movement disabled), only apply vertical velocity
+        if (!isMoving || !this.inputManager.isMovementEnabled()) {
+          this.character.setLinvel({ x: 0, y: verticalVelocity.y, z: 0 }, true);
+        } else {
+          this.character.setLinvel(
+            {
+              x: desired.x,
+              y: verticalVelocity.y,
+              z: desired.z,
+            },
+            true
+          );
+        }
       } else {
-        this.character.setLinvel(
-          { x: desired.x, y: linvel.y, z: desired.z },
-          true
-        );
+        // Normal mode: preserve Y velocity (gravity)
+        // If not moving (or movement disabled), explicitly clear horizontal velocity
+        if (!isMoving || !this.inputManager.isMovementEnabled()) {
+          this.character.setLinvel({ x: 0, y: linvel.y, z: 0 }, true);
+        } else {
+          this.character.setLinvel(
+            { x: desired.x, y: linvel.y, z: desired.z },
+            true
+          );
+        }
       }
     } else {
       // Stop movement when input is disabled
       const linvel = this.character.linvel();
-      this.character.setLinvel({ x: 0, y: linvel.y, z: 0 }, true);
+      if (this.flightMode) {
+        // In flight mode, stop all movement including vertical
+        this.character.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      } else {
+        // Normal mode: preserve gravity
+        this.character.setLinvel({ x: 0, y: linvel.y, z: 0 }, true);
+      }
     }
 
     // Update idle glance system (before headbob so it can affect targetYaw)
@@ -2122,10 +2265,6 @@ class CharacterController {
     if (isMoving && this.headbobEnabled) {
       this.headbobTime += dt; // Accumulate time only when moving
     }
-
-    // Update breathing system
-    const movementIntensity = isSprinting ? 1.0 : 0.5;
-    this.breathingSystem.update(dt, isMoving, movementIntensity);
 
     // Update first-person body animation with blending
     if (

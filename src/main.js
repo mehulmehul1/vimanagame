@@ -363,6 +363,7 @@ try {
     inputManager: inputManager,
     scene: scene,
     camera: camera,
+    renderer: renderer,
   });
   logger.log("✅ GameManager initialized");
   loadingScreen.completeTask("initialization");

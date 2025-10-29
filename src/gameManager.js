@@ -6,6 +6,7 @@ import {
 } from "./utils/debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
 import CandlestickPhone from "./content/candlestickPhone.js";
+import DrawingManager from "./content/drawingManager.js";
 import VideoManager from "./videoManager.js";
 import { Logger } from "./utils/logger.js";
 
@@ -40,6 +41,7 @@ class GameManager {
     this.sceneManager = null;
     this.phoneBooth = null;
     this.candlestickPhone = null;
+    this.drawingManager = null;
 
     // Track loaded scene objects
     this.loadedScenes = new Set();
@@ -147,6 +149,15 @@ class GameManager {
       characterController: this.characterController,
     });
     this.phoneBooth.initialize(this);
+
+    // Initialize drawing manager
+    this.drawingManager = new DrawingManager({
+      sceneManager: this.sceneManager,
+      scene: managers.scene,
+      camera: this.camera,
+      renderer: managers.renderer,
+    });
+    this.drawingManager.initialize(this);
 
     // Note: candlestickPhone will be initialized when its scene object loads (POST_DRIVE_BY state)
 
@@ -406,6 +417,10 @@ class GameManager {
 
     if (this.candlestickPhone) {
       this.candlestickPhone.update(dt);
+    }
+
+    if (this.drawingManager) {
+      this.drawingManager.update(dt);
     }
   }
 }

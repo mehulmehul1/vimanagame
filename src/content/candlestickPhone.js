@@ -277,6 +277,9 @@ class CandlestickPhone {
         } else if (newState.currentState > GAME_STATES.POST_VIEWMASTER) {
           this.setCordVisibility(true);
         }
+        if (newState.currentState === GAME_STATES.LIGHTS_OUT) {
+          this.destroyCord();
+        }
       });
     }
 
@@ -984,6 +987,17 @@ class CandlestickPhone {
     if (contactShadow && typeof contactShadow.enable === "function") {
       contactShadow.enable();
       this.logger.log("Enabled contact shadow");
+    }
+  }
+
+  /**
+   * Destroy only the phone cord (called when cord needs to be removed)
+   */
+  destroyCord() {
+    if (this.phoneCord) {
+      this.phoneCord.destroy();
+      this.phoneCord = null;
+      this.logger.log("Phone cord destroyed");
     }
   }
 

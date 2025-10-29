@@ -91,7 +91,12 @@
  * - holdTime: Time to hold at full opacity in seconds (default: 0)
  * - fadeOutTime: Time to fade out (go to zero opacity) in seconds (default: 1.0)
  * - maxOpacity: Maximum opacity to reach (0-1, default: 1.0)
- * - onComplete: Optional callback when fade completes (no parameters passed)
+ * - persistWhileCriteria: If true, fade persists at max opacity as long as criteria match (default: false)
+ *   - When enabled, fade will stay at maxOpacity even after holdTime expires, until criteria no longer match
+ *   - Once criteria stop matching, fade will complete normally or another fade can replace it
+ * - onFadeInComplete: Optional callback when fade-in reaches max opacity. Receives gameManager as parameter.
+ *   - Useful with persistWhileCriteria to trigger logic once black screen is reached
+ * - onComplete: Optional callback when fade completes (returns to 0 opacity). Receives gameManager as parameter.
  *
  * For type "cameraMoveTo":
  * - position: {x, y, z} target camera world position
@@ -461,7 +466,12 @@ export const cameraAnimations = {
     type: "jsonAnimation",
     path: "/json/punchout.json",
     description: "Camera animation for punch-out sequence",
-    criteria: { currentState: GAME_STATES.PUNCH_OUT },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.PUNCH_OUT,
+        $lt: GAME_STATES.LIGHTS_OUT,
+      },
+    },
     priority: 100,
     playOnce: true,
     syncController: false, // Don't sync controller - leave camera where it lands
@@ -491,63 +501,46 @@ export const cameraAnimations = {
   fallenBlackout: {
     id: "fallenBlackout",
     type: "fade",
-    description: "Blackout effect after falling",
-    color: { r: 0, g: 0, b: 0 }, // Black
-    fadeInTime: 3.0, // Slow fade to black
-    holdTime: 100, // Long hold in darkness
-    fadeOutTime: 1.5, // Fade back to normal
-    maxOpacity: 1.0, // Full blackout
-    criteria: { currentState: GAME_STATES.FALLEN },
+    description:
+      "Fade to black after falling, persists through FALLEN and LIGHTS_OUT states",
+    color: { r: 0, g: 0, b: 0 },
+    fadeInTime: 3.0,
+    holdTime: 0,
+    fadeOutTime: 0,
+    maxOpacity: 1.0,
+    persistWhileCriteria: true,
+    criteria: {
+      currentState: { $in: [GAME_STATES.FALLEN, GAME_STATES.LIGHTS_OUT] },
+    },
     priority: 100,
     playOnce: true,
-    delay: 1.5, // Delay after falling
+    delay: 1.5,
+    onFadeInComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.LIGHTS_OUT });
+
+      if (gameManager.characterController) {
+        gameManager.characterController.resetToUpright();
+      }
+
+      setTimeout(() => {
+        gameManager.setState({ currentState: GAME_STATES.WAKING_UP });
+      }, 3000);
+    },
   },
 
-  // Example of a lookat sequence with per-position settings:
-  // sequenceExample: {
-  //   id: "sequenceExample",
-  //   type: "lookat",
-  //   description: "Look at multiple positions in sequence",
-  //   positions: [
-  //     { x: 5.94, y: 0.9, z: 65.76 },  // Phone booth
-  //     { x: 4.04, y: 0.8, z: 35.45 },  // Radio
-  //     { x: -5.9, y: 0.76, z: 68.35 }, // Car
-  //   ],
-  //   // Default settings for all positions
-  //   transitionTime: 1.0,
-  //   lookAtHoldDuration: 2.0,
-  //   enableZoom: true,
-  //   zoomOptions: {
-  //     zoomFactor: 2.0,
-  //     minAperture: 0.2,
-  //     maxAperture: 0.4,
-  //     transitionStart: 0.5,
-  //     transitionDuration: 2.5,
-  //     holdDuration: 2.0,
-  //   },
-  //   // Per-position overrides (optional)
-  //   sequenceSettings: [
-  //     null, // Position 0: use defaults
-  //     { // Position 1: faster transition, longer hold
-  //       transitionTime: 0.5,
-  //       lookAtHoldDuration: 3.0,
-  //     },
-  //     { // Position 2: different zoom settings
-  //       enableZoom: true,
-  //       zoomOptions: {
-  //         zoomFactor: 1.5,
-  //         minAperture: 0.25,
-  //         holdDuration: 3.0,
-  //       }
-  //     }
-  //   ],
-  //   loop: false, // Set to true to continuously cycle through positions
-  //   returnToOriginalView: true, // Return to original view after last position
-  //   restoreInput: true,
-  //   criteria: { currentState: GAME_STATES.YOUR_STATE },
-  //   priority: 100,
-  //   playOnce: true,
-  // },
+  wakingUpFadeIn: {
+    id: "wakingUpFadeIn",
+    type: "fade",
+    description: "Fade from black back to vision when waking up",
+    color: { r: 0, g: 0, b: 0 },
+    fadeInTime: 0,
+    holdTime: 0,
+    fadeOutTime: 1.5,
+    maxOpacity: 1.0,
+    criteria: { currentState: GAME_STATES.WAKING_UP },
+    priority: 100,
+    playOnce: true,
+  },
 };
 
 /**

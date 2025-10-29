@@ -99,23 +99,6 @@ const interiorPosition = { x: 5.36, y: 0.83, z: 78.39 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
 export const sceneObjects = {
-  // exterior: {
-  //   id: "exterior",
-  //   type: "splat",
-  //   path: "/exterior-nan-2.sog",
-  //   description: "Main exterior environment splat mesh",
-  //   position: originPosition,
-  //   rotation: { x: -Math.PI / 2, y: 0, z: 0 },
-  //   scale: { x: 1, y: 1, z: 1 },
-  //   priority: 100, // Load first
-  //   criteria: {
-  //     currentState: {
-  //       $gte: GAME_STATES.LOADING,
-  //       $lt: GAME_STATES.OFFICE_INTERIOR,
-  //     },
-  //   },
-  // },
-
   exterior: {
     id: "exterior",
     type: "splat",
@@ -170,7 +153,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
-        // Note: Stays loaded during VIEWMASTER_HELL for morph transition (visibility controlled by VFX)
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
   },
@@ -190,6 +173,21 @@ export const sceneObjects = {
       currentState: {
         $gte: GAME_STATES.VIEWMASTER_HELL,
         $lte: GAME_STATES.POST_VIEWMASTER,
+      },
+    },
+  },
+
+  club: {
+    id: "club",
+    type: "splat",
+    path: "/club.sog",
+    description: "Club environment splat mesh",
+    position: { x: -2.36, y: 2.73, z: 84.04 },
+    rotation: { x: 0, y: -Math.PI, z: -Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LIGHTS_OUT,
       },
     },
   },
@@ -368,21 +366,21 @@ export const sceneObjects = {
     },
   },
 
-  train: {
-    id: "train",
-    type: "splat",
-    path: "/train.sog",
-    description: "Train splat",
-    position: { x: -38.47, y: -1.22, z: 65.74 },
-    rotation: { x: -0.0119, y: 0.6863, z: -3.0486 },
-    scale: { x: 7.1, y: 7.1, z: 7.1 },
-    criteria: {
-      currentState: {
-        $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
-      },
-    },
-  },
+  // train: {
+  //   id: "train",
+  //   type: "splat",
+  //   path: "/train.sog",
+  //   description: "Train splat",
+  //   position: { x: -38.47, y: -1.22, z: 65.74 },
+  //   rotation: { x: -0.0119, y: 0.6863, z: -3.0486 },
+  //   scale: { x: 7.1, y: 7.1, z: 7.1 },
+  //   criteria: {
+  //     currentState: {
+  //       $gte: GAME_STATES.LOADING,
+  //       $lt: GAME_STATES.OFFICE_INTERIOR,
+  //     },
+  //   },
+  // },
 
   coneCurve: {
     id: "coneCurve",
@@ -511,6 +509,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
     animations: [
@@ -522,9 +521,7 @@ export const sceneObjects = {
         timeScale: 0.5,
         delay: 1.5,
         criteria: {
-          currentState: {
-            $gte: GAME_STATES.EDISON,
-          },
+          currentState: GAME_STATES.EDISON,
         },
       },
     ],
@@ -564,6 +561,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
     // Note: This object has a companion script (src/content/candlestickPhone.js)

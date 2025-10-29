@@ -97,7 +97,27 @@ export const videos = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_VIEWMASTER,
-        $lte: GAME_STATES.PUNCH_OUT,
+        $lt: GAME_STATES.PRE_EDISON,
+      },
+    },
+    autoPlay: true,
+    once: true,
+    priority: 0,
+    delay: 3.5,
+  },
+  ciotat: {
+    id: "ciotat",
+    videoPath: "/video/ciotat.mp4",
+    preload: false, // Load after loading screen
+    position: { x: -5.11, y: 9.9, z: 101.1 },
+    rotation: { x: 3.1416, y: 0.1051, z: 3.1416 },
+    scale: { x: 3.23, y: 2.0, z: 1.0 },
+    loop: true,
+    muted: false,
+    billboard: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.WAKING_UP,
       },
     },
     autoPlay: true,
@@ -110,38 +130,16 @@ export const videos = {
     videoPath: "/video/punch.webm",
     preload: false, // Load after loading screen
     position: (gameManager) => {
-      // Calculate position behind player
       if (!gameManager?.characterController) {
         logger.warn("Cannot get player position, using origin");
         return { x: 0, y: 1.8, z: 0 };
       }
 
-      const playerPos = gameManager.characterController.character.translation();
-      const yaw = gameManager.characterController.yaw;
-
-      // Calculate behind player (opposite of forward direction)
-      // Distance behind player
-      const distanceBehind = 1.35;
-      const heightOffset = 1.5;
-
-      // Forward vector is: x = -sin(yaw), z = -cos(yaw)
-      // Behind is the opposite: x = sin(yaw), z = cos(yaw)
-      const behindX = playerPos.x + Math.sin(yaw) * distanceBehind;
-      const behindZ = playerPos.z + Math.cos(yaw) * distanceBehind;
-
-      logger.log(
-        `Punch video spawning behind player at: { x: ${behindX.toFixed(
-          2
-        )}, y: ${(playerPos.y + heightOffset).toFixed(2)}, z: ${behindZ.toFixed(
-          2
-        )} }`
-      );
-
-      return {
-        x: behindX,
-        y: playerPos.y + heightOffset,
-        z: behindZ,
-      };
+      return gameManager.characterController.getPosition({
+        x: 0,
+        y: 1.5,
+        z: 1.35,
+      });
     },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 0.79, y: 0.79, z: 0.79 },
@@ -151,10 +149,13 @@ export const videos = {
     once: true,
     priority: 0,
     spawnCriteria: {
-      currentState: { $gte: GAME_STATES.SHOULDER_TAP }, // Video stays spawned from shoulder tap onward
+      currentState: {
+        $gte: GAME_STATES.SHOULDER_TAP,
+        $lt: GAME_STATES.LIGHTS_OUT,
+      },
     },
     autoPlay: true,
-    delay: 0.2, // Play immediately when playCriteria match
+    delay: 0.2,
   },
 };
 
