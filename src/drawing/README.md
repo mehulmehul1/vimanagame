@@ -88,7 +88,7 @@ Disables drawing input.
 
 Runs prediction on the current drawing.
 
-Returns: Array of top 3 predictions with {className, probability, index}
+Returns: Array of predictions filtered to active labels only, sorted by probability, with {className, probability, index}
 
 #### `async predictAndEvaluate()`
 
@@ -146,7 +146,7 @@ Default settings in `drawingRecognitionManager.js`:
 
 - Recognition threshold: 0.4 (40% confidence minimum)
 - Canvas size: 500x500 pixels
-- Stroke weight: 3 pixels
+- Stroke weight: 1.5 pixels (in preprocessed 28x28 image)
 - Active labels: ['car', 'star', 'house']
 
 To modify the active labels, edit `DRAWING_LABELS` in `drawingLabels.js`.
@@ -154,9 +154,11 @@ To modify the active labels, edit `DRAWING_LABELS` in `drawingLabels.js`.
 ## Model Information
 
 - Model: TensorFlow Lite format
-- Input: 28x28 grayscale image
+- Input: 28x28 grayscale image (converted to PNG format before processing)
 - Output: 347 class probabilities (Quick Draw dataset)
 - Location: `/public/models/quickdraw-model.tflite`
+
+The preprocessor converts stroke data to a 28x28 canvas, then exports it as PNG format (matching the original Quick Draw demo behavior) before feeding it to TensorFlow for prediction.
 
 ## Example Use Case
 

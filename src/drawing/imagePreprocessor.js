@@ -82,7 +82,7 @@ export class ImagePreprocessor {
     };
   }
 
-  preprocessImage(imageStrokes) {
+  async preprocessImage(imageStrokes) {
     if (!imageStrokes || imageStrokes.length === 0) {
       return null;
     }
@@ -113,7 +113,7 @@ export class ImagePreprocessor {
 
     // Match the working demo's stroke darkness (darker gray, not pure black)
     this.ctx.strokeStyle = "rgb(80, 80, 80)"; // Dark gray like the working demo
-    this.ctx.lineWidth = 2.5; // Fixed width for 28x28 space
+    this.ctx.lineWidth = 1.5; // Fixed width for 28x28 space
     this.ctx.lineCap = "round";
     this.ctx.lineJoin = "round";
 
@@ -135,7 +135,12 @@ export class ImagePreprocessor {
       this.ctx.stroke();
     }
 
-    return this.ctx.getImageData(0, 0, 28, 28);
+    // Convert canvas to PNG blob
+    return new Promise((resolve) => {
+      this.offscreenCanvas.toBlob((blob) => {
+        resolve(blob);
+      }, "image/png");
+    });
   }
 
   getCanvas() {
