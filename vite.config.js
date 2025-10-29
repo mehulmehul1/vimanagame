@@ -13,6 +13,9 @@ export default defineConfig({
     https: true,
     host: true,
   },
+  optimizeDeps: {
+    exclude: [],
+  },
   build: {
     rollupOptions: {
       output: {

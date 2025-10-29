@@ -151,13 +151,14 @@ class GameManager {
     this.phoneBooth.initialize(this);
 
     // Initialize drawing manager
-    this.drawingManager = new DrawingManager({
-      sceneManager: this.sceneManager,
-      scene: managers.scene,
-      camera: this.camera,
-      renderer: managers.renderer,
-    });
-    this.drawingManager.initialize(this);
+    // DISABLED - using DrawingGame instead
+    // this.drawingManager = new DrawingManager({
+    //   sceneManager: this.sceneManager,
+    //   scene: managers.scene,
+    //   camera: this.camera,
+    //   renderer: managers.renderer,
+    // });
+    // this.drawingManager.initialize(this);
 
     // Note: candlestickPhone will be initialized when its scene object loads (POST_DRIVE_BY state)
 
@@ -419,9 +420,10 @@ class GameManager {
       this.candlestickPhone.update(dt);
     }
 
-    if (this.drawingManager) {
-      this.drawingManager.update(dt);
-    }
+    // DISABLED - using DrawingGame instead
+    // if (this.drawingManager) {
+    //   this.drawingManager.update(dt);
+    // }
   }
 }
 

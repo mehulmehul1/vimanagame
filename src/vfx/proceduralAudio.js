@@ -9,7 +9,7 @@ import { Logger } from "../utils/logger.js";
 export class ProceduralAudio {
   constructor(config = {}) {
     this.name = config.name || "ProceduralAudio";
-    this.logger = new Logger(this.name, config.logColor || "#FF6B9D");
+    this.logger = new Logger(this.name, false);
 
     // Audio context and nodes
     this.audioContext = null;

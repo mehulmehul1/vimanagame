@@ -1,15 +1,11 @@
 const WIDTH = 500;
 const HEIGHT = 500;
-const STROKE_WEIGHT = 3;
 const CROP_PADDING = 2;
 const REPOS_PADDING = 2;
 
 export class ImagePreprocessor {
   constructor() {
-    this.offscreenCanvas = document.createElement("canvas");
-    this.offscreenCanvas.width = 28;
-    this.offscreenCanvas.height = 28;
-    this.ctx = this.offscreenCanvas.getContext("2d");
+    // No longer need persistent canvas - created per preprocessing call
   }
 
   getMinimumCoordinates(imageStrokes) {
@@ -93,57 +89,61 @@ export class ImagePreprocessor {
     const cropWidth = max.x - min.x;
     const cropHeight = max.y - min.y;
 
-    // Calculate scale to fill as much of 28x28 as possible while maintaining aspect ratio
+    // Draw to a temporary larger canvas (better quality before resize)
+    const tempCanvas = document.createElement("canvas");
+    const tempSize = 280; // 10x target size for better quality
+    tempCanvas.width = tempSize;
+    tempCanvas.height = tempSize;
+    const tempCtx = tempCanvas.getContext("2d");
+
+    // Calculate scale to fit in tempCanvas
     const maxDimension = Math.max(cropWidth, cropHeight);
-    const targetSize = 24; // Use 24 instead of 28 to leave a small margin
-    const scale = targetSize / maxDimension;
+    const scale = (tempSize * 0.85) / maxDimension; // 85% to leave margin
 
     const scaledWidth = cropWidth * scale;
     const scaledHeight = cropHeight * scale;
+    const offsetX = (tempSize - scaledWidth) / 2;
+    const offsetY = (tempSize - scaledHeight) / 2;
 
-    // Center the drawing in 28x28 space
-    const offsetX = (28 - scaledWidth) / 2;
-    const offsetY = (28 - scaledHeight) / 2;
+    // White background (QuickDraw model expects white background)
+    tempCtx.fillStyle = "white";
+    tempCtx.fillRect(0, 0, tempSize, tempSize);
 
-    // Draw to final 28x28 canvas directly with scaling and centering
-    this.ctx.fillStyle = "white";
-    this.ctx.fillRect(0, 0, 28, 28);
-    this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = "high";
+    // Black stroke (QuickDraw model expects black strokes on white)
+    tempCtx.strokeStyle = "black";
+    tempCtx.lineWidth = 6; // Thin strokes like PIL (3px on 500px → ~0.17px on 28px)
+    tempCtx.lineCap = "round";
+    tempCtx.lineJoin = "round";
 
-    // Match the working demo's stroke darkness (darker gray, not pure black)
-    this.ctx.strokeStyle = "rgb(80, 80, 80)"; // Dark gray like the working demo
-    this.ctx.lineWidth = 1.5; // Fixed width for 28x28 space
-    this.ctx.lineCap = "round";
-    this.ctx.lineJoin = "round";
-
+    // Draw strokes
     for (const stroke of strokesCopy) {
       if (stroke[0].length < 2) continue;
-
-      this.ctx.beginPath();
-      // Transform coordinates: subtract min, scale, and center
+      tempCtx.beginPath();
       const startX = (stroke[0][0] - min.x) * scale + offsetX;
       const startY = (stroke[1][0] - min.y) * scale + offsetY;
-      this.ctx.moveTo(startX, startY);
-
+      tempCtx.moveTo(startX, startY);
       for (let i = 1; i < stroke[0].length; i++) {
         const x = (stroke[0][i] - min.x) * scale + offsetX;
         const y = (stroke[1][i] - min.y) * scale + offsetY;
-        this.ctx.lineTo(x, y);
+        tempCtx.lineTo(x, y);
       }
-
-      this.ctx.stroke();
+      tempCtx.stroke();
     }
 
-    // Convert canvas to PNG blob
-    return new Promise((resolve) => {
-      this.offscreenCanvas.toBlob((blob) => {
-        resolve(blob);
-      }, "image/png");
-    });
-  }
+    // Resize to 28x28 using canvas drawImage (like PIL resize)
+    const finalCanvas = document.createElement("canvas");
+    finalCanvas.width = 28;
+    finalCanvas.height = 28;
+    const finalCtx = finalCanvas.getContext("2d");
 
-  getCanvas() {
-    return this.offscreenCanvas;
+    // Disable smoothing for sharper edges (more like PIL)
+    finalCtx.imageSmoothingEnabled = true;
+    finalCtx.imageSmoothingQuality = "high";
+
+    // Draw the large canvas onto the 28x28 canvas
+    finalCtx.drawImage(tempCanvas, 0, 0, 28, 28);
+
+    // Return the 28x28 canvas
+    return finalCanvas;
   }
 }

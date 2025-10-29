@@ -16,6 +16,8 @@
   "dependencies": {
     "@dimforge/rapier3d": "^0.19.0",
     "@sparkjsdev/spark": "^0.1.10",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-tflite": "^0.0.1-alpha.10",
     "howler": "^2.2.4",
     "lil-gui": "^0.20.0",
     "three": "^0.180.0",

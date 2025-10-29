@@ -20,7 +20,7 @@ import { ProceduralAudio } from "./proceduralAudio.js";
  */
 export class SplatFractalEffect extends VFXManager {
   constructor(scene, sceneManager) {
-    super("SplatFractalEffect", true);
+    super("SplatFractalEffect", false);
     this.scene = scene;
     this.sceneManager = sceneManager;
 
@@ -483,8 +483,8 @@ export class SplatFractalEffect extends VFXManager {
       const easedProgress = progress * progress * (3 - 2 * progress);
 
       // Ramp from start intensity to 0
-      this.currentIntensity =
-        this.rampOutStartIntensity * (1.0 - easedProgress);
+      this.currentInten;
+      this.rampOutStartIntensity * (1.0 - easedProgress);
 
       // Update modifiers with new intensity
       const effectType = this.effectTypeMap[this.parameters.effectType] || 3;

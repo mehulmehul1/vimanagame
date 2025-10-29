@@ -91,10 +91,9 @@ class VideoManager {
               newPlayer.video
                 .play()
                 .then(() => {
-                  requestAnimationFrame(() => {
-                    newPlayer.video.pause();
+                  requestAnimationFrame(async () => {
+                    await newPlayer.pause();
                     newPlayer.video.currentTime = 0;
-                    newPlayer.isPlaying = false;
 
                     // Schedule delayed playback
                     if (delay > 0) {
@@ -116,13 +115,14 @@ class VideoManager {
                     }
                   });
                 })
-                .catch((err) => {
-                  this.logger.warn(
-                    `Failed to render first frame for "${videoId}":`,
-                    err
-                  );
-                  newPlayer.video.pause();
-                  newPlayer.isPlaying = false;
+                .catch(async (err) => {
+                  if (err.name !== "AbortError") {
+                    this.logger.warn(
+                      `Failed to render first frame for "${videoId}":`,
+                      err
+                    );
+                  }
+                  await newPlayer.pause();
                 });
             }
           }
@@ -134,22 +134,22 @@ class VideoManager {
               newPlayer.video
                 .play()
                 .then(() => {
-                  requestAnimationFrame(() => {
-                    newPlayer.video.pause();
+                  requestAnimationFrame(async () => {
+                    await newPlayer.pause();
                     newPlayer.video.currentTime = 0;
-                    newPlayer.isPlaying = false;
                     this.logger.log(
                       `Spawned video "${videoId}" (paused, waiting for play criteria)`
                     );
                   });
                 })
-                .catch((err) => {
-                  this.logger.warn(
-                    `Failed to render first frame for "${videoId}":`,
-                    err
-                  );
-                  newPlayer.video.pause();
-                  newPlayer.isPlaying = false;
+                .catch(async (err) => {
+                  if (err.name !== "AbortError") {
+                    this.logger.warn(
+                      `Failed to render first frame for "${videoId}":`,
+                      err
+                    );
+                  }
+                  await newPlayer.pause();
                 });
             }
           }
@@ -158,21 +158,22 @@ class VideoManager {
             const newPlayer = this.videoPlayers.get(videoId);
             if (newPlayer && newPlayer.video) {
               // Pause the video that was just auto-played
-              newPlayer.video.pause();
-              newPlayer.video.currentTime = 0;
-              newPlayer.isPlaying = false;
+              (async () => {
+                await newPlayer.pause();
+                newPlayer.video.currentTime = 0;
 
-              // Schedule delayed playback
-              const delay = videoConfig.delay || 0;
-              const timeoutId = setTimeout(() => {
-                this.pendingDelays.delete(videoId);
-                this.playVideo(videoId);
-              }, delay * 1000);
+                // Schedule delayed playback
+                const delay = videoConfig.delay || 0;
+                const timeoutId = setTimeout(() => {
+                  this.pendingDelays.delete(videoId);
+                  this.playVideo(videoId);
+                }, delay * 1000);
 
-              this.pendingDelays.set(videoId, timeoutId);
-              this.logger.log(
-                `Spawned video "${videoId}" (paused), will play in ${delay}s`
-              );
+                this.pendingDelays.set(videoId, timeoutId);
+                this.logger.log(
+                  `Spawned video "${videoId}" (paused), will play in ${delay}s`
+                );
+              })();
             }
           }
         }
@@ -432,6 +433,7 @@ class VideoPlayer {
     this.isInitialized = false;
     this.canvasReady = false;
     this.isDestroying = false;
+    this.playPromise = null;
 
     // Web Audio API for spatial audio
     this.audioContext = null;
@@ -619,14 +621,19 @@ class VideoPlayer {
         this.video.currentTime = 0;
       }
 
-      await this.video.play();
+      this.playPromise = this.video.play();
+      await this.playPromise;
+      this.playPromise = null;
 
       // Start video frame callback loop if supported
       if (this.useVideoFrameCallback && !this.pendingVideoFrame) {
         this.scheduleVideoFrameCallback();
       }
     } catch (error) {
-      this.logger.error("Failed to play video", error);
+      this.playPromise = null;
+      if (error.name !== "AbortError") {
+        this.logger.error("Failed to play video", error);
+      }
     }
   }
 
@@ -666,8 +673,11 @@ class VideoPlayer {
   /**
    * Pause the video
    */
-  pause() {
+  async pause() {
     if (this.video) {
+      if (this.playPromise) {
+        await this.playPromise.catch(() => {});
+      }
       this.video.pause();
     }
   }
@@ -675,8 +685,11 @@ class VideoPlayer {
   /**
    * Stop the video
    */
-  stop() {
+  async stop() {
     if (this.video) {
+      if (this.playPromise) {
+        await this.playPromise.catch(() => {});
+      }
       this.video.pause();
       this.video.currentTime = 0;
       this.isPlaying = false;

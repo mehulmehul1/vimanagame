@@ -31,6 +31,8 @@ import GizmoManager from "./utils/gizmoManager.js";
 import { VFXSystemManager } from "./vfxManager.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
+import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
+import { DrawingGame } from "./drawing/drawingGame.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
@@ -144,6 +146,29 @@ try {
 // Make VFX manager globally accessible
 window.vfxManager = vfxManager;
 
+// Initialize Drawing Recognition Manager
+logger.log("Creating DrawingRecognitionManager...");
+const drawingRecognitionManager = new DrawingRecognitionManager(gameManager);
+try {
+  await drawingRecognitionManager.initialize();
+  logger.log("✅ DrawingRecognitionManager initialized");
+} catch (error) {
+  logger.error("❌ Failed to initialize DrawingRecognitionManager:", error);
+}
+
+// Initialize Drawing Game
+logger.log("Creating DrawingGame...");
+const drawingGame = new DrawingGame(
+  scene,
+  drawingRecognitionManager,
+  gameManager
+);
+logger.log("✅ DrawingGame created");
+
+// Make drawing managers globally accessible for debugging
+window.drawingRecognitionManager = drawingRecognitionManager;
+window.drawingGame = drawingGame;
+
 // Handle window resize
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -211,6 +236,7 @@ sfxManager.registerSoundsFromData(sfxSounds);
 // Make character controller and input manager globally accessible for options menu
 window.characterController = characterController;
 window.inputManager = inputManager;
+window.camera = camera;
 
 // Initialize animation manager now that all dependencies exist
 const cameraAnimationManager = new AnimationManager(
@@ -556,6 +582,11 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Update all VFX effects (fog, desaturation, etc.)
   vfxManager.update(dt);
+
+  // Update drawing recognition manager
+  if (drawingRecognitionManager) {
+    drawingRecognitionManager.update();
+  }
 
   // Render with VFX post-processing effects
   vfxManager.render(scene, camera);

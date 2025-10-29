@@ -16,7 +16,7 @@ import { ProceduralAudio } from "./proceduralAudio.js";
  */
 export class SplatMorphEffect extends VFXManager {
   constructor(scene, sceneManager) {
-    super("SplatMorph", true);
+    super("SplatMorph", false);
     this.scene = scene;
     this.sceneManager = sceneManager;
 

@@ -302,7 +302,7 @@ export class VFXSystemManager {
     this.camera = camera;
     this.renderer = renderer;
     this.loadingScreen = loadingScreen;
-    this.logger = new Logger("VFXSystemManager", true);
+    this.logger = new Logger("VFXSystemManager", false);
 
     this.effects = {};
     this.gameManager = null;

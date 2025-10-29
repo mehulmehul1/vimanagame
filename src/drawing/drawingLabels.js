@@ -1,4 +1,4 @@
-export const DRAWING_LABELS = ["lightning", "circle", "star"];
+export const DRAWING_LABELS = ["lightning", "star", "circle"];
 
 export const FULL_LABEL_SET = [
   "The Eiffel Tower",

@@ -37,7 +37,7 @@ import { ProceduralAudio } from "./proceduralAudio.js";
 
 export class DissolveEffect extends VFXManager {
   constructor(scene, sceneManager, renderer) {
-    super("DissolveEffect", true);
+    super("DissolveEffect", false);
 
     this.scene = scene;
     this.sceneManager = sceneManager;

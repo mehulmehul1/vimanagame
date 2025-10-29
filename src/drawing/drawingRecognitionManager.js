@@ -51,6 +51,9 @@ export class DrawingRecognitionManager {
       console.log("Loading TFLite from /models/...");
       await this.loadScript("/models/local-tf-tflite.min.js");
 
+      // console.log("Loading TFLite from /models/...");
+      // await this.loadScript("/models/tfjs-backend-cpu.js");
+
       // Wait a bit for the global objects to be set
       await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -94,12 +97,20 @@ export class DrawingRecognitionManager {
   }
 
   setExpectedDrawing(label) {
+    console.log(
+      `🔧 [RecognitionManager] setExpectedDrawing called with: "${label}"`
+    );
+    console.trace("Call stack:");
+
     if (!DRAWING_LABELS.includes(label)) {
       console.warn(`Label "${label}" is not in the active drawing labels`);
       return false;
     }
 
     this.expectedDrawing = label;
+    console.log(
+      `🔧 [RecognitionManager] expectedDrawing is now: "${this.expectedDrawing}"`
+    );
     return true;
   }
 
@@ -190,32 +201,51 @@ export class DrawingRecognitionManager {
     const imageStrokes = this.drawingCanvas.getStrokes();
     console.log("Raw strokes:", imageStrokes);
 
-    const imageData = this.preprocessor.preprocessImage(imageStrokes);
+    const canvas = await this.preprocessor.preprocessImage(imageStrokes);
 
-    if (!imageData) {
+    if (!canvas) {
       console.error("Failed to preprocess image");
       return null;
     }
 
-    // Debug: show the preprocessed image
-    const debugCanvas = this.preprocessor.getCanvas();
-    console.log("Preprocessed 28x28 image:");
-    const dataURL = debugCanvas.toDataURL();
-    console.log(dataURL);
+    console.log("Canvas size:", canvas.width, "x", canvas.height);
 
-    // Create a temporary img element to display the preprocessed image
-    const img = new Image();
-    img.src = dataURL;
-    img.style.cssText =
+    // Debug: show the preprocessed 28x28 image (already resized by canvas API)
+    console.log("Preprocessed to 28x28 using canvas drawImage (like PIL)");
+    const debugCanvas = document.createElement("canvas");
+    debugCanvas.width = 28;
+    debugCanvas.height = 28;
+    const debugCtx = debugCanvas.getContext("2d");
+
+    // Draw the canvas directly (already 28x28)
+    debugCtx.drawImage(canvas, 0, 0);
+
+    debugCanvas.style.cssText =
       "position: fixed; top: 10px; right: 10px; width: 280px; height: 280px; image-rendering: pixelated; border: 2px solid red; z-index: 10000; background: white;";
-    img.title = "28x28 preprocessed image (what the model sees)";
-    document.body.appendChild(img);
-    setTimeout(() => img.remove(), 5000); // Remove after 5 seconds
+    debugCanvas.title = "28x28 canvas (resized with drawImage like PIL)";
+    document.body.appendChild(debugCanvas);
+    setTimeout(() => {
+      debugCanvas.remove();
+    }, 5000);
 
+    // Now do the actual prediction (matching working demo exactly)
+    // Canvas is already 28x28 from preprocessor (resized using canvas API like PIL)
     const tensor = window.tf.tidy(() => {
-      const img = window.tf.browser.fromPixels(imageData, 1);
-      return img.toFloat().expandDims(0);
+      // Convert 28x28 canvas to tensor (grayscale)
+      const imgTensor = window.tf.browser.fromPixels(canvas, 1);
+
+      // Add batch dimension
+      return window.tf.expandDims(imgTensor, 0);
     });
+
+    console.log("Tensor:", tensor);
+
+    // Log the actual 28x28 pixel values
+    const tensorData = await tensor.data();
+    console.log("28x28 Tensor values (784 pixels):", Array.from(tensorData));
+    console.log("Min value:", Math.min(...tensorData));
+    console.log("Max value:", Math.max(...tensorData));
+    console.log("First 10 values:", Array.from(tensorData).slice(0, 10));
 
     const predictions = this.model.predict(tensor).dataSync();
     tensor.dispose();
@@ -254,6 +284,7 @@ export class DrawingRecognitionManager {
     const predictions = await this.predict();
 
     if (!predictions || predictions.length === 0) {
+      console.log("❌ No predictions returned");
       return {
         success: false,
         prediction: null,
@@ -262,9 +293,21 @@ export class DrawingRecognitionManager {
     }
 
     const topPrediction = predictions[0];
-    const recognized =
-      topPrediction.className === this.expectedDrawing &&
-      topPrediction.probability >= this.recognitionThreshold;
+
+    console.log("=== EVALUATION DEBUG ===");
+    console.log("Expected drawing:", this.expectedDrawing);
+    console.log("Top prediction:", topPrediction.className);
+    console.log("Probability:", topPrediction.probability);
+    console.log(
+      "Class match:",
+      topPrediction.className === this.expectedDrawing
+    );
+
+    // NO THRESHOLD - just match the top prediction
+    const recognized = topPrediction.className === this.expectedDrawing;
+
+    console.log("RECOGNIZED:", recognized);
+    console.log("=======================");
 
     const result = {
       success: recognized,

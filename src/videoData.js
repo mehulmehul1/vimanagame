@@ -105,26 +105,26 @@ export const videos = {
     priority: 0,
     delay: 3.5,
   },
-  ciotat: {
-    id: "ciotat",
-    videoPath: "/video/ciotat.mp4",
-    preload: false, // Load after loading screen
-    position: { x: -5.11, y: 9.9, z: 101.1 },
-    rotation: { x: 3.1416, y: 0.1051, z: 3.1416 },
-    scale: { x: 3.23, y: 2.0, z: 1.0 },
-    loop: true,
-    muted: false,
-    billboard: false,
-    criteria: {
-      currentState: {
-        $gte: GAME_STATES.WAKING_UP,
-      },
-    },
-    autoPlay: true,
-    once: true,
-    priority: 0,
-    delay: 3.5,
-  },
+  // ciotat: {
+  //   id: "ciotat",
+  //   videoPath: "/video/ciotat.mp4",
+  //   preload: false, // Load after loading screen
+  //   position: { x: -5.11, y: 9.9, z: 101.1 },
+  //   rotation: { x: 3.1416, y: 0.1051, z: 3.1416 },
+  //   scale: { x: 3.23, y: 2.0, z: 1.0 },
+  //   loop: true,
+  //   muted: false,
+  //   billboard: false,
+  //   criteria: {
+  //     currentState: {
+  //       $gte: GAME_STATES.WAKING_UP,
+  //     },
+  //   },
+  //   autoPlay: true,
+  //   once: true,
+  //   priority: 0,
+  //   delay: 3.5,
+  // },
   punch: {
     id: "punch",
     videoPath: "/video/punch.webm",

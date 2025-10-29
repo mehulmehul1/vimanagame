@@ -97,7 +97,7 @@ export const desaturationEffects = {
   postViewmasterGrayscale: {
     id: "postViewmasterGrayscale",
     parameters: {
-      target: 1.0, // Grayscale
+      target: 0.001, // Grayscale
       duration: 0.0,
       mode: "fade",
     },
