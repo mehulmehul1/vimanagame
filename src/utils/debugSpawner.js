@@ -199,6 +199,12 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 }, // Inside club scene
   },
+
+  CURSOR_FINAL: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 }, // Inside club scene
+  },
 };
 
 /**

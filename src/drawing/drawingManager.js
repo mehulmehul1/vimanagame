@@ -38,6 +38,9 @@ export class DrawingManager {
     this.labelPool = [];
     this.refillLabelPool();
 
+    this.successCount = 0; // Track successful drawings (max 3)
+    this.maxRounds = 3;
+
     this.setupUI();
     this.setupKeyboardShortcuts();
     this.bindGameStateListener();
@@ -90,10 +93,12 @@ export class DrawingManager {
   bindGameStateListener() {
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
-        const isCursorState = newState.currentState === GAME_STATES.CURSOR;
+        const isCursorState = 
+          newState.currentState === GAME_STATES.CURSOR ||
+          newState.currentState === GAME_STATES.CURSOR_FINAL;
 
         if (isCursorState && !this.isActive) {
-          this.startGame();
+          this.startGame(newState.currentState === GAME_STATES.CURSOR_FINAL);
         } else if (!isCursorState && this.isActive) {
           this.stopGame();
         }
@@ -165,10 +170,11 @@ export class DrawingManager {
     document.body.appendChild(this.targetEmojiElement);
   }
 
-  startGame() {
-    this.logger.log("Starting drawing game...");
+  startGame(isFinalRound = false) {
+    this.logger.log(`Starting drawing game... ${isFinalRound ? '(FINAL ROUND)' : ''}`);
     this.logger.log("InputManager reference:", this.inputManager);
     this.isActive = true;
+    this.successCount = isFinalRound ? 2 : 0; // Start at 2/3 for final round
 
     // Use window.inputManager as fallback if not set
     const inputMgr = this.inputManager || window.inputManager;
@@ -274,6 +280,24 @@ export class DrawingManager {
             .copy(mesh.position)
             .add(direction.multiplyScalar(canvas.particleOffset));
           canvas.particleSystem.lookAt(camera.position);
+        }
+
+        // If starting in final round, set to red particles immediately
+        if (isFinalRound) {
+          this.logger.log("Setting canvas to FINAL ROUND state (red, stage 2)");
+          canvas.colorStage = 2;
+          canvas.currentColor.copy(canvas.redColor);
+          canvas.currentJitterIntensity = 0.5;
+          
+          if (canvas.particleSystem && canvas.particleSystem.material) {
+            canvas.particleSystem.material.uniforms.uColor.value.copy(canvas.redColor);
+            canvas.particleSystem.material.uniforms.uJitterIntensity.value = 0.5;
+          }
+          
+          if (canvas.strokeMesh && canvas.strokeMesh.material) {
+            const strokeColor = canvas.redColor.clone().multiplyScalar(0.8);
+            canvas.strokeMesh.material.uniforms.uColor.value.copy(strokeColor);
+          }
         }
       }
 
@@ -407,7 +431,8 @@ export class DrawingManager {
     );
 
     if (result.success) {
-      this.logger.log("Success! Will pick new target in 2s");
+      this.successCount++;
+      this.logger.log(`Success ${this.successCount}/${this.maxRounds}!`);
       this.showResult("✅");
 
       // Trigger particle pulse immediately on success
@@ -416,19 +441,61 @@ export class DrawingManager {
         canvas.triggerPulse();
 
         // Check if this is the third success (red stage -> explosion)
+        this.logger.log(
+          `Checking for explosion: colorStage=${canvas.colorStage}`
+        );
+
         if (canvas.colorStage === 2) {
           // Trigger explosion instead of normal color cycle
-          canvas.triggerExplosion();
+          this.logger.log("EXPLOSION TRIGGERED!");
+          
+          // Set explosion state directly
+          canvas.isExploding = true;
+          canvas.explosionProgress = 0;
+          
+          // If this is the final round, don't recreate particles after explosion
+          if (this.successCount >= this.maxRounds) {
+            canvas.skipRecreateAfterExplosion = true;
+            this.logger.log("Final explosion - particles will not recreate");
+          }
+          
+          this.logger.log(`After setting - isExploding=${canvas.isExploding}, explosionProgress=${canvas.explosionProgress}`);
 
-          // Wait for explosion to complete (1.2s) + buffer before picking new target
-          const explosionDuration = 1.2;
+          // Wait for explosion to complete (2.5s) + buffer
+          const explosionDuration = 2.5;
           setTimeout(() => {
-            this.pickNewTarget();
+            this.logger.log("Explosion complete");
+            
+            // After 3 successes, end the game and transition to POST_CURSOR
+            if (this.successCount >= this.maxRounds) {
+              this.logger.log("Drawing game complete! Transitioning to POST_CURSOR");
+              this.stopGame();
+              
+              // Transition to POST_CURSOR state
+              if (this.gameManager) {
+                this.gameManager.setState({ currentState: GAME_STATES.POST_CURSOR });
+              }
+            } else {
+              this.logger.log("Picking new target");
+              this.pickNewTarget();
+            }
           }, explosionDuration * 1000 + 300);
         } else {
           // Normal color cycle (blue -> orange, orange -> red)
+          this.logger.log(
+            `Normal color cycle: advancing from stage ${canvas.colorStage}`
+          );
           setTimeout(() => {
             this.handleClear(true); // true = success, trigger color change
+            
+            // If this was the second success (advancing to red stage), update game state to CURSOR_FINAL
+            if (this.successCount === 2) {
+              this.logger.log("Advancing to CURSOR_FINAL state");
+              if (this.gameManager) {
+                this.gameManager.setState({ currentState: GAME_STATES.CURSOR_FINAL });
+              }
+            }
+            
             this.pickNewTarget();
           }, 1500);
         }

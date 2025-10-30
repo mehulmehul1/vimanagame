@@ -43,6 +43,8 @@ export const GAME_STATES = {
   LIGHTS_OUT: 30,
   WAKING_UP: 31,
   CURSOR: 32,
+  CURSOR_FINAL: 33,
+  POST_CURSOR: 34,
 };
 
 export const DIALOG_RESPONSE_TYPES = {
