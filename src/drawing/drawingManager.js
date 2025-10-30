@@ -412,13 +412,27 @@ export class DrawingManager {
 
       // Trigger particle pulse immediately on success
       if (this.recognitionManager.drawingCanvas) {
-        this.recognitionManager.drawingCanvas.triggerPulse();
-      }
+        const canvas = this.recognitionManager.drawingCanvas;
+        canvas.triggerPulse();
 
-      setTimeout(() => {
-        this.handleClear(true); // true = success, trigger color change
-        this.pickNewTarget();
-      }, 1500);
+        // Check if this is the third success (red stage -> explosion)
+        if (canvas.colorStage === 2) {
+          // Trigger explosion instead of normal color cycle
+          canvas.triggerExplosion();
+
+          // Wait for explosion to complete (1.2s) + buffer before picking new target
+          const explosionDuration = 1.2;
+          setTimeout(() => {
+            this.pickNewTarget();
+          }, explosionDuration * 1000 + 300);
+        } else {
+          // Normal color cycle (blue -> orange, orange -> red)
+          setTimeout(() => {
+            this.handleClear(true); // true = success, trigger color change
+            this.pickNewTarget();
+          }, 1500);
+        }
+      }
     } else {
       this.logger.log("Failed. Try again!");
       this.showResult(`${predictedEmoji} ❌`);

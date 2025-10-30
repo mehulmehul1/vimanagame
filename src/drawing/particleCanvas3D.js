@@ -102,6 +102,12 @@ export class ParticleCanvas3D {
     this.pulseProgress = 0;
     this.pulseDuration = 1.0; // 0.5 seconds for pulse
 
+    // Explosion state
+    this.isExploding = false;
+    this.explosionProgress = 0;
+    this.explosionDuration = 1.2; // Total explosion duration in seconds
+    this.explosionPeakTime = 0.5; // Time when explosion reaches peak and particles start flying
+
     this.clearCanvas();
   }
 
@@ -578,6 +584,7 @@ export class ParticleCanvas3D {
         uColor: { value: new THREE.Color(0xaaeeff) }, // Bright whitish-blue glow
         uPulseScale: { value: 1.0 }, // Scale multiplier for pulse effect
         uJitterIntensity: { value: 0.0 }, // Jitter intensity (0=calm, 1=bursting)
+        uExplosionFactor: { value: 0.0 }, // Explosion outward force (0=none, 1=max)
       },
       vertexShader: `
         attribute float pindex;
@@ -591,6 +598,7 @@ export class ParticleCanvas3D {
         uniform sampler2D uTouch;
         uniform float uPulseScale;
         uniform float uJitterIntensity;
+        uniform float uExplosionFactor;
         
         varying vec2 vUv;
         varying float vDisplacement;
@@ -667,6 +675,14 @@ export class ParticleCanvas3D {
           // Minimal Z displacement just to lift particles slightly when repelled
           float displacementStrength = 0.02;
           displaced.z += response * displacementStrength;
+          
+          // Apply explosion force: push particles outward from center
+          if (uExplosionFactor > 0.0) {
+            vec3 outwardDir = normalize(displaced); // Direction away from center
+            float outwardForce = 0.8 * uExplosionFactor; // Scale of outward push
+            displaced.xy += outwardDir.xy * outwardForce;
+            displaced.z += 0.3 * uExplosionFactor; // Also push up
+          }
           
           vDisplacement = touch;
           
@@ -997,8 +1013,17 @@ export class ParticleCanvas3D {
   }
 
   triggerColorCycle() {
+    // Check if we're about to transition from red (2) back to blue (0)
+    const nextStage = (this.colorStage + 1) % 3;
+    
+    if (this.colorStage === 2 && nextStage === 0) {
+      // Red -> Blue: trigger explosion animation instead
+      this.triggerExplosion();
+      return;
+    }
+
     // Advance to next color stage on each success
-    this.colorStage = (this.colorStage + 1) % 3; // Cycle: 0 -> 1 -> 2 -> 0
+    this.colorStage = nextStage;
 
     if (!this.particleSystem || !this.particleSystem.material) return;
 
@@ -1016,7 +1041,8 @@ export class ParticleCanvas3D {
         break;
       case 2:
         newTargetColor = this.redColor; // Red
-        jitterIntensity = 0.5; // Intense, about to burst        break;
+        jitterIntensity = 0.5; // Intense, about to burst
+        break;
     }
 
     // Start transition from current color to new target color
@@ -1028,10 +1054,29 @@ export class ParticleCanvas3D {
     this.colorTransitionProgress = 0;
   }
 
+  triggerExplosion() {
+    if (!this.particleSystem || !this.particleSystem.material) return;
+    
+    this.isExploding = true;
+    this.explosionProgress = 0;
+  }
+
   triggerPulse() {
     // Start pulse animation
     this.isPulsing = true;
     this.pulseProgress = 0;
+  }
+
+  triggerExplosion(explosionCenter, explosionRadius, explosionForce) {
+    if (!this.particleSystem || !this.particleSystem.material) return;
+
+    const explosionFactor = explosionForce * 0.005; // Scale explosion force
+    this.particleSystem.material.uniforms.uExplosionFactor.value = explosionFactor;
+
+    // Reset explosion factor after a short duration
+    setTimeout(() => {
+      this.particleSystem.material.uniforms.uExplosionFactor.value = 0.0;
+    }, 100); // 100ms duration for explosion
   }
 
   setBrushTexture(enabled) {
@@ -1090,6 +1135,80 @@ export class ParticleCanvas3D {
     // Update shader time
     if (this.particleSystem && this.particleSystem.material) {
       this.particleSystem.material.uniforms.uTime.value = this.time;
+
+      // Update explosion animation
+      if (this.isExploding) {
+        this.explosionProgress += dt / this.explosionDuration;
+
+        if (this.explosionProgress >= 1.0) {
+          // Explosion complete - recreate particle system and reset
+          this.isExploding = false;
+          this.explosionProgress = 0;
+
+          // Dispose old particle system
+          this.scene.remove(this.particleSystem);
+          this.particleSystem.geometry.dispose();
+          this.particleSystem.material.dispose();
+
+          // Create fresh particle system
+          if (this.enableParticles) {
+            this.particleSystem = this.createParticleSystem(this.strokeScale);
+            this.particleSystem.position.copy(this.mesh.position);
+            this.particleSystem.renderOrder = 9999;
+            this.scene.add(this.particleSystem);
+          }
+
+          // Reset to blue stage for next round
+          this.colorStage = 0;
+          this.currentColor.copy(this.baseColor);
+          this.currentJitterIntensity = 0.0;
+
+          if (this.particleSystem && this.particleSystem.material) {
+            this.particleSystem.material.uniforms.uColor.value.copy(
+              this.currentColor
+            );
+            this.particleSystem.material.uniforms.uJitterIntensity.value = 0.0;
+            this.particleSystem.material.uniforms.uPulseScale.value = 1.0;
+          }
+
+          // Clear strokes
+          this.clearCanvas();
+        } else {
+          const t = this.explosionProgress;
+          const peakFactor = this.explosionPeakTime / this.explosionDuration;
+
+          if (t < peakFactor) {
+            // Phase 1 (0 to peak): Build up energy
+            const phase1 = t / peakFactor; // 0 -> 1
+            
+            // Scale up particles dramatically
+            const pulseScale = 1.0 + Math.sin(phase1 * Math.PI) * 0.9; // 1 -> 1.9 -> 1
+            this.particleSystem.material.uniforms.uPulseScale.value = pulseScale;
+            
+            // Ramp up jitter intensity
+            const jitter = 0.5 + phase1 * 0.5; // 0.5 -> 1.0
+            this.particleSystem.material.uniforms.uJitterIntensity.value = jitter;
+            
+            // Start small outward force
+            const explosionFactor = phase1 * 0.4; // 0 -> 0.4
+            this.particleSystem.material.uniforms.uExplosionFactor.value = explosionFactor;
+          } else {
+            // Phase 2 (peak to end): Particles fly away
+            const phase2 = (t - peakFactor) / (1.0 - peakFactor); // 0 -> 1
+            
+            // Particles fly outward rapidly
+            const explosionFactor = 0.4 + phase2 * 0.6; // 0.4 -> 1.0
+            this.particleSystem.material.uniforms.uExplosionFactor.value = explosionFactor;
+            
+            // Keep particles large
+            this.particleSystem.material.uniforms.uPulseScale.value = 1.6;
+            
+            // Jitter stays high but begins to decrease
+            const jitter = 1.0 - phase2 * 0.4; // 1.0 -> 0.6
+            this.particleSystem.material.uniforms.uJitterIntensity.value = jitter;
+          }
+        }
+      }
 
       // Update color transition (and jitter ramp-up)
       if (this.isTransitioningColor) {

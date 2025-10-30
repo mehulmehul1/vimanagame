@@ -94,7 +94,7 @@ export const lights = {
     skyColor: 0xe6d4a0, // Warm golden ceiling
     groundColor: 0x3a5a54, // Deep teal floor
     intensity: 0.8,
-    position: { x: -4.5, y: 3, z: 85 },
+    position: { x: -4.5, y: 6, z: 85 },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -107,19 +107,8 @@ export const lights = {
     type: "DirectionalLight",
     color: 0xffffff,
     intensity: 0.5,
-    position: { x: -2, y: 5, z: 88 },
-    castShadow: true,
-    shadow: {
-      mapSize: { width: 1024, height: 1024 },
-      camera: {
-        left: -5,
-        right: 5,
-        top: 5,
-        bottom: -5,
-        near: 0.5,
-        far: 15,
-      },
-    },
+    position: { x: -2, y: 6, z: 88 },
+    castShadow: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
@@ -134,8 +123,27 @@ export const lights = {
     intensity: 30,
     distance: 12,
     decay: 2,
-    position: { x: -6, y: 2.8, z: 86 },
+    position: { x: -7.95, y: 3.01, z: 88.61 },
+    rotation: { x: 0.0, y: 0.0, z: 0.0 },
+    scale: { x: 1.0, y: 1.0, z: 1.0 },
     castShadow: false,
+    lensFlare: {
+      enabled: true,
+      fadeDelay: 4.0,
+      fadeDuration: 2.5,
+      criteria: {
+        currentState: {
+          $gt: GAME_STATES.PRE_VIEWMASTER,
+          $lt: GAME_STATES.POST_VIEWMASTER,
+        },
+      },
+      elements: [
+        { size: 180, distance: 0.0 },
+        { size: 140, distance: 0.25 },
+        { size: 260, distance: 0.55 },
+        { size: 320, distance: 0.85 },
+      ],
+    },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,

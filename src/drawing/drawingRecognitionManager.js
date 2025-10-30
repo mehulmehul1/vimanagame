@@ -239,21 +239,25 @@ export class DrawingRecognitionManager {
 
     this.logger.log("Canvas size:", canvas.width, "x", canvas.height);
 
-    this.logger.log("Preprocessed to 28x28 using canvas drawImage (like PIL)");
-    const debugCanvas = document.createElement("canvas");
-    debugCanvas.width = 28;
-    debugCanvas.height = 28;
-    const debugCtx = debugCanvas.getContext("2d");
+    if (this.logger.debug) {
+      this.logger.log(
+        "Preprocessed to 28x28 using canvas drawImage (like PIL)"
+      );
+      const debugCanvas = document.createElement("canvas");
+      debugCanvas.width = 28;
+      debugCanvas.height = 28;
+      const debugCtx = debugCanvas.getContext("2d");
 
-    debugCtx.drawImage(canvas, 0, 0);
+      debugCtx.drawImage(canvas, 0, 0);
 
-    debugCanvas.style.cssText =
-      "position: fixed; top: 10px; right: 10px; width: 280px; height: 280px; image-rendering: pixelated; border: 2px solid red; z-index: 10000; background: white;";
-    debugCanvas.title = "28x28 canvas (resized with drawImage like PIL)";
-    document.body.appendChild(debugCanvas);
-    setTimeout(() => {
-      debugCanvas.remove();
-    }, 5000);
+      debugCanvas.style.cssText =
+        "position: fixed; top: 10px; right: 10px; width: 280px; height: 280px; image-rendering: pixelated; border: 2px solid red; z-index: 10000; background: white;";
+      debugCanvas.title = "28x28 canvas (resized with drawImage like PIL)";
+      document.body.appendChild(debugCanvas);
+      setTimeout(() => {
+        debugCanvas.remove();
+      }, 5000);
+    }
 
     const tensor = window.tf.tidy(() => {
       const imgTensor = window.tf.browser.fromPixels(canvas, 1);

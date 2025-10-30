@@ -103,7 +103,7 @@ export const desaturationEffects = {
     },
     criteria: {
       currentState: {
-        $gt: GAME_STATES.POST_VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
+        $gte: GAME_STATES.POST_VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
       },
     },
     priority: 0,

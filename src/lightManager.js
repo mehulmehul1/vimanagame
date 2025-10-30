@@ -6,6 +6,10 @@ import {
   SplatEditRgbaBlendMode,
 } from "@sparkjsdev/spark";
 import AudioReactiveLight from "./vfx/audioReactiveLight.js";
+import {
+  Lensflare,
+  LensflareElement,
+} from "three/examples/jsm/objects/Lensflare.js";
 import { lights } from "./lightData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
@@ -34,13 +38,20 @@ class LightManager {
     this.reactiveLights = new Map(); // Map of id -> { light, audioReactive }
     this.splatLayers = new Map(); // Map of id -> SplatEdit layer
     this.pendingAttachments = new Map(); // Map of id -> { object3D, config }
+    this.gameState = null; // Store current game state for criteria checking
+    this.lensFlares = new Map(); // Map of light id -> { lensflare, config }
 
     // Logger for debug messages
     this.logger = new Logger("LightManager", false);
 
     // Automatically load lights from data on initialization
-    const gameState = gameManager?.getState();
-    this.loadLightsFromData(lights, gameState);
+    this.gameState = gameManager?.getState();
+    this.loadLightsFromData(lights, this.gameState);
+
+    // Initialize lens flare visibility based on initial game state
+    if (this.gameState) {
+      this.updateLensFlareVisibility(this.gameState);
+    }
   }
 
   /**
@@ -321,6 +332,130 @@ class LightManager {
   }
 
   /**
+   * Create lens flare textures (radial glow, halo, soft glow)
+   * @private
+   * @returns {Object} Texture objects
+   */
+  _createLensFlareTextures() {
+    const applyTextureSettings = (texture) => {
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.premultiplyAlpha = true;
+      texture.needsUpdate = true;
+      return texture;
+    };
+
+    const createRadialTexture = (size, innerAlpha, midAlpha, outerAlpha) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, size, size);
+      const gradient = ctx.createRadialGradient(
+        size / 2,
+        size / 2,
+        0,
+        size / 2,
+        size / 2,
+        size / 2
+      );
+      gradient.addColorStop(0.0, `rgba(255, 247, 224, ${innerAlpha})`);
+      gradient.addColorStop(0.45, `rgba(255, 239, 205, ${midAlpha})`);
+      gradient.addColorStop(1.0, `rgba(255, 232, 191, ${outerAlpha})`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      return applyTextureSettings(new THREE.CanvasTexture(canvas));
+    };
+
+    const createRingTexture = (size, alpha) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, size, size);
+      const gradient = ctx.createRadialGradient(
+        size / 2,
+        size / 2,
+        (size / 2) * 0.45,
+        size / 2,
+        size / 2,
+        size / 2
+      );
+      gradient.addColorStop(0.0, "rgba(255, 255, 255, 0)");
+      gradient.addColorStop(0.6, `rgba(255, 255, 255, ${alpha * 0.2})`);
+      gradient.addColorStop(0.8, `rgba(255, 255, 255, ${alpha})`);
+      gradient.addColorStop(1.0, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      return applyTextureSettings(new THREE.CanvasTexture(canvas));
+    };
+
+    return {
+      core: createRadialTexture(384, 0.9, 0.35, 0.02),
+      glow: createRadialTexture(512, 0.4, 0.15, 0.0),
+      softGlow: createRadialTexture(640, 0.15, 0.05, 0.0),
+      ring: createRingTexture(384, 0.45),
+    };
+  }
+
+  /**
+   * Attach a lens flare to a light
+   * @param {THREE.Light} light - Light to attach flare to
+   * @param {Object} config - Lens flare configuration from lightData
+   * @returns {Object} { lensflare, baseColors, elements }
+   */
+  createLensFlareForLight(light, config) {
+    if (!config?.enabled) return;
+
+    const lensflare = new Lensflare();
+    const textures = this._createLensFlareTextures();
+    const flareColor = new THREE.Color(0xffe5c9); // Warm golden flare
+    const baseColors = [];
+    const elements = [];
+
+    const elementConfigs = config.elements || [
+      { size: 180, distance: 0.0 },
+      { size: 140, distance: 0.25 },
+      { size: 260, distance: 0.55 },
+      { size: 320, distance: 0.85 },
+    ];
+
+    const textureSequence = [
+      textures.core,
+      textures.ring,
+      textures.glow,
+      textures.softGlow,
+    ];
+
+    for (let i = 0; i < elementConfigs.length; i++) {
+      const elementConfig = elementConfigs[i];
+      const texture = textureSequence[i] || textures.softGlow;
+      const elementColor = flareColor.clone();
+      baseColors.push(elementColor.clone());
+
+      const element = new LensflareElement(
+        texture,
+        elementConfig.size,
+        elementConfig.distance,
+        elementColor
+      );
+      elements.push(element);
+      lensflare.addElement(element);
+    }
+
+    light.add(lensflare);
+    this.logger.log(
+      `Created lens flare for light "${config.id || light.name}"`
+    );
+
+    // Initialize elements to zero intensity (invisible)
+    for (let i = 0; i < elements.length; i++) {
+      elements[i].size = 0;
+      elements[i].color.set(0, 0, 0);
+    }
+
+    return { lensflare, baseColors, elements };
+  }
+
+  /**
    * Create an ambient light
    * @param {Object} config - Light configuration
    * @returns {THREE.AmbientLight}
@@ -463,6 +598,28 @@ class LightManager {
     const parent = this._resolveParent(config);
     parent.add(light);
     this._maybeTrackPendingAttachment(config.id, light, config, parent);
+
+    // Create lens flare if enabled in the config
+    if (config.lensFlare) {
+      // Always create lens flare, we'll manage visibility via updateLensFlareVisibility
+      const { lensflare, baseColors, elements } = this.createLensFlareForLight(
+        light,
+        config.lensFlare
+      );
+      this.lensFlares.set(config.id, {
+        lensflare: lensflare,
+        config: config.lensFlare,
+        elements: elements,
+        currentIntensity: 0, // Start faded out
+        targetIntensity: 0,
+        startIntensity: 0, // Track where fade started from
+        fadeProgress: 0,
+        isFading: false,
+        baseColors: baseColors, // Store base colors for fading
+        delayRemaining: 0, // Track fade delay
+      });
+    }
+
     return light;
   }
 
@@ -641,6 +798,17 @@ class LightManager {
       reactive.audioReactive.destroy();
       this.reactiveLights.delete(id);
     }
+
+    // Remove lens flare if present
+    const lensFlare = this.lensFlares.get(id);
+    if (lensFlare) {
+      if (lensFlare.lensflare.parent) {
+        lensFlare.lensflare.parent.remove(lensFlare.lensflare);
+      } else {
+        this.scene.remove(lensFlare.lensflare);
+      }
+      this.lensFlares.delete(id);
+    }
   }
 
   /**
@@ -649,6 +817,8 @@ class LightManager {
    */
   updateLightsForState(gameState) {
     if (!gameState) return;
+
+    this.gameState = gameState;
 
     // Check all lights in the data
     for (const [key, config] of Object.entries(lights)) {
@@ -678,6 +848,99 @@ class LightManager {
             `🔦 Removing light "${lightId}" (criteria no longer met)`
           );
           this.removeLight(lightId);
+        }
+      }
+    }
+
+    // Update lens flare visibility based on criteria
+    this.updateLensFlareVisibility(gameState);
+  }
+
+  /**
+   * Update lens flare visibility based on game state criteria
+   * @param {Object} gameState - Current game state
+   */
+  updateLensFlareVisibility(gameState) {
+    for (const [lightId, flareData] of this.lensFlares) {
+      if (flareData.config?.criteria) {
+        const criteriaMet = checkCriteria(gameState, flareData.config.criteria);
+        const fadeDuration = flareData.config.fadeDuration || 1.5;
+        const fadeDelay = flareData.config.fadeDelay || 0;
+
+        // Set target intensity based on criteria
+        const newTargetIntensity = criteriaMet ? 1.0 : 0.0;
+
+        // If target changed, start fading (with delay)
+        if (newTargetIntensity !== flareData.targetIntensity) {
+          this.logger.log(
+            `Lens flare "${lightId}" fade triggered: ${flareData.currentIntensity} -> ${newTargetIntensity} (delay: ${fadeDelay}s, duration: ${fadeDuration}s)`
+          );
+          flareData.startIntensity = flareData.currentIntensity; // Remember where we're fading from
+          flareData.targetIntensity = newTargetIntensity;
+          flareData.fadeProgress = 0;
+          flareData.delayRemaining = fadeDelay;
+          flareData.isFading = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * Update lens flare fade effects (call this in animation loop)
+   * @param {number} deltaTime - Delta time in seconds
+   */
+  updateLensFlares(deltaTime) {
+    for (const [lightId, flareData] of this.lensFlares) {
+      if (!flareData.isFading) continue;
+
+      // Handle delay countdown
+      if (flareData.delayRemaining > 0) {
+        flareData.delayRemaining -= deltaTime;
+        if (flareData.delayRemaining > 0) {
+          continue; // Still waiting for delay to elapse
+        }
+        flareData.delayRemaining = 0; // Ensure exact 0
+      }
+
+      const fadeDuration = flareData.config.fadeDuration || 1.5;
+      flareData.fadeProgress += deltaTime / fadeDuration;
+
+      if (flareData.fadeProgress >= 1.0) {
+        flareData.fadeProgress = 1.0;
+        flareData.isFading = false;
+        flareData.currentIntensity = flareData.targetIntensity;
+        this.logger.log(
+          `Lens flare "${lightId}" fade complete. Intensity: ${flareData.currentIntensity}`
+        );
+      } else {
+        // Smooth easing (ease-in-out)
+        const t = flareData.fadeProgress;
+        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        // Lerp from start to target using eased progress
+        flareData.currentIntensity = THREE.MathUtils.lerp(
+          flareData.startIntensity,
+          flareData.targetIntensity,
+          eased
+        );
+      }
+
+      // Update lensflare element sizes and opacity based on intensity
+      if (flareData.lensflare && flareData.elements) {
+        const elementConfigs = flareData.config.elements || [];
+        for (let i = 0; i < flareData.elements.length; i++) {
+          const element = flareData.elements[i];
+          const baseSize = elementConfigs[i]?.size || 100;
+          const baseColor = flareData.baseColors?.[i];
+
+          // Scale size based on intensity
+          element.size = baseSize * flareData.currentIntensity;
+
+          // Interpolate color from transparent to base color
+          if (baseColor) {
+            element.color
+              .copy(baseColor)
+              .multiplyScalar(flareData.currentIntensity);
+          }
         }
       }
     }
@@ -763,6 +1026,16 @@ class LightManager {
       }
     }
     this.lights.clear();
+
+    // Clean up lens flares
+    for (const [id, lensFlare] of this.lensFlares) {
+      if (lensFlare.lensflare.parent) {
+        lensFlare.lensflare.parent.remove(lensFlare.lensflare);
+      } else {
+        this.scene.remove(lensFlare.lensflare);
+      }
+    }
+    this.lensFlares.clear();
   }
 }
 

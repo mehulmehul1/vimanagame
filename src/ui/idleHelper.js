@@ -93,15 +93,18 @@ export class IdleHelper {
       }
     });
 
-    // Count mouse movement as activity (throttled for performance)
+    // Count mouse movement as activity when pointer is locked (in gameplay)
     let lastMouseMoveTime = 0;
     const mouseMoveThrottle = 100; // Throttle to once per 100ms
 
     window.addEventListener("mousemove", () => {
-      const now = Date.now();
-      if (now - lastMouseMoveTime >= mouseMoveThrottle) {
-        lastMouseMoveTime = now;
-        this.onMovement();
+      // Only reset idle timer if pointer is locked (actively playing)
+      if (document.pointerLockElement) {
+        const now = Date.now();
+        if (now - lastMouseMoveTime >= mouseMoveThrottle) {
+          lastMouseMoveTime = now;
+          this.onMovement();
+        }
       }
     });
   }

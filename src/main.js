@@ -583,6 +583,9 @@ renderer.setAnimationLoop(function animate(time) {
   // Always update audio-reactive lights
   lightManager.updateReactiveLights(dt);
 
+  // Update lens flare fade effects
+  lightManager.updateLensFlares(dt);
+
   // Update all VFX effects (fog, desaturation, etc.)
   vfxManager.update(dt);
 
