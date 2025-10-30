@@ -97,7 +97,7 @@ export const desaturationEffects = {
   postViewmasterGrayscale: {
     id: "postViewmasterGrayscale",
     parameters: {
-      target: 0.001, // Grayscale
+      target: 1.0, // Grayscale
       duration: 0.0,
       mode: "fade",
     },
@@ -107,6 +107,38 @@ export const desaturationEffects = {
       },
     },
     priority: 0,
+  },
+
+  viewmasterToggleColor: {
+    id: "viewmasterToggleColor",
+    parameters: {
+      target: 0.0,
+      duration: 1.2,
+      mode: "fade",
+    },
+    criteria: {
+      isViewmasterEquipped: true,
+      currentState: {
+        $gte: GAME_STATES.CURSOR,
+      },
+    },
+    priority: 80,
+  },
+
+  viewmasterToggleGrayscale: {
+    id: "viewmasterToggleGrayscale",
+    parameters: {
+      target: 1.0,
+      duration: 1.2,
+      mode: "fade",
+    },
+    criteria: {
+      isViewmasterEquipped: false,
+      currentState: {
+        $gte: GAME_STATES.CURSOR,
+      },
+    },
+    priority: 70,
   },
 };
 
@@ -153,6 +185,24 @@ export const splatFractalEffects = {
       currentState: GAME_STATES.VIEWMASTER_HELL,
     },
     priority: 10,
+  },
+
+  viewmasterToggleAmbient: {
+    id: "viewmasterToggleAmbient",
+    parameters: {
+      effectType: "waves",
+      intensity: 0.25,
+      rampDuration: 0.8,
+      rampOutDuration: 0.5,
+      targetMeshIds: ["club"],
+    },
+    criteria: {
+      isViewmasterEquipped: true,
+      currentState: {
+        $gte: GAME_STATES.CURSOR,
+      },
+    },
+    priority: 5,
   },
 };
 

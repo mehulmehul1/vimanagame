@@ -6,6 +6,11 @@ const PARTICLE_GRID_DENSITY = 100; // Particles per side (100x100 = 10000 partic
 const TOUCH_INNER_RADIUS = 2.5;
 const TOUCH_OUTER_SCALE = 2.0;
 const STROKE_REPULSION_DISTANCE = 0.05;
+const GALAXY_SWIRL_BASE = 0.00042;
+const GALAXY_SWIRL_VARIATION = 0.00045;
+const GALAXY_SWIRL_NOISE = 0.35;
+const DEFAULT_GALAXY_SWIRL_INTENSITY = 0.35;
+const DEFAULT_GALAXY_SWIRL_RADIAL_EXPONENT = 0.15;
 export class ParticleCanvas3D {
   constructor(
     scene,
@@ -16,6 +21,10 @@ export class ParticleCanvas3D {
     this.scene = scene;
     this.enableParticles = enableParticles;
     this.strokeRepulsionDistance = STROKE_REPULSION_DISTANCE;
+
+    // Controls overall swirl speed of particles around center
+    this.galaxySwirlIntensity = DEFAULT_GALAXY_SWIRL_INTENSITY;
+    this.galaxySwirlRadialExponent = DEFAULT_GALAXY_SWIRL_RADIAL_EXPONENT;
 
     // Hidden 2D canvas for stroke recording (ML recognition)
     this.canvas = document.createElement("canvas");
@@ -1128,7 +1137,34 @@ export class ParticleCanvas3D {
       vy += driftY * AMBIENT_DRIFT_STRENGTH;
       vz += driftZ * AMBIENT_DRIFT_STRENGTH * 0.5;
 
-      // Force 2: Attraction to home position (but loosely, to maintain organic spread)
+      // Force 2: Galaxy-style swirl around center
+      const radius = Math.sqrt(px * px + py * py);
+      const effectiveRadius = this.strokeScale * 0.9 + 0.0001;
+      const radiusFactor = Math.min(radius / effectiveRadius, 1.0);
+
+      if (radius > 0.0005) {
+        const swirlDirX = -py / radius;
+        const swirlDirY = px / radius;
+
+        const radialInfluence = Math.pow(
+          radiusFactor,
+          this.galaxySwirlRadialExponent
+        );
+
+        const swirlStrength =
+          (GALAXY_SWIRL_BASE + GALAXY_SWIRL_VARIATION * radialInfluence) *
+          radialInfluence;
+
+        const swirlNoise =
+          1.0 + Math.sin(this.time * 0.9 + i * 0.13) * GALAXY_SWIRL_NOISE;
+
+        const swirlIntensity = this.galaxySwirlIntensity;
+
+        vx += swirlDirX * swirlStrength * swirlNoise * swirlIntensity;
+        vy += swirlDirY * swirlStrength * swirlNoise * swirlIntensity;
+      }
+
+      // Force 3: Attraction to home position (but loosely, to maintain organic spread)
       const dx = hx - px;
       const dy = hy - py;
       const dz = hz - pz;
@@ -1150,7 +1186,7 @@ export class ParticleCanvas3D {
         vz += dirZ * pullStrength;
       }
 
-      // Force 3: Repulsion from stroke segments
+      // Force 4: Repulsion from stroke segments
       for (const segment of this.strokeSegments) {
         const worldX = (segment.uvX2 - 0.5) * this.strokeScale;
         const worldY = -(segment.uvY2 - 0.5) * this.strokeScale;

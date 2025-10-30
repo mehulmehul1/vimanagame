@@ -80,6 +80,9 @@ export const startScreen = {
   // Display state
   isFullscreen: false, // When true, the app is in fullscreen mode
 
+  // View-Master state
+  isViewmasterEquipped: false, // True when the headset is currently being worn
+
   // Platform detection (set by UIManager at initialization)
   isIOS: false, // True if running on iOS (iPhone/iPad)
   isFullscreenSupported: true, // True if Fullscreen API is supported (false on iOS)

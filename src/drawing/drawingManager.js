@@ -52,7 +52,7 @@ export class DrawingManager {
     this.labelPool = [];
     this.refillLabelPool();
 
-    this.successCount = 0; // Track successful drawings (max 3)
+    this.successCount = 0;
     this.maxRounds = 3;
 
     this.setupUI();
@@ -94,7 +94,6 @@ export class DrawingManager {
           this.handleClear();
           break;
         case "enter":
-        case " ":
           event.preventDefault();
           this.handleSubmit();
           break;
@@ -116,6 +115,7 @@ export class DrawingManager {
         } else if (!isCursorState && this.isActive) {
           this.stopGame();
         }
+
       });
     }
   }
@@ -253,6 +253,10 @@ export class DrawingManager {
     this.pickNewTarget();
     this.logger.log("Target picked, game ready");
 
+    this.recognitionManager.setOnStrokeEndCallback(() => {
+      this.autoSubmitDrawing();
+    });
+
     this.logger.log(
       "Checking if canvas exists:",
       this.recognitionManager.drawingCanvas
@@ -283,6 +287,9 @@ export class DrawingManager {
 
       const canvas = this.recognitionManager.drawingCanvas;
       if (canvas) {
+        if (canvas.particleSystem) {
+          canvas.particleSystem.visible = true;
+        }
         // Make canvas face the camera
         const camera = window.camera;
         const mesh = canvas.getMesh();
@@ -340,8 +347,12 @@ export class DrawingManager {
       } else {
         this.logger.warn("Missing camera or domElement!");
       }
+
     } else {
       this.logger.log("Canvas already exists, skipping creation");
+      if (this.recognitionManager.drawingCanvas?.particleSystem) {
+        this.recognitionManager.drawingCanvas.particleSystem.visible = true;
+      }
     }
   }
 
@@ -349,7 +360,8 @@ export class DrawingManager {
     this.logger.log("Stopping drawing game...");
     this.isActive = false;
 
-    // Remove pointer lock change listeners
+    this.recognitionManager.setOnStrokeEndCallback(null);
+
     if (this.pointerLockChangeHandler) {
       document.removeEventListener(
         "pointerlockchange",
@@ -425,6 +437,18 @@ export class DrawingManager {
     }
   }
 
+  async autoSubmitDrawing() {
+    if (!this.isActive) {
+      return;
+    }
+
+    if (!this.recognitionManager.drawingCanvas?.hasStrokes()) {
+      return;
+    }
+
+    await this.handleSubmit();
+  }
+
   async handleSubmit() {
     if (!this.isActive) {
       this.logger.log("Submit ignored - game not active");
@@ -438,12 +462,9 @@ export class DrawingManager {
     this.logger.log("Result received:", result);
 
     if (!result || !result.prediction) {
-      this.logger.log("No prediction, showing failure");
-      this.showResult("❌");
+      this.logger.log("No prediction");
       return;
     }
-
-    const predictedEmoji = EMOJI_MAP[result.prediction] || "❓";
 
     this.logger.log(
       `Result: predicted=${result.prediction} (${result.confidence?.toFixed(
@@ -530,9 +551,6 @@ export class DrawingManager {
           }, 1500);
         }
       }
-    } else {
-      this.logger.log("Failed. Try again!");
-      this.showResult(`${predictedEmoji} ❌`);
     }
   }
 

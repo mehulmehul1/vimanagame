@@ -16,7 +16,8 @@ export class DrawingRecognitionManager {
     this.recognitionThreshold = 0.4;
     this.isDrawingMode = false;
     this.logger = new Logger("DrawingRecognitionManager", false);
-    this.isPointerOverCanvas = false; // Track if pointer is over drawing canvas
+    this.isPointerOverCanvas = false;
+    this.onStrokeEndCallback = null;
   }
 
   loadScript(src) {
@@ -116,6 +117,10 @@ export class DrawingRecognitionManager {
     return true;
   }
 
+  setOnStrokeEndCallback(callback) {
+    this.onStrokeEndCallback = callback;
+  }
+
   enableDrawingMode(camera, domElement) {
     if (!this.drawingCanvas) {
       this.logger.error("No drawing canvas created");
@@ -179,6 +184,10 @@ export class DrawingRecognitionManager {
     if (this.drawingCanvas.isDrawing) {
       event.preventDefault();
       this.drawingCanvas.endStroke();
+
+      if (this.onStrokeEndCallback) {
+        this.onStrokeEndCallback();
+      }
     }
 
     this.isPointerOverCanvas = false;
@@ -356,6 +365,80 @@ export class DrawingRecognitionManager {
     if (this.drawingCanvas) {
       this.drawingCanvas.clearCanvas();
     }
+  }
+
+  async captureDrawing(width = 1024, height = 1024, filename = "drawing") {
+    if (!this.drawingCanvas || !this.drawingCanvas.hasStrokes()) {
+      this.logger.warn("No drawing to capture");
+      return null;
+    }
+
+    const imageStrokes = this.drawingCanvas.getStrokes();
+    const strokesCopy = JSON.parse(JSON.stringify(imageStrokes));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(0, 0, width, height);
+
+    const [min_x, min_y] = this.preprocessor.getMinimumCoordinates(strokesCopy);
+    for (const stroke of strokesCopy) {
+      for (let i = 0; i < stroke[0].length; i++) {
+        stroke[0][i] = stroke[0][i] - min_x + 2;
+        stroke[1][i] = stroke[1][i] - min_y + 2;
+      }
+    }
+
+    const coords_x = [];
+    const coords_y = [];
+    for (const stroke of strokesCopy) {
+      for (let i = 0; i < stroke[0].length; i++) {
+        coords_x.push(stroke[0][i]);
+        coords_y.push(stroke[1][i]);
+      }
+    }
+
+    const strokeWidth = Math.max(...coords_x) - Math.min(...coords_x);
+    const strokeHeight = Math.max(...coords_y) - Math.min(...coords_y);
+    const maxDimension = Math.max(strokeWidth, strokeHeight);
+    const scale = (Math.min(width, height) * 0.85) / maxDimension;
+
+    const offsetX = (width - strokeWidth * scale) / 2;
+    const offsetY = (height - strokeHeight * scale) / 2;
+
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = Math.max(2, width / 200);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    for (const stroke of strokesCopy) {
+      if (stroke[0].length < 2) continue;
+      ctx.beginPath();
+      const startX = (stroke[0][0] - Math.min(...coords_x)) * scale + offsetX;
+      const startY = (stroke[1][0] - Math.min(...coords_y)) * scale + offsetY;
+      ctx.moveTo(startX, startY);
+      for (let i = 1; i < stroke[0].length; i++) {
+        const x = (stroke[0][i] - Math.min(...coords_x)) * scale + offsetX;
+        const y = (stroke[1][i] - Math.min(...coords_y)) * scale + offsetY;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${filename}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      this.logger.log(`Downloaded ${filename}.png (${width}x${height})`);
+    });
+
+    return canvas;
   }
 
   dispose() {

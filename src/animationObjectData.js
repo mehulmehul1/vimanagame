@@ -80,6 +80,54 @@ export const objectAnimations = {
     playOnce: true,
   },
 
+  viewmasterToggleOn: {
+    id: "viewmasterToggleOn",
+    type: "objectAnimation",
+    description: "Equip viewmaster during free-toggle phase",
+    targetObjectId: "viewmaster",
+    duration: 1.6,
+    properties: {
+      position: {
+        to: [
+          { x: 0, y: 0, z: -0.4 },
+          { x: 0, y: 0, z: -0.2 },
+          { x: 0, y: 0, z: 0.1 },
+        ],
+      },
+      rotation: {
+        to: [
+          { x: 0, y: 0, z: 0 },
+          { x: 0, y: 0, z: 0 },
+        ],
+      },
+    },
+    easing: "easeInOutQuad",
+    reparentToCamera: true,
+    priority: 80,
+    playOnce: false,
+  },
+
+  viewmasterToggleOff: {
+    id: "viewmasterToggleOff",
+    type: "objectAnimation",
+    description: "Stow viewmaster just out of view when toggled off",
+    targetObjectId: "viewmaster",
+    duration: 1.4,
+    properties: {
+      position: {
+        to: [
+          { x: 0, y: 0, z: -0.2 },
+          { x: 0, y: 0.5, z: -0.2 },
+          { x: 0, y: 1, z: 0 },
+        ],
+      },
+    },
+    easing: "easeInOutQuad",
+    reparentToCamera: true,
+    priority: 80,
+    playOnce: false,
+  },
+
   viewmasterPutDown: {
     id: "viewmasterPutDown",
     type: "objectAnimation",

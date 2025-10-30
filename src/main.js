@@ -29,6 +29,7 @@ import cameraAnimations from "./animationCameraData.js";
 import objectAnimations from "./animationObjectData.js";
 import GizmoManager from "./utils/gizmoManager.js";
 import { VFXSystemManager } from "./vfxManager.js";
+import ViewmasterController from "./content/viewmasterController.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
@@ -169,6 +170,10 @@ logger.log("✅ DrawingManager created");
 window.drawingRecognitionManager = drawingRecognitionManager;
 window.drawingManager = drawingManager;
 
+window.captureDrawing = (width, height, filename) => {
+  return drawingRecognitionManager.captureDrawing(width, height, filename);
+};
+
 // Handle window resize
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -259,6 +264,14 @@ cameraAnimationManager.loadAnimationsFromData(cameraAnimations);
 
 // Make it globally accessible for debugging/scripting
 window.cameraAnimationManager = cameraAnimationManager;
+
+const viewmasterController = new ViewmasterController({
+  gameManager,
+  animationManager: cameraAnimationManager,
+  sceneManager,
+});
+viewmasterController.initialize();
+window.viewmasterController = viewmasterController;
 
 // Initialize lighting system
 //const lightingSystem = new LightingSystem(scene);
