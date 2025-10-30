@@ -11,10 +11,11 @@ const GALAXY_SWIRL_VARIATION = 0.00045;
 const GALAXY_SWIRL_NOISE = 0.35;
 const DEFAULT_GALAXY_SWIRL_INTENSITY = 0.35;
 const DEFAULT_GALAXY_SWIRL_RADIAL_EXPONENT = 0.15;
+
 export class ParticleCanvas3D {
   constructor(
     scene,
-    position = { x: 0, y: 1.5, z: -2 },
+    position = { x: 0, y: 2, z: -2 },
     scale = 1,
     enableParticles = true
   ) {
@@ -209,8 +210,10 @@ export class ParticleCanvas3D {
         }
         
         void main() {
-          // Repeat brush texture smoothly along length
-          vec2 brushUV = vec2(fract(vUv.x), vProgress);
+          // Scroll UV along stroke length
+          float scrollSpeed = -0.5;
+          float scrollOffset = uTime * scrollSpeed;
+          vec2 brushUV = vec2(fract(vUv.x + scrollOffset), vProgress);
           vec4 texColor = texture2D(uBrushTexture, brushUV);
 
           // Base stroke body so texture never drops to zero
@@ -244,6 +247,7 @@ export class ParticleCanvas3D {
       `,
       transparent: true,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.NormalBlending, // Normal blending for solid strokes
       side: THREE.DoubleSide,
     });
@@ -252,7 +256,7 @@ export class ParticleCanvas3D {
     this.strokeMesh.position.copy(this.mesh.position);
     this.strokeMesh.quaternion.copy(this.mesh.quaternion);
     this.strokeMesh.scale.copy(this.mesh.scale);
-    this.strokeMesh.renderOrder = 10000; // Render on top of particles
+    this.strokeMesh.renderOrder = 9999; // Same as particles, depth test handles sorting
     this.scene.add(this.strokeMesh);
 
     console.log("[ParticleCanvas3D] Stroke mesh created:", {

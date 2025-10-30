@@ -5,13 +5,22 @@ import { Logger } from "../utils/logger.js";
 
 const TOGGLE_ON_ID = "viewmasterToggleOn";
 const TOGGLE_OFF_ID = "viewmasterToggleOff";
+const FRACTAL_TIMEOUT_SECONDS = 15;
+const FRACTAL_MIN_INTENSITY = 0.02;
+const FRACTAL_MAX_INTENSITY = 10.0; // World completely dissolves at the end
 const VFX_DELAY_RATIO = 0.7;
 
 export default class ViewmasterController {
-  constructor({ gameManager, animationManager, sceneManager }) {
+  constructor({
+    gameManager,
+    animationManager,
+    sceneManager,
+    vfxManager = null,
+  }) {
     this.gameManager = gameManager;
     this.animationManager = animationManager;
     this.sceneManager = sceneManager;
+    this.vfxManager = vfxManager || window?.vfxManager || null;
 
     this.logger = new Logger("ViewmasterController", false);
 
@@ -20,9 +29,13 @@ export default class ViewmasterController {
     this.transitionTimeout = null;
     this.initialPoseApplied = false;
     this.initialPoseTimer = null;
-    this.pendingStateTimeout = null;
+    this.pendingVfxTimeout = null;
     this.isEquipped = false;
     this.maskPlane = null;
+    this.fractalTimer = 0;
+    this.timeoutTriggered = false;
+    this.currentFractalIntensity = 0;
+    this._splatFractal = null;
 
     this.handleStateChanged = this.handleStateChanged.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -39,6 +52,7 @@ export default class ViewmasterController {
 
     this.handleStateChanged(this.gameManager.getState());
     this.applyInitialAttachmentIfNeeded(this.gameManager.getState());
+    this.applyFractalIntensity(0);
     this.logger.log("Initialized");
   }
 
@@ -54,7 +68,16 @@ export default class ViewmasterController {
       this.gameManager.setState({ isViewmasterEquipped: false });
     }
 
+    const previousEquipped = this.isEquipped;
     this.isEquipped = !!newState?.isViewmasterEquipped;
+
+    if (this.isEquipped !== previousEquipped) {
+      if (this.isEquipped) {
+        this.startFractalRamp();
+      } else {
+        this.stopFractalRamp();
+      }
+    }
 
     this.applyInitialAttachmentIfNeeded(newState);
   }
@@ -105,6 +128,7 @@ export default class ViewmasterController {
     this.animationManager.playObjectAnimation(animation);
     this.ensureMaskPlane();
     this.updateMaskPlane(false);
+    this.stopFractalRamp();
 
     const durationMs = Math.max(animation.duration || 1, 1) * 1000;
     clearTimeout(this.transitionTimeout);
@@ -132,10 +156,6 @@ export default class ViewmasterController {
 
     this.isTransitioning = true;
     this.isEquipped = nextEquipped;
-    if (this.pendingStateTimeout) {
-      clearTimeout(this.pendingStateTimeout);
-      this.pendingStateTimeout = null;
-    }
     this.animationManager.playObjectAnimation(animation);
     this.ensureMaskPlane();
     this.updateMaskPlane(true);
@@ -145,16 +165,29 @@ export default class ViewmasterController {
     this.transitionTimeout = setTimeout(() => {
       this.isTransitioning = false;
       this.updateMaskPlane(this.isEquipped);
+
+      // Reset timeout trigger after takeoff completes
+      if (!this.isEquipped && this.timeoutTriggered) {
+        this.timeoutTriggered = false;
+      }
     }, durationMs + 200);
 
+    if (this.pendingVfxTimeout) {
+      clearTimeout(this.pendingVfxTimeout);
+      this.pendingVfxTimeout = null;
+    }
+
     if (nextEquipped) {
-      const vfxDelay = Math.max(durationMs * VFX_DELAY_RATIO, 0);
-      this.pendingStateTimeout = setTimeout(() => {
+      this.stopFractalRamp();
+      const vfxDelayMs = Math.max(durationMs * VFX_DELAY_RATIO, 0);
+      this.pendingVfxTimeout = setTimeout(() => {
         this.gameManager.setState({ isViewmasterEquipped: true });
-        this.pendingStateTimeout = null;
-      }, vfxDelay);
+        this.startFractalRamp();
+        this.pendingVfxTimeout = null;
+      }, vfxDelayMs);
     } else {
       this.gameManager.setState({ isViewmasterEquipped: false });
+      this.stopFractalRamp();
     }
   }
 
@@ -186,5 +219,90 @@ export default class ViewmasterController {
   updateMaskPlane(active) {
     if (!this.maskPlane) return;
     this.maskPlane.visible = !!active;
+  }
+
+  getFractalEffect() {
+    if (
+      this._splatFractal &&
+      typeof this._splatFractal.setExternalIntensity === "function"
+    ) {
+      return this._splatFractal;
+    }
+
+    const effect =
+      this.vfxManager?.effects?.splatFractal ||
+      window?.vfxManager?.effects?.splatFractal ||
+      null;
+
+    if (effect && typeof effect.setExternalIntensity === "function") {
+      this._splatFractal = effect;
+      return effect;
+    }
+
+    return null;
+  }
+
+  applyFractalIntensity(intensity) {
+    const clamped = Math.max(0, intensity); // Only clamp minimum, let it go as high as needed
+    this.currentFractalIntensity = clamped;
+
+    const effect = this.getFractalEffect();
+    if (effect) {
+      effect.setExternalIntensity(clamped);
+    }
+  }
+
+  startFractalRamp() {
+    this.fractalTimer = 0;
+    this.timeoutTriggered = false;
+    this.applyFractalIntensity(FRACTAL_MIN_INTENSITY);
+  }
+
+  stopFractalRamp() {
+    this.fractalTimer = 0;
+    this.timeoutTriggered = false;
+    this.applyFractalIntensity(0);
+  }
+
+  forceTakeoff() {
+    if (this.timeoutTriggered) return;
+    this.timeoutTriggered = true;
+
+    if (this.isTransitioning || !this.isEquipped) return;
+
+    this.logger.log("Fractal intensity threshold reached, forcing takeoff");
+    if (this.pendingVfxTimeout) {
+      clearTimeout(this.pendingVfxTimeout);
+      this.pendingVfxTimeout = null;
+    }
+    this.toggle();
+  }
+
+  update(dt = 0.016) {
+    // Refresh effect reference if it wasn't available earlier
+    if (!this._splatFractal) {
+      this.getFractalEffect();
+    }
+
+    // Continue fractal ramp while equipped OR during forced takeoff transition
+    const shouldRampFractal =
+      this.isEquipped || (this.timeoutTriggered && this.isTransitioning);
+
+    if (shouldRampFractal) {
+      this.fractalTimer += dt;
+      const progress = Math.min(this.fractalTimer / FRACTAL_TIMEOUT_SECONDS, 1);
+      // Exponential ease-in: starts very slow, kicks up dramatically at the end
+      const eased = Math.pow(progress, 4);
+      const intensity =
+        FRACTAL_MIN_INTENSITY +
+        eased * (FRACTAL_MAX_INTENSITY - FRACTAL_MIN_INTENSITY);
+      this.applyFractalIntensity(intensity);
+
+      if (progress >= 1 && this.isEquipped) {
+        this.forceTakeoff();
+      }
+    } else if (this.currentFractalIntensity > 0 && !this.isTransitioning) {
+      this.applyFractalIntensity(0);
+    }
   }
 }

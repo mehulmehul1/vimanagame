@@ -297,7 +297,7 @@ export const sfxSounds = {
     loop: false,
     spatial: false,
     preload: true,
-    criteria: { currentState: { $gte: GAME_STATES.PUNCH_OUT } },
+    criteria: { currentState: { $eq: GAME_STATES.PUNCH_OUT } },
     playOnce: true,
     delay: 1.5,
   },

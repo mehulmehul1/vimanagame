@@ -10,7 +10,8 @@ const DRAWING_CONFIG = {
   strokeRepulsionFalloff: "smooth", // "linear" for hard edge, "smooth" for soft gradient
   strokeRepulsionSmoothness: 1.0, // 0=linear, 1.0=smoothstep, higher=even smoother
 
-  // Add more configs here as needed for other tunable parameters
+  // Debug
+  canvasGizmo: false, // Enable gizmo for positioning/scaling canvas (disabled - final position set)
 };
 
 const EMOJI_MAP = {
@@ -41,10 +42,14 @@ export class DrawingManager {
     this.strokeRepulsionDistance = DRAWING_CONFIG.strokeRepulsionDistance;
     this.strokeRepulsionFalloff = DRAWING_CONFIG.strokeRepulsionFalloff;
     this.strokeRepulsionSmoothness = DRAWING_CONFIG.strokeRepulsionSmoothness;
+    this.canvasGizmo = DRAWING_CONFIG.canvasGizmo;
 
     // Input manager reference (will be set via setInputManager)
     this.inputManager = null;
     this.originalGizmoProbe = null; // Store original probe to restore later
+    this.canvasMesh = null; // Store canvas mesh reference
+    this.canvasParticleSystem = null; // Store particle system reference for gizmo
+    this.gizmoRegistered = false; // Track if gizmo has been registered
 
     // Pointer lock monitor
     this.pointerLockChangeHandler = null;
@@ -55,7 +60,13 @@ export class DrawingManager {
     this.successCount = 0;
     this.maxRounds = 3;
     this.currentGoalRune = null;
-    this.goalRunePosition = null;
+    this.goalRunePositions = {
+      lightning: null, // Will be set dynamically near canvas
+      star: { x: 2.17, y: 2.06, z: 77.8 },
+      circle: { x: -1.81, y: 6.31, z: 74.67 },
+    };
+    this.runeTargetOpacity = 0;
+    this.runeCurrentOpacity = 0;
 
     this.setupUI();
     this.setupKeyboardShortcuts();
@@ -117,8 +128,16 @@ export class DrawingManager {
         } else if (!isCursorState && this.isActive) {
           this.stopGame();
         }
+
+        // Update rune visibility based on viewmaster equipped state
+        this.updateRuneVisibility(newState);
       });
     }
+  }
+
+  updateRuneVisibility(gameState) {
+    const isEquipped = gameState?.isViewmasterEquipped || false;
+    this.runeTargetOpacity = isEquipped ? 1.0 : 0.0;
   }
 
   setupUI() {
@@ -190,6 +209,8 @@ export class DrawingManager {
       `Starting drawing game... ${isFinalRound ? "(FINAL ROUND)" : ""}`
     );
     this.logger.log("InputManager reference:", this.inputManager);
+    this.logger.log("GizmoManager available:", !!window.gizmoManager);
+    this.logger.log("Canvas gizmo enabled:", this.canvasGizmo);
     this.isActive = true;
     this.successCount = isFinalRound ? 2 : 0; // Start at 2/3 for final round
 
@@ -262,20 +283,17 @@ export class DrawingManager {
     if (!this.recognitionManager.drawingCanvas) {
       this.logger.log("Creating drawing canvas...");
 
-      // Use characterController's getPosition to place canvas in front of player
-      // z: positive = forward, y: 0 = at eye level, x: 0 = centered
-      const canvasPos = window.characterController.getPosition({
-        x: 0,
-        y: 0.8,
-        z: -1.5,
-      });
+      // Fixed canvas position, rotation, and scale
+      const canvasPos = { x: -2.85, y: 2.85, z: 87.45 };
+      const canvasRot = { x: -3.1416, y: 0.1655, z: 3.1416 };
+      const canvasScale = 1.5;
 
       this.logger.log("Canvas position:", canvasPos);
 
       this.recognitionManager.createDrawingCanvas(
         this.scene,
         canvasPos,
-        this.canvasScale,
+        canvasScale,
         this.enableParticles,
         this.strokeRepulsionDistance,
         this.strokeRepulsionFalloff,
@@ -287,22 +305,64 @@ export class DrawingManager {
         if (canvas.particleSystem) {
           canvas.particleSystem.visible = true;
         }
-        // Make canvas face the camera
-        const camera = window.camera;
         const mesh = canvas.getMesh();
         if (mesh) {
-          mesh.lookAt(camera.position);
+          // Set position, rotation, and scale for all components
+          mesh.position.set(canvasPos.x, canvasPos.y, canvasPos.z);
+          mesh.rotation.set(canvasRot.x, canvasRot.y, canvasRot.z);
+          mesh.scale.set(canvasScale, canvasScale, canvasScale);
+
+          this.canvasMesh = mesh;
+          this.canvasParticleSystem = canvas.particleSystem;
+
+          // Register particle system (visible component) with gizmo manager if enabled
+          if (this.canvasGizmo && canvas.particleSystem) {
+            if (window.gizmoManager) {
+              window.gizmoManager.registerObject(
+                canvas.particleSystem,
+                "drawing-canvas-particles",
+                "drawing"
+              );
+              this.gizmoRegistered = true;
+              this.logger.log(
+                "✅ Registered drawing particle system with gizmo manager"
+              );
+            } else {
+              this.logger.warn("❌ GizmoManager not found on window!");
+            }
+          } else if (this.canvasGizmo) {
+            this.logger.warn(
+              "Canvas gizmo enabled but particleSystem not found"
+            );
+          } else {
+            this.logger.log("Canvas gizmo disabled in config");
+          }
         }
 
-        // Position particles toward camera from the plane
+        // Set particle system position, rotation, and scale to match mesh
         if (canvas.particleSystem) {
-          const direction = new THREE.Vector3()
-            .subVectors(camera.position, mesh.position)
-            .normalize();
-          canvas.particleSystem.position
-            .copy(mesh.position)
-            .add(direction.multiplyScalar(canvas.particleOffset));
-          canvas.particleSystem.lookAt(camera.position);
+          canvas.particleSystem.position.set(
+            canvasPos.x,
+            canvasPos.y,
+            canvasPos.z
+          );
+          canvas.particleSystem.rotation.set(
+            canvasRot.x,
+            canvasRot.y,
+            canvasRot.z
+          );
+          canvas.particleSystem.scale.set(
+            canvasScale,
+            canvasScale,
+            canvasScale
+          );
+        }
+
+        // Set stroke mesh position, rotation, and scale to match
+        if (canvas.strokeMesh) {
+          canvas.strokeMesh.position.set(canvasPos.x, canvasPos.y, canvasPos.z);
+          canvas.strokeMesh.rotation.set(canvasRot.x, canvasRot.y, canvasRot.z);
+          canvas.strokeMesh.scale.set(canvasScale, canvasScale, canvasScale);
         }
 
         // If starting in final round, set to red particles immediately
@@ -325,8 +385,8 @@ export class DrawingManager {
           }
         }
 
-        // Store goal rune position for later
-        this.goalRunePosition = {
+        // Store lightning rune position (near canvas)
+        this.goalRunePositions.lightning = {
           x: canvasPos.x + 1.2,
           y: canvasPos.y,
           z: canvasPos.z,
@@ -357,11 +417,37 @@ export class DrawingManager {
         this.recognitionManager.drawingCanvas.particleSystem.visible = true;
       }
 
-      // Set goal rune position if not already set
-      if (!this.goalRunePosition) {
-        const mesh = this.recognitionManager.drawingCanvas.getMesh();
-        if (mesh) {
-          this.goalRunePosition = {
+      // Get mesh reference for gizmo registration
+      const mesh = this.recognitionManager.drawingCanvas.getMesh();
+      const canvas = this.recognitionManager.drawingCanvas;
+      if (mesh) {
+        this.canvasMesh = mesh;
+        this.canvasParticleSystem = canvas.particleSystem;
+
+        // Register particle system (visible component) with gizmo manager if enabled
+        if (this.canvasGizmo && canvas.particleSystem) {
+          if (window.gizmoManager) {
+            window.gizmoManager.registerObject(
+              canvas.particleSystem,
+              "drawing-canvas-particles",
+              "drawing"
+            );
+            this.gizmoRegistered = true;
+            this.logger.log(
+              "✅ Registered existing drawing particle system with gizmo manager"
+            );
+          } else {
+            this.logger.warn("❌ GizmoManager not found on window!");
+          }
+        } else if (this.canvasGizmo) {
+          this.logger.warn("Canvas gizmo enabled but particleSystem not found");
+        } else {
+          this.logger.log("Canvas gizmo disabled in config");
+        }
+
+        // Set lightning rune position if not already set
+        if (!this.goalRunePositions.lightning) {
+          this.goalRunePositions.lightning = {
             x: mesh.position.x + 1.2,
             y: mesh.position.y,
             z: mesh.position.z,
@@ -426,6 +512,21 @@ export class DrawingManager {
       this.recognitionManager.drawingCanvas = null;
     }
 
+    // Unregister particle system from gizmo manager
+    if (
+      this.gizmoRegistered &&
+      this.canvasParticleSystem &&
+      window.gizmoManager
+    ) {
+      window.gizmoManager.unregisterObject(this.canvasParticleSystem);
+      this.logger.log(
+        "Unregistered drawing particle system from gizmo manager"
+      );
+      this.gizmoRegistered = false;
+    }
+    this.canvasParticleSystem = null;
+    this.canvasMesh = null;
+
     if (this.currentGoalRune) {
       this.currentGoalRune.dispose();
       this.currentGoalRune = null;
@@ -467,17 +568,18 @@ export class DrawingManager {
       }
     }
 
-    // Update goal rune to show current target
-    if (window.runeManager && this.goalRunePosition) {
+    // Update goal rune to show current target at its specific position
+    const runePosition = this.goalRunePositions[this.targetLabel];
+    if (window.runeManager && runePosition) {
       // Remove old rune if it exists
       if (this.currentGoalRune) {
         this.currentGoalRune.dispose();
       }
 
-      // Create new rune for current target
+      // Create new rune for current target at its designated position
       const rune = window.runeManager.createRune(
         this.targetLabel,
-        this.goalRunePosition,
+        runePosition,
         {
           scale: 1.5,
           rotation: { x: 0, y: 0, z: 0 },
@@ -493,7 +595,10 @@ export class DrawingManager {
       }
 
       this.currentGoalRune = rune;
-      this.logger.log(`Created ${this.targetLabel} goal rune`);
+      this.logger.log(
+        `Created ${this.targetLabel} goal rune at position`,
+        runePosition
+      );
     }
   }
 
@@ -646,6 +751,58 @@ export class DrawingManager {
     }, 300);
   }
 
+  update(dt = 0.016) {
+    if (!this.isActive) return;
+
+    // Late registration: if gizmo is enabled but not yet registered, try again
+    if (this.canvasGizmo && !this.gizmoRegistered) {
+      if (this.canvasParticleSystem && window.gizmoManager) {
+        window.gizmoManager.registerObject(
+          this.canvasParticleSystem,
+          "drawing-canvas-particles",
+          "drawing"
+        );
+        this.gizmoRegistered = true;
+        this.logger.log(
+          "✅ Late-registered drawing particle system with gizmo manager"
+        );
+      }
+    }
+
+    // Smoothly interpolate rune opacity
+    const opacityLerpSpeed = 3.0; // How fast opacity changes
+    const opacityDiff = this.runeTargetOpacity - this.runeCurrentOpacity;
+    this.runeCurrentOpacity += opacityDiff * opacityLerpSpeed * dt;
+
+    // Apply opacity and color to current goal rune via shader uniforms
+    if (this.currentGoalRune && this.currentGoalRune.material) {
+      if (
+        this.currentGoalRune.material.uniforms &&
+        this.currentGoalRune.material.uniforms.uOpacity
+      ) {
+        this.currentGoalRune.material.uniforms.uOpacity.value =
+          this.runeCurrentOpacity;
+      }
+
+      // Sync color with particle canvas color stage
+      if (this.recognitionManager.drawingCanvas) {
+        const canvas = this.recognitionManager.drawingCanvas;
+        if (
+          canvas.currentColor &&
+          this.currentGoalRune.material.uniforms &&
+          this.currentGoalRune.material.uniforms.uColor
+        ) {
+          // Apply the same color as the particle canvas (slightly darkened for stroke)
+          this.currentGoalRune.material.uniforms.uColor.value
+            .copy(canvas.currentColor)
+            .multiplyScalar(0.8);
+        }
+      }
+
+      this.currentGoalRune.visible = this.runeCurrentOpacity > 0.01;
+    }
+  }
+
   dispose() {
     this.stopGame();
 
@@ -656,5 +813,17 @@ export class DrawingManager {
     if (this.onKeyDown) {
       window.removeEventListener("keydown", this.onKeyDown);
     }
+
+    // Ensure particle system is unregistered
+    if (
+      this.gizmoRegistered &&
+      this.canvasParticleSystem &&
+      window.gizmoManager
+    ) {
+      window.gizmoManager.unregisterObject(this.canvasParticleSystem);
+      this.gizmoRegistered = false;
+    }
+    this.canvasParticleSystem = null;
+    this.canvasMesh = null;
   }
 }

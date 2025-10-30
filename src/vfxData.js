@@ -191,9 +191,9 @@ export const splatFractalEffects = {
     id: "viewmasterToggleAmbient",
     parameters: {
       effectType: "waves",
-      intensity: 0.25,
-      rampDuration: 0.8,
-      rampOutDuration: 0.5,
+      intensity: 0.0,
+      rampDuration: 0.0,
+      rampOutDuration: 0.0,
       targetMeshIds: ["club"],
     },
     criteria: {

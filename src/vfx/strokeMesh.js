@@ -7,8 +7,6 @@ export class StrokeMesh {
     this.color = options.color || new THREE.Color(0xaaeeff);
     this.position = options.position || { x: 0, y: 0, z: 0 };
     this.rotation = options.rotation || { x: 0, y: 0, z: 0 };
-    this.renderOrder =
-      options.renderOrder !== undefined ? options.renderOrder : 10000;
     this.isStatic = options.isStatic || false;
 
     this.strokeGeometry = new THREE.BufferGeometry();
@@ -23,7 +21,7 @@ export class StrokeMesh {
     this.mesh = new THREE.Mesh(this.strokeGeometry, this.material);
     this.mesh.position.set(this.position.x, this.position.y, this.position.z);
     this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
-    this.mesh.renderOrder = this.renderOrder;
+    this.mesh.renderOrder = 9999; // Same as particles, depth test handles sorting
     this.scene.add(this.mesh);
   }
 
@@ -43,6 +41,7 @@ export class StrokeMesh {
         },
         uBrushTexture: { value: brushTexture },
         uUseBrushTexture: { value: 1.0 },
+        uOpacity: { value: 1.0 },
       },
       vertexShader: `
         attribute float segmentProgress;
@@ -71,6 +70,7 @@ export class StrokeMesh {
         uniform float uTime;
         uniform sampler2D uBrushTexture;
         uniform float uUseBrushTexture;
+        uniform float uOpacity;
         
         varying float vProgress;
         varying float vFadeAlpha;
@@ -121,11 +121,12 @@ export class StrokeMesh {
           
           vec3 finalColor = uColor * brightnessPulse;
           
-          gl_FragColor = vec4(finalColor, min(alpha, 1.0));
+          gl_FragColor = vec4(finalColor, min(alpha, 1.0) * uOpacity);
         }
       `,
       transparent: true,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });

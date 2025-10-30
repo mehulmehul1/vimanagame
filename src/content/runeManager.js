@@ -34,7 +34,6 @@ export class RuneManager {
       color,
       position,
       rotation,
-      renderOrder: 10001,
       isStatic: true,
     });
 

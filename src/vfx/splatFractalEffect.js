@@ -516,6 +516,20 @@ export class SplatFractalEffect extends VFXManager {
     });
   }
 
+  setExternalIntensity(intensity = 0) {
+    const clamped = Math.max(0, intensity); // Only clamp minimum, allow high intensities
+    this.isRamping = false;
+    this.isRampingOut = false;
+    this.currentIntensity = clamped;
+    this.targetIntensity = clamped;
+
+    const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
+    this.targetMeshes.forEach((mesh) => {
+      mesh.objectModifier = this._getFractalModifier(effectType, clamped);
+      mesh.updateGenerator();
+    });
+  }
+
   /**
    * Update audio parameters based on intensity ramp
    * @private

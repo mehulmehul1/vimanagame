@@ -53,6 +53,17 @@ export const musicTracks = {
     fadeTime: 1.0,
     priority: 10,
   },
+  dukeAc: {
+    id: "dukeAc",
+    path: "./audio/music/duke-ellington-air-conditioned-jungle.mp3",
+    description: "Duke Ac",
+    preload: true,
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+    },
+    fadeTime: 1.0,
+    priority: 10,
+  },
   rach2: {
     id: "rach2",
     path: "./audio/music/rach 3 - mv 2 - 1-00.mp3",

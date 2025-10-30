@@ -103,8 +103,9 @@ class GizmoManager {
    * Update logging state based on gizmo data availability
    */
   updateLoggingBasedOnGizmoData() {
+    const hasGizmoRuntime = this.objects && this.objects.length > 0;
     const shouldEnableLogging =
-      this.hasGizmoInDefinitions || this.hasGizmoURLParam;
+      this.hasGizmoInDefinitions || this.hasGizmoURLParam || hasGizmoRuntime;
     if (this.logger.debug !== shouldEnableLogging) {
       this.logger.setDebug(shouldEnableLogging);
       this.logger.log(

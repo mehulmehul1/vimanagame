@@ -282,6 +282,7 @@ const viewmasterController = new ViewmasterController({
   gameManager,
   animationManager: cameraAnimationManager,
   sceneManager,
+  vfxManager,
 });
 viewmasterController.initialize();
 window.viewmasterController = viewmasterController;
@@ -618,6 +619,15 @@ renderer.setAnimationLoop(function animate(time) {
   // Update drawing recognition manager
   if (drawingRecognitionManager) {
     drawingRecognitionManager.update(dt);
+  }
+
+  // Update drawing manager
+  if (drawingManager) {
+    drawingManager.update(dt);
+  }
+
+  if (viewmasterController) {
+    viewmasterController.update(dt);
   }
 
   // Update rune manager
