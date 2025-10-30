@@ -5,7 +5,7 @@ const STROKE_WEIGHT = 3;
 const PARTICLE_GRID_DENSITY = 100; // Particles per side (100x100 = 10000 particles, ~2x original)
 const TOUCH_INNER_RADIUS = 2.5;
 const TOUCH_OUTER_SCALE = 2.0;
-
+const STROKE_REPULSION_DISTANCE = 0.05;
 export class ParticleCanvas3D {
   constructor(
     scene,
@@ -15,6 +15,7 @@ export class ParticleCanvas3D {
   ) {
     this.scene = scene;
     this.enableParticles = enableParticles;
+    this.strokeRepulsionDistance = STROKE_REPULSION_DISTANCE;
 
     // Hidden 2D canvas for stroke recording (ML recognition)
     this.canvas = document.createElement("canvas");
@@ -57,12 +58,17 @@ export class ParticleCanvas3D {
     // Conditionally create particle system (in front of the plane)
     this.particleSystem = null;
     this.particleOffset = 0.05;
+    this.particleVelocities = null; // Store velocities on CPU for persistence
+    this.particleCount = PARTICLE_GRID_DENSITY * PARTICLE_GRID_DENSITY;
 
     if (this.enableParticles) {
       this.particleSystem = this.createParticleSystem(scale);
       this.particleSystem.position.set(position.x, position.y, position.z);
       this.particleSystem.renderOrder = 9999; // Render on top of splats (9998)
       this.scene.add(this.particleSystem);
+
+      // Initialize velocity storage
+      this.particleVelocities = new Float32Array(this.particleCount * 3);
     }
 
     this.isDrawing = false;
@@ -101,6 +107,13 @@ export class ParticleCanvas3D {
     this.isPulsing = false;
     this.pulseProgress = 0;
     this.pulseDuration = 1.0; // 0.5 seconds for pulse
+
+    // Stroke scale state
+    this.strokeScaleFactor = 1.0;
+    this.isStrokePulsing = false;
+    this.strokePulseProgress = 0;
+    this.strokePulseDuration = 1.0; // 150ms for immediate snappy response
+    this.strokeScaleTarget = 2;
 
     // Explosion state
     this.isExploding = false;
@@ -255,7 +268,7 @@ export class ParticleCanvas3D {
     let vertexIndex = 0;
     const currentTime = this.time;
 
-    const width = 0.05; // Slightly narrower stroke width
+    const width = 0.05 * this.strokeScaleFactor; // Slightly narrower stroke width
 
     const addStripGeometry = (points) => {
       if (points.length < 2) return;
@@ -505,9 +518,9 @@ export class ParticleCanvas3D {
 
     // Instance attributes
     const indices = new Uint16Array(numParticles);
-    const offsets = new Float32Array(numParticles * 3);
-    const angles = new Float32Array(numParticles);
-    const velocities = new Float32Array(numParticles * 3);
+    const homePositions = new Float32Array(numParticles * 3); // Original grid positions
+    const currentPositions = new Float32Array(numParticles * 3); // Current displaced positions
+    const velocities = new Float32Array(numParticles * 3); // Current velocities
     const sizes = new Float32Array(numParticles);
 
     // Position particles in a grid with organic edge variation
@@ -519,21 +532,16 @@ export class ParticleCanvas3D {
       const centeredX = x - 0.5;
       const centeredY = y - 0.5;
 
-      // Calculate distance from center (0 at center, 1 at corners)
-      const distFromCenter =
-        Math.sqrt(centeredX * centeredX + centeredY * centeredY) * Math.sqrt(2);
-
       // Calculate distance from edges (0 at edges, 1 at center)
       const distFromEdgeX = 1.0 - Math.abs(centeredX) * 2.0;
       const distFromEdgeY = 1.0 - Math.abs(centeredY) * 2.0;
       const distFromEdge = Math.min(distFromEdgeX, distFromEdgeY);
 
       // Edge decay factor: 0 at center, increases toward edges
-      // Use exponential curve for more dramatic edge variation
       const edgeDecay = Math.pow(1.0 - distFromEdge, 2.5);
 
       // Add organic variation that increases dramatically at edges
-      const edgeVariationStrength = edgeDecay * 0.15; // Max 15% of scale
+      const edgeVariationStrength = edgeDecay * 0.15;
       const noiseX =
         (Math.random() - 0.5) * 2.0 * edgeVariationStrength * scale;
       const noiseY =
@@ -541,21 +549,30 @@ export class ParticleCanvas3D {
       const noiseZ =
         (Math.random() - 0.5) * edgeVariationStrength * scale * 0.3;
 
-      offsets[i * 3 + 0] = centeredX * scale + noiseX;
-      offsets[i * 3 + 1] = centeredY * scale + noiseY;
-      offsets[i * 3 + 2] = noiseZ;
+      // Home position (where particle wants to return)
+      const homeX = centeredX * scale + noiseX;
+      const homeY = centeredY * scale + noiseY;
+      const homeZ = noiseZ;
+
+      homePositions[i * 3 + 0] = homeX;
+      homePositions[i * 3 + 1] = homeY;
+      homePositions[i * 3 + 2] = homeZ;
+
+      // Start at home position
+      currentPositions[i * 3 + 0] = homeX;
+      currentPositions[i * 3 + 1] = homeY;
+      currentPositions[i * 3 + 2] = homeZ;
 
       indices[i] = i;
-      angles[i] = Math.random() * Math.PI * 2;
 
-      // Random gentle velocities for floating motion
-      velocities[i * 3 + 0] = (Math.random() - 0.5) * 10.0;
-      velocities[i * 3 + 1] = (Math.random() - 0.5) * 10.0;
-      velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+      // Initialize velocities to zero
+      velocities[i * 3 + 0] = 0;
+      velocities[i * 3 + 1] = 0;
+      velocities[i * 3 + 2] = 0;
 
       // Random size between 0.25 and 1.0, with smaller particles at edges
       const sizeVariation = 0.25 + Math.random() * 0.75;
-      sizes[i] = sizeVariation * (1.0 - edgeDecay * 0.3); // Reduce size at edges by up to 30%
+      sizes[i] = sizeVariation * (1.0 - edgeDecay * 0.3);
     }
 
     geometry.setAttribute(
@@ -563,12 +580,12 @@ export class ParticleCanvas3D {
       new THREE.InstancedBufferAttribute(indices, 1, false)
     );
     geometry.setAttribute(
-      "offset",
-      new THREE.InstancedBufferAttribute(offsets, 3, false)
+      "homePosition",
+      new THREE.InstancedBufferAttribute(homePositions, 3, false)
     );
     geometry.setAttribute(
-      "angle",
-      new THREE.InstancedBufferAttribute(angles, 1, false)
+      "currentPosition",
+      new THREE.InstancedBufferAttribute(currentPositions, 3, false)
     );
     geometry.setAttribute(
       "velocity",
@@ -583,124 +600,68 @@ export class ParticleCanvas3D {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uSize: { value: 0.015 * scale }, // Scaled for denser particles
-        uTouch: { value: this.touchTexture },
-        uColor: { value: new THREE.Color(0xaaeeff) }, // Bright whitish-blue glow
-        uPulseScale: { value: 1.0 }, // Scale multiplier for pulse effect
-        uJitterIntensity: { value: 0.0 }, // Jitter intensity (0=calm, 1=bursting)
-        uExplosionFactor: { value: 0.0 }, // Explosion outward force (0=none, 1=max)
-        uImplosionFactor: { value: 0.0 }, // Implosion inward force (0=none, 1=max collapse)
+        uDeltaTime: { value: 0.016 }, // For physics calculations
+        uSize: { value: 0.015 * scale },
+        uColor: { value: new THREE.Color(0xaaeeff) },
+        uPulseScale: { value: 1.0 },
+        uJitterIntensity: { value: 0.0 },
+        uExplosionFactor: { value: 0.0 },
+        uImplosionFactor: { value: 0.0 },
       },
       vertexShader: `
         attribute float pindex;
-        attribute vec3 offset;
-        attribute float angle;
+        attribute vec3 homePosition;
+        attribute vec3 currentPosition;
         attribute vec3 velocity;
         attribute float particleSize;
         
         uniform float uTime;
         uniform float uSize;
-        uniform sampler2D uTouch;
         uniform float uPulseScale;
         uniform float uJitterIntensity;
         uniform float uExplosionFactor;
         uniform float uImplosionFactor;
         
         varying vec2 vUv;
-        varying float vDisplacement;
-        
-        // Simple hash function for noise
-        float hash(float n) {
-          return fract(sin(n) * 43758.5453123);
-        }
-        
-        // Smooth noise
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          
-          float n = i.x + i.y * 57.0;
-          return mix(
-            mix(hash(n + 0.0), hash(n + 1.0), f.x),
-            mix(hash(n + 57.0), hash(n + 58.0), f.x),
-            f.y
-          );
-        }
+        varying float vVelocityMagnitude;
         
         void main() {
           vUv = uv;
           
-          // Get particle position in UV space (0-1)
-          vec2 puv = offset.xy + 0.5;
+          // Use currentPosition (updated on CPU with physics)
+          vec3 displaced = currentPosition;
           
-          // Sample touch texture
-          float touch = texture2D(uTouch, puv).r;
-          
-          // Base position with floating motion
-          vec3 displaced = offset;
-          
-          // Add gentle drifting motion using noise
-          float timeScale = uTime * 0.5;
-          vec2 noiseCoord = vec2(pindex * 0.01, timeScale * 0.1);
-          float drift = noise(noiseCoord) - 0.5;
-          
-          // Apply velocity-based drift (circular motion)
-          // But reduce drift in areas where touch is present
-          float driftAmount = 0.005 * (1.0 - touch * 0.8);
-          displaced.x += sin(timeScale + pindex) * velocity.x * driftAmount;
-          displaced.y += cos(timeScale + pindex * 1.3) * velocity.y * driftAmount;
-          displaced.z += drift * velocity.z * driftAmount * 0.5;
+          // Calculate velocity magnitude for brightness
+          vVelocityMagnitude = length(velocity);
           
           // Add energetic jitter that builds with each round
           if (uJitterIntensity > 0.0) {
-            // Fast, random jitter using multiple frequencies
-            float jitterTime = uTime * 15.0; // High frequency for energetic motion
+            float jitterTime = uTime * 15.0;
             float jitterX = sin(jitterTime + pindex * 43.0) * cos(jitterTime * 1.3 + pindex * 17.0);
             float jitterY = cos(jitterTime * 1.1 + pindex * 31.0) * sin(jitterTime * 1.7 + pindex * 23.0);
             float jitterZ = sin(jitterTime * 0.9 + pindex * 19.0) * cos(jitterTime * 1.5 + pindex * 29.0);
             
-            // Scale jitter by intensity
             float jitterScale = 0.008 * uJitterIntensity;
             displaced.x += jitterX * jitterScale;
             displaced.y += jitterY * jitterScale;
-            displaced.z += jitterZ * jitterScale * 0.5; // Less Z jitter
+            displaced.z += jitterZ * jitterScale * 0.5;
           }
-          
-          // Continuous avoidance force - particles flee from strokes with smooth momentum
-          // Use exponential easing so motion ramps up gently instead of snapping away
-          float touchSmooth = smoothstep(0.05, 1.0, touch);
-          float response = 1.0 - exp(-touchSmooth * 3.0); // Slow rise, fast settle
-          
-          // Prioritize lateral displacement (XY) with strong pushback
-          float spreadAmount = 0.22; // Wider safety margin
-          float spreadEased = response * spreadAmount;
-          displaced.x += cos(angle) * spreadEased;
-          displaced.y += sin(angle) * spreadEased;
-          
-          // Minimal Z displacement just to lift particles slightly when repelled
-          float displacementStrength = 0.02;
-          displaced.z += response * displacementStrength;
           
           // Apply explosion force: push particles outward from center
           if (uExplosionFactor > 0.0) {
-            vec3 outwardDir = normalize(displaced); // Direction away from center
-            float outwardForce = 0.8 * uExplosionFactor; // Scale of outward push
+            vec3 outwardDir = normalize(displaced);
+            float outwardForce = 0.8 * uExplosionFactor;
             displaced.xy += outwardDir.xy * outwardForce;
-            displaced.z += 0.3 * uExplosionFactor; // Also push up
+            displaced.z += 0.3 * uExplosionFactor;
           }
           
           // Apply implosion force: pull particles toward center
           if (uImplosionFactor > 0.0) {
-            // Pull everything toward origin with increasing strength
-            displaced.xyz *= (1.0 - uImplosionFactor * 0.95); // Collapse to ~5% of original position
+            displaced.xyz *= (1.0 - uImplosionFactor * 0.95);
           }
-          
-          vDisplacement = touch;
           
           // Transform to world space
           vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
-          // Apply random size variation (between 1/4 and full size) with pulse scale
           mvPosition.xyz += position * uSize * particleSize * uPulseScale;
           
           gl_Position = projectionMatrix * mvPosition;
@@ -709,23 +670,27 @@ export class ParticleCanvas3D {
       fragmentShader: `
         uniform vec3 uColor;
         varying vec2 vUv;
-        varying float vDisplacement;
+        varying float vVelocityMagnitude;
         
-         void main() {
-           // Circular particle shape with soft glow
-           float dist = distance(vUv, vec2(0.5));
-           float alpha = 1.0 - smoothstep(0.2, 0.5, dist);
-           
-           // Brighter glow, enhanced when displaced
-           vec3 color = uColor;
-           float brightness = 1.2 + vDisplacement * 0.3;
-           color *= brightness;
-           
-           // Soft glow falloff
-           alpha *= alpha; // Square for softer edges
-           
-           gl_FragColor = vec4(color, alpha);
-         }
+        void main() {
+          // Circular particle shape with soft glow
+          float dist = distance(vUv, vec2(0.5));
+          float alpha = 1.0 - smoothstep(0.2, 0.5, dist);
+          
+          // Brightness increases with velocity (GPGPU-style)
+          // Base brightness is high, velocity adds extra glow
+          float velocityBrightness = clamp(vVelocityMagnitude * 20.0, 0.0, 1.0);
+          vec3 color = uColor * (1.5 + velocityBrightness * 1.0);
+          
+          // Strong base alpha with velocity boost
+          float velocityAlpha = 1.0 + velocityBrightness * 0.3;
+          alpha *= velocityAlpha;
+          
+          // Soft glow falloff
+          alpha *= alpha;
+          
+          gl_FragColor = vec4(color, alpha);
+        }
       `,
       transparent: true,
       depthTest: true,
@@ -782,9 +747,6 @@ export class ParticleCanvas3D {
 
     this.lastPoint = { x, y, uvX: uv.x, uvY: 1 - uv.y };
     this.currentStroke = [[x], [y]];
-
-    // Draw to touch texture
-    this.drawToTouchTexture(uv.x, 1 - uv.y);
   }
 
   addPoint(uv) {
@@ -1086,6 +1048,11 @@ export class ParticleCanvas3D {
     this.pulseProgress = 0;
   }
 
+  triggerStrokePulse() {
+    this.isStrokePulsing = true;
+    this.strokePulseProgress = 0;
+  }
+
   triggerExplosion(explosionCenter, explosionRadius, explosionForce) {
     if (!this.particleSystem || !this.particleSystem.material) return;
 
@@ -1110,6 +1077,115 @@ export class ParticleCanvas3D {
         enabled ? "enabled" : "disabled"
       );
     }
+  }
+
+  updateParticlePhysics(dt) {
+    if (!this.particleSystem || !this.particleVelocities) return;
+
+    const geometry = this.particleSystem.geometry;
+    const homePositions = geometry.attributes.homePosition.array;
+    const currentPositions = geometry.attributes.currentPosition.array;
+    const velocities = geometry.attributes.velocity.array;
+
+    // Physics constants (GPGPU-inspired)
+    const VELOCITY_RELAXATION = 0.9; // Velocity damping (reduced for more float)
+    const HOME_ATTRACTION_STRENGTH = 0.0003; // Pull back to home position (reduced to allow more drift)
+    const STROKE_REPULSION_STRENGTH = 0.003; // Push away from strokes
+    const MAX_REPULSION_DISTANCE = this.strokeRepulsionDistance; // Max distance for stroke influence
+    const AMBIENT_DRIFT_STRENGTH = 0.00008; // Gentle floating motion
+
+    for (let i = 0; i < this.particleCount; i++) {
+      const i3 = i * 3;
+
+      // Current particle data
+      const px = currentPositions[i3];
+      const py = currentPositions[i3 + 1];
+      const pz = currentPositions[i3 + 2];
+
+      const hx = homePositions[i3];
+      const hy = homePositions[i3 + 1];
+      const hz = homePositions[i3 + 2];
+
+      let vx = velocities[i3];
+      let vy = velocities[i3 + 1];
+      let vz = velocities[i3 + 2];
+
+      // Apply velocity relaxation (particles gradually slow down)
+      vx *= VELOCITY_RELAXATION;
+      vy *= VELOCITY_RELAXATION;
+      vz *= VELOCITY_RELAXATION;
+
+      // Force 1: Ambient drift (gentle floating motion like clouds)
+      const timeOffset = this.time + i * 0.1;
+      const driftX =
+        Math.sin(timeOffset * 0.3 + i * 0.05) * Math.cos(timeOffset * 0.17);
+      const driftY =
+        Math.cos(timeOffset * 0.25 + i * 0.07) * Math.sin(timeOffset * 0.19);
+      const driftZ =
+        Math.sin(timeOffset * 0.15 + i * 0.03) * Math.cos(timeOffset * 0.21);
+
+      vx += driftX * AMBIENT_DRIFT_STRENGTH;
+      vy += driftY * AMBIENT_DRIFT_STRENGTH;
+      vz += driftZ * AMBIENT_DRIFT_STRENGTH * 0.5;
+
+      // Force 2: Attraction to home position (but loosely, to maintain organic spread)
+      const dx = hx - px;
+      const dy = hy - py;
+      const dz = hz - pz;
+      const distToHome = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      if (distToHome > 0.001) {
+        const dirX = dx / distToHome;
+        const dirY = dy / distToHome;
+        const dirZ = dz / distToHome;
+
+        // Only pull back if particle is getting too far from home
+        const pullStrength =
+          distToHome > 0.02
+            ? HOME_ATTRACTION_STRENGTH
+            : HOME_ATTRACTION_STRENGTH * 0.1;
+
+        vx += dirX * pullStrength;
+        vy += dirY * pullStrength;
+        vz += dirZ * pullStrength;
+      }
+
+      // Force 3: Repulsion from stroke segments
+      for (const segment of this.strokeSegments) {
+        const worldX = (segment.uvX2 - 0.5) * this.strokeScale;
+        const worldY = -(segment.uvY2 - 0.5) * this.strokeScale;
+
+        const sdx = px - worldX;
+        const sdy = py - worldY;
+        const distToStroke = Math.sqrt(sdx * sdx + sdy * sdy);
+
+        if (distToStroke < MAX_REPULSION_DISTANCE && distToStroke > 0.001) {
+          const pushStrength =
+            (1.0 - distToStroke / MAX_REPULSION_DISTANCE) *
+            STROKE_REPULSION_STRENGTH;
+
+          const pushDirX = sdx / distToStroke;
+          const pushDirY = sdy / distToStroke;
+
+          vx += pushDirX * pushStrength;
+          vy += pushDirY * pushStrength;
+        }
+      }
+
+      // Update velocity
+      velocities[i3] = vx;
+      velocities[i3 + 1] = vy;
+      velocities[i3 + 2] = vz;
+
+      // Update position based on velocity
+      currentPositions[i3] = px + vx;
+      currentPositions[i3 + 1] = py + vy;
+      currentPositions[i3 + 2] = pz + vz;
+    }
+
+    // Mark attributes for update
+    geometry.attributes.velocity.needsUpdate = true;
+    geometry.attributes.currentPosition.needsUpdate = true;
   }
 
   getMesh() {
@@ -1152,6 +1228,11 @@ export class ParticleCanvas3D {
   update(dt = 0.016) {
     this.time += dt;
 
+    // Update particle physics (GPGPU-inspired velocity-based motion)
+    if (!this.isExploding) {
+      this.updateParticlePhysics(dt);
+    }
+
     // Update explosion animation progress (happens regardless of particle system)
     if (this.isExploding) {
       this.explosionProgress += dt / this.explosionDuration;
@@ -1191,6 +1272,9 @@ export class ParticleCanvas3D {
             this.particleSystem.position.copy(this.mesh.position);
             this.particleSystem.renderOrder = 9999;
             this.scene.add(this.particleSystem);
+
+            // Reinitialize velocity storage
+            this.particleVelocities = new Float32Array(this.particleCount * 3);
           }
 
           // Reset to blue stage for next round
@@ -1352,64 +1436,58 @@ export class ParticleCanvas3D {
       }
     }
 
-    // Progressive fade: update touch texture and filter expired segments
-    if (this.strokeSegments.length > 0) {
-      // Clear touch canvas (ML canvas no longer needs visual drawing)
-      this.touchCtx.fillStyle = "rgba(0, 0, 0, 1)";
-      this.touchCtx.fillRect(
-        0,
-        0,
-        PARTICLE_GRID_DENSITY,
-        PARTICLE_GRID_DENSITY
-      );
+    // Update stroke scale pulse (on successful match)
+    if (this.isStrokePulsing) {
+      this.strokePulseProgress += dt / this.strokePulseDuration;
 
-      // Filter out expired segments and update touch texture
+      if (this.strokePulseProgress >= 1.0) {
+        // Pulse complete
+        this.isStrokePulsing = false;
+        this.strokePulseProgress = 0;
+        this.strokeScaleFactor = 1.0;
+      } else {
+        // Pulse in and out: 1.0 -> 1.1 -> 1.0
+        const t = this.strokePulseProgress;
+        const pulseScale =
+          1.0 + Math.sin(t * Math.PI) * (this.strokeScaleTarget - 1.0);
+        this.strokeScaleFactor = pulseScale;
+      }
+    }
+
+    // During explosion, scale stroke up at apex then shrink to zero
+    if (this.isExploding && this.explosionProgress < 1.0) {
+      const t = this.explosionProgress;
+
+      if (t < this.explosionPhase2) {
+        // Phases 1-2: Scale up to 10% at apex
+        const phase1And2Progress = t / this.explosionPhase2;
+        this.strokeScaleFactor =
+          1.0 + phase1And2Progress * (this.strokeScaleTarget - 1.0);
+      } else if (t < this.explosionPhase3) {
+        // Phase 3: Start at 10%, shrink to zero
+        const phase3Progress =
+          (t - this.explosionPhase2) /
+          (this.explosionPhase3 - this.explosionPhase2);
+        this.strokeScaleFactor =
+          this.strokeScaleTarget * (1.0 - phase3Progress);
+      } else {
+        // Phase 4: Already at zero or below
+        this.strokeScaleFactor = 0.0;
+      }
+    }
+
+    // Filter out expired segments
+    if (this.strokeSegments.length > 0) {
       this.strokeSegments = this.strokeSegments.filter((segment) => {
         // Check if segment is expired
         if (segment.rapidFade) {
           const rapidAge = this.time - segment.rapidFadeStartTime;
-          if (rapidAge > this.rapidFadeDuration) {
-            return false; // Remove expired rapid fade segment
-          }
+          return rapidAge <= this.rapidFadeDuration;
         } else {
           const age = this.time - segment.timestamp;
-          if (age > this.fadeDuration) {
-            return false; // Remove expired segment
-          }
+          return age <= this.fadeDuration;
         }
-
-        // Calculate alpha for particle displacement
-        // Keep particles displaced longer - only start returning in last 30% of fade
-        let touchAlpha;
-        if (segment.rapidFade) {
-          const rapidAge = this.time - segment.rapidFadeStartTime;
-          const rapidProgress = rapidAge / this.rapidFadeDuration;
-          touchAlpha = segment.rapidFadeStartAlpha * (1.0 - rapidProgress);
-        } else {
-          const age = this.time - segment.timestamp;
-          const progress = age / this.fadeDuration;
-
-          if (progress < 0.7) {
-            // Stay at full displacement for first 70% of fade time
-            touchAlpha = 1.0;
-          } else {
-            // Quick fade in the last 30%
-            const fadeProgress = (progress - 0.7) / 0.3;
-            touchAlpha = 1.0 - fadeProgress;
-          }
-        }
-
-        // Draw to touch texture for particle displacement
-        const touchX = segment.uvX2 * PARTICLE_GRID_DENSITY;
-        const touchY = segment.uvY2 * PARTICLE_GRID_DENSITY;
-
-        this.stampTouchTexture(touchX, touchY, touchAlpha);
-
-        return true; // Keep active segment
       });
-
-      // Update touch texture for particle displacement
-      this.touchTexture.needsUpdate = true;
 
       // Rebuild stroke mesh with current segments
       this.updateStrokeMesh();

@@ -2,6 +2,17 @@ import { GAME_STATES } from "../gameData.js";
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
 
+// ==================== PARTICLE & DRAWING CONFIG ====================
+// Tweak these values to customize particle behavior and gameplay
+const DRAWING_CONFIG = {
+  // Particle physics
+  strokeRepulsionDistance: 0.05, // How far strokes push particles (lower = tighter margin)
+  strokeRepulsionFalloff: "smooth", // "linear" for hard edge, "smooth" for soft gradient
+  strokeRepulsionSmoothness: 1.0, // 0=linear, 1.0=smoothstep, higher=even smoother
+
+  // Add more configs here as needed for other tunable parameters
+};
+
 const EMOJI_MAP = {
   lightning: "⚡",
   star: "⭐",
@@ -27,6 +38,9 @@ export class DrawingManager {
     this.canvasPosition = { x: 0, y: 1.5, z: -2 };
     this.canvasScale = 1;
     this.enableParticles = true; // Toggle to disable particle effects
+    this.strokeRepulsionDistance = DRAWING_CONFIG.strokeRepulsionDistance;
+    this.strokeRepulsionFalloff = DRAWING_CONFIG.strokeRepulsionFalloff;
+    this.strokeRepulsionSmoothness = DRAWING_CONFIG.strokeRepulsionSmoothness;
 
     // Input manager reference (will be set via setInputManager)
     this.inputManager = null;
@@ -93,7 +107,7 @@ export class DrawingManager {
   bindGameStateListener() {
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
-        const isCursorState = 
+        const isCursorState =
           newState.currentState === GAME_STATES.CURSOR ||
           newState.currentState === GAME_STATES.CURSOR_FINAL;
 
@@ -171,7 +185,9 @@ export class DrawingManager {
   }
 
   startGame(isFinalRound = false) {
-    this.logger.log(`Starting drawing game... ${isFinalRound ? '(FINAL ROUND)' : ''}`);
+    this.logger.log(
+      `Starting drawing game... ${isFinalRound ? "(FINAL ROUND)" : ""}`
+    );
     this.logger.log("InputManager reference:", this.inputManager);
     this.isActive = true;
     this.successCount = isFinalRound ? 2 : 0; // Start at 2/3 for final round
@@ -259,7 +275,10 @@ export class DrawingManager {
         this.scene,
         canvasPos,
         this.canvasScale,
-        this.enableParticles
+        this.enableParticles,
+        this.strokeRepulsionDistance,
+        this.strokeRepulsionFalloff,
+        this.strokeRepulsionSmoothness
       );
 
       const canvas = this.recognitionManager.drawingCanvas;
@@ -288,12 +307,14 @@ export class DrawingManager {
           canvas.colorStage = 2;
           canvas.currentColor.copy(canvas.redColor);
           canvas.currentJitterIntensity = 0.5;
-          
+
           if (canvas.particleSystem && canvas.particleSystem.material) {
-            canvas.particleSystem.material.uniforms.uColor.value.copy(canvas.redColor);
+            canvas.particleSystem.material.uniforms.uColor.value.copy(
+              canvas.redColor
+            );
             canvas.particleSystem.material.uniforms.uJitterIntensity.value = 0.5;
           }
-          
+
           if (canvas.strokeMesh && canvas.strokeMesh.material) {
             const strokeColor = canvas.redColor.clone().multiplyScalar(0.8);
             canvas.strokeMesh.material.uniforms.uColor.value.copy(strokeColor);
@@ -439,6 +460,7 @@ export class DrawingManager {
       if (this.recognitionManager.drawingCanvas) {
         const canvas = this.recognitionManager.drawingCanvas;
         canvas.triggerPulse();
+        canvas.triggerStrokePulse();
 
         // Check if this is the third success (red stage -> explosion)
         this.logger.log(
@@ -448,32 +470,38 @@ export class DrawingManager {
         if (canvas.colorStage === 2) {
           // Trigger explosion instead of normal color cycle
           this.logger.log("EXPLOSION TRIGGERED!");
-          
+
           // Set explosion state directly
           canvas.isExploding = true;
           canvas.explosionProgress = 0;
-          
+
           // If this is the final round, don't recreate particles after explosion
           if (this.successCount >= this.maxRounds) {
             canvas.skipRecreateAfterExplosion = true;
             this.logger.log("Final explosion - particles will not recreate");
           }
-          
-          this.logger.log(`After setting - isExploding=${canvas.isExploding}, explosionProgress=${canvas.explosionProgress}`);
+
+          this.logger.log(
+            `After setting - isExploding=${canvas.isExploding}, explosionProgress=${canvas.explosionProgress}`
+          );
 
           // Wait for explosion to complete (2.5s) + buffer
           const explosionDuration = 2.5;
           setTimeout(() => {
             this.logger.log("Explosion complete");
-            
+
             // After 3 successes, end the game and transition to POST_CURSOR
             if (this.successCount >= this.maxRounds) {
-              this.logger.log("Drawing game complete! Transitioning to POST_CURSOR");
+              this.logger.log(
+                "Drawing game complete! Transitioning to POST_CURSOR"
+              );
               this.stopGame();
-              
+
               // Transition to POST_CURSOR state
               if (this.gameManager) {
-                this.gameManager.setState({ currentState: GAME_STATES.POST_CURSOR });
+                this.gameManager.setState({
+                  currentState: GAME_STATES.POST_CURSOR,
+                });
               }
             } else {
               this.logger.log("Picking new target");
@@ -487,15 +515,17 @@ export class DrawingManager {
           );
           setTimeout(() => {
             this.handleClear(true); // true = success, trigger color change
-            
+
             // If this was the second success (advancing to red stage), update game state to CURSOR_FINAL
             if (this.successCount === 2) {
               this.logger.log("Advancing to CURSOR_FINAL state");
               if (this.gameManager) {
-                this.gameManager.setState({ currentState: GAME_STATES.CURSOR_FINAL });
+                this.gameManager.setState({
+                  currentState: GAME_STATES.CURSOR_FINAL,
+                });
               }
             }
-            
+
             this.pickNewTarget();
           }, 1500);
         }
