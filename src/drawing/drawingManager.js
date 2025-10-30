@@ -54,6 +54,8 @@ export class DrawingManager {
 
     this.successCount = 0;
     this.maxRounds = 3;
+    this.currentGoalRune = null;
+    this.goalRunePosition = null;
 
     this.setupUI();
     this.setupKeyboardShortcuts();
@@ -115,7 +117,6 @@ export class DrawingManager {
         } else if (!isCursorState && this.isActive) {
           this.stopGame();
         }
-
       });
     }
   }
@@ -244,14 +245,10 @@ export class DrawingManager {
       this.pointerLockChangeHandler
     );
 
-    if (this.targetEmojiElement) {
+    if (this.recognitionManager.showEmojiUI && this.targetEmojiElement) {
       this.targetEmojiElement.classList.add("active");
       this.logger.log("Target emoji element activated");
     }
-
-    this.logger.log("About to pick new target...");
-    this.pickNewTarget();
-    this.logger.log("Target picked, game ready");
 
     this.recognitionManager.setOnStrokeEndCallback(() => {
       this.autoSubmitDrawing();
@@ -327,6 +324,13 @@ export class DrawingManager {
             canvas.strokeMesh.material.uniforms.uColor.value.copy(strokeColor);
           }
         }
+
+        // Store goal rune position for later
+        this.goalRunePosition = {
+          x: canvasPos.x + 1.2,
+          y: canvasPos.y,
+          z: canvasPos.z,
+        };
       }
 
       this.logger.log("Canvas created:", this.recognitionManager.drawingCanvas);
@@ -347,13 +351,29 @@ export class DrawingManager {
       } else {
         this.logger.warn("Missing camera or domElement!");
       }
-
     } else {
       this.logger.log("Canvas already exists, skipping creation");
       if (this.recognitionManager.drawingCanvas?.particleSystem) {
         this.recognitionManager.drawingCanvas.particleSystem.visible = true;
       }
+
+      // Set goal rune position if not already set
+      if (!this.goalRunePosition) {
+        const mesh = this.recognitionManager.drawingCanvas.getMesh();
+        if (mesh) {
+          this.goalRunePosition = {
+            x: mesh.position.x + 1.2,
+            y: mesh.position.y,
+            z: mesh.position.z,
+          };
+        }
+      }
     }
+
+    // Pick new target after canvas and position are set up
+    this.logger.log("About to pick new target...");
+    this.pickNewTarget();
+    this.logger.log("Target picked, game ready");
   }
 
   stopGame() {
@@ -394,7 +414,7 @@ export class DrawingManager {
     // Remove gloved hand cursor from body
     document.body.classList.remove("drawing-game-cursor");
 
-    if (this.targetEmojiElement) {
+    if (this.recognitionManager.showEmojiUI && this.targetEmojiElement) {
       this.targetEmojiElement.classList.remove("active");
     }
 
@@ -404,6 +424,15 @@ export class DrawingManager {
       this.recognitionManager.disableDrawingMode();
       this.recognitionManager.drawingCanvas.dispose();
       this.recognitionManager.drawingCanvas = null;
+    }
+
+    if (this.currentGoalRune) {
+      this.currentGoalRune.dispose();
+      this.currentGoalRune = null;
+    }
+
+    if (window.runeManager) {
+      window.runeManager.clearRunes();
     }
   }
 
@@ -426,14 +455,45 @@ export class DrawingManager {
       `RecognitionManager.expectedDrawing is now: ${this.recognitionManager.expectedDrawing}`
     );
 
-    const emoji = EMOJI_MAP[this.targetLabel];
-    this.logger.log(`Emoji to display: ${emoji}`);
+    if (this.recognitionManager.showEmojiUI) {
+      const emoji = EMOJI_MAP[this.targetLabel];
+      this.logger.log(`Emoji to display: ${emoji}`);
 
-    if (this.targetEmoji) {
-      this.targetEmoji.textContent = emoji;
-      this.logger.log(`Updated display element to: ${emoji}`);
-    } else {
-      this.logger.warn(`targetEmoji is null!`);
+      if (this.targetEmoji) {
+        this.targetEmoji.textContent = emoji;
+        this.logger.log(`Updated display element to: ${emoji}`);
+      } else {
+        this.logger.warn(`targetEmoji is null!`);
+      }
+    }
+
+    // Update goal rune to show current target
+    if (window.runeManager && this.goalRunePosition) {
+      // Remove old rune if it exists
+      if (this.currentGoalRune) {
+        this.currentGoalRune.dispose();
+      }
+
+      // Create new rune for current target
+      const rune = window.runeManager.createRune(
+        this.targetLabel,
+        this.goalRunePosition,
+        {
+          scale: 1.5,
+          rotation: { x: 0, y: 0, z: 0 },
+        }
+      );
+
+      // Make rune face the camera
+      if (rune && rune.mesh) {
+        const camera = window.camera;
+        if (camera) {
+          rune.mesh.lookAt(camera.position);
+        }
+      }
+
+      this.currentGoalRune = rune;
+      this.logger.log(`Created ${this.targetLabel} goal rune`);
     }
   }
 
@@ -567,7 +627,7 @@ export class DrawingManager {
   }
 
   showResult(text) {
-    if (!this.resultEmoji) return;
+    if (!this.recognitionManager.showEmojiUI || !this.resultEmoji) return;
 
     this.resultEmoji.textContent = text;
     this.resultEmoji.classList.add("show");
@@ -578,7 +638,7 @@ export class DrawingManager {
   }
 
   clearResult() {
-    if (!this.resultEmoji) return;
+    if (!this.recognitionManager.showEmojiUI || !this.resultEmoji) return;
 
     this.resultEmoji.classList.remove("show");
     setTimeout(() => {

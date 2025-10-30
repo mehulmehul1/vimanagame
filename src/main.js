@@ -34,6 +34,7 @@ import { LoadingScreen } from "./ui/loadingScreen.js";
 import { Logger } from "./utils/logger.js";
 import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
 import { DrawingManager } from "./drawing/drawingManager.js";
+import { RuneManager } from "./content/runeManager.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
@@ -147,6 +148,14 @@ try {
 // Make VFX manager globally accessible
 window.vfxManager = vfxManager;
 
+// Initialize Rune Manager
+logger.log("Creating RuneManager...");
+const runeManager = new RuneManager(scene);
+logger.log("✅ RuneManager created");
+
+// Make rune manager globally accessible
+window.runeManager = runeManager;
+
 // Initialize Drawing Recognition Manager
 logger.log("Creating DrawingRecognitionManager...");
 const drawingRecognitionManager = new DrawingRecognitionManager(gameManager);
@@ -172,6 +181,10 @@ window.drawingManager = drawingManager;
 
 window.captureDrawing = (width, height, filename) => {
   return drawingRecognitionManager.captureDrawing(width, height, filename);
+};
+
+window.captureStrokeData = () => {
+  return drawingRecognitionManager.captureStrokeData();
 };
 
 // Handle window resize
@@ -605,6 +618,11 @@ renderer.setAnimationLoop(function animate(time) {
   // Update drawing recognition manager
   if (drawingRecognitionManager) {
     drawingRecognitionManager.update(dt);
+  }
+
+  // Update rune manager
+  if (runeManager) {
+    runeManager.update(dt);
   }
 
   // Render with VFX post-processing effects

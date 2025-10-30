@@ -16,6 +16,7 @@ export class DrawingRecognitionManager {
     this.recognitionThreshold = 0.4;
     this.isDrawingMode = false;
     this.logger = new Logger("DrawingRecognitionManager", false);
+    this.showEmojiUI = false;
     this.isPointerOverCanvas = false;
     this.onStrokeEndCallback = null;
   }
@@ -365,6 +366,33 @@ export class DrawingRecognitionManager {
     if (this.drawingCanvas) {
       this.drawingCanvas.clearCanvas();
     }
+  }
+
+  captureStrokeData() {
+    if (!this.drawingCanvas || !this.drawingCanvas.hasStrokes()) {
+      this.logger.warn("No drawing to capture");
+      return null;
+    }
+
+    const strokes = this.drawingCanvas.getStrokes();
+    const normalized = [];
+
+    for (const stroke of strokes) {
+      const points = [];
+      for (let i = 0; i < stroke[0].length; i++) {
+        points.push({
+          x: stroke[0][i] / 500,
+          y: stroke[1][i] / 500,
+        });
+      }
+      normalized.push(points);
+    }
+
+    this.logger.log(
+      "Captured stroke data:",
+      JSON.stringify(normalized, null, 2)
+    );
+    return normalized;
   }
 
   async captureDrawing(width = 1024, height = 1024, filename = "drawing") {
