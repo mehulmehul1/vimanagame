@@ -93,9 +93,29 @@ export class RuneManager {
   update(dt) {
     if (!this.isActive) return;
 
+    // Apply fractal intensity from world disintegration to all runes
+    const fractalIntensity = this.getFractalIntensity();
+
     for (const rune of this.runes) {
+      // Apply fractal warping to rune stroke mesh
+      if (rune.mesh && rune.mesh.material) {
+        if (rune.mesh.material.uniforms.uFractalIntensity) {
+          rune.mesh.material.uniforms.uFractalIntensity.value = fractalIntensity;
+        }
+      }
+      
       rune.mesh.update(dt);
     }
+  }
+
+  getFractalIntensity() {
+    if (window.vfxManager && window.vfxManager.effects) {
+      const fractalEffect = window.vfxManager.effects.splatFractal;
+      if (fractalEffect && fractalEffect.currentIntensity > 0) {
+        return fractalEffect.currentIntensity;
+      }
+    }
+    return 0;
   }
 
   dispose() {

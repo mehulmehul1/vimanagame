@@ -3,6 +3,7 @@ import * as THREE from "three";
 const CANVAS_SIZE = 500;
 const STROKE_WEIGHT = 3;
 const PARTICLE_GRID_DENSITY = 100; // Particles per side (100x100 = 10000 particles, ~2x original)
+const PARTICLE_BASE_SIZE = 0.0225; // Base size multiplier for particles
 const TOUCH_INNER_RADIUS = 2.5;
 const TOUCH_OUTER_SCALE = 2.0;
 const STROKE_REPULSION_DISTANCE = 0.05;
@@ -92,13 +93,14 @@ export class ParticleCanvas3D {
     this.strokeSegments = []; // Array of {x1, y1, x2, y2, timestamp, rapidFade, strokeIndex}
     this.fadeDuration = 6.0; // Seconds for stroke to fade
     this.rapidFadeDuration = 0.8; // Rapid fade when clearing (800ms)
+    this.incorrectGuessFadeDuration = 2.0; // Fade duration for incorrect guesses (2 seconds)
     this.currentStrokeIndex = 0; // Counter for linking segments to strokes
 
     // Color cycling for success feedback - advances on each correct drawing
-    this.colorStage = 0; // 0=blue, 1=orange, 2=red, then cycles back to 0
+    this.colorStage = 0; // 0=blue, 1=orange, 2=white, then cycles back to 0
     this.baseColor = new THREE.Color(0xaaeeff); // Bright whitish-blue
     this.orangeColor = new THREE.Color(0xffddaa); // Whitish orange
-    this.redColor = new THREE.Color(0xff3333); // Angry red
+    this.redColor = new THREE.Color(0xffffff); // Full white (final stage)
 
     // Color transition state
     this.isTransitioningColor = false;
@@ -135,6 +137,12 @@ export class ParticleCanvas3D {
     // 0.8-1.0: Fade out (0.5s)
     this.skipRecreateAfterExplosion = false; // Set to true for final explosion
 
+    // Success animation state (scaled-down explosion)
+    this.isSuccessAnimating = false;
+    this.successAnimProgress = 0;
+    this.successAnimDuration = 1.0; // Shorter than full explosion
+    this.successAnimScale = 1.0; // Scale factor (0.25 for first, 0.5 for second)
+
     this.clearCanvas();
   }
 
@@ -156,6 +164,7 @@ export class ParticleCanvas3D {
         uColor: { value: new THREE.Color(0xaaeeff).multiplyScalar(0.8) }, // Darker version of particle color
         uBrushTexture: { value: brushTexture },
         uUseBrushTexture: { value: 1.0 }, // 1.0 = use texture, 0.0 = procedural
+        uFractalIntensity: { value: 0.0 }, // World disintegration effect
       },
       vertexShader: `
         attribute float segmentProgress; // 0-1 along segment
@@ -164,6 +173,7 @@ export class ParticleCanvas3D {
         attribute float fadeAlpha; // Alpha for progressive fade
         
         uniform float uTime;
+        uniform float uFractalIntensity;
         
         varying float vProgress;
         varying float vFadeAlpha;
@@ -176,7 +186,22 @@ export class ParticleCanvas3D {
           vSegmentLength = segmentLength;
           vUv = uv;
           
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec3 pos = position;
+          
+          // Apply fractal warping when world is disintegrating
+          if (uFractalIntensity > 0.0) {
+            float warpTime = uTime * 3.0;
+            float warpX = sin(warpTime + pos.y * 15.0 + segmentTime * 2.0) * cos(warpTime * 1.3 + pos.x * 12.0);
+            float warpY = cos(warpTime * 1.1 + pos.x * 13.0) * sin(warpTime * 1.7 + pos.y * 11.0);
+            float warpZ = sin(warpTime * 0.9 + pos.x * 10.0) * cos(warpTime * 1.5 + pos.y * 14.0);
+            
+            float warpScale = 0.015 * uFractalIntensity;
+            pos.x += warpX * warpScale;
+            pos.y += warpY * warpScale;
+            pos.z += warpZ * warpScale * 0.5;
+          }
+          
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
@@ -374,12 +399,14 @@ export class ParticleCanvas3D {
 
       let alpha = 1.0;
       if (segment.rapidFade) {
+        const fadeDuration =
+          segment.customFadeDuration || this.rapidFadeDuration;
         const rapidAge = currentTime - segment.rapidFadeStartTime;
-        if (rapidAge > this.rapidFadeDuration) {
+        if (rapidAge > fadeDuration) {
           flushCurrentStroke();
           continue;
         }
-        alpha = 1.0 - rapidAge / this.rapidFadeDuration;
+        alpha = 1.0 - rapidAge / fadeDuration;
       } else {
         const age = currentTime - segment.timestamp;
         if (age > this.fadeDuration) {
@@ -614,7 +641,7 @@ export class ParticleCanvas3D {
       uniforms: {
         uTime: { value: 0 },
         uDeltaTime: { value: 0.016 }, // For physics calculations
-        uSize: { value: 0.015 * scale },
+        uSize: { value: PARTICLE_BASE_SIZE * scale },
         uColor: { value: new THREE.Color(0xaaeeff) },
         uPulseScale: { value: 1.0 },
         uJitterIntensity: { value: 0.0 },
@@ -736,6 +763,7 @@ export class ParticleCanvas3D {
           segment.rapidFadeStartTime = this.time;
           segment.rapidFadeStartAlpha =
             1.0 - (this.time - segment.timestamp) / this.fadeDuration;
+          segment.customFadeDuration = null; // Use default rapid fade
         }
       }
     }
@@ -746,6 +774,19 @@ export class ParticleCanvas3D {
 
     // Note: strokeSegments will be removed naturally as they fade out
     // ML strokes are built dynamically from active segments via getStrokes()
+  }
+
+  fadeIncorrectGuess() {
+    // Mark all existing stroke segments for incorrect guess fade (2 seconds)
+    for (let segment of this.strokeSegments) {
+      if (!segment.rapidFade) {
+        segment.rapidFade = true;
+        segment.rapidFadeStartTime = this.time;
+        segment.rapidFadeStartAlpha =
+          1.0 - (this.time - segment.timestamp) / this.fadeDuration;
+        segment.customFadeDuration = this.incorrectGuessFadeDuration; // Use 2 second fade
+      }
+    }
   }
 
   startStroke(uv) {
@@ -921,8 +962,10 @@ export class ParticleCanvas3D {
       let isExpired = false;
 
       if (segment.rapidFade) {
+        const fadeDuration =
+          segment.customFadeDuration || this.rapidFadeDuration;
         const rapidAge = this.time - segment.rapidFadeStartTime;
-        isExpired = rapidAge > this.rapidFadeDuration;
+        isExpired = rapidAge > fadeDuration;
       } else {
         const age = this.time - segment.timestamp;
         isExpired = age > this.fadeDuration;
@@ -984,8 +1027,10 @@ export class ParticleCanvas3D {
       let isExpired = false;
 
       if (segment.rapidFade) {
+        const fadeDuration =
+          segment.customFadeDuration || this.rapidFadeDuration;
         const rapidAge = currentTime - segment.rapidFadeStartTime;
-        isExpired = rapidAge > this.rapidFadeDuration;
+        isExpired = rapidAge > fadeDuration;
       } else {
         const age = currentTime - segment.timestamp;
         isExpired = age > this.fadeDuration;
@@ -1033,7 +1078,7 @@ export class ParticleCanvas3D {
         jitterIntensity = 0.15; // Medium energy
         break;
       case 2:
-        newTargetColor = this.redColor; // Red
+        newTargetColor = this.redColor; // White (final stage)
         jitterIntensity = 0.5; // Intense, about to burst
         break;
     }
@@ -1052,6 +1097,16 @@ export class ParticleCanvas3D {
     this.explosionProgress = 0;
     console.log(
       `[ParticleCanvas3D] Explosion triggered! isExploding=${this.isExploding}`
+    );
+  }
+
+  triggerSuccessAnimation(scale = 0.25) {
+    // Scale factor: 0.25 for first success, 0.5 for second success
+    this.isSuccessAnimating = true;
+    this.successAnimProgress = 0;
+    this.successAnimScale = scale;
+    console.log(
+      `[ParticleCanvas3D] Success animation triggered! scale=${scale}`
     );
   }
 
@@ -1269,7 +1324,7 @@ export class ParticleCanvas3D {
     this.time += dt;
 
     // Update particle physics (GPGPU-inspired velocity-based motion)
-    if (!this.isExploding) {
+    if (!this.isExploding && !this.isSuccessAnimating) {
       this.updateParticlePhysics(dt);
     }
 
@@ -1336,6 +1391,26 @@ export class ParticleCanvas3D {
           console.log(
             "[ParticleCanvas3D] Skipping recreation - final explosion"
           );
+        }
+      }
+    }
+
+    // Update success animation progress
+    if (this.isSuccessAnimating) {
+      this.successAnimProgress += dt / this.successAnimDuration;
+
+      if (this.successAnimProgress >= 1.0) {
+        // Success animation complete
+        this.isSuccessAnimating = false;
+        this.successAnimProgress = 0;
+
+        // Reset uniforms back to normal
+        if (this.particleSystem && this.particleSystem.material) {
+          this.particleSystem.material.uniforms.uPulseScale.value = 1.0;
+          this.particleSystem.material.uniforms.uJitterIntensity.value =
+            this.currentJitterIntensity || 0;
+          this.particleSystem.material.uniforms.uExplosionFactor.value = 0;
+          this.particleSystem.material.uniforms.uImplosionFactor.value = 0;
         }
       }
     }
@@ -1412,6 +1487,58 @@ export class ParticleCanvas3D {
           // Full implosion
           this.particleSystem.material.uniforms.uExplosionFactor.value = 0;
           this.particleSystem.material.uniforms.uImplosionFactor.value = 1.0;
+        }
+      }
+
+      // Animate success effects (scaled-down explosion)
+      if (this.isSuccessAnimating && this.successAnimProgress < 1.0) {
+        const t = this.successAnimProgress;
+        const scale = this.successAnimScale;
+
+        // Second success (0.5) gets higher multipliers for jitter and scale
+        const isSecondSuccess = scale >= 0.45; // 0.5 scale = second success
+        const scaleMultiplier = isSecondSuccess ? 1.4 : 1.0; // 40% more scale for second
+        const jitterMultiplier = isSecondSuccess ? 1.8 : 1.0; // 80% more jitter for second
+
+        // Simplified: expand to 50%, then collapse back
+        if (t < 0.5) {
+          // Phase 1 (0-0.5): Expand to peak
+          const phase1Progress = t / 0.5; // 0 -> 1
+
+          // Scale up particles (scaled, with multiplier for second success)
+          const pulseScale =
+            1.0 + phase1Progress * 1.2 * scale * scaleMultiplier;
+          this.particleSystem.material.uniforms.uPulseScale.value = pulseScale;
+
+          // Build jitter (scaled, with multiplier for second success)
+          const jitter = phase1Progress * 1.5 * scale * jitterMultiplier;
+          this.particleSystem.material.uniforms.uJitterIntensity.value = jitter;
+
+          // Push outward (scaled)
+          const explosionFactor = phase1Progress * 0.6 * scale; // 0 -> 0.6 * scale
+          this.particleSystem.material.uniforms.uExplosionFactor.value =
+            explosionFactor;
+          this.particleSystem.material.uniforms.uImplosionFactor.value = 0;
+        } else {
+          // Phase 2 (0.5-1.0): Collapse back
+          const phase2Progress = (t - 0.5) / 0.5; // 0 -> 1
+          const peakScale = 1.0 + 1.2 * scale * scaleMultiplier;
+          const peakJitter = 1.5 * scale * jitterMultiplier;
+          const peakExplosion = 0.6 * scale;
+
+          // Shrink particles back
+          const pulseScale = peakScale - phase2Progress * (peakScale - 1.0);
+          this.particleSystem.material.uniforms.uPulseScale.value = pulseScale;
+
+          // Jitter decreases
+          const jitter = peakJitter * (1.0 - phase2Progress);
+          this.particleSystem.material.uniforms.uJitterIntensity.value = jitter;
+
+          // Explosion factor decreases
+          const explosionFactor = peakExplosion * (1.0 - phase2Progress);
+          this.particleSystem.material.uniforms.uExplosionFactor.value =
+            explosionFactor;
+          this.particleSystem.material.uniforms.uImplosionFactor.value = 0;
         }
       }
 
@@ -1521,8 +1648,10 @@ export class ParticleCanvas3D {
       this.strokeSegments = this.strokeSegments.filter((segment) => {
         // Check if segment is expired
         if (segment.rapidFade) {
+          const fadeDuration =
+            segment.customFadeDuration || this.rapidFadeDuration;
           const rapidAge = this.time - segment.rapidFadeStartTime;
-          return rapidAge <= this.rapidFadeDuration;
+          return rapidAge <= fadeDuration;
         } else {
           const age = this.time - segment.timestamp;
           return age <= this.fadeDuration;

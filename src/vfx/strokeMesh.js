@@ -42,6 +42,7 @@ export class StrokeMesh {
         uBrushTexture: { value: brushTexture },
         uUseBrushTexture: { value: 1.0 },
         uOpacity: { value: 1.0 },
+        uFractalIntensity: { value: 0.0 },
       },
       vertexShader: `
         attribute float segmentProgress;
@@ -50,6 +51,7 @@ export class StrokeMesh {
         attribute float fadeAlpha;
         
         uniform float uTime;
+        uniform float uFractalIntensity;
         
         varying float vProgress;
         varying float vFadeAlpha;
@@ -62,7 +64,22 @@ export class StrokeMesh {
           vSegmentLength = segmentLength;
           vUv = uv;
           
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vec3 pos = position;
+          
+          // Apply fractal warping when world is disintegrating
+          if (uFractalIntensity > 0.0) {
+            float warpTime = uTime * 3.0;
+            float warpX = sin(warpTime + pos.y * 15.0 + segmentTime * 2.0) * cos(warpTime * 1.3 + pos.x * 12.0);
+            float warpY = cos(warpTime * 1.1 + pos.x * 13.0) * sin(warpTime * 1.7 + pos.y * 11.0);
+            float warpZ = sin(warpTime * 0.9 + pos.x * 10.0) * cos(warpTime * 1.5 + pos.y * 14.0);
+            
+            float warpScale = 0.015 * uFractalIntensity;
+            pos.x += warpX * warpScale;
+            pos.y += warpY * warpScale;
+            pos.z += warpZ * warpScale * 0.5;
+          }
+          
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `

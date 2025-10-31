@@ -83,6 +83,12 @@ export const startScreen = {
   // View-Master state
   isViewmasterEquipped: false, // True when the headset is currently being worn
 
+  // Drawing game state (CURSOR/CURSOR_FINAL)
+  drawingSuccessCount: 0, // Number of successful drawings (0-3)
+  drawingFailureCount: 0, // Total number of failed attempts (increments each failure)
+  lastDrawingSuccess: null, // Boolean: true if last attempt succeeded, false if failed, null if no attempt yet
+  currentDrawingTarget: null, // String: current target symbol ("lightning", "star", "circle")
+
   // Platform detection (set by UIManager at initialization)
   isIOS: false, // True if running on iOS (iPhone/iPad)
   isFullscreenSupported: true, // True if Fullscreen API is supported (false on iOS)

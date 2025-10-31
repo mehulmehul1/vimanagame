@@ -61,8 +61,10 @@ export const musicTracks = {
     criteria: {
       currentState: GAME_STATES.CURSOR,
     },
-    fadeTime: 1.0,
+    fadeTime: 0,
     priority: 10,
+    loop: true,
+    volume: 1.0,
   },
   rach2: {
     id: "rach2",

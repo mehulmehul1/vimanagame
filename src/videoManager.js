@@ -434,6 +434,9 @@ class VideoPlayer {
     this.canvasReady = false;
     this.isDestroying = false;
     this.playPromise = null;
+    this.intendedVisible = true; // Track intended visibility (before viewmaster check)
+    this.viewmasterRevealTimeout = null; // Timeout for delayed visibility when viewmaster is removed
+    this.wasViewmasterEquipped = false; // Track previous frame's viewmaster state
 
     // Web Audio API for spatial audio
     this.audioContext = null;
@@ -513,6 +516,13 @@ class VideoPlayer {
 
     // Store material reference
     this.videoMaterial = material;
+
+    // Initialize viewmaster state tracking
+    const initialState = this.gameManager?.getState();
+    this.wasViewmasterEquipped = initialState?.isViewmasterEquipped || false;
+    
+    // Apply initial visibility (respects viewmaster state)
+    this.applyVisibility();
     this.videoMesh.name = "video-player";
 
     // Store initial rotation for billboarding offset
@@ -728,15 +738,75 @@ class VideoPlayer {
    * Show/hide video mesh
    */
   setVisible(visible) {
-    if (this.videoMesh) {
-      this.videoMesh.visible = visible;
+    this.intendedVisible = visible;
+    // Actual visibility will be applied in update() with viewmaster check
+    this.applyVisibility();
+  }
+
+  /**
+   * Apply visibility based on intended state and viewmaster equipped state
+   */
+  applyVisibility() {
+    if (!this.videoMesh) return;
+    const isViewmasterEquipped = this.gameManager?.getState()?.isViewmasterEquipped || false;
+    
+    // Check if viewmaster was just removed (transition from equipped to not equipped)
+    if (this.wasViewmasterEquipped && !isViewmasterEquipped) {
+      // Clear any existing timeout
+      if (this.viewmasterRevealTimeout) {
+        clearTimeout(this.viewmasterRevealTimeout);
+      }
+      
+      // Keep video hidden and schedule reveal after 0.5s delay
+      this.videoMesh.visible = false;
+      this.viewmasterRevealTimeout = setTimeout(() => {
+        this.viewmasterRevealTimeout = null;
+        // Re-apply visibility now that delay is complete
+        if (this.videoMesh && !this.isDestroying) {
+          const currentState = this.gameManager?.getState();
+          const currentlyEquipped = currentState?.isViewmasterEquipped || false;
+          this.videoMesh.visible = this.intendedVisible && !currentlyEquipped;
+        }
+      }, 500);
+      // Update previous state before returning
+      this.wasViewmasterEquipped = isViewmasterEquipped;
+      return;
     }
+    
+    // Viewmaster was just put on - clear any pending reveal timeout
+    if (!this.wasViewmasterEquipped && isViewmasterEquipped) {
+      if (this.viewmasterRevealTimeout) {
+        clearTimeout(this.viewmasterRevealTimeout);
+        this.viewmasterRevealTimeout = null;
+      }
+      this.videoMesh.visible = false;
+      this.wasViewmasterEquipped = isViewmasterEquipped;
+      return;
+    }
+    
+    // Apply visibility based on current state
+    if (isViewmasterEquipped) {
+      // Viewmaster is on - always hide
+      this.videoMesh.visible = false;
+    } else if (this.viewmasterRevealTimeout) {
+      // Viewmaster is off but reveal delay is still pending - keep hidden
+      this.videoMesh.visible = false;
+    } else {
+      // Viewmaster is off and no delay pending - show if intended
+      this.videoMesh.visible = this.intendedVisible;
+    }
+    
+    // Update previous state
+    this.wasViewmasterEquipped = isViewmasterEquipped;
   }
 
   /**
    * Update method - call in animation loop
    */
   update(dt) {
+    // Apply visibility (respects viewmaster equipped state)
+    this.applyVisibility();
+
     // Draw video to canvas only if not using video frame callback
     // (If using callback, frames are drawn in scheduleVideoFrameCallback instead)
     if (!this.useVideoFrameCallback) {
@@ -926,6 +996,12 @@ class VideoPlayer {
   destroy() {
     this.isDestroying = true;
     this.stop();
+
+    // Clear viewmaster reveal timeout
+    if (this.viewmasterRevealTimeout) {
+      clearTimeout(this.viewmasterRevealTimeout);
+      this.viewmasterRevealTimeout = null;
+    }
 
     // Clean up Web Audio API nodes
     if (this.audioSource) {

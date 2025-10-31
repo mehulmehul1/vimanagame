@@ -328,6 +328,37 @@ export class DesaturationEffect extends VFXManager {
     }
 
     this.animationTarget = THREE.MathUtils.clamp(targetAmount, 0, 1);
+    
+    // Handle instant transitions (duration = 0)
+    if (this.animationDuration <= 0) {
+      this.progress = this.animationTarget;
+      this.currentState = this.animationTarget;
+      this.animating = false;
+      this.lastProgress = this.progress;
+      
+      // Configure transition mode even for instant transitions
+      const mode = options.mode || "bleed";
+      this.transitionMode = mode;
+      if (mode === "wipe") {
+        this.postMaterial.uniforms.transitionMode.value = 2.0;
+        const direction = options.direction || this.wipeDirection;
+        this.wipeDirection = direction;
+        this.postMaterial.uniforms.wipeDirection.value =
+          direction === "top-to-bottom" ? 1.0 : 0.0;
+        const softness =
+          options.softness !== undefined ? options.softness : this.wipeSoftness;
+        this.wipeSoftness = softness;
+        this.postMaterial.uniforms.wipeSoftness.value = softness;
+      } else if (mode === "bleed") {
+        this.postMaterial.uniforms.transitionMode.value = 1.0;
+        this.postMaterial.uniforms.bleedScale.value = this.bleedScale;
+        this.postMaterial.uniforms.bleedSoftness.value = this.bleedSoftness;
+      } else {
+        this.postMaterial.uniforms.transitionMode.value = 0.0;
+      }
+      return;
+    }
+    
     this.animationSpeed = 1.0 / this.animationDuration;
     this.animating = true;
 

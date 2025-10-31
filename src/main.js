@@ -70,7 +70,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 5, 0);
 scene.add(camera); // Add camera to scene so its children render
 
-const renderer = new THREE.WebGLRenderer({ alpha: true });
+const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows

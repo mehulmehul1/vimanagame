@@ -5,7 +5,7 @@ import { Logger } from "../utils/logger.js";
 
 const TOGGLE_ON_ID = "viewmasterToggleOn";
 const TOGGLE_OFF_ID = "viewmasterToggleOff";
-const FRACTAL_TIMEOUT_SECONDS = 15;
+const FRACTAL_TIMEOUT_SECONDS = 10;
 const FRACTAL_MIN_INTENSITY = 0.02;
 const FRACTAL_MAX_INTENSITY = 10.0; // World completely dissolves at the end
 const VFX_DELAY_RATIO = 0.7;

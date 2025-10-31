@@ -50,6 +50,8 @@ export class DrawingManager {
     this.canvasMesh = null; // Store canvas mesh reference
     this.canvasParticleSystem = null; // Store particle system reference for gizmo
     this.gizmoRegistered = false; // Track if gizmo has been registered
+    this.previousFractalIntensity = 0; // Track previous fractal intensity for delay detection
+    this.jitterResetTimeout = null; // Timeout for delayed jitter reset
 
     // Pointer lock monitor
     this.pointerLockChangeHandler = null;
@@ -60,6 +62,7 @@ export class DrawingManager {
     this.successCount = 0;
     this.maxRounds = 3;
     this.currentGoalRune = null;
+    this.gameStartTime = 0; // Track when game starts to prevent immediate predictions
     this.goalRunePositions = {
       lightning: null, // Will be set dynamically near canvas
       star: { x: 2.17, y: 2.06, z: 77.8 },
@@ -213,6 +216,17 @@ export class DrawingManager {
     this.logger.log("Canvas gizmo enabled:", this.canvasGizmo);
     this.isActive = true;
     this.successCount = isFinalRound ? 2 : 0; // Start at 2/3 for final round
+    this.gameStartTime = Date.now(); // Track when game starts
+
+    // Initialize drawing state in game manager
+    if (this.gameManager) {
+      this.gameManager.setState({
+        drawingSuccessCount: this.successCount,
+        drawingFailureCount: 0,
+        lastDrawingSuccess: null,
+        currentDrawingTarget: null,
+      });
+    }
 
     // Use window.inputManager as fallback if not set
     const inputMgr = this.inputManager || window.inputManager;
@@ -271,9 +285,15 @@ export class DrawingManager {
       this.logger.log("Target emoji element activated");
     }
 
-    this.recognitionManager.setOnStrokeEndCallback(() => {
-      this.autoSubmitDrawing();
-    });
+    // Delay registering stroke callback to prevent initial false triggers
+    setTimeout(() => {
+      if (this.isActive) {
+        this.recognitionManager.setOnStrokeEndCallback(() => {
+          this.autoSubmitDrawing();
+        });
+        this.logger.log("Stroke end callback registered");
+      }
+    }, 1500);
 
     this.logger.log(
       "Checking if canvas exists:",
@@ -304,6 +324,9 @@ export class DrawingManager {
       if (canvas) {
         if (canvas.particleSystem) {
           canvas.particleSystem.visible = true;
+        }
+        if (canvas.strokeMesh && canvas.strokeMesh.mesh) {
+          canvas.strokeMesh.mesh.visible = true;
         }
         const mesh = canvas.getMesh();
         if (mesh) {
@@ -365,9 +388,11 @@ export class DrawingManager {
           canvas.strokeMesh.scale.set(canvasScale, canvasScale, canvasScale);
         }
 
-        // If starting in final round, set to red particles immediately
+        // If starting in final round, set to white particles immediately
         if (isFinalRound) {
-          this.logger.log("Setting canvas to FINAL ROUND state (red, stage 2)");
+          this.logger.log(
+            "Setting canvas to FINAL ROUND state (white, stage 2)"
+          );
           canvas.colorStage = 2;
           canvas.currentColor.copy(canvas.redColor);
           canvas.currentJitterIntensity = 0.5;
@@ -387,7 +412,7 @@ export class DrawingManager {
 
         // Store lightning rune position (near canvas)
         this.goalRunePositions.lightning = {
-          x: canvasPos.x + 1.2,
+          x: canvasPos.x + 2.2,
           y: canvasPos.y,
           z: canvasPos.z,
         };
@@ -415,6 +440,9 @@ export class DrawingManager {
       this.logger.log("Canvas already exists, skipping creation");
       if (this.recognitionManager.drawingCanvas?.particleSystem) {
         this.recognitionManager.drawingCanvas.particleSystem.visible = true;
+      }
+      if (this.recognitionManager.drawingCanvas?.strokeMesh?.mesh) {
+        this.recognitionManager.drawingCanvas.strokeMesh.mesh.visible = true;
       }
 
       // Get mesh reference for gizmo registration
@@ -456,6 +484,12 @@ export class DrawingManager {
       }
     }
 
+    // Clear any existing strokes from previous sessions
+    if (this.recognitionManager.drawingCanvas) {
+      this.recognitionManager.clearCanvas();
+      this.logger.log("Cleared any existing strokes from canvas");
+    }
+
     // Pick new target after canvas and position are set up
     this.logger.log("About to pick new target...");
     this.pickNewTarget();
@@ -465,6 +499,24 @@ export class DrawingManager {
   stopGame() {
     this.logger.log("Stopping drawing game...");
     this.isActive = false;
+    this.gameStartTime = 0;
+
+    // Clear jitter reset timeout
+    if (this.jitterResetTimeout) {
+      clearTimeout(this.jitterResetTimeout);
+      this.jitterResetTimeout = null;
+    }
+    this.previousFractalIntensity = 0;
+
+    // Reset drawing state in game manager
+    if (this.gameManager) {
+      this.gameManager.setState({
+        drawingSuccessCount: 0,
+        drawingFailureCount: 0,
+        lastDrawingSuccess: null,
+        currentDrawingTarget: null,
+      });
+    }
 
     this.recognitionManager.setOnStrokeEndCallback(null);
 
@@ -506,10 +558,51 @@ export class DrawingManager {
 
     this.clearResult();
 
+    // Clear fractal effects and hide canvas (don't dispose - just hide)
     if (this.recognitionManager.drawingCanvas) {
+      const canvas = this.recognitionManager.drawingCanvas;
+
+      // Reset canvas internal state to stop any ongoing animations
+      canvas.isExploding = false;
+      canvas.explosionProgress = 0;
+      canvas.isSuccessAnimating = false;
+      canvas.successAnimProgress = 0;
+      canvas.isPulsing = false;
+      canvas.pulseProgress = 0;
+      canvas.isStrokePulsing = false;
+      canvas.strokePulseProgress = 0;
+      canvas.isTransitioningColor = false;
+      canvas.colorTransitionProgress = 0;
+      canvas.currentJitterIntensity = 0;
+
+      // Reset particle jitter to base state (no fractal effects)
+      if (canvas.particleSystem && canvas.particleSystem.material) {
+        canvas.particleSystem.material.uniforms.uJitterIntensity.value = 0;
+        canvas.particleSystem.material.uniforms.uPulseScale.value = 1.0;
+        canvas.particleSystem.material.uniforms.uExplosionFactor.value = 0;
+        canvas.particleSystem.material.uniforms.uImplosionFactor.value = 0;
+        // Hide particle system
+        canvas.particleSystem.visible = false;
+      }
+
+      // Reset stroke mesh fractal warping and hide it
+      if (canvas.strokeMesh) {
+        if (
+          canvas.strokeMesh.material &&
+          canvas.strokeMesh.material.uniforms.uFractalIntensity
+        ) {
+          canvas.strokeMesh.material.uniforms.uFractalIntensity.value = 0;
+        }
+        // Hide stroke mesh
+        if (canvas.strokeMesh.mesh) {
+          canvas.strokeMesh.mesh.visible = false;
+        }
+      }
+
       this.recognitionManager.disableDrawingMode();
-      this.recognitionManager.drawingCanvas.dispose();
-      this.recognitionManager.drawingCanvas = null;
+      // Don't dispose - just hide it so we can reuse it
+      // this.recognitionManager.drawingCanvas.dispose();
+      // this.recognitionManager.drawingCanvas = null;
     }
 
     // Unregister particle system from gizmo manager
@@ -547,6 +640,13 @@ export class DrawingManager {
     this.logger.log(
       `Picked new target: ${this.targetLabel} (${this.labelPool.length} remaining in pool)`
     );
+
+    // Update game state with new target
+    if (this.gameManager) {
+      this.gameManager.setState({
+        currentDrawingTarget: this.targetLabel,
+      });
+    }
 
     const setResult = this.recognitionManager.setExpectedDrawing(
       this.targetLabel
@@ -620,6 +720,21 @@ export class DrawingManager {
       return;
     }
 
+    // Ignore predictions that happen too soon after game start (within 1.5 seconds)
+    const timeSinceStart = Date.now() - this.gameStartTime;
+    if (timeSinceStart < 1500) {
+      this.logger.log(
+        `Submit ignored - too soon after init (${timeSinceStart}ms)`
+      );
+      return;
+    }
+
+    // Verify there are strokes to evaluate
+    if (!this.recognitionManager.drawingCanvas?.hasStrokes()) {
+      this.logger.log("Submit ignored - no strokes");
+      return;
+    }
+
     this.logger.log("Submitting drawing...");
 
     const result = await this.recognitionManager.predictAndEvaluate();
@@ -627,7 +742,7 @@ export class DrawingManager {
     this.logger.log("Result received:", result);
 
     if (!result || !result.prediction) {
-      this.logger.log("No prediction");
+      this.logger.log("No prediction - ignoring for gameplay");
       return;
     }
 
@@ -642,13 +757,28 @@ export class DrawingManager {
       this.logger.log(`Success ${this.successCount}/${this.maxRounds}!`);
       this.showResult("✅");
 
-      // Trigger particle pulse immediately on success
+      // Update game state and immediately clear flag to prevent re-triggers
+      if (this.gameManager) {
+        this.gameManager.setState({
+          drawingSuccessCount: this.successCount,
+          lastDrawingSuccess: true,
+        });
+
+        // Clear flag on next tick so dialog triggers once then stops
+        Promise.resolve().then(() => {
+          if (this.gameManager && this.isActive) {
+            this.gameManager.setState({
+              lastDrawingSuccess: null,
+            });
+          }
+        });
+      }
+
+      // Trigger success animation or explosion
       if (this.recognitionManager.drawingCanvas) {
         const canvas = this.recognitionManager.drawingCanvas;
-        canvas.triggerPulse();
-        canvas.triggerStrokePulse();
 
-        // Check if this is the third success (red stage -> explosion)
+        // Check if this is the third success (white stage -> explosion)
         this.logger.log(
           `Checking for explosion: colorStage=${canvas.colorStage}`
         );
@@ -695,6 +825,14 @@ export class DrawingManager {
             }
           }, explosionDuration * 1000 + 300);
         } else {
+          // First or second success - trigger scaled-down explosion animation
+          if (this.successCount === 1) {
+            canvas.triggerSuccessAnimation(0.25); // 25% scale for first success
+          } else if (this.successCount === 2) {
+            canvas.triggerSuccessAnimation(0.5); // 50% scale for second success
+          }
+          canvas.triggerStrokePulse();
+
           // Normal color cycle (blue -> orange, orange -> red)
           this.logger.log(
             `Normal color cycle: advancing from stage ${canvas.colorStage}`
@@ -702,7 +840,7 @@ export class DrawingManager {
           setTimeout(() => {
             this.handleClear(true); // true = success, trigger color change
 
-            // If this was the second success (advancing to red stage), update game state to CURSOR_FINAL
+            // If this was the second success (advancing to white stage), update game state to CURSOR_FINAL
             if (this.successCount === 2) {
               this.logger.log("Advancing to CURSOR_FINAL state");
               if (this.gameManager) {
@@ -715,6 +853,29 @@ export class DrawingManager {
             this.pickNewTarget();
           }, 1500);
         }
+      }
+    } else {
+      // Drawing failed - fade strokes over 2 seconds
+      if (this.recognitionManager.drawingCanvas) {
+        this.recognitionManager.drawingCanvas.fadeIncorrectGuess();
+      }
+
+      if (this.gameManager) {
+        const currentFailureCount =
+          this.gameManager.state.drawingFailureCount || 0;
+        this.gameManager.setState({
+          lastDrawingSuccess: false,
+          drawingFailureCount: currentFailureCount + 1,
+        });
+
+        // Clear flag on next tick so dialog triggers once then stops
+        Promise.resolve().then(() => {
+          if (this.gameManager && this.isActive) {
+            this.gameManager.setState({
+              lastDrawingSuccess: null,
+            });
+          }
+        });
       }
     }
   }
@@ -767,6 +928,80 @@ export class DrawingManager {
           "✅ Late-registered drawing particle system with gizmo manager"
         );
       }
+    }
+
+    // Apply fractal intensity from world disintegration to drawing canvas
+    if (this.recognitionManager.drawingCanvas && window.vfxManager) {
+      const fractalEffect = window.vfxManager.effects?.splatFractal;
+      const canvas = this.recognitionManager.drawingCanvas;
+
+      const currentIntensity = fractalEffect?.currentIntensity || 0;
+      const intensityDropped =
+        this.previousFractalIntensity > 0 && currentIntensity === 0;
+
+      if (currentIntensity > 0) {
+        // Clear any pending reset timeout since intensity is active
+        if (this.jitterResetTimeout) {
+          clearTimeout(this.jitterResetTimeout);
+          this.jitterResetTimeout = null;
+        }
+
+        // Apply extra jitter to particles based on fractal intensity
+        if (canvas.particleSystem && canvas.particleSystem.material) {
+          const baseJitter = canvas.currentJitterIntensity || 0;
+          const fractalJitter = currentIntensity * 2.0; // Scale up for dramatic effect
+          canvas.particleSystem.material.uniforms.uJitterIntensity.value =
+            baseJitter + fractalJitter;
+        }
+
+        // Apply warping to stroke mesh
+        if (canvas.strokeMesh && canvas.strokeMesh.material) {
+          if (canvas.strokeMesh.material.uniforms.uFractalIntensity) {
+            canvas.strokeMesh.material.uniforms.uFractalIntensity.value =
+              currentIntensity;
+          }
+        }
+      } else if (intensityDropped) {
+        // Intensity just dropped from >0 to 0 - delay reset by 0.5s
+        if (this.jitterResetTimeout) {
+          clearTimeout(this.jitterResetTimeout);
+        }
+        this.jitterResetTimeout = setTimeout(() => {
+          this.jitterResetTimeout = null;
+          if (
+            canvas.particleSystem &&
+            canvas.particleSystem.material &&
+            this.isActive
+          ) {
+            const baseJitter = canvas.currentJitterIntensity || 0;
+            canvas.particleSystem.material.uniforms.uJitterIntensity.value =
+              baseJitter;
+          }
+          if (
+            canvas.strokeMesh &&
+            canvas.strokeMesh.material &&
+            this.isActive
+          ) {
+            if (canvas.strokeMesh.material.uniforms.uFractalIntensity) {
+              canvas.strokeMesh.material.uniforms.uFractalIntensity.value = 0;
+            }
+          }
+        }, 500);
+      } else if (!this.jitterResetTimeout) {
+        // No active intensity and no pending reset - apply reset immediately (e.g., initial state)
+        if (canvas.particleSystem && canvas.particleSystem.material) {
+          const baseJitter = canvas.currentJitterIntensity || 0;
+          canvas.particleSystem.material.uniforms.uJitterIntensity.value =
+            baseJitter;
+        }
+        if (canvas.strokeMesh && canvas.strokeMesh.material) {
+          if (canvas.strokeMesh.material.uniforms.uFractalIntensity) {
+            canvas.strokeMesh.material.uniforms.uFractalIntensity.value = 0;
+          }
+        }
+      }
+
+      this.previousFractalIntensity = currentIntensity;
     }
 
     // Smoothly interpolate rune opacity

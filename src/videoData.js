@@ -157,6 +157,24 @@ export const videos = {
     autoPlay: true,
     delay: 0.2,
   },
+  help: {
+    id: "help",
+    videoPath: "/video/help.webm",
+    preload: false, // Load after loading screen
+    position: { x: 3.52, y: 6.36, z: 88.91 },
+
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 0.39, y: 0.67, z: 0.81 },
+
+    autoPlay: true,
+    loop: true,
+    billboard: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.CURSOR,
+      },
+    },
+  },
 };
 
 /**

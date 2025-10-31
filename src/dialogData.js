@@ -703,6 +703,97 @@ export const dialogTracks = {
       gameManager.setState({ currentState: GAME_STATES.SHOULDER_TAP });
     },
   },
+
+  interuptHisRitual: {
+    id: "interuptHisRitual",
+    audio: "./audio/dialog/leclaire-you-have-to-interrupt-his-ritual.mp3",
+    captions: [
+      { text: "Go, you have to interrupt his ritual!", duration: 2.25 },
+      { text: "Dark runes manifest throughout the hall!", duration: 2.5 },
+      { text: "Use the View-Master to find them,", duration: 1.75 },
+      {
+        text: "but wear it too long and you'll lose your mind!",
+        duration: 2.75,
+      },
+    ],
+    criteria: { currentState: GAME_STATES.CURSOR },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    delay: 1.5,
+  },
+
+  // Drawing game failures (cycle through 3 responses)
+  drawingFailure1: {
+    id: "drawingFailure1",
+    audio: "./audio/dialog/leclaire-drawing-failure-1.mp3",
+    captions: [{ text: "That was wrong!", duration: 1.5 }],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      lastDrawingSuccess: false,
+      drawingFailureCount: 1,
+    },
+    autoPlay: true,
+    once: false,
+    priority: 90,
+  },
+
+  drawingFailure2: {
+    id: "drawingFailure2",
+    audio: "./audio/dialog/leclaire-drawing-failure-2.mp3",
+    captions: [{ text: "Quoi? Try again.", duration: 1.0 }],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      lastDrawingSuccess: false,
+      drawingFailureCount: 2,
+    },
+    autoPlay: true,
+    once: false,
+    priority: 90,
+  },
+
+  drawingFailure3: {
+    id: "drawingFailure3",
+    audio: "./audio/dialog/leclaire-drawing-failure-3.mp3",
+    captions: [{ text: "You must look for the symbol!", duration: 1.8 }],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      lastDrawingSuccess: false,
+      drawingFailureCount: 3,
+    },
+    autoPlay: true,
+    once: false,
+    priority: 90,
+  },
+
+  // Drawing game successes
+  drawingSuccess1: {
+    id: "drawingSuccess1",
+    audio: "./audio/dialog/leclaire-drawing-success-1.mp3",
+    captions: [{ text: "It worked! Now find the next.", duration: 2.75 }],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      lastDrawingSuccess: true,
+      drawingSuccessCount: 1,
+    },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+  },
+
+  drawingSuccess2: {
+    id: "drawingSuccess2",
+    audio: "./audio/dialog/leclaire-drawing-success-2.mp3",
+    captions: [{ text: "Yes! Just one more.", duration: 2.0 }],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      lastDrawingSuccess: true,
+      drawingSuccessCount: 2,
+    },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+  },
 };
 
 /**
