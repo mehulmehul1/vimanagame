@@ -1656,32 +1656,14 @@ class CharacterController {
     // Base gentle breathing/idle animation
     const baseVerticalAmp = 0.002; // Half of walk vertical (0.04)
     const baseHorizontalAmp = 0.001; // Half of walk horizontal (0.03)
-
-    // Get viewmaster insanity intensity (smoothed for gradual ramp-down)
-    const insanityIntensity = this.getViewmasterInsanityIntensity();
-
-    // As insanity builds, breathing becomes:
-    // - Much slower and more labored (lower frequency) - from 0.15 Hz (normal) down to 0.015 Hz (10x slower, very labored)
-    // - Extremely dramatic (higher amplitude) - up to 35x base amplitude for maximum impact
-
-    // Frequency: start at 0.15 Hz (normal breathing), go down to 0.015 Hz (10x slower) as intensity increases
-    const normalFrequency = 0.15; // Normal breathing rate (Hz)
-    const laboredFrequency = 0.015; // Very slow, labored breathing (10x slower)
-    const idleFrequency =
-      normalFrequency -
-      insanityIntensity * (normalFrequency - laboredFrequency);
-
-    // Amplitude: dramatically increase as intensity builds
-    const amplitudeMultiplier = 1.0 + Math.pow(insanityIntensity, 0.6) * 34.0; // 1.0x to 35.0x (extremely dramatic)
-    const idleVerticalAmp = baseVerticalAmp * amplitudeMultiplier;
-    const idleHorizontalAmp = baseHorizontalAmp * amplitudeMultiplier;
+    const idleFrequency = 0.15; // Normal breathing rate (Hz)
 
     const verticalBob =
       Math.sin(this.idleHeadbobTime * idleFrequency * Math.PI * 2) *
-      idleVerticalAmp;
+      baseVerticalAmp;
     const horizontalBob =
       Math.sin(this.idleHeadbobTime * idleFrequency * Math.PI) *
-      idleHorizontalAmp;
+      baseHorizontalAmp;
 
     return {
       vertical: verticalBob,
@@ -2460,8 +2442,8 @@ class CharacterController {
       this.characterContainer.rotation.set(0, this.bodyYaw, 0);
     }
 
-    // Build look direction from yaw/pitch (only when not in look-at mode and camera sync is enabled)
-    if (!this.isLookingAt && !this.cameraSyncDisabled) {
+    // Build look direction from yaw/pitch (only when not in look-at mode)
+    if (!this.isLookingAt) {
       const lookDir = new THREE.Vector3(0, 0, -1).applyEuler(
         new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
       );
