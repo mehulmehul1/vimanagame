@@ -533,11 +533,26 @@ renderer.setAnimationLoop(function animate(time) {
     // Update input manager (gamepad state)
     inputManager.update(dt);
 
+    // Check if we need to update character controller before animation manager (for blending)
+    const isBlendingAnimation =
+      cameraAnimationManager.isPlaying &&
+      cameraAnimationManager.blendWithPlayer;
+
+    // If blending, update character controller first so animation manager can blend with latest player input
+    if (isBlendingAnimation && gameManager.isControlEnabled()) {
+      characterController.update(dt);
+    }
+
     // Update camera animation manager
     cameraAnimationManager.update(dt);
 
     // Update character controller (handles input, physics, camera, headbob)
-    if (gameManager.isControlEnabled() && !cameraAnimationManager.playing) {
+    // Skip if we already updated it above for blending
+    if (
+      gameManager.isControlEnabled() &&
+      !isBlendingAnimation &&
+      !cameraAnimationManager.playing
+    ) {
       characterController.update(dt);
     }
 

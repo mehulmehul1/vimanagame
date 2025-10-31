@@ -159,8 +159,11 @@ class InputManager {
         // Pointer lock mode: use movement deltas
         // But only if rotation is actually enabled (prevents accumulation during title sequence)
         if (this.rotationEnabled) {
-          this.mouseDelta.x += event.movementX;
-          this.mouseDelta.y += event.movementY;
+          // Validate movementX/Y before accumulating
+          const moveX = isFinite(event.movementX) ? event.movementX : 0;
+          const moveY = isFinite(event.movementY) ? event.movementY : 0;
+          this.mouseDelta.x += moveX;
+          this.mouseDelta.y += moveY;
         }
         return;
       }
@@ -172,12 +175,21 @@ class InputManager {
         this.isMouseDown &&
         !overGizmo
       ) {
-        const dx = event.clientX - this.lastMousePos.x;
-        const dy = event.clientY - this.lastMousePos.y;
-        this.mouseDelta.x += dx;
-        this.mouseDelta.y += dy;
-        this.lastMousePos.x = event.clientX;
-        this.lastMousePos.y = event.clientY;
+        // Validate clientX/Y and lastMousePos before calculating delta
+        const clientX = isFinite(event.clientX) ? event.clientX : this.lastMousePos.x;
+        const clientY = isFinite(event.clientY) ? event.clientY : this.lastMousePos.y;
+        const lastX = isFinite(this.lastMousePos.x) ? this.lastMousePos.x : clientX;
+        const lastY = isFinite(this.lastMousePos.y) ? this.lastMousePos.y : clientY;
+        
+        const dx = clientX - lastX;
+        const dy = clientY - lastY;
+        
+        // Only accumulate if delta is finite
+        if (isFinite(dx)) this.mouseDelta.x += dx;
+        if (isFinite(dy)) this.mouseDelta.y += dy;
+        
+        this.lastMousePos.x = clientX;
+        this.lastMousePos.y = clientY;
       }
     });
 
@@ -339,27 +351,35 @@ class InputManager {
     let deltaY = 0;
     let hasGamepadInput = false;
 
+    // Validate and sanitize mouseDelta before use
+    const mouseX = isFinite(this.mouseDelta.x) ? this.mouseDelta.x : 0;
+    const mouseY = isFinite(this.mouseDelta.y) ? this.mouseDelta.y : 0;
+
     // Mouse input (accumulated during frame)
-    deltaX += this.mouseDelta.x * this.mouseSensitivity;
-    deltaY += this.mouseDelta.y * this.mouseSensitivity;
+    deltaX += mouseX * this.mouseSensitivity;
+    deltaY += mouseY * this.mouseSensitivity;
 
     // Gamepad input (right stick)
     const gamepad = this.getGamepad();
     if (gamepad) {
-      const rightX = this.applyDeadzone(
-        gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_X]
-      );
-      const rightY = this.applyDeadzone(
-        gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_Y]
-      );
+      const rawRightX = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_X];
+      const rawRightY = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_Y];
+      
+      // Validate gamepad axes before use
+      const rightX = isFinite(rawRightX) ? this.applyDeadzone(rawRightX) : 0;
+      const rightY = isFinite(rawRightY) ? this.applyDeadzone(rawRightY) : 0;
 
       if (rightX !== 0 || rightY !== 0) {
         hasGamepadInput = true;
 
         // Convert stick input to camera delta (scale by dt for frame-rate independence)
         const stickScale = 2.5; // Radians per second at full deflection
-        deltaX += rightX * stickScale * this.stickSensitivity * dt;
-        deltaY += rightY * stickScale * this.stickSensitivity * dt;
+        const scaledX = rightX * stickScale * this.stickSensitivity * dt;
+        const scaledY = rightY * stickScale * this.stickSensitivity * dt;
+        
+        // Only add if finite
+        if (isFinite(scaledX)) deltaX += scaledX;
+        if (isFinite(scaledY)) deltaY += scaledY;
       }
     }
 
@@ -368,11 +388,23 @@ class InputManager {
       hasGamepadInput = true; // Treat touch like gamepad (direct control, no smoothing)
 
       const touchInput = this.rightJoystick.getValue();
+      // Validate touch input
+      const touchX = isFinite(touchInput?.x) ? touchInput.x : 0;
+      const touchY = isFinite(touchInput?.y) ? touchInput.y : 0;
+      
       // Convert touch input to camera delta (scale by dt for frame-rate independence)
       const touchScale = 2.5; // Radians per second at full deflection
-      deltaX += touchInput.x * touchScale * dt;
-      deltaY -= touchInput.y * touchScale * dt; // Invert Y for natural camera movement
+      const scaledX = touchX * touchScale * dt;
+      const scaledY = touchY * touchScale * dt;
+      
+      // Only add if finite
+      if (isFinite(scaledX)) deltaX += scaledX;
+      if (isFinite(scaledY)) deltaY -= scaledY; // Invert Y for natural camera movement
     }
+
+    // Ensure final values are finite
+    deltaX = isFinite(deltaX) ? deltaX : 0;
+    deltaY = isFinite(deltaY) ? deltaY : 0;
 
     return { x: deltaX, y: deltaY, hasGamepad: hasGamepadInput };
   }
@@ -410,8 +442,13 @@ class InputManager {
    * Reset accumulated input (call after processing each frame)
    */
   resetFrameInput() {
+    // Reset mouseDelta, but also ensure values are finite
     this.mouseDelta.x = 0;
     this.mouseDelta.y = 0;
+    
+    // If mouseDelta somehow got corrupted, reset it
+    if (!isFinite(this.mouseDelta.x)) this.mouseDelta.x = 0;
+    if (!isFinite(this.mouseDelta.y)) this.mouseDelta.y = 0;
   }
 
   /**

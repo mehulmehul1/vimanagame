@@ -37,6 +37,13 @@ class AnimationManager {
     this.onComplete = null;
     this.scaleY = 0.8; // Y-axis scale for current animation
     this.playbackRate = 1.0; // Playback speed multiplier for current animation
+    this.playbackPercentage = 1.0; // Percentage of animation to play (0.0 to 1.0)
+    this.blendWithPlayer = false; // Whether to blend animation with player movement
+    this.blendAmount = 0.5; // Blend strength (0.0 = fully player, 1.0 = fully animation)
+    this.blendedAnimQuat = new THREE.Quaternion(); // Animation quaternion for blending
+    this.blendedAnimPos = new THREE.Vector3(); // Animation position for blending
+    this.playerQuat = new THREE.Quaternion(); // Player quaternion captured before blending
+    this.playerPos = new THREE.Vector3(); // Player position captured before blending
 
     // Pre-animation slerp state (to reset pitch to 0 while keeping yaw)
     this.isPreSlerping = false;
@@ -1491,13 +1498,56 @@ class AnimationManager {
       return false;
     }
 
-    // Disable character controller immediately
-    if (this.characterController) {
+    // Disable character controller immediately (unless blending is enabled)
+    if (this.characterController && !animData?.blendWithPlayer) {
       this.characterController.disableInput();
+    }
+
+    // For blending animations, skip pre-slerp and start directly (player keeps control)
+    if (animData?.blendWithPlayer) {
+      // Ensure camera quaternion is valid before capturing as base
+      const q = this.camera.quaternion;
+      if (
+        !isFinite(q.x) ||
+        !isFinite(q.y) ||
+        !isFinite(q.z) ||
+        !isFinite(q.w)
+      ) {
+        // Reconstruct from Euler angles if quaternion is invalid
+        const euler = new THREE.Euler().setFromQuaternion(q, "YXZ");
+        if (isFinite(euler.x) && isFinite(euler.y) && isFinite(euler.z)) {
+          this.camera.quaternion.setFromEuler(euler).normalize();
+        } else {
+          this.camera.quaternion.identity();
+        }
+      } else {
+        this.camera.quaternion.normalize();
+      }
+
+      // Capture current camera pose as base (includes player's current rotation)
+      this.baseQuat.copy(this.camera.quaternion);
+      this.basePos.copy(this.camera.position);
+
+      // Start animation playback immediately
+      this.currentAnimation = anim;
+      this.currentAnimationData = animData;
+      this.onComplete = onComplete;
+      this._startAnimationPlayback();
+      return true;
     }
 
     // Start pre-slerp phase to reset pitch to 0 while preserving yaw
     // This ensures consistent vertical results regardless of initial look direction
+
+    // Ensure camera quaternion is valid before extracting Euler
+    const q = this.camera.quaternion;
+    if (!isFinite(q.x) || !isFinite(q.y) || !isFinite(q.z) || !isFinite(q.w)) {
+      // Reconstruct from identity if quaternion is invalid
+      this.camera.quaternion.identity();
+    } else {
+      this.camera.quaternion.normalize();
+    }
+
     this.preSlerpStartQuat.copy(this.camera.quaternion);
 
     // Extract current yaw, set pitch to 0
@@ -1530,7 +1580,7 @@ class AnimationManager {
    */
   _startAnimationPlayback() {
     // Capture current camera pose as base (should now be at zero pitch)
-    this.baseQuat.copy(this.camera.quaternion);
+    this.baseQuat.copy(this.camera.quaternion).normalize();
     this.basePos.copy(this.camera.position);
 
     // Reset playback state
@@ -1544,11 +1594,26 @@ class AnimationManager {
     // Get playback rate from animation data (default to 1.0)
     this.playbackRate = this.currentAnimationData?.playbackRate ?? 1.0;
 
+    // Get playback percentage from animation data (default to 1.0)
+    this.playbackPercentage = Math.max(
+      0,
+      Math.min(1, this.currentAnimationData?.playbackPercentage ?? 1.0)
+    );
+
+    // Get blend settings from animation data
+    this.blendWithPlayer = this.currentAnimationData?.blendWithPlayer ?? false;
+    const rawBlendAmount = this.currentAnimationData?.blendAmount ?? 0.5;
+    this.blendAmount = Math.max(0, Math.min(1, rawBlendAmount));
+
     if (this.debug)
       this.logger.log(
         `Starting animation playback from level horizon (pitch=0)${
           this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
-        }${this.playbackRate !== 1.0 ? ` at ${this.playbackRate}x speed` : ""}`
+        }${this.playbackRate !== 1.0 ? ` at ${this.playbackRate}x speed` : ""}${
+          this.blendWithPlayer
+            ? ` blending ${(this.blendAmount * 100).toFixed(0)}% with player`
+            : ""
+        }`
       );
   }
 
@@ -1586,6 +1651,26 @@ class AnimationManager {
     this.isPlaying = false;
     this.currentAnimation = null;
     this.currentAnimationData = null;
+
+    // Ensure camera quaternion is valid before returning control
+    // If corrupted, reconstruct from baseQuat (which should still be valid)
+    const q = this.camera.quaternion;
+    if (!isFinite(q.x) || !isFinite(q.y) || !isFinite(q.z) || !isFinite(q.w)) {
+      // Reconstruct from base quaternion (captured at animation start)
+      if (
+        isFinite(this.baseQuat.x) &&
+        isFinite(this.baseQuat.y) &&
+        isFinite(this.baseQuat.z) &&
+        isFinite(this.baseQuat.w)
+      ) {
+        this.camera.quaternion.copy(this.baseQuat).normalize();
+      } else {
+        // Last resort: set to identity
+        this.camera.quaternion.identity();
+      }
+    } else {
+      this.camera.quaternion.normalize();
+    }
 
     // Update physics body position to match camera's final position
     if (this.characterController && this.characterController.character) {
@@ -1652,6 +1737,10 @@ class AnimationManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // If blending with player, capture current camera state AFTER character controller updates
+    // This happens at the end of the previous frame's character controller update
+    // We'll capture it right before we apply our blend (so it's the latest player state)
+
     // Handle pre-slerp phase (reset camera to neutral orientation before animation)
     if (this.isPreSlerping) {
       this.preSlerpElapsed += dt;
@@ -1997,19 +2086,87 @@ class AnimationManager {
     this.elapsed += dt * this.playbackRate;
     const { frames, duration } = this.currentAnimation;
 
+    // Calculate effective duration based on playback percentage
+    const effectiveDuration = duration * this.playbackPercentage;
+
+    // Clamp elapsed to effective duration
+    if (this.elapsed > effectiveDuration) {
+      this.elapsed = effectiveDuration;
+    }
+
     // Check if animation is complete
-    if (this.elapsed >= duration) {
-      const last = frames[frames.length - 1];
-      // Apply final pose
-      this.camera.quaternion.copy(this.baseQuat).multiply(last.qd);
-      if (last.pd) {
-        this._interpPos.copy(last.pd);
+    if (this.elapsed >= effectiveDuration) {
+      // Find the frame at effective duration (may not be the last frame)
+      let targetFrame = frames[frames.length - 1];
+      for (let i = 0; i < frames.length; i++) {
+        if (frames[i].t >= effectiveDuration) {
+          targetFrame = frames[i];
+          break;
+        }
+      }
+      // Calculate final pose using the frame at effective duration
+      this.blendedAnimQuat.copy(this.baseQuat).multiply(targetFrame.qd);
+      this.blendedAnimQuat.normalize(); // Critical: normalize after quaternion operations
+      if (targetFrame.pd) {
+        this._interpPos.copy(targetFrame.pd);
         // Apply Y-axis scale if set
         if (this.scaleY !== 1.0) {
           this._interpPos.y *= this.scaleY;
         }
         this._rotatedPos.copy(this._interpPos).applyQuaternion(this.baseQuat);
-        this.camera.position.copy(this.basePos).add(this._rotatedPos);
+        this.blendedAnimPos.copy(this.basePos).add(this._rotatedPos);
+      } else {
+        this.blendedAnimPos.copy(this.basePos);
+      }
+
+      // Validate blendedAnimQuat before applying
+      if (
+        !isFinite(this.blendedAnimQuat.x) ||
+        !isFinite(this.blendedAnimQuat.y) ||
+        !isFinite(this.blendedAnimQuat.z) ||
+        !isFinite(this.blendedAnimQuat.w)
+      ) {
+        // Fallback to base quaternion if final quaternion is invalid
+        this.blendedAnimQuat.copy(this.baseQuat).normalize();
+      }
+
+      // Apply with blending if enabled
+      if (this.blendWithPlayer) {
+        // Character controller updates AFTER animation manager, so at this point the camera
+        // already has the latest player input. We blend the animation on top of it.
+        let currentQuat = this.camera.quaternion.clone();
+
+        // Validate current quaternion before using it
+        if (
+          !isFinite(currentQuat.x) ||
+          !isFinite(currentQuat.y) ||
+          !isFinite(currentQuat.z) ||
+          !isFinite(currentQuat.w)
+        ) {
+          // Fallback to base quaternion if current is invalid
+          currentQuat = this.baseQuat.clone();
+        }
+        currentQuat.normalize();
+
+        const currentPos = this.camera.position.clone();
+        const blend = Math.max(0, Math.min(1, this.blendAmount || 0.5));
+        // slerp(qTarget, alpha) interpolates FROM this quaternion TOWARD qTarget by alpha
+        this.camera.quaternion
+          .copy(currentQuat)
+          .slerp(this.blendedAnimQuat, blend);
+        this.camera.position.lerpVectors(
+          currentPos,
+          this.blendedAnimPos,
+          blend
+        );
+        // Ensure result is normalized
+        this.camera.quaternion.normalize();
+      } else {
+        // Normal mode: fully override camera
+        this.camera.quaternion.copy(this.blendedAnimQuat);
+        if (targetFrame.pd) {
+          this.camera.position.copy(this.blendedAnimPos);
+        }
       }
 
       // Check if we should restore input (use animData if available)
@@ -2057,11 +2214,21 @@ class AnimationManager {
     const span = Math.max(1e-6, b.t - a.t);
     const s = Math.min(1, Math.max(0, (this.elapsed - a.t) / span));
 
-    // Apply rotation delta
+    // Calculate animation rotation and position
     this._interpDelta.copy(a.qd).slerp(b.qd, s);
-    this.camera.quaternion.copy(this.baseQuat).multiply(this._interpDelta);
+    this.blendedAnimQuat.copy(this.baseQuat).multiply(this._interpDelta);
+    this.blendedAnimQuat.normalize(); // Critical: normalize after quaternion operations
 
-    // Apply position delta
+    // Validate quaternion (fallback to base if invalid)
+    if (
+      !isFinite(this.blendedAnimQuat.x) ||
+      !isFinite(this.blendedAnimQuat.y) ||
+      !isFinite(this.blendedAnimQuat.z) ||
+      !isFinite(this.blendedAnimQuat.w)
+    ) {
+      this.blendedAnimQuat.copy(this.baseQuat).normalize();
+    }
+
     if (a.pd && b.pd) {
       this._interpPos.copy(a.pd).lerp(b.pd, s);
       // Apply Y-axis scale if set
@@ -2069,7 +2236,49 @@ class AnimationManager {
         this._interpPos.y *= this.scaleY;
       }
       this._rotatedPos.copy(this._interpPos).applyQuaternion(this.baseQuat);
-      this.camera.position.copy(this.basePos).add(this._rotatedPos);
+      this.blendedAnimPos.copy(this.basePos).add(this._rotatedPos);
+    } else {
+      this.blendedAnimPos.copy(this.basePos);
+    }
+
+    // Apply with blending if enabled
+    if (this.blendWithPlayer) {
+      // Character controller updates AFTER animation manager, so at this point the camera
+      // already has the latest player input. We blend the animation on top of it.
+      // Capture the current state (player's latest transform) and blend with animation
+      let currentQuat = this.camera.quaternion.clone();
+
+      // Validate current quaternion before using it
+      if (
+        !isFinite(currentQuat.x) ||
+        !isFinite(currentQuat.y) ||
+        !isFinite(currentQuat.z) ||
+        !isFinite(currentQuat.w)
+      ) {
+        // Fallback to base quaternion if current is invalid
+        currentQuat = this.baseQuat.clone();
+      }
+      currentQuat.normalize();
+
+      const currentPos = this.camera.position.clone();
+
+      // Ensure blendAmount is valid and clamped
+      const blend = Math.max(0, Math.min(1, this.blendAmount || 0.5));
+
+      // Blend: lerp from player state (currentQuat/currentPos) toward animation state
+      // slerp(qTarget, alpha) interpolates FROM this quaternion TOWARD qTarget by alpha
+      this.camera.quaternion
+        .copy(currentQuat)
+        .slerp(this.blendedAnimQuat, blend);
+      this.camera.position.lerpVectors(currentPos, this.blendedAnimPos, blend);
+      // Ensure result is normalized
+      this.camera.quaternion.normalize();
+    } else {
+      // Normal mode: fully override camera
+      this.camera.quaternion.copy(this.blendedAnimQuat);
+      if (a.pd && b.pd) {
+        this.camera.position.copy(this.blendedAnimPos);
+      }
     }
   }
 

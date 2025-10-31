@@ -2192,22 +2192,52 @@ class CharacterController {
         this.targetPitch = this.pitch;
       } else if (hasManualInput) {
         // Mouse: Apply to targets with smoothing for precise control (only if there's input)
-        this.targetYaw -= cameraInput.x;
-        this.targetPitch -= cameraInput.y;
+        // Validate cameraInput before applying
+        const inputX = isFinite(cameraInput.x) ? cameraInput.x : 0;
+        const inputY = isFinite(cameraInput.y) ? cameraInput.y : 0;
+        
+        // Ensure targets are finite before modifying
+        if (!isFinite(this.targetYaw)) this.targetYaw = this.yaw;
+        if (!isFinite(this.targetPitch)) this.targetPitch = this.pitch;
+        
+        this.targetYaw -= inputX;
+        this.targetPitch -= inputY;
         this.targetPitch = Math.max(
           -Math.PI / 2 + 0.01,
           Math.min(Math.PI / 2 - 0.01, this.targetPitch)
         );
+        
+        // Ensure targets remain finite
+        if (!isFinite(this.targetYaw)) this.targetYaw = this.yaw;
+        if (!isFinite(this.targetPitch)) this.targetPitch = this.pitch;
 
         // Smooth camera rotation to reduce jitter
+        // Ensure yaw/pitch are finite before smoothing
+        if (!isFinite(this.yaw)) this.yaw = this.targetYaw;
+        if (!isFinite(this.pitch)) this.pitch = this.targetPitch;
+        
         this.yaw += (this.targetYaw - this.yaw) * this.cameraSmoothingFactor;
         this.pitch +=
           (this.targetPitch - this.pitch) * this.cameraSmoothingFactor;
+          
+        // Ensure smoothed values remain finite
+        if (!isFinite(this.yaw)) this.yaw = this.targetYaw;
+        if (!isFinite(this.pitch)) this.pitch = this.targetPitch;
       } else {
         // No manual input, still apply smoothing if there's a difference
+        // Ensure all values are finite
+        if (!isFinite(this.yaw)) this.yaw = 0;
+        if (!isFinite(this.pitch)) this.pitch = 0;
+        if (!isFinite(this.targetYaw)) this.targetYaw = this.yaw;
+        if (!isFinite(this.targetPitch)) this.targetPitch = this.pitch;
+        
         this.yaw += (this.targetYaw - this.yaw) * this.cameraSmoothingFactor;
         this.pitch +=
           (this.targetPitch - this.pitch) * this.cameraSmoothingFactor;
+          
+        // Ensure smoothed values remain finite
+        if (!isFinite(this.yaw)) this.yaw = this.targetYaw;
+        if (!isFinite(this.pitch)) this.pitch = this.targetPitch;
       }
 
       // Reset frame input after processing
@@ -2444,6 +2474,29 @@ class CharacterController {
 
     // Build look direction from yaw/pitch (only when not in look-at mode)
     if (!this.isLookingAt) {
+      // Validate pitch/yaw before using them (can become invalid during blending)
+      if (!isFinite(this.pitch)) this.pitch = 0;
+      if (!isFinite(this.yaw)) this.yaw = 0;
+      if (!isFinite(this.currentRoll)) this.currentRoll = 0;
+      
+      // Validate camera position before lookAt
+      const pos = this.camera.position;
+      if (!isFinite(pos.x) || !isFinite(pos.y) || !isFinite(pos.z)) {
+        // Skip lookAt if position is invalid (animation manager will handle it)
+        return;
+      }
+      
+      // Ensure camera quaternion is valid before lookAt (can be corrupted by animations)
+      const q = this.camera.quaternion;
+      if (!isFinite(q.x) || !isFinite(q.y) || !isFinite(q.z) || !isFinite(q.w)) {
+        // Reconstruct from yaw/pitch if quaternion is invalid
+        this.camera.quaternion.setFromEuler(
+          new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
+        );
+      } else {
+        this.camera.quaternion.normalize();
+      }
+      
       const lookDir = new THREE.Vector3(0, 0, -1).applyEuler(
         new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
       );
@@ -2451,6 +2504,18 @@ class CharacterController {
         .copy(this.camera.position)
         .add(lookDir);
       this.camera.lookAt(lookTarget);
+      
+      // Validate and normalize after lookAt
+      const resultQ = this.camera.quaternion;
+      if (!isFinite(resultQ.x) || !isFinite(resultQ.y) || 
+          !isFinite(resultQ.z) || !isFinite(resultQ.w)) {
+        // Reconstruct from yaw/pitch if lookAt produced invalid quaternion
+        this.camera.quaternion.setFromEuler(
+          new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
+        );
+      } else {
+        this.camera.quaternion.normalize();
+      }
     }
   }
 }

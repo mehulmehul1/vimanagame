@@ -28,6 +28,16 @@
  * - playbackRate: Optional playback speed multiplier (default: 1.0)
  *   - Values < 1.0 play slower, > 1.0 play faster
  *   - Example: 0.5 for half speed, 2.0 for double speed
+ * - playbackPercentage: Optional percentage of animation to play (0.0 to 1.0, default: 1.0)
+ *   - Values < 1.0 play only a portion of the animation from the start
+ *   - Example: 0.5 plays the first 50% of the animation and treats it as the full duration
+ *   - The animation plays at normal speed but stops early
+ * - blendWithPlayer: If true, blend animation with player movement and idle (default: false)
+ *   - When enabled, animation mixes with current player-controlled camera transform
+ *   - Player can still move and look around, with animation layered on top
+ * - blendAmount: Blend strength (0.0 to 1.0, default: 0.5)
+ *   - 0.0 = fully player-controlled, 1.0 = fully animated
+ *   - Example: 0.3 = 30% animation, 70% player control
  *
  * For type "lookat":
  * SINGLE LOOKAT (simple position):
@@ -116,6 +126,7 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 import { videos } from "./videoData.js";
 import { sceneObjects } from "./sceneData.js";
 import { Logger } from "./utils/logger.js";
+import { VIEWMASTER_OVERHEAT_THRESHOLD } from "./dialogData.js";
 
 // Create module-level logger
 const logger = new Logger("CameraAnimationData", false);
@@ -540,6 +551,27 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.WAKING_UP },
     priority: 100,
     playOnce: true,
+  },
+
+  woozy: {
+    id: "woozy",
+    type: "jsonAnimation",
+    path: "/json/woozy.json",
+    description:
+      "Woozy camera animation blending with player movement during viewmaster overheat",
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      isViewmasterEquipped: true,
+      viewmasterInsanityIntensity: { $gte: 0.1 },
+    },
+    priority: 95,
+    playOnce: false,
+    syncController: false,
+    restoreInput: true,
+    blendWithPlayer: true,
+    blendAmount: 0.8,
+    playbackRate: 1.0,
+    playbackPercentage: 0.5,
   },
 };
 
