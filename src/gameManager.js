@@ -44,6 +44,9 @@ class GameManager {
     // Track loaded scene objects
     this.loadedScenes = new Set();
 
+    // Throttle non-currentState change logs
+    this.lastStateLogTime = 0;
+
     // Parse URL parameters on construction
     this.urlParams = this.parseURLParams();
   }
@@ -228,10 +231,15 @@ class GameManager {
         `[GameManager] currentState changed from ${oldState.currentState} to ${newState.currentState}`
       );
     } else if (Object.keys(newState).length > 0) {
-      this.logger.log(
-        "[GameManager] setState called with (no currentState change):",
-        newState
-      );
+      // Throttle this log to once per second
+      const now = Date.now();
+      if (now - this.lastStateLogTime >= 1000) {
+        this.logger.log(
+          "[GameManager] setState called with (no currentState change):",
+          newState
+        );
+        this.lastStateLogTime = now;
+      }
     }
 
     this.emit("state:changed", this.state, oldState);

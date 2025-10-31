@@ -66,6 +66,20 @@ export const musicTracks = {
     loop: true,
     volume: 1.0,
   },
+  dukeStLouis: {
+    id: "dukeStLouis",
+    path: "./audio/music/duke-ellington-east-st-louis-toodle-oo.mp3",
+    description: "Duke St Louis",
+    preload: true,
+    criteria: {
+      currentState: GAME_STATES.POST_CURSOR,
+    },
+    fadeTime: 0,
+    priority: 10,
+    loop: true,
+    volume: 1.0,
+    autoPlay: true,
+  },
   rach2: {
     id: "rach2",
     path: "./audio/music/rach 3 - mv 2 - 1-00.mp3",

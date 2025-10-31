@@ -2,6 +2,8 @@ import { Howl } from "howler";
 import * as THREE from "three";
 import { GAME_STATES } from "./gameData.js";
 import { Logger } from "./utils/logger.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
+import { VIEWMASTER_OVERHEAT_THRESHOLD } from "./dialogData.js";
 
 /**
  * DialogManager - Handles dialog audio playback with synchronized captions
@@ -44,6 +46,12 @@ class DialogManager {
     this.onCompleteCallback = null;
     this.captionsEnabled = true; // Default to captions enabled
 
+    // Fade out support
+    this.isFadingOut = false;
+    this.fadeOutDuration = 0;
+    this.fadeOutTimer = 0;
+    this.fadeOutStartVolume = 0;
+
     // Logger for debug messages
     this.logger = new Logger("DialogManager", false);
 
@@ -57,6 +65,12 @@ class DialogManager {
     // Preloading support
     this.preloadedAudio = new Map(); // Map of dialogId -> Howl instance
     this.deferredDialogs = new Map(); // Map of dialogId -> dialog data for later loading
+
+    // Cache getDialogsForState import for continuous evaluation
+    this._getDialogsForState = null;
+    import("./dialogData.js").then((module) => {
+      this._getDialogsForState = module.getDialogsForState;
+    });
 
     // Update volume based on SFX manager if available
     if (this.sfxManager) {
@@ -178,22 +192,84 @@ class DialogManager {
 
     // Import getDialogsForState
     import("./dialogData.js").then(({ getDialogsForState }) => {
+      // Cache for continuous checking in update()
+      this._getDialogsForState = getDialogsForState;
+
       // Listen for state changes
       this.gameManager.on("state:changed", (newState, oldState) => {
+        // Debug: Log when overheat dialog index changes
+        if (
+          newState.viewmasterOverheatDialogIndex !==
+          oldState?.viewmasterOverheatDialogIndex
+        ) {
+          this.logger.log(
+            `Viewmaster overheat dialog index changed: ${oldState?.viewmasterOverheatDialogIndex} -> ${newState.viewmasterOverheatDialogIndex}, intensity: ${newState.viewmasterInsanityIntensity}`
+          );
+        }
+
         const matchingDialogs = getDialogsForState(
           newState,
           this.playedDialogs
         );
+
+        // Debug: Check for overheat dialogs specifically
+        if (
+          newState.viewmasterInsanityIntensity >=
+            VIEWMASTER_OVERHEAT_THRESHOLD &&
+          newState.viewmasterOverheatDialogIndex !== null &&
+          newState.viewmasterOverheatDialogIndex !== undefined
+        ) {
+          const overheatDialogs = matchingDialogs.filter(
+            (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
+          );
+          if (overheatDialogs.length > 0) {
+            this.logger.log(
+              `State change: Found ${
+                overheatDialogs.length
+              } matching overheat dialog(s): ${overheatDialogs
+                .map((d) => d.id)
+                .join(", ")}`
+            );
+          } else {
+            this.logger.log(
+              `State change: Overheat criteria met but no dialogs matched. Index: ${newState.viewmasterOverheatDialogIndex}, Intensity: ${newState.viewmasterInsanityIntensity}, isViewmasterEquipped: ${newState.isViewmasterEquipped}`
+            );
+          }
+        }
 
         // If there are matching dialogs for the new state
         if (matchingDialogs.length > 0) {
           // Process ALL matching dialogs, not just the first one
           // This allows multiple dialogs with the same criteria to be scheduled with their own delays
           for (const dialog of matchingDialogs) {
-            this.logger.log(`Auto-playing dialog "${dialog.id}"`);
+            // Skip if already playing
+            if (this.isPlaying) {
+              this.logger.log(
+                `Skipping "${dialog.id}" - dialog already playing`
+              );
+              continue;
+            }
 
-            // Track that this dialog has been played
-            this.playedDialogs.add(dialog.id);
+            // Skip if already played and marked as "once"
+            if (
+              dialog.once &&
+              this.playedDialogs &&
+              this.playedDialogs.has(dialog.id)
+            ) {
+              this.logger.log(
+                `Skipping "${dialog.id}" - already played and marked as once`
+              );
+              continue;
+            }
+
+            this.logger.log(
+              `Auto-playing dialog "${dialog.id}" from state change`
+            );
+
+            // Only track in playedDialogs if marked as "once" (allows replay for once: false)
+            if (dialog.once) {
+              this.playedDialogs.add(dialog.id);
+            }
 
             // Emit event for tracking
             this.gameManager.emit("dialog:trigger", dialog.id, dialog);
@@ -347,7 +423,16 @@ class DialogManager {
         this.logger.log(`Using preloaded audio for "${dialogData.id}"`);
         this.currentAudio = this.preloadedAudio.get(dialogData.id);
         this.currentAudio.volume(this.audioVolume);
-        this.currentAudio.play();
+        const playId = this.currentAudio.play();
+        if (!playId) {
+          this.logger.error(
+            `Failed to start playback for "${dialogData.id}" - Howl returned no sound ID`
+          );
+        } else {
+          this.logger.log(
+            `Playing preloaded audio for "${dialogData.id}" (sound ID: ${playId})`
+          );
+        }
       } else {
         // Check if this was a deferred dialog that hasn't been loaded yet
         if (this.deferredDialogs.has(dialogData.id)) {
@@ -364,7 +449,10 @@ class DialogManager {
               this.handleDialogComplete();
             },
             onloaderror: (id, error) => {
-              this.logger.error("Failed to load audio", error);
+              this.logger.error(
+                `Failed to load audio for "${dialogData.id}":`,
+                error
+              );
               this.handleDialogComplete();
             },
           });
@@ -383,30 +471,69 @@ class DialogManager {
               this.handleDialogComplete();
             },
             onloaderror: (id, error) => {
-              this.logger.error("Failed to load audio", error);
+              this.logger.error(
+                `Failed to load audio for "${dialogData.id}":`,
+                error
+              );
+              this.handleDialogComplete();
+            },
+            onplayerror: (id, error) => {
+              this.logger.error(
+                `Failed to play audio for "${dialogData.id}":`,
+                error
+              );
               this.handleDialogComplete();
             },
           });
         }
 
-        // Wait for the audio to load using Howler's event system (only if not already loaded)
-        if (this.currentAudio.state && this.currentAudio.state() !== "loaded") {
+        // Wait for the audio to load using Howler's event system
+        const audioState = this.currentAudio.state
+          ? this.currentAudio.state()
+          : "unloaded";
+        this.logger.log(`Audio state for "${dialogData.id}": ${audioState}`);
+
+        if (audioState !== "loaded") {
+          this.logger.log(
+            `Waiting for audio to load for "${dialogData.id}"...`
+          );
           await new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+              this.logger.error(`Audio load timeout for "${dialogData.id}"`);
+              resolve();
+            }, 10000); // 10 second timeout
+
             this.currentAudio.once("load", () => {
+              clearTimeout(timeout);
               this.logger.log(`Loaded on-demand dialog "${dialogData.id}"`);
               resolve();
             });
             this.currentAudio.once("loaderror", (id, error) => {
+              clearTimeout(timeout);
               this.logger.error(
                 `Failed to load on-demand dialog "${dialogData.id}":`,
-                error
+                error,
+                `Audio path: ${dialogData.audio}`
               );
               resolve(); // Resolve anyway to prevent hanging
             });
           });
         }
 
-        this.currentAudio.play();
+        const playId = this.currentAudio.play();
+        if (!playId) {
+          this.logger.error(
+            `Failed to start playback for "${
+              dialogData.id
+            }" - Howl returned no sound ID. Audio state: ${
+              this.currentAudio.state ? this.currentAudio.state() : "unknown"
+            }`
+          );
+        } else {
+          this.logger.log(
+            `Playing audio for "${dialogData.id}" (sound ID: ${playId})`
+          );
+        }
       }
     }
 
@@ -419,9 +546,34 @@ class DialogManager {
   }
 
   /**
-   * Stop current dialog
+   * Stop current dialog (with optional fade out)
+   * @param {number} fadeOutDuration - Duration in seconds for fade out (0 = immediate stop)
    */
-  stopDialog() {
+  stopDialog(fadeOutDuration = 0) {
+    if (!this.isPlaying || !this.currentAudio) {
+      return;
+    }
+
+    // If fade out is requested and duration > 0, start fade out
+    if (
+      fadeOutDuration > 0 ||
+      (this.currentDialog?.fadeOutDuration !== undefined &&
+        this.currentDialog.fadeOutDuration > 0)
+    ) {
+      const dialogFadeOut =
+        fadeOutDuration > 0
+          ? fadeOutDuration
+          : this.currentDialog.fadeOutDuration;
+      if (dialogFadeOut > 0) {
+        this.isFadingOut = true;
+        this.fadeOutDuration = dialogFadeOut;
+        this.fadeOutTimer = 0;
+        this.fadeOutStartVolume = this.currentAudio.volume();
+        return; // Don't stop immediately, let fade out complete
+      }
+    }
+
+    // Immediate stop (or no fade out duration)
     if (this.currentAudio) {
       this.currentAudio.stop();
       this.currentAudio.unload();
@@ -430,12 +582,15 @@ class DialogManager {
 
     this.hideCaption();
     this.isPlaying = false;
+    this.isFadingOut = false;
     this.currentDialog = null;
     this.captionQueue = [];
     this.captionIndex = 0;
     this.captionTimer = 0;
     this.currentProgressTriggers = [];
     this.progressTriggersFired.clear();
+    this.fadeOutTimer = 0;
+    this.fadeOutDuration = 0;
 
     this.emit("dialog:stop");
   }
@@ -584,13 +739,120 @@ class DialogManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Check for auto-play dialogs when not currently playing
+    if (
+      this.gameManager &&
+      !this.isPlaying &&
+      !this.isFadingOut &&
+      this._getDialogsForState
+    ) {
+      const currentState = this.gameManager.getState();
+      const matchingDialogs = this._getDialogsForState(
+        currentState,
+        this.playedDialogs || new Set()
+      );
+
+      // Debug: Log when we're checking for these specific dialogs
+      if (
+        currentState.viewmasterInsanityIntensity >=
+          VIEWMASTER_OVERHEAT_THRESHOLD &&
+        currentState.viewmasterOverheatDialogIndex !== null &&
+        currentState.viewmasterOverheatDialogIndex !== undefined
+      ) {
+        const targetDialogs = matchingDialogs.filter(
+          (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
+        );
+        if (targetDialogs.length > 0 && !this.isPlaying) {
+          this.logger.log(
+            `Found matching overheat dialog(s): ${targetDialogs
+              .map((d) => d.id)
+              .join(", ")}`
+          );
+        }
+      }
+
+      // Play matching dialogs that aren't already playing or pending
+      for (const dialog of matchingDialogs) {
+        // Skip if already played and marked as "once"
+        if (
+          dialog.once &&
+          this.playedDialogs &&
+          this.playedDialogs.has(dialog.id)
+        ) {
+          continue;
+        }
+
+        // Skip if this is already the current dialog (avoid re-triggering)
+        if (this.currentDialog && this.currentDialog.id === dialog.id) {
+          continue;
+        }
+
+        // Skip if already pending
+        if (this.pendingDialogs.has(dialog.id)) {
+          continue;
+        }
+
+        this.logger.log(`Auto-playing dialog "${dialog.id}"`);
+
+        // Only track in playedDialogs if marked as "once" (allows replay for once: false)
+        if (dialog.once && this.playedDialogs) {
+          this.playedDialogs.add(dialog.id);
+        }
+
+        // Play the dialog (will be scheduled with its delay if specified)
+        this.playDialog(dialog);
+        break; // Only play one dialog per frame
+      }
+    }
+    // Handle fade out
+    if (this.isFadingOut && this.currentAudio) {
+      this.fadeOutTimer += dt;
+      const progress = Math.min(this.fadeOutTimer / this.fadeOutDuration, 1.0);
+      const currentVolume = this.fadeOutStartVolume * (1.0 - progress);
+
+      if (this.currentAudio.volume) {
+        this.currentAudio.volume(currentVolume);
+      }
+
+      // When fade out completes, stop dialog
+      if (progress >= 1.0) {
+        if (this.currentAudio) {
+          this.currentAudio.stop();
+          this.currentAudio.unload();
+          this.currentAudio = null;
+        }
+        this.hideCaption();
+        this.isPlaying = false;
+        this.isFadingOut = false;
+        const completedDialog = this.currentDialog;
+        this.currentDialog = null;
+        this.captionQueue = [];
+        this.captionIndex = 0;
+        this.captionTimer = 0;
+        this.currentProgressTriggers = [];
+        this.progressTriggersFired.clear();
+        this.fadeOutTimer = 0;
+        this.fadeOutDuration = 0;
+        this.emit("dialog:stop");
+        return;
+      }
+      return; // Don't process other updates while fading out
+    }
+
+    // Note: Criteria checking for stopping dialogs is handled by the normal
+    // dialog system via state change events. No need for continuous checking here.
+
     // Update pending delayed dialogs
     if (this.pendingDialogs.size > 0) {
       for (const [dialogId, pending] of this.pendingDialogs) {
         pending.timer += dt;
 
         // Check if delay has elapsed and no dialog is currently playing
-        if (pending.timer >= pending.delay && !this.isPlaying) {
+        if (
+          pending.timer >= pending.delay &&
+          !this.isPlaying &&
+          !this.isFadingOut
+        ) {
           this.logger.log(`Playing delayed dialog "${dialogId}"`);
           this.pendingDialogs.delete(dialogId);
           this._playDialogImmediate(pending.dialogData, pending.onComplete);

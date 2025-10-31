@@ -122,7 +122,11 @@ export default class ViewmasterController {
 
     this.initialPoseApplied = true;
     this.isEquipped = false;
-    this.gameManager.setState({ isViewmasterEquipped: false });
+    this.gameManager.setState({
+      isViewmasterEquipped: false,
+      viewmasterManuallyRemoved: false,
+      viewmasterOverheatDialogIndex: null, // Reset dialog index
+    });
 
     this.isTransitioning = true;
     this.animationManager.playObjectAnimation(animation);
@@ -181,12 +185,21 @@ export default class ViewmasterController {
       this.stopFractalRamp();
       const vfxDelayMs = Math.max(durationMs * VFX_DELAY_RATIO, 0);
       this.pendingVfxTimeout = setTimeout(() => {
-        this.gameManager.setState({ isViewmasterEquipped: true });
+        this.gameManager.setState({
+          isViewmasterEquipped: true,
+          viewmasterManuallyRemoved: false, // Reset when putting back on
+          viewmasterOverheatDialogIndex: null, // Reset dialog index when putting back on
+        });
         this.startFractalRamp();
         this.pendingVfxTimeout = null;
       }, vfxDelayMs);
     } else {
-      this.gameManager.setState({ isViewmasterEquipped: false });
+      // Manually removed (not a timeout)
+      this.gameManager.setState({
+        isViewmasterEquipped: false,
+        viewmasterManuallyRemoved: !this.timeoutTriggered,
+        viewmasterOverheatDialogIndex: null, // Reset dialog index when removed
+      });
       this.stopFractalRamp();
     }
   }
@@ -275,6 +288,9 @@ export default class ViewmasterController {
       clearTimeout(this.pendingVfxTimeout);
       this.pendingVfxTimeout = null;
     }
+
+    // Mark as NOT manually removed (it's a timeout)
+    this.gameManager.setState({ viewmasterManuallyRemoved: false });
     this.toggle();
   }
 

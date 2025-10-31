@@ -102,6 +102,10 @@ class CharacterController {
     this.idleHeadbobTime = 0;
     this.headbobEnabled = true;
 
+    // Viewmaster insanity buildup - smoothed for gradual ramp-down
+    this.insanityIntensitySmoothed = 0.0; // Current smoothed value (0.0 to 1.0)
+    this.insanityRampDownSpeed = 0.5; // How fast it ramps down per second (0.0 to 1.0 over ~3 seconds)
+
     // Idle glance system
     this.glanceEnabled = true; // Enable idle look-around behavior
     this.glanceState = null; // null, 'glancing', 'returning'
@@ -1600,11 +1604,77 @@ class CharacterController {
     }
   }
 
+  /**
+   * Update smoothed insanity intensity (call this from update() with dt)
+   * @param {number} dt - Delta time in seconds
+   */
+  updateInsanityIntensity(dt) {
+    // Get target intensity from fractal effect
+    let targetIntensity = 0.0;
+    if (window.vfxManager?.effects?.splatFractal) {
+      const fractalEffect = window.vfxManager.effects.splatFractal;
+      const currentIntensity = fractalEffect.currentIntensity || 0;
+
+      // Fractal intensity ranges from 0.02 (FRACTAL_MIN_INTENSITY) to 10.0 (FRACTAL_MAX_INTENSITY)
+      // Normalize to 0.0-1.0 range
+      const MIN_INTENSITY = 0.02;
+      const MAX_INTENSITY = 10.0;
+      targetIntensity = Math.max(
+        0,
+        Math.min(
+          1,
+          (currentIntensity - MIN_INTENSITY) / (MAX_INTENSITY - MIN_INTENSITY)
+        )
+      );
+    }
+
+    // Smooth the intensity - ramp up quickly, ramp down slowly
+    if (targetIntensity > this.insanityIntensitySmoothed) {
+      // Ramp up instantly to match target (when viewmaster goes on)
+      this.insanityIntensitySmoothed = targetIntensity;
+    } else {
+      // Ramp down gradually when viewmaster is removed (over ~3 seconds)
+      const rampDownAmount = this.insanityRampDownSpeed * dt;
+      this.insanityIntensitySmoothed = Math.max(
+        0,
+        this.insanityIntensitySmoothed - rampDownAmount
+      );
+    }
+  }
+
+  /**
+   * Get normalized viewmaster insanity intensity (0.0 to 1.0)
+   * Exposed for audio systems and other effects
+   * Returns smoothed value that gradually ramps down when viewmaster is removed
+   * @returns {number} Normalized intensity from 0.0 (calm) to 1.0 (maximum insanity)
+   */
+  getViewmasterInsanityIntensity() {
+    return this.insanityIntensitySmoothed;
+  }
+
   calculateIdleHeadbob() {
-    // Gentle breathing/idle animation - half strength of walking
-    const idleFrequency = 0.8; // Slow breathing rate
-    const idleVerticalAmp = 0.002; // Half of walk vertical (0.04)
-    const idleHorizontalAmp = 0.001; // Half of walk horizontal (0.03)
+    // Base gentle breathing/idle animation
+    const baseVerticalAmp = 0.002; // Half of walk vertical (0.04)
+    const baseHorizontalAmp = 0.001; // Half of walk horizontal (0.03)
+
+    // Get viewmaster insanity intensity (smoothed for gradual ramp-down)
+    const insanityIntensity = this.getViewmasterInsanityIntensity();
+
+    // As insanity builds, breathing becomes:
+    // - Much slower and more labored (lower frequency) - from 0.15 Hz (normal) down to 0.015 Hz (10x slower, very labored)
+    // - Extremely dramatic (higher amplitude) - up to 35x base amplitude for maximum impact
+
+    // Frequency: start at 0.15 Hz (normal breathing), go down to 0.015 Hz (10x slower) as intensity increases
+    const normalFrequency = 0.15; // Normal breathing rate (Hz)
+    const laboredFrequency = 0.015; // Very slow, labored breathing (10x slower)
+    const idleFrequency =
+      normalFrequency -
+      insanityIntensity * (normalFrequency - laboredFrequency);
+
+    // Amplitude: dramatically increase as intensity builds
+    const amplitudeMultiplier = 1.0 + Math.pow(insanityIntensity, 0.6) * 34.0; // 1.0x to 35.0x (extremely dramatic)
+    const idleVerticalAmp = baseVerticalAmp * amplitudeMultiplier;
+    const idleHorizontalAmp = baseHorizontalAmp * amplitudeMultiplier;
 
     const verticalBob =
       Math.sin(this.idleHeadbobTime * idleFrequency * Math.PI * 2) *
@@ -2254,6 +2324,9 @@ class CharacterController {
 
     // Update idle glance system (before headbob so it can affect targetYaw)
     this.updateIdleGlance(dt, isMoving);
+
+    // Update viewmaster insanity intensity (smoothed for gradual ramp-down)
+    this.updateInsanityIntensity(dt);
 
     // Update headbob state
     const targetIntensity = this.headbobEnabled ? (isMoving ? 1.0 : 0.0) : 0.0;

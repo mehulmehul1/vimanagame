@@ -20,6 +20,7 @@ const logger = new Logger("CriteriaHelper", false);
  * - $lte: less than or equal
  * - $in: in array
  * - $nin: not in array
+ * - $mod: modulo check - { $mod: [divisor, remainder] } checks if value % divisor === remainder
  */
 
 /**
@@ -73,6 +74,25 @@ export function matchesCriteria(value, criteria) {
       case "$nin":
         if (!Array.isArray(compareValue) || compareValue.includes(value))
           return false;
+        break;
+
+      case "$mod":
+        // { $mod: [divisor, remainder] } - checks if value % divisor === remainder
+        if (!Array.isArray(compareValue) || compareValue.length !== 2) {
+          logger.warn("$mod requires [divisor, remainder] array");
+          return false;
+        }
+        const [divisor, remainder] = compareValue;
+        if (typeof divisor !== "number" || typeof remainder !== "number") {
+          logger.warn("$mod divisor and remainder must be numbers");
+          return false;
+        }
+        if (divisor === 0) {
+          logger.warn("$mod divisor cannot be zero");
+          return false;
+        }
+        if (typeof value !== "number") return false;
+        if (value % divisor !== remainder) return false;
         break;
 
       default:

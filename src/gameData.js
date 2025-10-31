@@ -82,6 +82,10 @@ export const startScreen = {
 
   // View-Master state
   isViewmasterEquipped: false, // True when the headset is currently being worn
+  viewmasterManuallyRemoved: false, // True when viewmaster was manually removed (not timed out)
+  viewmasterInsanityIntensity: 0.0, // Normalized intensity (0.0 to 1.0) from characterController
+  viewmasterOverheatCount: 0, // Increments each time intensity crosses 0.5 threshold
+  viewmasterOverheatDialogIndex: null, // Dialog index (0 or 1) computed from count % 2, null until first threshold crossing
 
   // Drawing game state (CURSOR/CURSOR_FINAL)
   drawingSuccessCount: 0, // Number of successful drawings (0-3)

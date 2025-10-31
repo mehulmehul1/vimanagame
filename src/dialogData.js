@@ -38,6 +38,9 @@
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 
+// Viewmaster overheat dialog threshold (0.0-1.0 normalized intensity)
+export const VIEWMASTER_OVERHEAT_THRESHOLD = 0.3;
+
 export const dialogTracks = {
   intro: {
     id: "intro",
@@ -731,7 +734,7 @@ export const dialogTracks = {
     criteria: {
       currentState: GAME_STATES.CURSOR,
       lastDrawingSuccess: false,
-      drawingFailureCount: 1,
+      drawingFailureCount: { $mod: [3, 1], $gt: 0 },
     },
     autoPlay: true,
     once: false,
@@ -745,7 +748,7 @@ export const dialogTracks = {
     criteria: {
       currentState: GAME_STATES.CURSOR,
       lastDrawingSuccess: false,
-      drawingFailureCount: 2,
+      drawingFailureCount: { $mod: [3, 2], $gt: 0 },
     },
     autoPlay: true,
     once: false,
@@ -759,7 +762,7 @@ export const dialogTracks = {
     criteria: {
       currentState: GAME_STATES.CURSOR,
       lastDrawingSuccess: false,
-      drawingFailureCount: 3,
+      drawingFailureCount: { $mod: [3, 0], $gt: 0 },
     },
     autoPlay: true,
     once: false,
@@ -793,6 +796,47 @@ export const dialogTracks = {
     autoPlay: true,
     once: true,
     priority: 100,
+  },
+
+  // Viewmaster insanity buildup dialogs - cycle through when intensity crosses threshold
+  // Cycles: index 0 -> first, index 1 -> second, then repeats
+  coleUghGimmeASec: {
+    id: "coleUghGimmeASec",
+    audio: "./audio/dialog/cole-ugh-gimme-a-sec.mp3",
+    captions: [
+      { text: "Ugh...", duration: 2.0 },
+      { text: "[coughing]", duration: 4.0 },
+      { text: "Gimme a sec...", duration: 2.0 },
+    ],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      isViewmasterEquipped: true,
+      viewmasterOverheatDialogIndex: 0,
+      viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
+    },
+    autoPlay: true,
+    once: false,
+    priority: 95,
+  },
+
+  coleUghItsTooMuch: {
+    id: "coleUghItsTooMuch",
+    audio: "./audio/dialog/cole-ugh-its-too-much.mp3",
+    captions: [
+      { text: "Ugh...", duration: 2.0 },
+      { text: "[coughing]", duration: 4.0 },
+      { text: "It's too much...", duration: 2.0 },
+      { text: "Just a quick break.", duration: 2.0 },
+    ],
+    criteria: {
+      currentState: GAME_STATES.CURSOR,
+      isViewmasterEquipped: true,
+      viewmasterOverheatDialogIndex: 1,
+      viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
+    },
+    autoPlay: true,
+    once: false,
+    priority: 95,
   },
 };
 

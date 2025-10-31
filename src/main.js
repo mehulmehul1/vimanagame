@@ -377,7 +377,7 @@ const optionsMenu = new OptionsMenu({
 sceneManager.physicsManager = physicsManager;
 
 // Preload dialog audio files
-import { dialogTracks } from "./dialogData.js";
+import { dialogTracks, VIEWMASTER_OVERHEAT_THRESHOLD } from "./dialogData.js";
 dialogManager.preloadDialogs(dialogTracks);
 
 // Link dialog manager to choice UI
@@ -588,6 +588,30 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Always update SFX manager (handles delayed sound playback)
   sfxManager.update(dt);
+
+  // Update viewmaster insanity intensity in game state (for dialog criteria)
+  if (characterController && gameManager) {
+    const intensity = characterController.getViewmasterInsanityIntensity();
+    const currentState = gameManager.getState();
+    const previousIntensity = currentState.viewmasterInsanityIntensity || 0;
+
+    // Detect when intensity crosses threshold (from below to above)
+    if (
+      previousIntensity < VIEWMASTER_OVERHEAT_THRESHOLD &&
+      intensity >= VIEWMASTER_OVERHEAT_THRESHOLD
+    ) {
+      const currentOverheatCount = currentState.viewmasterOverheatCount || 0;
+      const newCount = currentOverheatCount + 1;
+      gameManager.setState({
+        viewmasterInsanityIntensity: intensity,
+        viewmasterOverheatCount: newCount,
+        viewmasterOverheatDialogIndex: newCount % 2, // Cycle: 0, 1, 0, 1...
+      });
+    } else if (intensity !== previousIntensity) {
+      // Only update if intensity actually changed
+      gameManager.setState({ viewmasterInsanityIntensity: intensity });
+    }
+  }
 
   // Always update dialog manager (handles caption timing)
   dialogManager.update(dt);
