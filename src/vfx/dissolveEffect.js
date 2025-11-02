@@ -420,10 +420,17 @@ export class DissolveEffect extends VFXManager {
 
     // Apply shader to all materials in the object
     const modifiedMaterials = [];
+    let materialMeshCount = 0;
     sceneObject.traverse((child) => {
       if (child.isMesh && child.material) {
+        materialMeshCount++;
         // Skip contact shadow meshes by checking parent hierarchy
         if (isContactShadowMesh(child)) {
+          this.logger.log(
+            `Skipping contact shadow mesh for materials: ${
+              child.name || "unnamed"
+            }`
+          );
           return;
         }
 
@@ -470,12 +477,22 @@ export class DissolveEffect extends VFXManager {
       }
     });
 
+    this.logger.log(
+      `Applied dissolve shader to ${modifiedMaterials.length} material(s) from ${materialMeshCount} mesh(es) for ${objectId}`
+    );
+
     // Merge geometries from all meshes for particle system
+    // With useContainer: true, meshes are nested inside the GLTF model child
     const geometries = [];
+    let meshCount = 0;
     sceneObject.traverse((child) => {
       if (child.isMesh && child.geometry) {
+        meshCount++;
         // Skip contact shadow meshes by checking parent hierarchy
         if (isContactShadowMesh(child)) {
+          this.logger.log(
+            `Skipping contact shadow mesh: ${child.name || "unnamed"}`
+          );
           return;
         }
 
@@ -483,11 +500,31 @@ export class DissolveEffect extends VFXManager {
         child.updateMatrixWorld(true);
         geo.applyMatrix4(child.matrixWorld);
         geometries.push(geo);
+        this.logger.log(
+          `Found mesh geometry: ${child.name || "unnamed"} (${
+            geo.attributes.position.count
+          } vertices)`
+        );
       }
     });
 
+    this.logger.log(
+      `Traverse found ${meshCount} total meshes, ${geometries.length} valid geometries for ${objectId}`
+    );
+
     if (geometries.length === 0) {
       this.logger.warn(`No geometries found for object: ${objectId}`);
+      // Debug: log the object hierarchy
+      this.logger.warn(
+        `Object type: ${sceneObject.type}, children: ${sceneObject.children.length}`
+      );
+      sceneObject.traverse((child, index) => {
+        this.logger.warn(
+          `  [${index}] ${child.type} "${child.name || "unnamed"}" ${
+            child.isMesh ? "[MESH]" : ""
+          } ${child.children.length} children`
+        );
+      });
       return;
     }
 
@@ -801,11 +838,13 @@ export class DissolveEffect extends VFXManager {
           dissolveState.contactShadowEnabled = true; // Mark as enabled
         }
       }
-      // Disable contact shadow when object is fully dissolved
-      else if (dissolveState.contactShadow && currentProgress >= 14.0) {
+      // Disable contact shadow when dissolve transition starts (fade out early)
+      else if (dissolveState.contactShadow && currentProgress > -14.0) {
         if (dissolveState.contactShadowEnabled) {
           this.logger.log(
-            `Dissolve complete, disabling contact shadow for ${objectId}`
+            `Dissolve started, disabling contact shadow for ${objectId} (progress: ${currentProgress.toFixed(
+              2
+            )})`
           );
           dissolveState.contactShadow.disable();
           dissolveState.contactShadowEnabled = false; // Mark as disabled

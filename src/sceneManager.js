@@ -1218,6 +1218,8 @@ class SceneManager {
   removeObject(id) {
     const object = this.objects.get(id);
     if (object) {
+      // Force visibility to false before removal
+      object.visible = false;
       // Clean up animations for this object
       const mixer = this.animationMixers.get(id);
       if (mixer) {
@@ -1259,9 +1261,16 @@ class SceneManager {
         }
       }
 
+      // Force visibility to false and remove from scene
+      object.visible = false;
+      if (object.parent) {
+        object.parent.remove(object);
+      }
       this.scene.remove(object);
+
       // Dispose of geometries and materials
       object.traverse((child) => {
+        child.visible = false; // Hide all children
         if (child.geometry) {
           child.geometry.dispose();
         }
@@ -1273,6 +1282,7 @@ class SceneManager {
           }
         }
       });
+
       this.objects.delete(id);
       this.objectData.delete(id);
       this.logger.log(`Removed "${id}"`);

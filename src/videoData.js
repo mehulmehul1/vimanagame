@@ -86,18 +86,19 @@ export const videos = {
   },
   cat2: {
     id: "cat2",
-    videoPath: "/video/cat.webm",
+    videoPath: "/video/cat-2.webm",
+    gizmo: false,
     preload: false, // Load after loading screen
-    position: { x: -1.74, y: 1.88, z: 80.75 },
+    position: { x: -1.39, y: 1.91, z: 81.48 },
     rotation: { x: 0.0, y: -0.8856, z: 0.0 },
-    scale: { x: 0.27, y: 0.27, z: 1.0 },
+    scale: { x: 0.12, y: 0.21, z: 1.31 },
     loop: false,
     muted: false,
     billboard: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_VIEWMASTER,
-        $lt: GAME_STATES.PRE_EDISON,
+        $lte: GAME_STATES.EDISON,
       },
     },
     autoPlay: true,
@@ -171,7 +172,7 @@ export const videos = {
     billboard: true,
     criteria: {
       currentState: {
-        $gte: GAME_STATES.CURSOR,
+        $gte: GAME_STATES.WAKING_UP,
       },
     },
   },

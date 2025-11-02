@@ -86,17 +86,69 @@ export class SplatFractalEffect extends VFXManager {
       // Initialize procedural audio
       await this.audio.initialize();
 
+      // Ensure arrays are initialized
+      if (!Array.isArray(this.targetMeshes)) {
+        this.targetMeshes = [];
+      }
+      if (!Array.isArray(this.targetMeshIds)) {
+        this.targetMeshIds = [];
+      }
+
       // Get target mesh IDs from effect parameters
       const targetIds = effect.parameters?.targetMeshIds || [];
+      
+      // Ensure targetIds is an array
+      if (!Array.isArray(targetIds)) {
+        this.logger.error("targetMeshIds must be an array", targetIds);
+        return;
+      }
 
       if (targetIds.length === 0) {
         this.logger.warn("No target mesh IDs specified");
         return;
       }
 
+      // Check if we actually need meshes for this effect
+      const intensity = effect.parameters?.intensity ?? 0;
+      const rampDuration = effect.parameters?.rampDuration ?? 0;
+      const needsMeshes = intensity > 0 || rampDuration > 0;
+
+      if (!needsMeshes) {
+        // Effect has zero intensity and no ramp - no meshes needed
+        this.logger.log(
+          "Effect has zero intensity and no ramp - skipping mesh loading"
+        );
+        // Store target IDs for potential future use, but don't load meshes
+        this.targetMeshIds = Array.isArray(targetIds) ? [...targetIds] : [];
+        // Apply effect directly (will be a no-op but sets up state correctly)
+        this.applyEffect(effect, state);
+        return;
+      }
+
       // Wait for and get meshes from sceneManager
       for (const meshId of targetIds) {
-        const mesh = await this._waitForMesh(meshId);
+        // Validate meshId
+        if (typeof meshId !== 'string') {
+          this.logger.warn(`Invalid meshId type: ${typeof meshId}, skipping`, meshId);
+          continue;
+        }
+
+        // Check if mesh already exists before waiting
+        let mesh = this.sceneManager.getObject(meshId);
+        
+        if (!mesh) {
+          // Only wait for mesh if it's actually being loaded
+          if (this.sceneManager.isLoading(meshId)) {
+            mesh = await this._waitForMesh(meshId);
+          } else {
+            // Mesh isn't loaded and isn't loading - skip it
+            this.logger.log(
+              `Mesh "${meshId}" not available and not loading - skipping (may not be loaded for current state)`
+            );
+            continue;
+          }
+        }
+
         if (mesh) {
           this.targetMeshes.push(mesh);
           this.targetMeshIds.push(meshId);
@@ -107,7 +159,13 @@ export class SplatFractalEffect extends VFXManager {
       }
 
       if (this.targetMeshes.length === 0) {
-        this.logger.error("No target meshes available");
+        this.logger.warn(
+          "No target meshes available - effect may not apply until meshes are loaded"
+        );
+        // Store target IDs for potential future use (create new array to avoid reference issues)
+        this.targetMeshIds = Array.isArray(targetIds) ? [...targetIds] : [];
+        // Still apply effect (will be a no-op but sets up state correctly)
+        this.applyEffect(effect, state);
         return;
       }
 
@@ -344,6 +402,52 @@ export class SplatFractalEffect extends VFXManager {
   }
 
   /**
+   * Try to load meshes if they're not already loaded but are needed
+   * @private
+   */
+  async _tryLoadMeshes(targetIds) {
+    if (!targetIds || !Array.isArray(targetIds) || targetIds.length === 0) return;
+
+    // Ensure arrays are properly initialized
+    if (!Array.isArray(this.targetMeshes)) {
+      this.targetMeshes = [];
+    }
+    if (!Array.isArray(this.targetMeshIds)) {
+      this.targetMeshIds = [];
+    }
+
+    for (const meshId of targetIds) {
+      // Validate meshId
+      if (typeof meshId !== 'string') {
+        this.logger.warn(`Invalid meshId type in _tryLoadMeshes: ${typeof meshId}, skipping`, meshId);
+        continue;
+      }
+
+      // Skip if already loaded
+      if (this.targetMeshes.some((m, i) => this.targetMeshIds[i] === meshId)) {
+        continue;
+      }
+
+      // Try to get mesh (might be available now)
+      let mesh = this.sceneManager.getObject(meshId);
+      
+      if (!mesh && this.sceneManager.isLoading(meshId)) {
+        // Mesh is loading, wait for it
+        mesh = await this._waitForMesh(meshId);
+      }
+
+      if (mesh) {
+        this.targetMeshes.push(mesh);
+        const index = this.targetMeshIds.indexOf(meshId);
+        if (index === -1) {
+          this.targetMeshIds.push(meshId);
+        }
+        this.logger.log(`Loaded mesh: ${meshId}`);
+      }
+    }
+  }
+
+  /**
    * Hook: Apply effect parameters
    */
   applyEffect(effect, state) {
@@ -363,6 +467,46 @@ export class SplatFractalEffect extends VFXManager {
     this.logger.log(
       `Applying fractal effect: ${params.effectType} (type=${effectType}), target intensity=${targetIntensity}, ramp=${rampDuration}s, rampOut=${rampOutDuration}s`
     );
+
+    // Update target mesh IDs if provided
+    const targetIds = params.targetMeshIds || this.targetMeshIds || [];
+    
+    // Ensure arrays are properly initialized
+    if (!Array.isArray(this.targetMeshes)) {
+      this.targetMeshes = [];
+    }
+    if (!Array.isArray(this.targetMeshIds)) {
+      this.targetMeshIds = [];
+    }
+    
+    // Update targetMeshIds if provided (create a new array to avoid reference issues)
+    if (Array.isArray(params.targetMeshIds) && params.targetMeshIds.length > 0) {
+      this.targetMeshIds = [...params.targetMeshIds];
+    } else if (Array.isArray(targetIds) && targetIds.length > 0 && this.targetMeshIds.length === 0) {
+      this.targetMeshIds = [...targetIds];
+    }
+
+    // If we need meshes but don't have them, try to load them asynchronously
+    if ((targetIntensity > 0 || rampDuration > 0) && this.targetMeshes.length === 0 && targetIds.length > 0) {
+      this.logger.log("Meshes needed but not loaded - attempting to load asynchronously");
+      // Fire and forget - meshes will be picked up when they become available
+      this._tryLoadMeshes(targetIds).then(() => {
+        // When meshes are loaded, apply the effect if still needed
+        if (this.currentIntensity > 0 || this.isRamping) {
+          const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
+          this.targetMeshes.forEach((mesh) => {
+            mesh.objectModifier = this._getFractalModifier(
+              effectType,
+              this.currentIntensity
+            );
+            mesh.updateGenerator();
+          });
+          this.logger.log(`Applied effect to ${this.targetMeshes.length} mesh(es) after async load`);
+        }
+      }).catch((error) => {
+        this.logger.error("Failed to load meshes asynchronously:", error);
+      });
+    }
 
     // Store ramp-out duration for when effect ends
     this.rampOutDuration = rampOutDuration;
@@ -386,16 +530,33 @@ export class SplatFractalEffect extends VFXManager {
       this.isRamping = false;
     }
 
-    // Apply modifier to all target meshes
-    this.targetMeshes.forEach((mesh) => {
-      mesh.objectModifier = this._getFractalModifier(
-        effectType,
-        this.currentIntensity
-      );
-      mesh.updateGenerator();
-    });
-
-    this.logger.log(`Applied effect to ${this.targetMeshes.length} mesh(es)`);
+    // Apply modifier to all target meshes (or remove if intensity is 0)
+    if (this.currentIntensity <= 0) {
+      // Remove modifiers when intensity is 0
+      this.targetMeshes.forEach((mesh) => {
+        if (mesh.objectModifier) {
+          mesh.objectModifier = null;
+          mesh.updateGenerator();
+        }
+      });
+      this.logger.log(`Removed fractal modifiers (intensity is 0)`);
+    } else {
+      // Apply modifier with current intensity
+      if (this.targetMeshes.length === 0) {
+        this.logger.warn(
+          "Cannot apply effect - no target meshes available. Effect will apply when meshes are loaded."
+        );
+      } else {
+        this.targetMeshes.forEach((mesh) => {
+          mesh.objectModifier = this._getFractalModifier(
+            effectType,
+            this.currentIntensity
+          );
+          mesh.updateGenerator();
+        });
+        this.logger.log(`Applied effect to ${this.targetMeshes.length} mesh(es)`);
+      }
+    }
   }
 
   /**
@@ -483,8 +644,7 @@ export class SplatFractalEffect extends VFXManager {
       const easedProgress = progress * progress * (3 - 2 * progress);
 
       // Ramp from start intensity to 0
-      this.currentInten;
-      this.rampOutStartIntensity * (1.0 - easedProgress);
+      this.currentIntensity = this.rampOutStartIntensity * (1.0 - easedProgress);
 
       // Update modifiers with new intensity
       const effectType = this.effectTypeMap[this.parameters.effectType] || 3;

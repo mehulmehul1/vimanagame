@@ -127,23 +127,23 @@ export const lights = {
     rotation: { x: 0.0, y: 0.0, z: 0.0 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
     castShadow: false,
-    lensFlare: {
-      enabled: true,
-      fadeDelay: 4.0,
-      fadeDuration: 2.5,
-      criteria: {
-        currentState: {
-          $gt: GAME_STATES.PRE_VIEWMASTER,
-          $lt: GAME_STATES.POST_VIEWMASTER,
-        },
-      },
-      elements: [
-        { size: 180, distance: 0.0 },
-        { size: 140, distance: 0.25 },
-        { size: 260, distance: 0.55 },
-        { size: 320, distance: 0.85 },
-      ],
-    },
+    // lensFlare: {
+    //   enabled: true,
+    //   fadeDelay: 4.0,
+    //   fadeDuration: 2.5,
+    //   criteria: {
+    //     currentState: {
+    //       $gt: GAME_STATES.PRE_VIEWMASTER,
+    //       $lt: GAME_STATES.POST_VIEWMASTER,
+    //     },
+    //   },
+    //   elements: [
+    //     { size: 180, distance: 0.0 },
+    //     { size: 140, distance: 0.25 },
+    //     { size: 260, distance: 0.55 },
+    //     { size: 320, distance: 0.85 },
+    //   ],
+    // },
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,

@@ -5,7 +5,7 @@
  *
  * Common properties:
  * - id: Unique identifier
- * - type: "animation", "lookat", "moveTo", "fade", or "cameraMoveTo"
+ * - type: "animation", "lookat", "moveTo", "fade"
  * - description: Human-readable description
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
@@ -15,13 +15,30 @@
  * - playOnce: If true, only plays once per game session (default: false)
  * - delay: Delay in seconds before playing after state conditions are met (default: 0)
  *
+ * Input Control Properties Summary:
+ * - restoreInput: Supported by ALL types (jsonAnimation, lookat, moveTo, fade)
+ *   - Controls what input is restored after animation completes
+ *   - Can be boolean (true/false) for backward compatibility or object { movement: boolean, rotation: boolean }
+ *   - Examples:
+ *     - restoreInput: true (or { movement: true, rotation: true }) - restore both movement and rotation
+ *     - restoreInput: false (or { movement: false, rotation: false }) - restore nothing, camera frozen
+ *     - restoreInput: { movement: true, rotation: false } - restore movement only, keep rotation disabled
+ * - inputControl: Supported ONLY by "moveTo" and "fade" types
+ *   - Controls what input to disable DURING animation: { disableMovement: boolean, disableRotation: boolean }
+ *   - NOT supported by jsonAnimation or lookat (input is always fully disabled during those animations)
+ *
  * Type-specific properties:
  *
  * For type "animation" or "jsonAnimation":
  * - path: Path to the animation JSON file
  * - preload: If true, load during loading screen; if false, load after (default: false)
- * - syncController: If true, sync character controller yaw/pitch to final camera pose (default: true)
- * - restoreInput: If true, restore input controls when complete (default: true)
+ * - restoreInput: What input to restore after animation completes (default: true or { movement: true, rotation: true })
+ *   - Boolean: true restores both, false restores nothing
+ *   - Object: { movement: boolean, rotation: boolean } - selectively restore movement and/or rotation
+ *   - Examples:
+ *     - restoreInput: true - restore both movement and rotation
+ *     - restoreInput: { movement: true, rotation: false } - restore movement only
+ *     - restoreInput: false - restore nothing, camera freezes at final position
  * - scaleY: Optional Y-axis scale multiplier for animation (default: 1.0)
  *   - Values < 1.0 compress vertical motion, > 1.0 expand it
  *   - Example: 0.8 would reduce vertical movement by 20%
@@ -64,8 +81,15 @@
  * - loop: If true, continuously cycle through positions (default: false)
  *
  * COMMON LOOKAT PROPERTIES:
- * - restoreInput: If true, restore input controls when complete (default: true)
- *   - If false, inputs remain disabled after animation - you must manually re-enable them
+ * - restoreInput: What input to restore after animation completes (default: true or { movement: true, rotation: true })
+ *   - Boolean: true restores both, false restores nothing
+ *   - Object: { movement: boolean, rotation: boolean } - selectively restore movement and/or rotation
+ *   - Examples:
+ *     - restoreInput: true - restore both movement and rotation
+ *     - restoreInput: { movement: false, rotation: true } - restore rotation only
+ *     - restoreInput: false - restore nothing, inputs remain disabled
+ * - inputControl: NOT SUPPORTED for lookat - input is always fully disabled (both movement and rotation)
+ *   - InputControl is only supported for "fade" and "moveTo" animation types
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
  *   - minAperture: DoF effect strength at peak
@@ -76,9 +100,9 @@
  * - onComplete: Optional callback when lookat completes. Receives gameManager as parameter.
  *   Example: onComplete: (gameManager) => { gameManager.setState({...}); }
  *
- * Input control: Always disabled during lookat. By default, restored when complete (or if zoom is enabled
- *                without returnToOriginalView, after holdDuration + transitionDuration). Set restoreInput
- *                to false to keep inputs disabled after animation completes.
+ * Input control: Always fully disabled (both movement and rotation) during lookat. By default, restored
+ *                when complete (or if zoom is enabled without returnToOriginalView, after holdDuration +
+ *                transitionDuration). Set restoreInput to false to keep inputs disabled after animation completes.
  *
  * For type "moveTo":
  * - position: {x, y, z} world position to move character to
@@ -91,8 +115,9 @@
  * - inputControl: What input to disable during movement
  *   - disableMovement: Disable movement input (default: true)
  *   - disableRotation: Disable rotation input (default: true)
- * - restoreInput: If true, restore input controls when complete (default: true)
- *   - If false, inputs remain disabled after animation - you must manually re-enable them
+ * - restoreInput: What input to restore after movement completes (default: true or { movement: true, rotation: true })
+ *   - Boolean: true restores both, false restores nothing
+ *   - Object: { movement: boolean, rotation: boolean } - selectively restore movement and/or rotation
  * - onComplete: Optional callback when movement completes (no parameters passed)
  *
  * For type "fade":
@@ -104,18 +129,15 @@
  * - persistWhileCriteria: If true, fade persists at max opacity as long as criteria match (default: false)
  *   - When enabled, fade will stay at maxOpacity even after holdTime expires, until criteria no longer match
  *   - Once criteria stop matching, fade will complete normally or another fade can replace it
+ * - inputControl: What input to disable during fade (optional)
+ *   - disableMovement: Disable movement input (default: false)
+ *   - disableRotation: Disable rotation input (default: false)
+ * - restoreInput: What input to restore after fade completes (default: true or { movement: true, rotation: true })
+ *   - Boolean: true restores both, false restores nothing
+ *   - Object: { movement: boolean, rotation: boolean } - selectively restore movement and/or rotation
  * - onFadeInComplete: Optional callback when fade-in reaches max opacity. Receives gameManager as parameter.
  *   - Useful with persistWhileCriteria to trigger logic once black screen is reached
  * - onComplete: Optional callback when fade completes (returns to 0 opacity). Receives gameManager as parameter.
- *
- * For type "cameraMoveTo":
- * - position: {x, y, z} target camera world position
- * - rotation: {yaw, pitch} target camera rotation in radians (optional, uses current if omitted)
- * - duration: Animation duration in seconds (default: 1.0)
- * - easing: Easing function name (default: "easeInOutQuad")
- * - disableInput: If true, disable character controller input during animation (default: true)
- * - restoreInput: If true, restore input when complete (default: true)
- * - onComplete: Optional callback when animation completes. Receives gameManager as parameter.
  *
  * Usage:
  * import { cameraAnimations, getCameraAnimationForState } from './animationCameraData.js';
@@ -305,7 +327,6 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.DRIVE_BY },
     priority: 100,
     playOnce: true,
-    syncController: true,
     restoreInput: true,
     delay: 1.0,
     scaleY: 0.425,
@@ -480,12 +501,11 @@ export const cameraAnimations = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.PUNCH_OUT,
-        $lt: GAME_STATES.LIGHTS_OUT,
+        $lte: GAME_STATES.LIGHTS_OUT,
       },
     },
     priority: 100,
     playOnce: true,
-    syncController: false, // Don't sync controller - leave camera where it lands
     restoreInput: false, // Don't restore input - leave player frozen
     delay: 0.1,
     scaleY: 0.4,
@@ -546,11 +566,28 @@ export const cameraAnimations = {
     color: { r: 0, g: 0, b: 0 },
     fadeInTime: 0,
     holdTime: 0,
-    fadeOutTime: 1.5,
+    fadeOutTime: 8.0,
     maxOpacity: 1.0,
     criteria: { currentState: GAME_STATES.WAKING_UP },
     priority: 100,
     playOnce: true,
+  },
+
+  wakingUp: {
+    id: "wakingUp",
+    type: "jsonAnimation",
+    path: "/json/waking-up.json",
+    description:
+      "Passing out animation blending with player movement during wake up",
+    criteria: { currentState: GAME_STATES.WAKING_UP },
+    priority: 90,
+    playOnce: true,
+    blendWithPlayer: true,
+    blendAmount: 0.25,
+    restoreInput: {
+      movement: false, // Keep movement disabled after animation
+      rotation: true, // Restore rotation after animationfalse
+    },
   },
 
   woozy: {
@@ -566,7 +603,6 @@ export const cameraAnimations = {
     },
     priority: 95,
     playOnce: false,
-    syncController: false,
     restoreInput: true,
     blendWithPlayer: true,
     blendAmount: 0.8,

@@ -3,6 +3,7 @@ import * as THREE from "three";
 export class StrokeMesh {
   constructor(scene, options = {}) {
     this.scene = scene;
+    this.gameManager = options.gameManager;
     this.scale = options.scale || 2;
     this.color = options.color || new THREE.Color(0xaaeeff);
     this.position = options.position || { x: 0, y: 0, z: 0 };
@@ -17,11 +18,24 @@ export class StrokeMesh {
     this.fadeDuration = options.fadeDuration || 6.0;
     this.rapidFadeDuration = options.rapidFadeDuration || 0.8;
 
+    // Viewmaster visibility tracking
+    this.intendedVisible = true; // Track intended visibility (before viewmaster check)
+    this.viewmasterRevealTimeout = null; // Timeout for delayed visibility when viewmaster is removed
+    this.wasViewmasterEquipped = false; // Track previous frame's viewmaster state
+
     this.createMaterial();
     this.mesh = new THREE.Mesh(this.strokeGeometry, this.material);
     this.mesh.position.set(this.position.x, this.position.y, this.position.z);
     this.mesh.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z);
-    this.mesh.renderOrder = 9999; // Same as particles, depth test handles sorting
+    // Don't set renderOrder - let it render at default (0) so depth test can properly handle occlusion with splats
+
+    // Initialize viewmaster state tracking
+    const initialState = this.gameManager?.getState();
+    this.wasViewmasterEquipped = initialState?.isViewmasterEquipped || false;
+
+    // Apply initial visibility (respects viewmaster state)
+    this.applyVisibility();
+
     this.scene.add(this.mesh);
   }
 
@@ -134,16 +148,24 @@ export class StrokeMesh {
           float alpha = strokeAlpha * vFadeAlpha * alphaPulse * band;
           alpha = clamp(alpha, 0.0, 1.2);
           
-          if (alpha < 0.01) discard;
+          // Discard pixels below threshold (matches alphaTest to prevent depth write issues)
+          if (alpha < 0.05) discard;
           
           vec3 finalColor = uColor * brightnessPulse;
           
-          gl_FragColor = vec4(finalColor, min(alpha, 1.0) * uOpacity);
+          // Ensure alpha never exceeds 1.0 for proper blending with depthWrite
+          float finalAlpha = min(alpha, 1.0) * uOpacity;
+          
+          // Final discard check after opacity multiplication
+          if (finalAlpha < 0.05) discard;
+          
+          gl_FragColor = vec4(finalColor, finalAlpha);
         }
       `,
       transparent: true,
-      depthWrite: false,
+      depthWrite: true, // Allow writing to depth buffer so splats can occlude strokes
       depthTest: true,
+      alphaTest: 0.05, // Discard near-fully-transparent pixels before depth write (higher threshold to prevent black artifacts)
       blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
@@ -418,7 +440,32 @@ export class StrokeMesh {
     }
   }
 
+  /**
+   * Apply visibility based on intended state and viewmaster equipped state
+   * Runes are only visible when viewmaster is equipped
+   */
+  applyVisibility() {
+    if (!this.mesh) return;
+    const isViewmasterEquipped =
+      this.gameManager?.getState()?.isViewmasterEquipped || false;
+
+    // Clear any pending timeout (not used for runes, but clean up just in case)
+    if (this.viewmasterRevealTimeout) {
+      clearTimeout(this.viewmasterRevealTimeout);
+      this.viewmasterRevealTimeout = null;
+    }
+
+    // Runes are only visible when viewmaster is equipped
+    this.mesh.visible = this.intendedVisible && isViewmasterEquipped;
+
+    // Update previous state
+    this.wasViewmasterEquipped = isViewmasterEquipped;
+  }
+
   update(dt = 0.016) {
+    // Apply visibility (respects viewmaster equipped state)
+    this.applyVisibility();
+
     this.time += dt;
 
     if (this.material) {
@@ -443,6 +490,12 @@ export class StrokeMesh {
   }
 
   dispose() {
+    // Clear viewmaster reveal timeout
+    if (this.viewmasterRevealTimeout) {
+      clearTimeout(this.viewmasterRevealTimeout);
+      this.viewmasterRevealTimeout = null;
+    }
+
     if (this.mesh) {
       this.scene.remove(this.mesh);
       this.strokeGeometry.dispose();

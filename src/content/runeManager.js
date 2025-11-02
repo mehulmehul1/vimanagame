@@ -4,8 +4,9 @@ import { Logger } from "../utils/logger.js";
 import { STROKE_SHAPES } from "../drawing/strokeData.js";
 
 export class RuneManager {
-  constructor(scene) {
+  constructor(scene, gameManager) {
     this.scene = scene;
+    this.gameManager = gameManager;
     this.logger = new Logger("RuneManager", true);
     this.runes = [];
     this.isActive = false;
@@ -35,6 +36,7 @@ export class RuneManager {
       position,
       rotation,
       isStatic: true,
+      gameManager: this.gameManager,
     });
 
     strokeMesh.setStrokeData(runeData);

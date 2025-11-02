@@ -101,6 +101,8 @@ class AnimationManager {
     this.fadeData = null; // Current fade animation data
     this.fadeCube = null; // Mesh for fade effect
     this.fadeOnComplete = null;
+    this.fadeInputControl = null; // Store input control settings for fade
+    this.fadeRestoreInput = true; // Whether to restore input on fade completion
 
     // Event listeners will be set up in initialize()
     this.logger.log(
@@ -465,6 +467,40 @@ class AnimationManager {
       this.playedAnimations.add(fadeData.id);
     }
 
+    // Store input control settings
+    this.fadeInputControl = fadeData.inputControl || null;
+    // Store restoreInput config (can be boolean for backward compat or object)
+    this.fadeRestoreInput =
+      fadeData.restoreInput !== undefined ? fadeData.restoreInput : true;
+
+    // Apply input control if specified
+    if (this.characterController && this.fadeInputControl) {
+      const inputControl = this.fadeInputControl;
+      if (inputControl.disableMovement && inputControl.disableRotation) {
+        // Disable everything
+        this.characterController.inputDisabled = true;
+        this.characterController.inputManager.disable();
+        if (this.debug)
+          this.logger.log(
+            `Fade '${fadeData.id}': Disabled all input (movement + rotation)`
+          );
+      } else if (inputControl.disableMovement) {
+        // Disable only movement, keep rotation
+        this.characterController.inputManager.disableMovement();
+        if (this.debug)
+          this.logger.log(
+            `Fade '${fadeData.id}': Disabled movement input only`
+          );
+      } else if (inputControl.disableRotation) {
+        // Disable only rotation, keep movement
+        this.characterController.inputManager.disableRotation();
+        if (this.debug)
+          this.logger.log(
+            `Fade '${fadeData.id}': Disabled rotation input only`
+          );
+      }
+    }
+
     // Store fade data
     this.isFading = true;
     this.fadeElapsed = 0;
@@ -487,7 +523,14 @@ class AnimationManager {
     // Set color
     const color = this.fadeData.color;
     cube.material.color.setRGB(color.r, color.g, color.b);
-    cube.material.opacity = 0;
+    
+    // If fadeInTime is 0, start at maxOpacity to prevent flash when transitioning from another fade
+    // Otherwise start at 0 and fade in normally
+    if (this.fadeData.fadeInTime === 0) {
+      cube.material.opacity = this.fadeData.maxOpacity;
+    } else {
+      cube.material.opacity = 0;
+    }
 
     if (this.debug)
       this.logger.log(
@@ -554,15 +597,19 @@ class AnimationManager {
     // Get lookat hold duration (separate from zoom hold duration)
     const lookAtHoldDuration = lookAtData.lookAtHoldDuration || 0;
 
-    // Check if input should be restored (default: true for backwards compatibility)
-    const shouldRestoreInput =
+    // Get restoreInput config (default: restore both for backwards compatibility)
+    const restoreInputConfig =
       lookAtData.restoreInput !== undefined ? lookAtData.restoreInput : true;
+    const normalizedRestore = this._normalizeRestoreInput(restoreInputConfig);
 
     // Determine if we need to delay input restoration after onComplete fires
     // Note: holdDuration is handled by characterController internally (transition → hold → return → onComplete)
     // We only need to delay for zoom effects that happen after the lookat sequence completes
+    // Check if we should restore anything (movement or rotation)
+    const shouldRestoreSomething =
+      normalizedRestore.movement || normalizedRestore.rotation;
     const needsDelayedRestore =
-      shouldRestoreInput && lookAtData.enableZoom && lookAtData.zoomOptions;
+      shouldRestoreSomething && lookAtData.enableZoom && lookAtData.zoomOptions;
 
     // Store user-defined onComplete callback
     const userOnComplete = lookAtData.onComplete;
@@ -602,17 +649,18 @@ class AnimationManager {
         this.pendingInputRestore = {
           timer: 0,
           delay: delayAfterLookat,
+          restoreInputConfig: restoreInputConfig, // Store config for delayed restoration
         };
         // Call user-defined callback if provided
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
       };
-    } else if (shouldRestoreInput) {
-      // Immediate restoration when lookat completes (only if restoreInput is true and no zoom)
+    } else if (shouldRestoreSomething) {
+      // Immediate restoration when lookat completes (if restoreInput specifies something to restore)
       onComplete = () => {
         if (this.characterController) {
-          this.characterController.enableInput();
+          this._restoreInputControls(restoreInputConfig);
           if (this.debug)
             this.logger.log(
               `Lookat '${lookAtData.id}' complete, input restored`
@@ -706,14 +754,19 @@ class AnimationManager {
     const returnTransitionTime =
       lookAtData.returnTransitionTime ?? transitionTime;
 
-    // Check if input should be restored (only on last position if not looping)
-    const shouldRestoreInput =
+    // Get restoreInput config (only on last position if not looping)
+    const restoreInputConfig =
       isLastPosition &&
       !shouldLoop &&
       (lookAtData.restoreInput !== undefined ? lookAtData.restoreInput : true);
+    const normalizedRestore = this._normalizeRestoreInput(restoreInputConfig);
 
     // Determine if we need to delay input restoration
-    const needsDelayedRestore = shouldRestoreInput && enableZoom && zoomOptions;
+    // Check if we should restore anything (movement or rotation)
+    const shouldRestoreSomething =
+      normalizedRestore.movement || normalizedRestore.rotation;
+    const needsDelayedRestore =
+      shouldRestoreSomething && enableZoom && zoomOptions;
 
     // Store user-defined onComplete callback (only call on final position)
     const userOnComplete =
@@ -771,17 +824,18 @@ class AnimationManager {
         this.pendingInputRestore = {
           timer: 0,
           delay: delayAfterLookat,
+          restoreInputConfig: restoreInputConfig, // Store config for delayed restoration
         };
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
         progressSequence();
       };
-    } else if (shouldRestoreInput) {
-      // Immediate restoration when lookat completes
+    } else if (shouldRestoreSomething) {
+      // Immediate restoration when lookat completes (if restoreInput specifies something to restore)
       onComplete = () => {
         if (this.characterController) {
-          this.characterController.enableInput();
+          this._restoreInputControls(restoreInputConfig);
           if (this.debug)
             this.logger.log(
               `Lookat '${lookAtData.id}' [${index}] complete, input restored`
@@ -1503,6 +1557,11 @@ class AnimationManager {
       this.characterController.disableInput();
     }
 
+    // Cancel any ongoing roll lerp when starting a new animation
+    if (this.characterController) {
+      this.characterController.isLerpingRollToZero = false;
+    }
+
     // For blending animations, skip pre-slerp and start directly (player keeps control)
     if (animData?.blendWithPlayer) {
       // Ensure camera quaternion is valid before capturing as base
@@ -1618,18 +1677,90 @@ class AnimationManager {
   }
 
   /**
-   * Stop current animation
-   * @param {boolean} syncController - If true, sync controller yaw/pitch to camera (can be overridden by animData)
-   * @param {boolean} restoreInput - If true, restore input controls (can be overridden by animData)
+   * Normalize restoreInput to object format (supports backward compatibility with boolean)
+   * @param {boolean|Object} restoreInput - Boolean or { movement: boolean, rotation: boolean }
+   * @returns {Object} Normalized restoreInput object
+   * @private
    */
-  stop(syncController = true, restoreInput = true) {
+  _normalizeRestoreInput(restoreInput) {
+    if (typeof restoreInput === "boolean") {
+      // Backward compatibility: boolean true = restore both, false = restore neither
+      return {
+        movement: restoreInput,
+        rotation: restoreInput,
+      };
+    }
+    if (typeof restoreInput === "object" && restoreInput !== null) {
+      return {
+        movement:
+          restoreInput.movement !== undefined ? restoreInput.movement : true,
+        rotation:
+          restoreInput.rotation !== undefined ? restoreInput.rotation : true,
+      };
+    }
+    // Default: restore both
+    return { movement: true, rotation: true };
+  }
+
+  /**
+   * Restore input controls based on restoreInput configuration
+   * @param {Object} restoreInput - { movement: boolean, rotation: boolean }
+   * @private
+   */
+  _restoreInputControls(restoreInput) {
+    if (!this.characterController) return;
+
+    const normalized = this._normalizeRestoreInput(restoreInput);
+
+    if (normalized.movement && normalized.rotation) {
+      // Restore everything
+      this.characterController.enableInput();
+      this.logger.log(
+        "AnimationManager: Stopped, input restored (movement + rotation)"
+      );
+    } else if (normalized.movement && !normalized.rotation) {
+      // Only restore movement (keep rotation disabled)
+      // Clear inputDisabled flag but only enable movement in inputManager
+      this.characterController.inputDisabled = false;
+      this.characterController.inputManager.enableMovement();
+      this.characterController.inputManager.disableRotation();
+      this.logger.log(
+        "AnimationManager: Stopped, input restored (movement only)"
+      );
+    } else if (!normalized.movement && normalized.rotation) {
+      // Only restore rotation (keep movement disabled)
+      // Clear inputDisabled flag but only enable rotation in inputManager
+      this.characterController.inputDisabled = false;
+      this.characterController.inputManager.enableRotation();
+      this.characterController.inputManager.disableMovement();
+      this.logger.log(
+        "AnimationManager: Stopped, input restored (rotation only)"
+      );
+    } else {
+      // Restore nothing - disable camera sync to leave camera frozen
+      this.characterController.disableCameraSync();
+      this.logger.log(
+        "AnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
+      );
+    }
+  }
+
+  /**
+   * Stop current animation
+   * @param {boolean|Object} restoreInput - Restore input controls: boolean or { movement: boolean, rotation: boolean }
+   */
+  stop(restoreInput = true) {
     // Stop pre-slerp if active
     if (this.isPreSlerping) {
       this.isPreSlerping = false;
       this.currentAnimation = null;
       this.currentAnimationData = null;
-      if (this.characterController && restoreInput) {
-        this.characterController.enableInput();
+      if (this.characterController) {
+        const effectiveRestoreInput =
+          this.currentAnimationData?.restoreInput !== undefined
+            ? this.currentAnimationData.restoreInput
+            : restoreInput;
+        this._restoreInputControls(effectiveRestoreInput);
       }
       return;
     }
@@ -1638,10 +1769,6 @@ class AnimationManager {
 
     // Use animData config if available
     if (this.currentAnimationData) {
-      syncController =
-        this.currentAnimationData.syncController !== undefined
-          ? this.currentAnimationData.syncController
-          : syncController;
       restoreInput =
         this.currentAnimationData.restoreInput !== undefined
           ? this.currentAnimationData.restoreInput
@@ -1707,28 +1834,32 @@ class AnimationManager {
 
     // Restore character controller
     if (this.characterController) {
-      if (syncController) {
-        const euler = new THREE.Euler().setFromQuaternion(
-          this.camera.quaternion,
-          "YXZ"
-        );
-        this.characterController.yaw = euler.y;
-        this.characterController.pitch = euler.x;
-        this.characterController.targetYaw = this.characterController.yaw;
-        this.characterController.targetPitch = this.characterController.pitch;
+      // Always sync controller's yaw/pitch from camera quaternion to match final animation state
+      // This prevents the controller from later overwriting the camera rotation with stale values
+      const euler = new THREE.Euler().setFromQuaternion(
+        this.camera.quaternion,
+        "YXZ"
+      );
+      this.characterController.yaw = euler.y;
+      this.characterController.pitch = euler.x;
+      this.characterController.targetYaw = this.characterController.yaw;
+      this.characterController.targetPitch = this.characterController.pitch;
+
+      // For blended animations, extract roll and start smooth lerp to zero
+      if (this.blendWithPlayer && Math.abs(euler.z) > 0.001) {
+        this.characterController.currentRoll = euler.z;
+        this.characterController.isLerpingRollToZero = true;
+        if (this.debug) {
+          this.logger.log(
+            `Blended animation ended with roll ${euler.z.toFixed(
+              3
+            )}, starting smooth lerp to zero`
+          );
+        }
       }
 
-      // Only restore input if configured
-      if (restoreInput) {
-        this.characterController.enableInput();
-        this.logger.log("AnimationManager: Stopped, input restored");
-      } else {
-        // If not restoring input, disable camera sync to leave camera frozen
-        this.characterController.disableCameraSync();
-        this.logger.log(
-          "AnimationManager: Stopped, input NOT restored, camera frozen (manual restoration required)"
-        );
-      }
+      // Restore input based on configuration
+      this._restoreInputControls(restoreInput);
     }
   }
 
@@ -1784,8 +1915,13 @@ class AnimationManager {
 
         if (this.fadeElapsed < fadeInEnd) {
           // Fade in phase
-          const t = this.fadeElapsed / fadeInTime;
-          opacity = t * maxOpacity;
+          if (fadeInTime > 0) {
+            const t = this.fadeElapsed / fadeInTime;
+            opacity = t * maxOpacity;
+          } else {
+            // fadeInTime is 0 - immediately at maxOpacity
+            opacity = maxOpacity;
+          }
         } else if (this.fadeElapsed < holdEnd) {
           // Hold phase
           opacity = maxOpacity;
@@ -1822,8 +1958,21 @@ class AnimationManager {
               this.isFading = false;
 
               const callback = this.fadeOnComplete;
+              const restoreInput = this.fadeRestoreInput;
               this.fadeData = null;
               this.fadeOnComplete = null;
+              this.fadeInputControl = null;
+              this.fadeRestoreInput = true;
+
+              // Restore input based on restoreInput config
+              if (this.characterController) {
+                this._restoreInputControls(restoreInput);
+                if (this.debug) {
+                  this.logger.log(
+                    `Fade complete, input restored based on restoreInput config`
+                  );
+                }
+              }
 
               if (callback) {
                 callback(this.gameManager);
@@ -1841,8 +1990,21 @@ class AnimationManager {
             this.isFading = false;
 
             const callback = this.fadeOnComplete;
+            const restoreInput = this.fadeRestoreInput;
             this.fadeData = null;
             this.fadeOnComplete = null;
+            this.fadeInputControl = null;
+            this.fadeRestoreInput = true;
+
+            // Restore input based on restoreInput config
+            if (this.characterController) {
+              this._restoreInputControls(restoreInput);
+              if (this.debug) {
+                this.logger.log(
+                  `Fade complete, input restored based on restoreInput config`
+                );
+              }
+            }
 
             if (callback) {
               callback(this.gameManager);
@@ -1886,9 +2048,13 @@ class AnimationManager {
       this.pendingInputRestore.timer += dt;
 
       if (this.pendingInputRestore.timer >= this.pendingInputRestore.delay) {
-        // Restore input after delay
+        // Restore input after delay using stored config
         if (this.characterController) {
-          this.characterController.enableInput();
+          const restoreInputConfig =
+            this.pendingInputRestore.restoreInputConfig !== undefined
+              ? this.pendingInputRestore.restoreInputConfig
+              : true;
+          this._restoreInputControls(restoreInputConfig);
           if (this.debug)
             this.logger.log(
               `Restored control after zoom completion (${this.pendingInputRestore.delay.toFixed(
@@ -2071,9 +2237,9 @@ class AnimationManager {
         // Complete by stopping - use animation data settings if available
         if (animData) {
           this.currentAnimationData = animData;
-          this.stop(true, true); // Will be overridden by animData
+          this.stop(true); // Will be overridden by animData
         } else {
-          this.stop(true, true);
+          this.stop(true);
         }
         if (callback) callback();
       }
@@ -2150,10 +2316,18 @@ class AnimationManager {
 
         const currentPos = this.camera.position.clone();
         const blend = Math.max(0, Math.min(1, this.blendAmount || 0.5));
-        // slerp(qTarget, alpha) interpolates FROM this quaternion TOWARD qTarget by alpha
+        
+        // For blending: apply animation delta relative to CURRENT player rotation, not original base
+        // This prevents 180-degree flipping when player rotates during animation
+        // Calculate what the animation rotation would be relative to current player rotation
+        const animRelativeToCurrent = currentQuat.clone().multiply(targetFrame.qd);
+        animRelativeToCurrent.normalize();
+        
+        // Blend: lerp from player state (currentQuat) toward animation applied to current rotation
+        // This ensures animation is always relative to current look direction
         this.camera.quaternion
           .copy(currentQuat)
-          .slerp(this.blendedAnimQuat, blend);
+          .slerp(animRelativeToCurrent, blend);
         this.camera.position.lerpVectors(
           currentPos,
           this.blendedAnimPos,
@@ -2170,14 +2344,15 @@ class AnimationManager {
       }
 
       // Check if we should restore input (use animData if available)
-      const shouldRestoreInput =
+      const restoreInputConfig =
         this.currentAnimationData?.restoreInput !== undefined
           ? this.currentAnimationData.restoreInput
           : true;
+      const normalizedRestore = this._normalizeRestoreInput(restoreInputConfig);
 
       // Only ensure clearance if we're about to restore control
-      // If restoreInput is false, leave camera exactly where animation landed it
-      if (shouldRestoreInput) {
+      // If restoreInput doesn't restore anything, leave camera exactly where animation landed it
+      if (normalizedRestore.movement || normalizedRestore.rotation) {
         const cameraHeight = this.characterController?.cameraHeight ?? 1.6;
         const bodyCenterY = this.camera.position.y - cameraHeight;
         if (bodyCenterY < this.minCharacterCenterY) {
@@ -2195,7 +2370,7 @@ class AnimationManager {
 
       // Complete
       const callback = this.onComplete;
-      this.stop(true, true); // Use defaults, will be overridden by animData if present
+      this.stop(true); // Use default (restore both), will be overridden by animData if present
       if (callback) callback();
       return;
     }
@@ -2265,11 +2440,17 @@ class AnimationManager {
       // Ensure blendAmount is valid and clamped
       const blend = Math.max(0, Math.min(1, this.blendAmount || 0.5));
 
-      // Blend: lerp from player state (currentQuat/currentPos) toward animation state
-      // slerp(qTarget, alpha) interpolates FROM this quaternion TOWARD qTarget by alpha
+      // For blending: apply animation delta relative to CURRENT player rotation, not original base
+      // This prevents 180-degree flipping when player rotates during animation
+      // Calculate what the animation rotation would be relative to current player rotation
+      const animRelativeToCurrent = currentQuat.clone().multiply(this._interpDelta);
+      animRelativeToCurrent.normalize();
+
+      // Blend: lerp from player state (currentQuat) toward animation applied to current rotation
+      // This ensures animation is always relative to current look direction
       this.camera.quaternion
         .copy(currentQuat)
-        .slerp(this.blendedAnimQuat, blend);
+        .slerp(animRelativeToCurrent, blend);
       this.camera.position.lerpVectors(currentPos, this.blendedAnimPos, blend);
       // Ensure result is normalized
       this.camera.quaternion.normalize();

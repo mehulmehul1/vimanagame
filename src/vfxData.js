@@ -187,6 +187,24 @@ export const splatFractalEffects = {
     priority: 10,
   },
 
+  // Explicitly turn off fractal effect at POST_VIEWMASTER (ensures cleanup after hellWaves)
+  postViewmasterOff: {
+    id: "postViewmasterOff",
+    parameters: {
+      effectType: "waves",
+      intensity: 0.0,
+      rampDuration: 0.0,
+      rampOutDuration: 0.0,
+      targetMeshIds: ["interior", "officeHell"], // Same meshes as hellWaves
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_VIEWMASTER,
+      },
+    },
+    priority: 15, // Higher priority than hellWaves to ensure it takes over
+  },
+
   viewmasterToggleAmbient: {
     id: "viewmasterToggleAmbient",
     parameters: {

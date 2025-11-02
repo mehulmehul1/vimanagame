@@ -279,6 +279,26 @@ class CandlestickPhone {
         }
         if (newState.currentState === GAME_STATES.LIGHTS_OUT) {
           this.destroyCord();
+          // Detach reparented children from camera before object is removed
+          this.detachFromCamera();
+          // Force cleanup - ensure phone is ready for removal
+          this.logger.log(
+            "LIGHTS_OUT: Phone cleanup complete, ready for object removal"
+          );
+
+          // Force visibility to false as backup
+          const phoneObject = this.sceneManager?.getObject("candlestickPhone");
+          if (phoneObject) {
+            phoneObject.visible = false;
+            this.logger.log("LIGHTS_OUT: Set phone object visibility to false");
+          }
+        }
+        // Also handle WAKING_UP in case object wasn't cleaned up yet
+        if (newState.currentState === GAME_STATES.WAKING_UP) {
+          // Final cleanup if phone still exists but shouldn't
+          if (this.sceneManager?.hasObject("candlestickPhone")) {
+            this.detachFromCamera();
+          }
         }
       });
     }
@@ -401,23 +421,72 @@ class CandlestickPhone {
     }
 
     // Reparent receiver to the camera (preserve world transform)
-    if (this.receiver && this.receiver.parent !== this.camera) {
-      this.receiver = this.sceneManager.reparentChild(
-        "candlestickPhone",
-        "Receiver",
-        this.camera
-      );
+    // First, try to find receiver on camera (might already be there from previous call)
+    let receiverOnCamera = false;
+    this.camera.traverse((child) => {
+      if (child.name === "Receiver") {
+        this.receiver = child;
+        receiverOnCamera = true;
+        this.logger.log("Receiver already attached to camera");
+      }
+    });
+
+    // If not on camera, try to reparent from phone object
+    if (!receiverOnCamera) {
+      if (
+        this.receiver &&
+        this.receiver.parent === this.sceneManager.getObject("candlestickPhone")
+      ) {
+        // Receiver is still in phone object, can safely reparent
+        this.receiver = this.sceneManager.reparentChild(
+          "candlestickPhone",
+          "Receiver",
+          this.camera
+        );
+      } else {
+        // Receiver not found, try to get it fresh from phone object
+        const phoneObject = this.sceneManager.getObject("candlestickPhone");
+        if (phoneObject) {
+          phoneObject.traverse((child) => {
+            if (child.name === "Receiver" && !this.receiver) {
+              this.receiver = child;
+            }
+          });
+          if (this.receiver) {
+            this.camera.attach(this.receiver);
+            this.logger.log(
+              "Attached receiver found in phone object to camera"
+            );
+          }
+        }
+      }
     }
 
     // Reparent phone group/body to the camera (preserve world transform)
     if (this.phoneGroup && this.phoneGroup.parent !== this.camera) {
       this.camera.attach(this.phoneGroup);
     } else if (this.phoneBody && this.phoneBody.parent !== this.camera) {
-      this.phoneBody = this.sceneManager.reparentChild(
-        "candlestickPhone",
-        "PhoneBody",
-        this.camera
-      );
+      // Check if phoneBody is already on camera first
+      let foundPhoneBody = false;
+      this.camera.traverse((child) => {
+        if (child.name === "PhoneBody") {
+          this.phoneBody = child;
+          foundPhoneBody = true;
+          this.logger.log("Found phoneBody already attached to camera");
+        }
+      });
+
+      // If not found on camera, try to reparent from phone object
+      if (!foundPhoneBody) {
+        const reparented = this.sceneManager.reparentChild(
+          "candlestickPhone",
+          "PhoneBody",
+          this.camera
+        );
+        if (reparented) {
+          this.phoneBody = reparented;
+        }
+      }
     } else if (this.phoneObject && this.phoneObject.parent !== this.camera) {
       // Final fallback: attach entire phone to camera
       this.camera.attach(this.phoneObject);
@@ -442,6 +511,59 @@ class CandlestickPhone {
   /** Start receiver lerp to target relative to camera */
   startReceiverLerp() {
     if (!this.receiver) return;
+
+    // Validate receiver is attached to camera (position should be in camera-local space)
+    if (this.receiver.parent !== this.camera) {
+      this.logger.warn(
+        "Cannot start receiver lerp - receiver not attached to camera"
+      );
+      return;
+    }
+
+    // Validate current position is reasonable (camera-local space should be small values)
+    const currentPos = this.receiver.position;
+    const posMagnitude = currentPos.length();
+    if (posMagnitude > 100) {
+      // Position seems to be in world space or invalid, reset to target
+      this.logger.warn(
+        `Receiver position appears invalid (magnitude: ${posMagnitude.toFixed(
+          2
+        )}), resetting to target`
+      );
+      this.receiver.position.copy(this.config.receiverTargetPos);
+      const baseQuat = new THREE.Quaternion().setFromEuler(
+        this.config.receiverTargetRot
+      );
+      const rollQuat = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        this.config.receiverForwardRoll || 0
+      );
+      this.receiver.quaternion.copy(baseQuat.multiply(rollQuat));
+      this.receiverLerp = null;
+      return;
+    }
+
+    // If receiver is already at target position (from previous lerp), skip lerp
+    // Check if position is close to target (within 0.01 units)
+    const targetPos = this.config.receiverTargetPos;
+    const posDistance = currentPos.distanceTo(targetPos);
+
+    if (posDistance < 0.01) {
+      // Already at target, just enforce exact position/rotation
+      this.receiver.position.copy(targetPos);
+      const baseQuat = new THREE.Quaternion().setFromEuler(
+        this.config.receiverTargetRot
+      );
+      const rollQuat = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        this.config.receiverForwardRoll || 0
+      );
+      this.receiver.quaternion.copy(baseQuat.multiply(rollQuat));
+      this.receiverLerp = null; // Clear any existing lerp
+      this.logger.log("Receiver already at target position, skipping lerp");
+      return;
+    }
+
     const startQuat = this.receiver.quaternion.clone();
     // Base target from configured Euler
     const baseQuat = new THREE.Quaternion().setFromEuler(
@@ -991,6 +1113,74 @@ class CandlestickPhone {
   }
 
   /**
+   * Detach receiver and phone body from camera and reattach to phone object (cleanup before object removal)
+   */
+  detachFromCamera() {
+    if (!this.scene || !this.camera || !this.sceneManager) return;
+
+    // Stop lerps first
+    this.receiverLerp = null;
+    this.phoneBodyLerp = null;
+    this.isHeldToCamera = false;
+
+    // Re-fetch phone object in case it was cached earlier
+    const phoneObject = this.sceneManager.getObject("candlestickPhone");
+    if (!phoneObject) {
+      // Phone object already removed - just detach from camera to scene root so they get cleaned up
+      if (this.receiver && this.receiver.parent === this.camera) {
+        this.camera.remove(this.receiver);
+        this.scene.add(this.receiver);
+        this.logger.log(
+          "Detached receiver from camera to scene root (phone object removed)"
+        );
+      }
+      const bodyObj = this.phoneGroup || this.phoneBody;
+      if (bodyObj && bodyObj.parent === this.camera) {
+        this.camera.remove(bodyObj);
+        this.scene.add(bodyObj);
+        this.logger.log(
+          "Detached phone body from camera to scene root (phone object removed)"
+        );
+      }
+      // Clear references
+      this.phoneObject = null;
+      this.receiver = null;
+      this.phoneBody = null;
+      this.phoneGroup = null;
+      return;
+    }
+
+    // Dispose contact shadow before reattaching children (contact shadow shadowGroup is a child of phone object)
+    const contactShadow =
+      this.sceneManager.contactShadows?.get("candlestickPhone");
+    if (contactShadow && typeof contactShadow.dispose === "function") {
+      contactShadow.dispose();
+      this.sceneManager.contactShadows.delete("candlestickPhone");
+      this.logger.log("Disposed contact shadow before phone removal");
+    }
+
+    // Detach receiver from camera and reattach to phone object
+    // Using attach() preserves world transform automatically
+    if (this.receiver && this.receiver.parent === this.camera) {
+      phoneObject.attach(this.receiver);
+      this.logger.log("Reattached receiver to phone object");
+    }
+
+    // Detach phone body/group from camera and reattach to phone object
+    const bodyObj = this.phoneGroup || this.phoneBody;
+    if (bodyObj && bodyObj.parent === this.camera) {
+      phoneObject.attach(bodyObj);
+      this.logger.log("Reattached phone body to phone object");
+    }
+
+    // Clear script references - object will be removed by sceneManager
+    this.phoneObject = null;
+    this.receiver = null;
+    this.phoneBody = null;
+    this.phoneGroup = null;
+  }
+
+  /**
    * Destroy only the phone cord (called when cord needs to be removed)
    */
   destroyCord() {
@@ -1005,6 +1195,9 @@ class CandlestickPhone {
    * Clean up resources
    */
   destroy() {
+    // Detach from camera first
+    this.detachFromCamera();
+
     // Destroy the phone cord
     if (this.phoneCord) {
       this.phoneCord.destroy();

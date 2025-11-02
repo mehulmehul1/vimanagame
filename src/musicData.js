@@ -59,7 +59,7 @@ export const musicTracks = {
     description: "Duke Ac",
     preload: true,
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $gte: GAME_STATES.CURSOR, $lte: GAME_STATES.POST_CURSOR },
     },
     fadeTime: 0,
     priority: 10,
@@ -72,7 +72,7 @@ export const musicTracks = {
     description: "Duke St Louis",
     preload: true,
     criteria: {
-      currentState: GAME_STATES.POST_CURSOR,
+      currentState: GAME_STATES.GAME_OVER,
     },
     fadeTime: 0,
     priority: 10,
@@ -106,15 +106,18 @@ export const musicTracks = {
     priority: 90,
   },
   rach1: {
+    // main piano line
     id: "rach1",
     path: "./audio/music/rach 3 - mv 1 - 0-40.mp3",
     description: "Rachmaninoff 3 - Movement 1 (0:00-0:40) - Main gameplay",
-    preload: true, // Load before showing game
-    // Play when currentState progresses beyond START_SCREEN but before DRIVE_BY, AND during EDISON
+    preload: true,
     criteria: {
       currentState: {
         $in: [
-          ...Array.from({ length: 9 }, (_, i) => i + 1), // States 1-9
+          1,
+          2,
+          3,
+          4,
           GAME_STATES.EDISON, // State 24
         ],
       },

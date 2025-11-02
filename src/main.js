@@ -150,7 +150,7 @@ window.vfxManager = vfxManager;
 
 // Initialize Rune Manager
 logger.log("Creating RuneManager...");
-const runeManager = new RuneManager(scene);
+const runeManager = new RuneManager(scene, gameManager);
 logger.log("✅ RuneManager created");
 
 // Make rune manager globally accessible

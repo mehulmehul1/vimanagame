@@ -744,7 +744,10 @@ export const dialogTracks = {
   drawingFailure2: {
     id: "drawingFailure2",
     audio: "./audio/dialog/leclaire-drawing-failure-2.mp3",
-    captions: [{ text: "Quoi? Try again.", duration: 1.0 }],
+    captions: [
+      { text: "Quoi?", duration: 1.75 },
+      { text: "Try again!", duration: 1.5 },
+    ],
     criteria: {
       currentState: GAME_STATES.CURSOR,
       lastDrawingSuccess: false,
@@ -758,7 +761,10 @@ export const dialogTracks = {
   drawingFailure3: {
     id: "drawingFailure3",
     audio: "./audio/dialog/leclaire-drawing-failure-3.mp3",
-    captions: [{ text: "You must look for the symbol!", duration: 1.8 }],
+    captions: [
+      { text: "You must look for the symbol!", duration: 1.8 },
+      { text: "Use the View-Master!", duration: 1.8 },
+    ],
     criteria: {
       currentState: GAME_STATES.CURSOR,
       lastDrawingSuccess: false,

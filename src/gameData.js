@@ -45,6 +45,7 @@ export const GAME_STATES = {
   CURSOR: 32,
   CURSOR_FINAL: 33,
   POST_CURSOR: 34,
+  GAME_OVER: 35,
 };
 
 export const DIALOG_RESPONSE_TYPES = {

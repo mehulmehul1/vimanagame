@@ -43,6 +43,10 @@
  *     - updateFrequency: Update every N frames (default: 3, lower = smoother/slower, higher = faster)
  *     - isStatic: If true, render once and never update again (best for objects that never move)
  *     - debug: Show camera helper for debugging (default: false)
+ *     - criteria: Optional state criteria for conditional enable/disable (see note below)
+ *     - Note: Contact shadows are automatically disabled when dissolve effects start (progress > -14.0).
+ *       This happens in dissolveEffect.js during the transition, so shadows fade out before props dissolve.
+ *       Don't add manual state-based enable/disable code elsewhere - the dissolve effect handles it.
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.CHAPTER_2 }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
@@ -182,8 +186,8 @@ export const sceneObjects = {
     type: "splat",
     path: "/club.sog",
     description: "Club environment splat mesh",
-    position: { x: -2.36, y: 2.73, z: 84.04 },
-    rotation: { x: 0, y: -Math.PI, z: -Math.PI },
+    position: { x: -6.36, y: 2.73, z: 82.26 },
+    rotation: { x: 0, y: -Math.PI / 2, z: -Math.PI },
     scale: { x: 1, y: 1, z: 1 },
     criteria: {
       currentState: {
@@ -485,8 +489,8 @@ export const sceneObjects = {
         darkness: 1.5, // Shadow darkness multiplier
         opacity: 0.85, // Overall shadow opacity
         cameraHeight: 1.35, // Height for shadow camera
-        isStatic: true, // Never moves - render once
-        fadeDuration: 0.6, // Fade in/out duration in seconds
+        isStatic: false, // Never moves - render once
+        fadeDuration: 2.0, // Fade in/out duration in seconds
         debug: false, // Set to true to visualize the shadow camera AND see texture
       },
       envMap: {
@@ -547,15 +551,12 @@ export const sceneObjects = {
         opacity: 0.7, // Overall shadow opacity
         cameraHeight: 0.25, // Height for shadow camera
         isStatic: true, // Never moves - render once
-        fadeDuration: 0.6, // Fade in/out duration in seconds
+        fadeDuration: 2.0, // Fade in/out duration in seconds
         debug: false, // Set to true to visualize the shadow camera
       },
       envMap: {
         // Render environment map from splat scene and apply reflections
-        //metalness: 0.85, // Metallic for vintage brass/metal look
-        // /roughness: 0.5, // Some roughness for aged metal surface
         envMapIntensity: 0.5, // Boosted for visibility
-        // hideObjects defaults to [this object]
       },
     },
     criteria: {
@@ -568,6 +569,10 @@ export const sceneObjects = {
     // The script manages the CordAttach and Receiver children using the PhoneCord module
     // Initialize in main.js or scene manager after the object is loaded
   },
+
+  //  A failed attempt at a first person body model positioned below the camera
+  //  It worked okay but the state management and all the animation I'd need to do was onerous
+  //  for my schedule. Documenting for posterity:
 
   //   firstPersonBody: {
   //     id: "firstPersonBody",
