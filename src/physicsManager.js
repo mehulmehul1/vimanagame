@@ -199,10 +199,12 @@ class PhysicsManager {
     const body = this.world.createRigidBody(bodyDesc);
 
     // Create trimesh collider descriptor with proper friction
-    // Use default collision groups (like the floor) - will collide with everything
+    // Belongs to group 3 (environment) so cords can collide with it
+    // Collides with all groups (0xffff) so character controller still works
     const colliderDesc = RAPIER.ColliderDesc.trimesh(vertices, indices)
       .setFriction(0.7)
-      .setRestitution(0.0); // No bounciness
+      .setRestitution(0.0) // No bounciness
+      .setCollisionGroups(0xffff0008); // Belongs to group 3 (0x0008), collides with all groups (0xffff)
 
     // Create the collider and attach to the body
     const collider = this.world.createCollider(colliderDesc, body);

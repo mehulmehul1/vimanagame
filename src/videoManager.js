@@ -40,6 +40,96 @@ class VideoManager {
   }
 
   /**
+   * Resolve a video by ID from videoData
+   * @param {string} videoId - Video ID
+   * @returns {Object|null} Video config or null if not found
+   */
+  async resolveVideoById(videoId) {
+    // Try direct lookup first
+    if (videos[videoId]) {
+      return videos[videoId];
+    }
+
+    // Fallback: import and check (in case videos wasn't imported yet)
+    try {
+      const { videos: videoData } = await import("./videoData.js");
+      if (videoData[videoId]) {
+        return videoData[videoId];
+      }
+    } catch (e) {
+      // Ignore import errors
+    }
+
+    return null;
+  }
+
+  /**
+   * Handle playNext chaining for a video
+   * @param {Object} completedVideoConfig - Video config that just completed
+   * @private
+   */
+  async _handlePlayNext(completedVideoConfig) {
+    if (!completedVideoConfig || !completedVideoConfig.playNext) {
+      return;
+    }
+
+    this.logger.log(`Chaining to next video from "${completedVideoConfig.id}"`);
+
+    // Resolve the next video (could be an object or string ID)
+    let nextVideo;
+    if (typeof completedVideoConfig.playNext === "string") {
+      nextVideo = await this.resolveVideoById(completedVideoConfig.playNext);
+    } else {
+      nextVideo = completedVideoConfig.playNext;
+    }
+
+    if (nextVideo) {
+      // Check if video should play based on criteria
+      if (this.gameManager) {
+        const currentState = this.gameManager.getState();
+        const playCriteria = nextVideo.playCriteria || nextVideo.criteria;
+
+        if (playCriteria && !checkCriteria(currentState, playCriteria)) {
+          this.logger.log(
+            `Next video "${nextVideo.id}" criteria not met, skipping playNext`
+          );
+          return;
+        }
+
+        // Check if video was already played once (if once flag is set)
+        if (nextVideo.once && this.playedOnce.has(nextVideo.id)) {
+          this.logger.log(
+            `Next video "${nextVideo.id}" already played once, skipping playNext`
+          );
+          return;
+        }
+      }
+
+      // Mark the next video as played if it has "once" flag
+      if (nextVideo.once) {
+        this.playedOnce.add(nextVideo.id);
+        this.logger.log(`Marked chained video "${nextVideo.id}" as played`);
+      }
+
+      // Check if next video has a delay
+      const delay = nextVideo.delay || 0;
+      if (delay > 0) {
+        this.logger.log(`Chaining to "${nextVideo.id}" with ${delay}s delay`);
+        setTimeout(() => {
+          this.playVideo(nextVideo.id);
+        }, delay * 1000);
+      } else {
+        // Play immediately
+        this.playVideo(nextVideo.id);
+      }
+    } else {
+      this.logger.warn(
+        `playNext video not found for "${completedVideoConfig.id}": ${completedVideoConfig.playNext}`
+      );
+    }
+  }
+
+  /**
    * Update all videos based on current game state
    * Checks criteria for each video and plays/stops accordingly
    * Supports separate spawnCriteria and playCriteria for advanced control
@@ -75,7 +165,12 @@ class VideoManager {
           // Check if we should delay playback
           const hasDelay = videoConfig.autoPlay && (videoConfig.delay || 0) > 0;
 
-          this.playVideo(videoId); // Creates player
+          // Create player without playing if autoPlay is false
+          if (!videoConfig.autoPlay) {
+            this.createVideoPlayer(videoId);
+          } else {
+            this.playVideo(videoId); // Creates player and plays
+          }
 
           // If we have spawnCriteria but no explicit playCriteria, schedule delayed play
           const useTimedDelay =
@@ -127,7 +222,8 @@ class VideoManager {
             }
           }
           // State-based play: pause and wait for playCriteria
-          else if (!matchesPlayCriteria) {
+          // Only render first frame if autoPlay is true (videos with autoPlay: false should stay hidden)
+          else if (!matchesPlayCriteria && videoConfig.autoPlay) {
             const newPlayer = this.videoPlayers.get(videoId);
             if (newPlayer && newPlayer.video) {
               // Play briefly to render first frame, then pause
@@ -153,8 +249,20 @@ class VideoManager {
                 });
             }
           }
+          // If autoPlay is false, just create the player and keep it paused (no first frame rendering)
+          else if (!matchesPlayCriteria && !videoConfig.autoPlay) {
+            this.logger.log(
+              `Spawned video "${videoId}" (paused, autoPlay=false, waiting for play criteria)`
+            );
+          }
           // State-based play WITH delay: pause and schedule delayed playback
-          else if (matchesPlayCriteria && hasDelay && !useTimedDelay) {
+          // Only if autoPlay is true (videos with autoPlay: false shouldn't auto-play)
+          else if (
+            matchesPlayCriteria &&
+            hasDelay &&
+            !useTimedDelay &&
+            videoConfig.autoPlay
+          ) {
             const newPlayer = this.videoPlayers.get(videoId);
             if (newPlayer && newPlayer.video) {
               // Pause the video that was just auto-played
@@ -242,88 +350,101 @@ class VideoManager {
   }
 
   /**
-   * Play a video by ID
+   * Create a video player instance without playing it
    * @param {string} videoId - Video ID from videoData.js
+   * @returns {VideoPlayer|null} Created player or null if video not found
+   * @private
    */
-  playVideo(videoId) {
+  createVideoPlayer(videoId) {
     const videoConfig = videos[videoId];
     if (!videoConfig) {
       this.logger.warn(`Video not found: ${videoId}`);
-      return;
+      return null;
     }
 
-    // Get or create video player
-    let player = this.videoPlayers.get(videoId);
+    // Check if player already exists
+    if (this.videoPlayers.has(videoId)) {
+      return this.videoPlayers.get(videoId);
+    }
 
-    if (!player) {
-      // Resolve position (support functions for dynamic positioning)
-      const position =
-        typeof videoConfig.position === "function"
-          ? videoConfig.position(this.gameManager)
-          : videoConfig.position;
+    // Resolve position (support functions for dynamic positioning)
+    const position =
+      typeof videoConfig.position === "function"
+        ? videoConfig.position(this.gameManager)
+        : videoConfig.position;
 
-      player = new VideoPlayer({
-        scene: this.scene,
-        gameManager: this.gameManager,
-        camera: this.camera,
-        videoPath: videoConfig.videoPath,
-        position: position,
-        rotation: videoConfig.rotation,
-        scale: videoConfig.scale,
-        loop: videoConfig.loop,
-        muted: videoConfig.muted,
-        volume: videoConfig.volume,
-        playbackRate: videoConfig.playbackRate,
-        spatialAudio: videoConfig.spatialAudio,
-        audioPositionOffset: videoConfig.audioPositionOffset,
-        pannerAttr: videoConfig.pannerAttr,
-        billboard: videoConfig.billboard,
-      });
+    const player = new VideoPlayer({
+      scene: this.scene,
+      gameManager: this.gameManager,
+      camera: this.camera,
+      videoPath: videoConfig.videoPath,
+      position: position,
+      rotation: videoConfig.rotation,
+      scale: videoConfig.scale,
+      loop: videoConfig.loop,
+      muted: videoConfig.muted,
+      volume: videoConfig.volume,
+      playbackRate: videoConfig.playbackRate,
+      spatialAudio: videoConfig.spatial || videoConfig.spatialAudio,
+      audioPositionOffset: videoConfig.audioPositionOffset,
+      pannerAttr: videoConfig.pannerAttr,
+      billboard: videoConfig.billboard,
+    });
 
-      player.initialize();
-      this.videoPlayers.set(videoId, player);
+    player.initialize();
+    this.videoPlayers.set(videoId, player);
 
-      // Register with gizmo manager if gizmo flag is set
-      if (videoConfig.gizmo) {
-        // Disable billboard for gizmo-enabled videos to avoid conflict
-        player.config.billboard = false;
-        this.logger.log(`Disabled billboard for "${videoId}" (gizmo enabled)`);
+    // If autoPlay is false, hide the video until it's explicitly played
+    if (!videoConfig.autoPlay) {
+      player.setVisible(false);
+      this.logger.log(`Created video "${videoId}" (hidden, autoPlay=false)`);
+    }
 
-        if (this.gizmoManager && player.videoMesh) {
-          this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
-          // Attach immediately so the helper is visible without click
-          if (typeof this.gizmoManager.selectObjectById === "function") {
-            this.gizmoManager.selectObjectById(videoId);
-          }
-        } else if (!this.gizmoManager) {
-          // Store for later registration
-          player._needsGizmoRegistration = true;
+    // Register with gizmo manager if gizmo flag is set
+    if (videoConfig.gizmo) {
+      // Disable billboard for gizmo-enabled videos to avoid conflict
+      player.config.billboard = false;
+      this.logger.log(`Disabled billboard for "${videoId}" (gizmo enabled)`);
+
+      if (this.gizmoManager && player.videoMesh) {
+        this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
+        // Attach immediately so the helper is visible without click
+        if (typeof this.gizmoManager.selectObjectById === "function") {
+          this.gizmoManager.selectObjectById(videoId);
         }
-
-        // Set global gizmo-in-data flag on gameManager if any video declares gizmo
-        try {
-          if (
-            this.gameManager &&
-            typeof this.gameManager.setState === "function"
-          ) {
-            this.gameManager.setState({ hasGizmoInData: true });
-          }
-        } catch (e) {
-          this.logger.error("Failed to set hasGizmoInData:", e);
-        }
+      } else if (!this.gizmoManager) {
+        // Store for later registration
+        player._needsGizmoRegistration = true;
       }
 
-      // Handle video end
-      player.video.addEventListener("ended", () => {
-        if (videoConfig.once) {
-          this.playedOnce.add(videoId);
+      // Set global gizmo-in-data flag on gameManager if any video declares gizmo
+      try {
+        if (
+          this.gameManager &&
+          typeof this.gameManager.setState === "function"
+        ) {
+          this.gameManager.setState({ hasGizmoInData: true });
         }
-
-        if (videoConfig.onComplete) {
-          videoConfig.onComplete(this.gameManager);
-        }
-      });
+      } catch (e) {
+        this.logger.error("Failed to set hasGizmoInData:", e);
+      }
     }
+
+    // Handle video end
+    player.video.addEventListener("ended", async () => {
+      if (videoConfig.once) {
+        this.playedOnce.add(videoId);
+      }
+
+      if (videoConfig.onComplete) {
+        videoConfig.onComplete(this.gameManager);
+      }
+
+      // Handle playNext chaining (only if video doesn't loop - loop videos never end)
+      if (!videoConfig.loop && videoConfig.playNext) {
+        await this._handlePlayNext(videoConfig);
+      }
+    });
 
     // Retry gizmo registration if it was delayed
     if (
@@ -344,7 +465,38 @@ class VideoManager {
       player._needsGizmoRegistration = false;
     }
 
+    return player;
+  }
+
+  /**
+   * Play a video by ID
+   * @param {string} videoId - Video ID from videoData.js
+   */
+  playVideo(videoId) {
+    const videoConfig = videos[videoId];
+    if (!videoConfig) {
+      this.logger.warn(`Video not found: ${videoId}`);
+      return;
+    }
+
+    // Get or create video player
+    let player = this.videoPlayers.get(videoId);
+
+    if (!player) {
+      player = this.createVideoPlayer(videoId);
+      if (!player) {
+        return; // Video not found or creation failed
+      }
+    }
+
+    // Make sure video is visible when playing
+    player.setVisible(true);
     player.play();
+
+    // Emit event when video starts playing (for animations/other systems)
+    if (this.gameManager) {
+      this.gameManager.emit(`video:play:${videoId}`, videoId);
+    }
   }
 
   /**
@@ -363,6 +515,15 @@ class VideoManager {
    */
   stopAllVideos() {
     this.videoPlayers.forEach((player) => player.stop());
+  }
+
+  /**
+   * Get video player by ID (for external syncing)
+   * @param {string} videoId - Video ID
+   * @returns {VideoPlayer|null} Video player instance or null if not found
+   */
+  getVideoPlayer(videoId) {
+    return this.videoPlayers.get(videoId) || null;
   }
 
   /**
@@ -461,7 +622,8 @@ class VideoPlayer {
     this.video.playbackRate = this.config.playbackRate;
 
     // Set up spatial audio if enabled
-    if (this.config.spatialAudio && !this.config.muted) {
+    const useSpatialAudio = this.config.spatialAudio && !this.config.muted;
+    if (useSpatialAudio) {
       this.setupSpatialAudio();
     } else {
       // Use regular video volume if not spatial
@@ -520,7 +682,7 @@ class VideoPlayer {
     // Initialize viewmaster state tracking
     const initialState = this.gameManager?.getState();
     this.wasViewmasterEquipped = initialState?.isViewmasterEquipped || false;
-    
+
     // Apply initial visibility (respects viewmaster state)
     this.applyVisibility();
     this.videoMesh.name = "video-player";
@@ -748,15 +910,16 @@ class VideoPlayer {
    */
   applyVisibility() {
     if (!this.videoMesh) return;
-    const isViewmasterEquipped = this.gameManager?.getState()?.isViewmasterEquipped || false;
-    
+    const isViewmasterEquipped =
+      this.gameManager?.getState()?.isViewmasterEquipped || false;
+
     // Check if viewmaster was just removed (transition from equipped to not equipped)
     if (this.wasViewmasterEquipped && !isViewmasterEquipped) {
       // Clear any existing timeout
       if (this.viewmasterRevealTimeout) {
         clearTimeout(this.viewmasterRevealTimeout);
       }
-      
+
       // Keep video hidden and schedule reveal after 0.5s delay
       this.videoMesh.visible = false;
       this.viewmasterRevealTimeout = setTimeout(() => {
@@ -772,7 +935,7 @@ class VideoPlayer {
       this.wasViewmasterEquipped = isViewmasterEquipped;
       return;
     }
-    
+
     // Viewmaster was just put on - clear any pending reveal timeout
     if (!this.wasViewmasterEquipped && isViewmasterEquipped) {
       if (this.viewmasterRevealTimeout) {
@@ -783,7 +946,7 @@ class VideoPlayer {
       this.wasViewmasterEquipped = isViewmasterEquipped;
       return;
     }
-    
+
     // Apply visibility based on current state
     if (isViewmasterEquipped) {
       // Viewmaster is on - always hide
@@ -795,7 +958,7 @@ class VideoPlayer {
       // Viewmaster is off and no delay pending - show if intended
       this.videoMesh.visible = this.intendedVisible;
     }
-    
+
     // Update previous state
     this.wasViewmasterEquipped = isViewmasterEquipped;
   }

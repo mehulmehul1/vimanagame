@@ -188,7 +188,7 @@ export const sceneObjects = {
     description: "Club environment splat mesh",
     position: { x: -6.36, y: 2.73, z: 82.26 },
     rotation: { x: 0, y: -Math.PI / 2, z: -Math.PI },
-    scale: { x: 1, y: 1, z: 1 },
+    scale: { x: 1.1, y: 1.1, z: 1.1 },
     criteria: {
       currentState: {
         $gte: GAME_STATES.LIGHTS_OUT,
@@ -470,6 +470,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.POST_DRIVE_BY,
       },
     },
+  },
+
+  amplifier: {
+    id: "amplifier",
+    type: "gltf",
+    path: "/gltf/amplifier.glb",
+    preload: false,
+    description:
+      "Amplifier GLTF model positioned next to viewmaster during LIGHTS_OUT",
+    position: { x: -3.77, y: 0.79, z: 80.9 },
+    rotation: { x: 0.0, y: -0.4547, z: 0.0 },
+    scale: { x: 1.91, y: 2.04, z: 1.53 },
+    options: {
+      useContainer: true,
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LIGHTS_OUT,
+      },
+    },
+    priority: 50,
   },
 
   edison: {

@@ -151,6 +151,38 @@ export const objectAnimations = {
     playOnce: true,
   },
 
+  viewmasterLightsOutPosition: {
+    id: "viewmasterLightsOutPosition",
+    type: "objectAnimation",
+    description:
+      "Position viewmaster 3m in front of player during LIGHTS_OUT and WAKING_UP (unseen behind blackout fade, then correct when fade clears)",
+    targetObjectId: "viewmaster",
+    duration: 0.01,
+    properties: {
+      position: {
+        // Player position: { x: -5.14, y: 2.05, z: 83.66 } with yaw: 0 (facing -Z)
+        // 3m in front means 3m in -Z direction: z: 83.66 - 3 = 80.66
+        to: { x: -3.31, y: 1.85, z: 81.3 },
+      },
+      rotation: {
+        // Reset rotation for clean positioning
+        to: { x: 0.6079, y: -0.5014, z: 0.2916 },
+      },
+    },
+    easing: "easeInOutQuad",
+    criteria: {
+      currentState: {
+        $in: [
+          GAME_STATES.LIGHTS_OUT,
+          GAME_STATES.WAKING_UP,
+          GAME_STATES.SHADOW_AMPLIFICATIONS,
+        ],
+      },
+    },
+    priority: 100,
+    playOnce: true, // Will retry automatically if object isn't loaded yet (handled in animationManager)
+  },
+
   doorsOpenLeft: {
     id: "doorsOpenLeft",
     type: "objectAnimation",

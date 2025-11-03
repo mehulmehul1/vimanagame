@@ -6,6 +6,7 @@ import {
 } from "./utils/debugSpawner.js";
 import PhoneBooth from "./content/phonebooth.js";
 import CandlestickPhone from "./content/candlestickPhone.js";
+import AmplifierCord from "./content/amplifierCord.js";
 import VideoManager from "./videoManager.js";
 import { Logger } from "./utils/logger.js";
 
@@ -40,6 +41,7 @@ class GameManager {
     this.sceneManager = null;
     this.phoneBooth = null;
     this.candlestickPhone = null;
+    this.amplifierCord = null;
 
     // Track loaded scene objects
     this.loadedScenes = new Set();
@@ -85,6 +87,17 @@ class GameManager {
       return null;
     }
     return { ...this.state.playerPosition };
+  }
+
+  /**
+   * Get the debug spawn character rotation if in debug mode
+   * @returns {Object|null} Rotation {x, y, z} in degrees or null
+   */
+  getDebugSpawnRotation() {
+    if (!this.isDebugMode || !this.state.playerRotation) {
+      return null;
+    }
+    return { ...this.state.playerRotation };
   }
 
   /**
@@ -137,6 +150,24 @@ class GameManager {
         camera: this.camera,
       });
       this.candlestickPhone.initialize(this);
+    }
+
+    // Check if amplifier cord should be initialized at startup (e.g., debug spawn at LIGHTS_OUT or later)
+    if (
+      !this.amplifierCord &&
+      this.state.currentState >= GAME_STATES.LIGHTS_OUT &&
+      this.sceneManager?.hasObject("amplifier") &&
+      this.sceneManager?.hasObject("viewmaster")
+    ) {
+      this.logger.log(
+        "Initializing amplifier cord (objects loaded at startup)"
+      );
+      this.amplifierCord = new AmplifierCord({
+        sceneManager: this.sceneManager,
+        physicsManager: this.physicsManager,
+        scene: this.scene,
+      });
+      this.amplifierCord.initialize(this);
     }
 
     // Initialize content-specific systems AFTER scene is loaded
@@ -210,6 +241,22 @@ class GameManager {
           camera: this.camera,
         });
         this.candlestickPhone.initialize(this);
+      }
+
+      // Initialize amplifier cord when state reaches LIGHTS_OUT
+      if (
+        !this.amplifierCord &&
+        newState.currentState >= GAME_STATES.LIGHTS_OUT &&
+        this.sceneManager?.hasObject("amplifier") &&
+        this.sceneManager?.hasObject("viewmaster")
+      ) {
+        this.logger.log("Initializing amplifier cord (objects loaded)");
+        this.amplifierCord = new AmplifierCord({
+          sceneManager: this.sceneManager,
+          physicsManager: this.physicsManager,
+          scene: this.scene,
+        });
+        this.amplifierCord.initialize(this);
       }
     });
   }
@@ -424,6 +471,10 @@ class GameManager {
 
     if (this.candlestickPhone) {
       this.candlestickPhone.update(dt);
+    }
+
+    if (this.amplifierCord) {
+      this.amplifierCord.update(dt);
     }
 
     // DISABLED - using DrawingGame instead

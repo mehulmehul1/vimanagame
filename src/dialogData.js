@@ -8,6 +8,12 @@
  * - captions: Array of caption objects with:
  *   - text: The text to display
  *   - duration: How long to show this caption (in seconds)
+ *   - startTime: (for video-synced) Video time in seconds when caption should appear (overrides duration-based timing)
+ *   - emitEvent: (optional) Named event to emit globally when this caption is shown (emitted via gameManager)
+ *     - Example: emitEvent: "shadow:speaks"
+ * - videoId: (optional) If set, syncs captions to video playback instead of audio file
+ *   - Captions use startTime (relative to video start) instead of sequential duration-based timing
+ *   - No audio file is needed when videoId is provided
  * - criteria: Optional object with key-value pairs that must match game state
  *   - Simple equality: { currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE }
  *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
@@ -844,6 +850,81 @@ export const dialogTracks = {
     once: false,
     priority: 95,
   },
+
+  heWonThatRound: {
+    id: "heWonThatRound",
+    audio: "./audio/dialog/cole-okay-he-won-that-round.mp3",
+    captions: [
+      { text: "Ugh...", duration: 2.0 },
+      { text: "Okay...", duration: 2.5 },
+      { text: "He won that round.", duration: 1.5 },
+    ],
+    criteria: { currentState: GAME_STATES.WAKING_UP },
+    once: true,
+    autoPlay: true,
+    priority: 120,
+    delay: 0.0,
+  },
+
+  hesTiedUsUp: {
+    id: "hesTiedUsUp",
+    videoId: "hesTiedUsUp",
+    captions: [
+      { text: "Cole!", duration: 1.5 },
+      { text: "He's tied us up!", duration: 2.5 },
+    ],
+    once: true,
+    autoPlay: true,
+    priority: 110,
+    delay: 0.0,
+  },
+
+  // Video-synced dialog for "soUnkind" video
+  // Captions are synced to video playback time using startTime instead of duration
+  soUnkind: {
+    id: "soUnkind",
+    videoId: "soUnkind", // Reference to video in videoData.js
+    preload: false,
+    captions: [
+      { text: "[Footsteps]", startTime: 3.0, duration: 2.0 },
+      { text: "Quiet!", startTime: 6.0, duration: 1.5 },
+      {
+        text: "So unkind you were to this innocent woman...",
+        startTime: 9.25,
+        duration: 5.75,
+      },
+      {
+        text: "But soon you will both see the world just as we do.",
+        startTime: 16.0,
+        duration: 7.0,
+      },
+    ],
+    autoPlay: true,
+    once: false, // Allow replay if video loops
+    priority: 100,
+  },
+
+  shadowAmplifications: {
+    id: "shadowAmplifications",
+    videoId: "shadowAmplifications",
+    captions: [
+      {
+        text: "You see, we have made certain...",
+        startTime: 4.0,
+        duration: 3.5,
+      },
+      {
+        text: "Amplifications.",
+        startTime: 7.5,
+        duration: 3.0,
+        emitEvent: "shadow:amplifications",
+      },
+      { text: "Let us try.", startTime: 10.5, duration: 3.0 },
+    ],
+    once: true,
+    autoPlay: true,
+    priority: 90,
+  },
 };
 
 /**
@@ -871,11 +952,15 @@ export function getDialogsForState(gameState, playedDialogs = new Set()) {
       continue;
     }
 
+    // Dialogs without criteria should not match state-based triggers
+    // (They should only be triggered explicitly via playDialog or playNext)
+    if (!dialog.criteria) {
+      continue;
+    }
+
     // Check criteria (supports operators like $gte, $lt, etc.)
-    if (dialog.criteria) {
-      if (!checkCriteria(gameState, dialog.criteria)) {
-        continue;
-      }
+    if (!checkCriteria(gameState, dialog.criteria)) {
+      continue;
     }
 
     // If we get here, all conditions passed

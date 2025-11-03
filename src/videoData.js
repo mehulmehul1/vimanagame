@@ -12,9 +12,25 @@
  * - muted: Whether the video should be muted (default: true)
  * - volume: Volume level 0.0-1.0 (default: 1.0)
  * - playbackRate: Playback speed multiplier (default: 1.0, 0.5 = half speed, 2.0 = double speed)
- * - spatialAudio: Enable 3D spatial audio (default: false)
+ * - spatial: Enable 3D spatial audio (default: false) - preferred over spatialAudio
+ * - spatialAudio: Enable 3D spatial audio (default: false) - legacy, use spatial instead
  * - audioPositionOffset: {x, y, z} offset from video position for audio source (default: {x:0, y:0, z:0})
  * - pannerAttr: Web Audio API PannerNode attributes (default: HRTF, inverse distance)
+ *   - panningModel: 'equalpower' or 'HRTF' (default: 'HRTF')
+ *   - refDistance: Reference distance for rolloff (default: 1)
+ *   - rolloffFactor: How quickly sound fades with distance (default: 1)
+ *   - distanceModel: 'linear', 'inverse', or 'exponential' (default: 'inverse')
+ *   - maxDistance: Maximum distance sound is audible (default: 10000)
+ *   - coneInnerAngle: Inner cone angle in degrees (default: 360)
+ *   - coneOuterAngle: Outer cone angle in degrees (default: 360)
+ *   - coneOuterGain: Gain outside outer cone (default: 0)
+ *
+ * For 3D spatial audio, use the same structure as SFX sounds:
+ * - spatial: true to indicate this is a 3D positioned sound
+ * - audioPositionOffset: {x, y, z} offset from video position (optional, defaults to {x:0, y:0, z:0})
+ * - pannerAttr: Spatial audio properties (same as SFX)
+ * - Note: muted must be false for spatial audio to work
+ *
  * - billboard: Whether the video should always face the camera
  * - criteria: Optional object with key-value pairs that must match game state for video to play
  *   - Simple equality: { currentState: GAME_STATES.INTRO }
@@ -36,6 +52,12 @@
  * - priority: Higher priority videos are checked first (default: 0)
  * - gizmo: If true, enable debug gizmo for positioning visual objects (G=move, R=rotate, S=scale)
  * - onComplete: Optional function called when video ends, receives gameManager
+ * - playNext: Chain to another video after this one completes (supported for non-looping videos)
+ *   - Can be a video object (e.g., videos.nextVideo) or string ID (e.g., "nextVideo")
+ *   - Allows creating video sequences without requiring game state changes between videos
+ *   - The chained video's delay and criteria properties are respected
+ *   - Note: Loop videos never trigger playNext since they never end
+ *   - Example: playNext: "nextVideo" or playNext: videos.nextVideo
  *
  * Usage:
  * import { videos } from './videoData.js';
@@ -158,21 +180,87 @@ export const videos = {
     autoPlay: true,
     delay: 0.2,
   },
-  help: {
-    id: "help",
-    videoPath: "/video/help.webm",
+  hesTiedUsUp: {
+    id: "hesTiedUsUp",
+    videoPath: "/video/cole-hes-tied-us-up.webm",
     preload: false, // Load after loading screen
-    position: { x: 3.52, y: 6.36, z: 88.91 },
-
-    rotation: { x: 0, y: 0, z: 0 },
+    position: { x: -11.61, y: 5.72, z: 74.6 },
+    rotation: { x: 0.0, y: 0.0, z: 0.0 },
     scale: { x: 0.39, y: 0.67, z: 0.81 },
-
     autoPlay: true,
     loop: true,
     billboard: true,
+    muted: false,
+    delay: 6.0,
     criteria: {
       currentState: {
         $gte: GAME_STATES.WAKING_UP,
+      },
+    },
+  },
+
+  soUnkind: {
+    id: "soUnkind",
+    videoPath: "/video/shadow-unkind.webm",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 6.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplifications",
+  },
+
+  shadowAmplifications: {
+    id: "shadowAmplifications",
+    videoPath: "/video/shadow-amplifications-2.webm",
+    preload: false, // Load after loading screen
+    position: { x: -8.47, y: 1.96, z: 75.51 },
+    rotation: { x: 0.0, y: -0.2291, z: 0.0 },
+    scale: { x: 0.94, y: 0.91, z: 3.04 },
+    autoPlay: false,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 2.0,
+    onComplete: (gameManager) => {
+      console.log("shadowAmplifications complete");
+      gameManager.setState({ currentState: GAME_STATES.SHADOW_AMPLIFICATIONS });
+    },
+  },
+
+  catChew: {
+    id: "catChew",
+    videoPath: "/video/cat-3-wire.webm",
+    preload: false,
+    position: { x: -1.84, y: 1.81, z: 75.96 },
+    rotation: { x: 0.0, y: -0.5905, z: 0.0 },
+    scale: { x: 0.18, y: 0.275, z: 3.04 },
+    autoPlay: true,
+    loop: true,
+    billboard: false,
+    muted: false,
+    delay: 0.0,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.CAT_SAVE,
       },
     },
   },

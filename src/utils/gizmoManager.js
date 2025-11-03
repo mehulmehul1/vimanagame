@@ -160,6 +160,7 @@ class GizmoManager {
       this.inputManager &&
       typeof this.inputManager.setPointerLockBlocked === "function"
     ) {
+      // Block pointer lock when gizmos are present (gizmo mode)
       // Only ENABLE blocking when gizmos are present, don't DISABLE it
       // (other systems like DrawingManager might need it blocked)
       if (hasGizmo) {

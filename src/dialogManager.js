@@ -1,34 +1,33 @@
 import { Howl } from "howler";
-import * as THREE from "three";
-import { GAME_STATES } from "./gameData.js";
 import { Logger } from "./utils/logger.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { VIEWMASTER_OVERHEAT_THRESHOLD } from "./dialogData.js";
 
 /**
- * DialogManager - Handles dialog audio playback with synchronized captions
+ * DialogManager - Manages dialog audio playback and synchronized captions
  *
- * Features:
- * - Play dialog audio files
- * - Display synchronized captions (HTML)
- * - Event-based triggering
- * - Queue multiple dialog sequences
- * - Callback support for dialog completion
+ * Supports:
+ * - Multiple concurrent dialogs playing simultaneously
+ * - Unified caption queue that interleaves captions from all active dialogs chronologically
+ * - Audio tracks from multiple dialogs playing at the same time (not stopped when new dialog starts)
+ * - Video-synced captions
+ * - State-based auto-play
+ * - Dialog chaining via playNext
  */
-
 class DialogManager {
   constructor(options = {}) {
-    this.scene = options.scene || null;
-    this.camera = options.camera || null;
-    this.sfxManager = options.sfxManager || null;
-    this.gameManager = options.gameManager || null;
-    this.dialogChoiceUI = options.dialogChoiceUI || null;
-    this.loadingScreen = options.loadingScreen || null; // For progress tracking
+    this.sfxManager = options.sfxManager;
+    this.gameManager = options.gameManager;
+    this.videoManager = options.videoManager;
+    this.loadingScreen = options.loadingScreen;
 
-    // Caption display (HTML)
+    // Create caption element
     this.captionElement = options.captionElement || this.createCaptionElement();
+    if (!options.captionElement) {
+      document.body.appendChild(this.captionElement);
+    }
 
-    // Apply custom caption styling if provided, otherwise use defaults
+    // Apply caption styling
     if (options.captionStyle) {
       this.setCaptionStyle(options.captionStyle);
     } else {
@@ -37,27 +36,27 @@ class DialogManager {
 
     this.baseVolume = options.audioVolume || 0.8;
     this.audioVolume = this.baseVolume;
-    this.currentDialog = null;
-    this.currentAudio = null;
-    this.captionQueue = [];
-    this.captionIndex = 0;
+
+    // Support multiple concurrent dialogs
+    this.activeDialogs = new Map(); // dialogId -> {dialogData, audio, videoId, videoStartTime, startTime, onComplete, progressTriggers, progressTriggersFired}
+
+    // Unified caption queue that merges captions from all active dialogs
+    this.unifiedCaptionQueue = []; // Sorted array of {caption, dialogId, absoluteStartTime, absoluteEndTime}
+    this.currentCaptionIndex = 0;
     this.captionTimer = 0;
-    this.isPlaying = false;
-    this.onCompleteCallback = null;
+    this.queueNeedsRebuild = false; // Flag to track if queue needs rebuilding
+
+    this.isPlaying = false; // True if any dialog is active
     this.captionsEnabled = true; // Default to captions enabled
 
-    // Fade out support
+    // Fade out support (per-dialog fade out can be added later if needed)
     this.isFadingOut = false;
     this.fadeOutDuration = 0;
     this.fadeOutTimer = 0;
     this.fadeOutStartVolume = 0;
 
     // Logger for debug messages
-    this.logger = new Logger("DialogManager", false);
-
-    // Per-dialog progress-based state triggers
-    this.currentProgressTriggers = [];
-    this.progressTriggersFired = new Set();
+    this.logger = new Logger("DialogManager", true);
 
     // Delayed playback support
     this.pendingDialogs = new Map(); // Map of dialogId -> { dialogData, onComplete, timer, delay }
@@ -68,8 +67,10 @@ class DialogManager {
 
     // Cache getDialogsForState import for continuous evaluation
     this._getDialogsForState = null;
+    this._dialogTracks = null;
     import("./dialogData.js").then((module) => {
       this._getDialogsForState = module.getDialogsForState;
+      this._dialogTracks = module.dialogTracks;
     });
 
     // Update volume based on SFX manager if available
@@ -92,6 +93,233 @@ class DialogManager {
   }
 
   /**
+   * Update absolute times for video-synced captions without full rebuild
+   * This is much faster than rebuilding the entire queue every frame
+   * @private
+   */
+  _updateVideoCaptionTimes() {
+    // Only update entries that need it (video-synced captions)
+    for (let i = 0; i < this.unifiedCaptionQueue.length; i++) {
+      const entry = this.unifiedCaptionQueue[i];
+      if (entry.sourceType === "video") {
+        const dialogInfo = this.activeDialogs.get(entry.dialogId);
+        if (dialogInfo && dialogInfo.videoId && this.videoManager) {
+          const videoPlayer = this.videoManager.getVideoPlayer(
+            dialogInfo.videoId
+          );
+          if (videoPlayer && videoPlayer.video && videoPlayer.isPlaying) {
+            // Use stored videoStartTime - DO NOT recalculate it here
+            // videoStartTime should be set when dialog is first triggered and never change
+            let videoStartTime = dialogInfo.videoStartTime;
+            if (!videoStartTime || videoStartTime === null) {
+              // Fallback: calculate if somehow missing, but log a warning
+              videoStartTime =
+                Date.now() - videoPlayer.video.currentTime * 1000;
+              dialogInfo.videoStartTime = videoStartTime;
+              this.logger.warn(
+                `videoStartTime was null for "${
+                  entry.dialogId
+                }" - recalculated to ${new Date(
+                  videoStartTime
+                ).toLocaleTimeString()} (this should have been set when dialog triggered!)`
+              );
+            }
+
+            // Recalculate absolute times based on stored videoStartTime and relative time
+            // relativeTime never changes (it's the caption's position in the video)
+            // videoStartTime should never change (it's when the video started)
+            entry.absoluteStartTime =
+              videoStartTime + entry.relativeTime * 1000;
+            entry.absoluteEndTime =
+              entry.absoluteStartTime + (entry.caption.duration || 3.0) * 1000;
+          }
+        }
+      }
+    }
+
+    // Re-sort queue after updating times (but this is cheaper than full rebuild)
+    this.unifiedCaptionQueue.sort(
+      (a, b) => a.absoluteStartTime - b.absoluteStartTime
+    );
+  }
+
+  /**
+   * Rebuild unified caption queue from all active dialogs
+   * Captions are sorted chronologically by their absolute start time
+   * Only called when dialogs are added/removed, not every frame
+   * @private
+   */
+  _rebuildUnifiedCaptionQueue() {
+    this.unifiedCaptionQueue = [];
+
+    for (const [dialogId, dialogInfo] of this.activeDialogs.entries()) {
+      const { dialogData, startTime, videoId, videoStartTime } = dialogInfo;
+      const captions = dialogData.captions || [];
+
+      if (videoId && this.videoManager) {
+        // Video-synced: use video currentTime for timing
+        // Captions have startTime relative to video start (0s = video start)
+        // If startTime is not provided, calculate it sequentially from previous caption
+        const videoPlayer = this.videoManager.getVideoPlayer(videoId);
+        if (videoPlayer && videoPlayer.video && videoPlayer.isPlaying) {
+          // Use stored videoStartTime (set when dialog was triggered in _playDialogImmediate)
+          // This is the absolute time when the video actually started playing (after delay)
+          // It should never change - if it's null, calculate it once and store it
+          let calculatedVideoStartTime = videoStartTime;
+          if (!calculatedVideoStartTime || calculatedVideoStartTime === null) {
+            // Calculate when video actually started: now minus current playback time
+            // When video first starts (after delay), currentTime = 0, so this = Date.now()
+            // If video has been playing, currentTime represents elapsed time since video started
+            // So: videoStartTime = now - elapsedTime = time when video actually started
+            const videoCurrentTime = videoPlayer.video.currentTime;
+            calculatedVideoStartTime = Date.now() - videoCurrentTime * 1000;
+
+            // Store it in dialogInfo so it persists across rebuilds
+            dialogInfo.videoStartTime = calculatedVideoStartTime;
+
+            this.logger.log(
+              `Calculated videoStartTime for "${dialogId}" (video "${videoId}"): video currentTime=${videoCurrentTime.toFixed(
+                2
+              )}s, videoStartTime=${new Date(
+                calculatedVideoStartTime
+              ).toLocaleTimeString()}`
+            );
+          }
+
+          const videoReferenceTime = calculatedVideoStartTime;
+
+          let cumulativeVideoTime = 0;
+          for (const caption of captions) {
+            // If startTime is explicitly provided, use it; otherwise calculate sequentially
+            let captionStartTime;
+            if (caption.startTime !== undefined) {
+              captionStartTime = caption.startTime;
+            } else {
+              // No startTime provided - use cumulative time (sequential from previous)
+              captionStartTime = cumulativeVideoTime;
+            }
+
+            const captionEndTime = captionStartTime + (caption.duration || 3.0);
+
+            // Always update cumulative for next caption (whether or not this one had explicit startTime)
+            // This ensures sequential captions continue from where the previous one ended
+            cumulativeVideoTime = captionEndTime;
+
+            // Calculate absolute times: videoStartTime + relative caption time
+            // videoStartTime is when the video actually started playing (after delay)
+            // captionStartTime is relative to video start (0s = video start)
+            const absoluteStartTime =
+              videoReferenceTime + captionStartTime * 1000;
+            const absoluteEndTime =
+              absoluteStartTime + (caption.duration || 3.0) * 1000;
+
+            const currentTime = Date.now();
+            const isAlreadyExpired = currentTime >= absoluteEndTime;
+            const isCurrentlyActive =
+              currentTime >= absoluteStartTime && currentTime < absoluteEndTime;
+
+            // Only log if caption is currently active or if it's the first time adding
+            if (isCurrentlyActive || !isAlreadyExpired) {
+              this.logger.log(
+                `Adding caption "${caption.text.substring(
+                  0,
+                  30
+                )}..." for "${dialogId}" - relative: ${captionStartTime.toFixed(
+                  2
+                )}s, absolute: ${new Date(
+                  absoluteStartTime
+                ).toLocaleTimeString()} - ${new Date(
+                  absoluteEndTime
+                ).toLocaleTimeString()}${
+                  isAlreadyExpired
+                    ? " (already expired)"
+                    : isCurrentlyActive
+                    ? " (currently active)"
+                    : ""
+                }`
+              );
+            }
+
+            // Always add caption to queue, even if expired
+            // The display logic will handle showing/hiding based on timing
+            this.unifiedCaptionQueue.push({
+              caption,
+              dialogId,
+              absoluteStartTime,
+              absoluteEndTime,
+              sourceType: "video",
+              relativeTime: captionStartTime,
+            });
+          }
+        }
+      } else if (dialogInfo.audio) {
+        // Audio-synced: use audio position + startTime
+        let audioPosition = 0;
+        try {
+          if (dialogInfo.audio.seek) {
+            audioPosition = dialogInfo.audio.seek() || 0;
+          }
+        } catch (e) {
+          // Audio might not be loaded yet
+        }
+
+        let cumulativeTime = 0;
+        for (const caption of captions) {
+          const captionDuration = caption.duration || 3.0;
+          const absoluteStartTime = startTime + cumulativeTime * 1000;
+          const absoluteEndTime = absoluteStartTime + captionDuration * 1000;
+
+          // Only add captions that are current or future relative to audio
+          if (audioPosition <= cumulativeTime + captionDuration) {
+            this.unifiedCaptionQueue.push({
+              caption,
+              dialogId,
+              absoluteStartTime,
+              absoluteEndTime,
+              sourceType: "audio",
+              relativeTime: cumulativeTime,
+            });
+          }
+
+          cumulativeTime += captionDuration;
+        }
+      }
+    }
+
+    // Sort by absolute start time
+    this.unifiedCaptionQueue.sort(
+      (a, b) => a.absoluteStartTime - b.absoluteStartTime
+    );
+
+    // Reset caption index to find current position
+    // Find the first caption that should be shown now (active or upcoming)
+    const currentTime = Date.now();
+    this.currentCaptionIndex = this.unifiedCaptionQueue.length; // Default: beyond queue
+
+    for (let i = 0; i < this.unifiedCaptionQueue.length; i++) {
+      const caption = this.unifiedCaptionQueue[i];
+      // Point to first caption that is currently active
+      // A caption is active if current time is between its start and end times
+      // This catches captions that started in the past but are still within their display duration
+      const isCurrentlyActive =
+        currentTime >= caption.absoluteStartTime &&
+        currentTime < caption.absoluteEndTime;
+
+      if (isCurrentlyActive) {
+        this.currentCaptionIndex = i;
+        this.showCaption(caption.caption);
+        this.logger.log(
+          `Showing active caption "${caption.caption.text.substring(
+            0,
+            30
+          )}..." (${caption.dialogId}) at queue rebuild`
+        );
+        break;
+      }
+    }
+  }
+
+  /**
    * Preload dialog audio files
    * @param {Object} dialogsData - Dialog data object (from dialogData.js)
    */
@@ -110,34 +338,15 @@ class DialogManager {
         return;
       }
 
-      // Register with loading screen if available and preloading
-      if (this.loadingScreen && preload) {
-        this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
-      }
-
       // Preload the audio
       const howl = new Howl({
         src: [dialog.audio],
         volume: this.audioVolume,
         preload: true,
-        onload: () => {
-          this.logger.log(`Preloaded dialog "${dialog.id}"`);
-          if (this.loadingScreen && preload) {
-            this.loadingScreen.completeTask(`dialog_${dialog.id}`);
-          }
-        },
-        onloaderror: (id, error) => {
-          this.logger.error(`Failed to preload dialog "${dialog.id}":`, error);
-          if (this.loadingScreen && preload) {
-            this.loadingScreen.completeTask(`dialog_${dialog.id}`);
-          }
-        },
-        onend: () => {
-          this.handleDialogComplete();
-        },
       });
 
       this.preloadedAudio.set(dialog.id, howl);
+      this.logger.log(`Preloaded dialog "${dialog.id}"`);
     });
   }
 
@@ -145,31 +354,26 @@ class DialogManager {
    * Load deferred dialogs (called after loading screen)
    */
   loadDeferredDialogs() {
+    if (this.deferredDialogs.size === 0) {
+      return;
+    }
+
     this.logger.log(`Loading ${this.deferredDialogs.size} deferred dialogs`);
-    for (const [id, dialog] of this.deferredDialogs) {
-      if (!dialog.audio) continue;
+
+    this.deferredDialogs.forEach((dialog, dialogId) => {
+      if (!dialog.audio) return; // Skip dialogs without audio
 
       const howl = new Howl({
         src: [dialog.audio],
         volume: this.audioVolume,
         preload: true,
-        onload: () => {
-          this.logger.log(`Loaded deferred dialog "${dialog.id}"`);
-        },
-        onloaderror: (id, error) => {
-          this.logger.error(
-            `Failed to load deferred dialog "${dialog.id}":`,
-            error
-          );
-        },
-        onend: () => {
-          this.handleDialogComplete();
-        },
       });
 
-      this.preloadedAudio.set(dialog.id, howl);
-    }
+      this.preloadedAudio.set(dialogId, howl);
+    });
+
     this.deferredDialogs.clear();
+    this.logger.log("Loaded deferred dialogs");
   }
 
   /**
@@ -190,100 +394,126 @@ class DialogManager {
     // Track played dialogs for "once" functionality
     this.playedDialogs = new Set();
 
-    // Import getDialogsForState
-    import("./dialogData.js").then(({ getDialogsForState }) => {
-      // Cache for continuous checking in update()
-      this._getDialogsForState = getDialogsForState;
+    // Register listeners for video play events to trigger video-synced dialogs immediately
+    // This ensures dialogs trigger as soon as videos start (e.g., via playNext)
+    // rather than waiting for update loop detection
+    import("./dialogData.js").then(
+      ({ dialogTracks, getDialogsForState, VIEWMASTER_OVERHEAT_THRESHOLD }) => {
+        // Cache for continuous checking in update()
+        this._getDialogsForState = getDialogsForState;
 
-      // Listen for state changes
-      this.gameManager.on("state:changed", (newState, oldState) => {
-        // Debug: Log when overheat dialog index changes
-        if (
-          newState.viewmasterOverheatDialogIndex !==
-          oldState?.viewmasterOverheatDialogIndex
-        ) {
-          this.logger.log(
-            `Viewmaster overheat dialog index changed: ${oldState?.viewmasterOverheatDialogIndex} -> ${newState.viewmasterOverheatDialogIndex}, intensity: ${newState.viewmasterInsanityIntensity}`
-          );
-        }
-
-        const matchingDialogs = getDialogsForState(
-          newState,
-          this.playedDialogs
-        );
-
-        // Debug: Check for overheat dialogs specifically
-        if (
-          newState.viewmasterInsanityIntensity >=
-            VIEWMASTER_OVERHEAT_THRESHOLD &&
-          newState.viewmasterOverheatDialogIndex !== null &&
-          newState.viewmasterOverheatDialogIndex !== undefined
-        ) {
-          const overheatDialogs = matchingDialogs.filter(
-            (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
-          );
-          if (overheatDialogs.length > 0) {
-            this.logger.log(
-              `State change: Found ${
-                overheatDialogs.length
-              } matching overheat dialog(s): ${overheatDialogs
-                .map((d) => d.id)
-                .join(", ")}`
-            );
-          } else {
-            this.logger.log(
-              `State change: Overheat criteria met but no dialogs matched. Index: ${newState.viewmasterOverheatDialogIndex}, Intensity: ${newState.viewmasterInsanityIntensity}, isViewmasterEquipped: ${newState.isViewmasterEquipped}`
-            );
-          }
-        }
-
-        // If there are matching dialogs for the new state
-        if (matchingDialogs.length > 0) {
-          // Process ALL matching dialogs, not just the first one
-          // This allows multiple dialogs with the same criteria to be scheduled with their own delays
-          for (const dialog of matchingDialogs) {
-            // Skip if already playing
-            if (this.isPlaying) {
-              this.logger.log(
-                `Skipping "${dialog.id}" - dialog already playing`
-              );
-              continue;
-            }
-
-            // Skip if already played and marked as "once"
-            if (
-              dialog.once &&
-              this.playedDialogs &&
-              this.playedDialogs.has(dialog.id)
-            ) {
-              this.logger.log(
-                `Skipping "${dialog.id}" - already played and marked as once`
-              );
-              continue;
-            }
-
-            this.logger.log(
-              `Auto-playing dialog "${dialog.id}" from state change`
-            );
-
-            // Only track in playedDialogs if marked as "once" (allows replay for once: false)
-            if (dialog.once) {
-              this.playedDialogs.add(dialog.id);
-            }
-
-            // Emit event for tracking
-            this.gameManager.emit("dialog:trigger", dialog.id, dialog);
-
-            // Play the dialog (will be scheduled with its delay if specified)
-            this.playDialog(dialog, (completedDialog) => {
-              this.gameManager.emit("dialog:finished", completedDialog);
+        // Register event listeners for each video-synced dialog
+        for (const dialog of Object.values(dialogTracks)) {
+          if (dialog.videoId && dialog.autoPlay) {
+            const eventName = `video:play:${dialog.videoId}`;
+            this.gameManager.on(eventName, () => {
+              this._checkAndTriggerVideoDialog(dialog.videoId);
             });
+            this.logger.log(
+              `Registered video play listener for dialog "${dialog.id}" on event "${eventName}"`
+            );
           }
         }
-      });
 
-      this.logger.log("Event listeners registered");
-    });
+        // Listen for state changes
+        this.gameManager.on("state:changed", (newState, oldState) => {
+          // Debug: Log when overheat dialog index changes
+          if (
+            newState.viewmasterOverheatDialogIndex !==
+            oldState?.viewmasterOverheatDialogIndex
+          ) {
+            this.logger.log(
+              `Viewmaster overheat dialog index changed: ${oldState?.viewmasterOverheatDialogIndex} -> ${newState.viewmasterOverheatDialogIndex}, intensity: ${newState.viewmasterInsanityIntensity}`
+            );
+          }
+
+          const matchingDialogs = getDialogsForState(
+            newState,
+            this.playedDialogs
+          );
+
+          // Debug: Check for overheat dialogs specifically
+          if (
+            newState.viewmasterInsanityIntensity >=
+              VIEWMASTER_OVERHEAT_THRESHOLD &&
+            newState.viewmasterOverheatDialogIndex !== null &&
+            newState.viewmasterOverheatDialogIndex !== undefined
+          ) {
+            const overheatDialogs = matchingDialogs.filter(
+              (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
+            );
+            if (overheatDialogs.length > 0) {
+              this.logger.log(
+                `State change: Found ${
+                  overheatDialogs.length
+                } matching overheat dialog(s): ${overheatDialogs
+                  .map((d) => d.id)
+                  .join(", ")}`
+              );
+            } else {
+              this.logger.log(
+                `State change: Overheat criteria met but no dialogs matched. Index: ${newState.viewmasterOverheatDialogIndex}, Intensity: ${newState.viewmasterInsanityIntensity}, isViewmasterEquipped: ${newState.isViewmasterEquipped}`
+              );
+            }
+          }
+
+          // If there are matching dialogs for the new state
+          if (matchingDialogs.length > 0) {
+            // Process dialogs in priority order, play the first valid one
+            // (Sequential behavior: highest priority dialog plays, interrupts current if needed)
+            for (const dialog of matchingDialogs) {
+              // Skip if already played and marked as "once" (check this FIRST)
+              if (
+                dialog.once &&
+                this.playedDialogs &&
+                this.playedDialogs.has(dialog.id)
+              ) {
+                // Don't log - this is expected behavior for "once" dialogs
+                continue;
+              }
+
+              // Skip video-synced dialogs (handled in update loop)
+              if (dialog.videoId) {
+                continue;
+              }
+
+              // Skip if this is already active
+              if (this.activeDialogs.has(dialog.id)) {
+                continue;
+              }
+
+              // Skip if already pending
+              if (this.pendingDialogs.has(dialog.id)) {
+                continue;
+              }
+
+              // All dialogs can interrupt/run concurrently (add to active dialogs, don't stop existing)
+              this.logger.log(
+                `Auto-playing dialog "${dialog.id}" from state change`
+              );
+
+              // Only track in playedDialogs if marked as "once" (allows replay for once: false)
+              if (dialog.once) {
+                this.playedDialogs.add(dialog.id);
+              }
+
+              // Emit event for tracking
+              this.gameManager.emit("dialog:trigger", dialog.id, dialog);
+
+              // Play the dialog (will be scheduled with its delay if specified)
+              this.playDialog(dialog, (completedDialog) => {
+                this.gameManager.emit("dialog:finished", completedDialog);
+              });
+
+              // Break after playing first valid dialog (sequential behavior for state changes)
+              break;
+            }
+          }
+        });
+
+        this.logger.log("Event listeners registered");
+      }
+    );
   }
 
   /**
@@ -292,40 +522,28 @@ class DialogManager {
   createCaptionElement() {
     const caption = document.createElement("div");
     caption.id = "dialog-caption";
-    document.body.appendChild(caption);
+    caption.className = "dialog-caption";
     return caption;
   }
 
   /**
-   * Play a dialog sequence (cancels any currently playing dialog)
-   * @param {Object} dialogData - Dialog data object with audio and captions
-   * @param {Function} onComplete - Optional callback when dialog finishes
+   * Play a dialog
+   * @param {Object} dialogData - Dialog data object
+   * @param {Function} onComplete - Optional callback when dialog completes
    */
   playDialog(dialogData, onComplete = null) {
-    // Cancel any currently playing dialog
-    if (this.isPlaying) {
-      this.logger.log(
-        `Canceling current dialog "${this.currentDialog?.id}" for new dialog "${dialogData.id}"`
-      );
-      this.stopDialog();
-    }
-
-    // Cancel any pending delayed dialog with the same ID
-    if (this.pendingDialogs.has(dialogData.id)) {
-      this.cancelDelayedDialog(dialogData.id);
-    }
-
-    // Check if this dialog has a delay
-    const delay = dialogData.delay || 0;
-
-    if (delay > 0) {
-      // Schedule delayed playback
-      this.scheduleDelayedDialog(dialogData, onComplete, delay);
+    if (!dialogData) {
+      this.logger.warn("playDialog called with null/undefined dialogData");
       return;
     }
 
-    // Play immediately
-    this._playDialogImmediate(dialogData, onComplete);
+    const delay = dialogData.delay || 0;
+
+    if (delay > 0) {
+      this.scheduleDelayedDialog(dialogData, onComplete, delay);
+    } else {
+      this._playDialogImmediate(dialogData, onComplete);
+    }
   }
 
   /**
@@ -333,14 +551,10 @@ class DialogManager {
    * @param {Object} dialogData - Dialog data object
    * @param {Function} onComplete - Optional callback
    * @param {number} delay - Delay in seconds
-   * @private
    */
   scheduleDelayedDialog(dialogData, onComplete, delay) {
-    this.logger.log(
-      `Scheduling dialog "${dialogData.id}" with ${delay}s delay`
-    );
-
-    this.pendingDialogs.set(dialogData.id, {
+    const dialogId = dialogData.id;
+    this.pendingDialogs.set(dialogId, {
       dialogData,
       onComplete,
       timer: 0,
@@ -349,12 +563,11 @@ class DialogManager {
   }
 
   /**
-   * Cancel a pending delayed dialog
+   * Cancel a delayed dialog
    * @param {string} dialogId - Dialog ID to cancel
    */
   cancelDelayedDialog(dialogId) {
     if (this.pendingDialogs.has(dialogId)) {
-      this.logger.log(`Cancelled delayed dialog "${dialogId}"`);
       this.pendingDialogs.delete(dialogId);
     }
   }
@@ -373,20 +586,19 @@ class DialogManager {
 
   /**
    * Immediately play a dialog (internal method)
+   * Adds dialog to activeDialogs instead of replacing currentDialog
+   * Audio plays concurrently with other dialogs
    * @param {Object} dialogData - Dialog data object
    * @param {Function} onComplete - Optional callback
    * @private
    */
   async _playDialogImmediate(dialogData, onComplete) {
-    this.currentDialog = dialogData;
-    this.onCompleteCallback = onComplete;
-    this.captionQueue = dialogData.captions || [];
-    this.captionIndex = 0;
-    this.captionTimer = 0;
-    this.isPlaying = true;
-    // Normalize and store progress-based state triggers for this dialog
-    this.currentProgressTriggers = [];
-    this.progressTriggersFired.clear();
+    const dialogId = dialogData.id;
+    const dialogStartTime = Date.now();
+
+    // Store progress-based state triggers for this dialog
+    const progressTriggers = [];
+    const progressTriggersFired = new Set();
     if (dialogData) {
       // Single trigger form
       if (
@@ -395,7 +607,7 @@ class DialogManager {
       ) {
         const t = dialogData.progressStateTrigger;
         if (typeof t.progress === "number" && t.state !== undefined) {
-          this.currentProgressTriggers.push({
+          progressTriggers.push({
             progress: Math.max(0, Math.min(1, t.progress)),
             state: t.state,
           });
@@ -405,7 +617,7 @@ class DialogManager {
       if (Array.isArray(dialogData.progressStateTriggers)) {
         dialogData.progressStateTriggers.forEach((t) => {
           if (t && typeof t.progress === "number" && t.state !== undefined) {
-            this.currentProgressTriggers.push({
+            progressTriggers.push({
               progress: Math.max(0, Math.min(1, t.progress)),
               state: t.state,
             });
@@ -413,105 +625,140 @@ class DialogManager {
         });
       }
       // Sort triggers ascending by progress
-      this.currentProgressTriggers.sort((a, b) => a.progress - b.progress);
+      progressTriggers.sort((a, b) => a.progress - b.progress);
     }
 
-    // Load and play audio
-    if (dialogData.audio) {
+    let audio = null;
+    let videoId = null;
+    let videoStartTime = null;
+
+    // Handle video-synced captions
+    if (dialogData.videoId) {
+      videoId = dialogData.videoId;
+
+      // Get video player and calculate videoStartTime
+      // This should only be called when video is already playing (triggered by update loop)
+      if (this.videoManager) {
+        const videoPlayer = this.videoManager.getVideoPlayer(videoId);
+        if (videoPlayer && videoPlayer.video && videoPlayer.isPlaying) {
+          // Calculate when video actually started: now - current playback time
+          // When video starts playing (after delay), currentTime = 0, so videoStartTime = Date.now()
+          videoStartTime = Date.now() - videoPlayer.video.currentTime * 1000;
+          this.logger.log(
+            `Syncing captions to video "${videoId}" at video time ${videoPlayer.video.currentTime.toFixed(
+              2
+            )}s (videoStartTime: ${new Date(
+              videoStartTime
+            ).toLocaleTimeString()})`
+          );
+        } else {
+          this.logger.warn(
+            `Video player not found or not playing for "${videoId}"`
+          );
+        }
+      } else {
+        this.logger.warn(
+          `VideoManager not available for video-synced dialog "${dialogId}"`
+        );
+      }
+    }
+    // Load and play audio (only if not video-synced)
+    else if (dialogData.audio) {
       // Check if audio was preloaded or loaded from deferred
-      if (this.preloadedAudio.has(dialogData.id)) {
-        this.logger.log(`Using preloaded audio for "${dialogData.id}"`);
-        this.currentAudio = this.preloadedAudio.get(dialogData.id);
-        this.currentAudio.volume(this.audioVolume);
-        const playId = this.currentAudio.play();
+      if (this.preloadedAudio.has(dialogId)) {
+        this.logger.log(`Using preloaded audio for "${dialogId}"`);
+        audio = this.preloadedAudio.get(dialogId);
+
+        // Set onend callback for preloaded audio (it might not have one)
+        audio.once("end", () => {
+          this.logger.log(`Preloaded audio for "${dialogId}" ended`);
+          this._handleDialogComplete(dialogId);
+        });
+
+        audio.volume(this.audioVolume);
+        const playId = audio.play();
         if (!playId) {
           this.logger.error(
-            `Failed to start playback for "${dialogData.id}" - Howl returned no sound ID`
+            `Failed to start playback for "${dialogId}" - Howl returned no sound ID`
           );
         } else {
           this.logger.log(
-            `Playing preloaded audio for "${dialogData.id}" (sound ID: ${playId})`
+            `Playing preloaded audio for "${dialogId}" (sound ID: ${playId})`
           );
         }
       } else {
         // Check if this was a deferred dialog that hasn't been loaded yet
-        if (this.deferredDialogs.has(dialogData.id)) {
-          this.logger.log(
-            `Loading deferred dialog "${dialogData.id}" on-demand`
-          );
-          const deferredDialog = this.deferredDialogs.get(dialogData.id);
+        if (this.deferredDialogs.has(dialogId)) {
+          this.logger.log(`Loading deferred dialog "${dialogId}" on-demand`);
+          const deferredDialog = this.deferredDialogs.get(dialogId);
 
-          this.currentAudio = new Howl({
+          audio = new Howl({
             src: [deferredDialog.audio],
             volume: this.audioVolume,
             preload: true, // Explicitly load now
             onend: () => {
-              this.handleDialogComplete();
+              this._handleDialogComplete(dialogId);
             },
             onloaderror: (id, error) => {
               this.logger.error(
-                `Failed to load audio for "${dialogData.id}":`,
+                `Failed to load audio for "${dialogId}":`,
                 error
               );
-              this.handleDialogComplete();
+              this._handleDialogComplete(dialogId);
             },
           });
 
           // Remove from deferred map and add to preloaded
-          this.deferredDialogs.delete(dialogData.id);
-          this.preloadedAudio.set(dialogData.id, this.currentAudio);
+          this.deferredDialogs.delete(dialogId);
+          this.preloadedAudio.set(dialogId, audio);
         } else {
           // Fallback: Load on-demand from dialogData
-          this.logger.log(`Loading audio on-demand for "${dialogData.id}"`);
-          this.currentAudio = new Howl({
+          this.logger.log(`Loading audio on-demand for "${dialogId}"`);
+          audio = new Howl({
             src: [dialogData.audio],
             volume: this.audioVolume,
             preload: true, // Explicitly load now
             onend: () => {
-              this.handleDialogComplete();
+              this._handleDialogComplete(dialogId);
             },
             onloaderror: (id, error) => {
               this.logger.error(
-                `Failed to load audio for "${dialogData.id}":`,
+                `Failed to load audio for "${dialogId}":`,
                 error
               );
-              this.handleDialogComplete();
+              this._handleDialogComplete(dialogId);
             },
             onplayerror: (id, error) => {
               this.logger.error(
-                `Failed to play audio for "${dialogData.id}":`,
+                `Failed to play audio for "${dialogId}":`,
                 error
               );
-              this.handleDialogComplete();
+              this._handleDialogComplete(dialogId);
             },
           });
         }
 
         // Wait for the audio to load using Howler's event system
-        const audioState = this.currentAudio.state
-          ? this.currentAudio.state()
-          : "unloaded";
-        this.logger.log(`Audio state for "${dialogData.id}": ${audioState}`);
+        const audioState = audio.state ? audio.state() : "unloaded";
+        this.logger.log(`Audio state for "${dialogId}": ${audioState}`);
 
         if (audioState !== "loaded") {
-          this.logger.log(
-            `Waiting for audio to load for "${dialogData.id}"...`
-          );
+          this.logger.log(`Waiting for audio to load for "${dialogId}"...`);
           await new Promise((resolve) => {
             const timeout = setTimeout(() => {
-              this.logger.error(`Audio load timeout for "${dialogData.id}"`);
+              this.logger.error(`Audio load timeout for "${dialogId}"`);
               resolve();
             }, 10000); // 10 second timeout
 
-            this.currentAudio.once("load", () => {
+            audio.once("load", () => {
               clearTimeout(timeout);
-              this.logger.log(`Loaded on-demand dialog "${dialogData.id}"`);
+              this.logger.log(`Loaded on-demand dialog "${dialogId}"`);
               resolve();
             });
-            this.currentAudio.once("loaderror", (id, error) => {
+            audio.once("loaderror", (id, error) => {
               clearTimeout(timeout);
               this.logger.error(
-                `Failed to load on-demand dialog "${dialogData.id}":`,
+                `Failed to load on-demand dialog "${dialogId}":`,
                 error,
                 `Audio path: ${dialogData.audio}`
               );
@@ -520,79 +767,317 @@ class DialogManager {
           });
         }
 
-        const playId = this.currentAudio.play();
+        const playId = audio.play();
         if (!playId) {
           this.logger.error(
-            `Failed to start playback for "${
-              dialogData.id
-            }" - Howl returned no sound ID. Audio state: ${
-              this.currentAudio.state ? this.currentAudio.state() : "unknown"
+            `Failed to start playback for "${dialogId}" - Howl returned no sound ID. Audio state: ${
+              audio.state ? audio.state() : "unknown"
             }`
           );
         } else {
           this.logger.log(
-            `Playing audio for "${dialogData.id}" (sound ID: ${playId})`
+            `Playing audio for "${dialogId}" (sound ID: ${playId})`
           );
         }
       }
     }
 
-    // Start first caption if available
-    if (this.captionQueue.length > 0) {
-      this.showCaption(this.captionQueue[0]);
+    // For video-synced dialogs, calculate videoStartTime: when video actually started playing
+    // This accounts for delays - the video's currentTime starts at 0 when playback begins (after delay)
+    // CRITICAL: This MUST be calculated when the dialog is first triggered, not during queue rebuilds
+    // The videoStartTime represents when the video STARTED, which never changes, even if video keeps playing
+    if (videoId && this.videoManager && !videoStartTime) {
+      const videoPlayer = this.videoManager.getVideoPlayer(videoId);
+      if (videoPlayer && videoPlayer.video && videoPlayer.isPlaying) {
+        // videoStartTime = when the video actually started playing (after any delay)
+        // currentTime represents elapsed time since video started
+        // So: videoStartTime = now - elapsedTime = absolute time when video started
+        const videoCurrentTime = videoPlayer.video.currentTime;
+        videoStartTime = Date.now() - videoCurrentTime * 1000;
+        this.logger.log(
+          `Set videoStartTime for "${dialogId}" at video time ${videoCurrentTime.toFixed(
+            2
+          )}s (absolute: ${new Date(videoStartTime).toLocaleTimeString()})`
+        );
+
+        // Check if any captions will be missed due to late triggering
+        if (dialogData.captions && videoCurrentTime > 0) {
+          const firstCaptionWithStartTime = dialogData.captions.find(
+            (c) => c.startTime !== undefined
+          );
+          if (firstCaptionWithStartTime) {
+            const firstCaptionEndTime =
+              firstCaptionWithStartTime.startTime +
+              (firstCaptionWithStartTime.duration || 3.0);
+            if (videoCurrentTime >= firstCaptionWithStartTime.startTime) {
+              if (videoCurrentTime < firstCaptionEndTime) {
+                this.logger.warn(
+                  `⚠️ Video "${videoId}" is at ${videoCurrentTime.toFixed(
+                    2
+                  )}s, first caption "${firstCaptionWithStartTime.text.substring(
+                    0,
+                    30
+                  )}..." starts at ${
+                    firstCaptionWithStartTime.startTime
+                  }s (ends ${firstCaptionEndTime.toFixed(
+                    1
+                  )}s). Caption SHOULD be active now!`
+                );
+              } else {
+                this.logger.warn(
+                  `⚠️ Video "${videoId}" has advanced ${videoCurrentTime.toFixed(
+                    2
+                  )}s, first caption "${firstCaptionWithStartTime.text.substring(
+                    0,
+                    30
+                  )}..." (${
+                    firstCaptionWithStartTime.startTime
+                  }s-${firstCaptionEndTime.toFixed(1)}s) has already expired!`
+                );
+              }
+            }
+          }
+        }
+      } else {
+        this.logger.warn(
+          `Cannot set videoStartTime for "${dialogId}" - video player not available or not playing`
+        );
+      }
+    }
+
+    // Add dialog to active dialogs (don't stop existing dialogs)
+    this.activeDialogs.set(dialogId, {
+      dialogData,
+      audio,
+      videoId,
+      videoStartTime,
+      startTime: dialogStartTime,
+      onComplete,
+      progressTriggers,
+      progressTriggersFired,
+    });
+
+    this.isPlaying = true; // At least one dialog is active
+
+    // Rebuild queue IMMEDIATELY so captions are available right away
+    // This is critical for video-synced captions where timing is precise
+    if (this.activeDialogs.size > 0) {
+      this._rebuildUnifiedCaptionQueue();
+      this.queueNeedsRebuild = false;
+    } else {
+      // Mark for rebuild in next update if no dialogs yet
+      this.queueNeedsRebuild = true;
     }
 
     this.emit("dialog:play", dialogData);
   }
 
   /**
-   * Stop current dialog (with optional fade out)
+   * Stop a specific dialog (or all dialogs if dialogId not specified)
+   * @param {string|null} dialogId - Dialog ID to stop (null = stop all)
    * @param {number} fadeOutDuration - Duration in seconds for fade out (0 = immediate stop)
    */
-  stopDialog(fadeOutDuration = 0) {
-    if (!this.isPlaying || !this.currentAudio) {
+  stopDialog(dialogId = null, fadeOutDuration = 0) {
+    if (dialogId) {
+      // Stop specific dialog
+      const dialogInfo = this.activeDialogs.get(dialogId);
+      if (!dialogInfo) return;
+
+      if (fadeOutDuration > 0 && dialogInfo.audio) {
+        // Fade out this dialog's audio
+        const startVolume = this.audioVolume;
+        const fadeOutStartTime = Date.now();
+
+        const fadeOut = () => {
+          const elapsed = (Date.now() - fadeOutStartTime) / 1000;
+          const progress = Math.min(elapsed / fadeOutDuration, 1.0);
+          const currentVolume = startVolume * (1.0 - progress);
+
+          if (dialogInfo.audio && dialogInfo.audio.volume) {
+            dialogInfo.audio.volume(currentVolume);
+          }
+
+          if (progress >= 1.0) {
+            // Fade out complete, stop dialog
+            if (dialogInfo.audio) {
+              dialogInfo.audio.stop();
+            }
+            this._removeDialog(dialogId);
+          } else if (this.activeDialogs.has(dialogId)) {
+            requestAnimationFrame(fadeOut);
+          }
+        };
+        fadeOut();
+      } else {
+        // Stop immediately
+        if (dialogInfo.audio) {
+          dialogInfo.audio.stop();
+        }
+        this._removeDialog(dialogId);
+      }
+    } else {
+      // Stop all dialogs
+      for (const [id, dialogInfo] of this.activeDialogs.entries()) {
+        if (dialogInfo.audio) {
+          dialogInfo.audio.stop();
+        }
+      }
+      this.activeDialogs.clear();
+      this.unifiedCaptionQueue = [];
+      this.currentCaptionIndex = 0;
+      this.isPlaying = false;
+      this.hideCaption();
+      this.emit("dialog:stop");
+    }
+  }
+
+  /**
+   * Remove a dialog from active dialogs
+   * @private
+   */
+  _removeDialog(dialogId) {
+    const dialogInfo = this.activeDialogs.get(dialogId);
+    if (!dialogInfo) return;
+
+    // Call onComplete callback
+    if (dialogInfo.onComplete) {
+      dialogInfo.onComplete(dialogInfo.dialogData);
+    }
+
+    // Remove from active dialogs
+    this.activeDialogs.delete(dialogId);
+
+    // Mark queue for rebuild (will happen in next update)
+    this.queueNeedsRebuild = true;
+
+    // Check if any dialogs are still active
+    if (this.activeDialogs.size === 0) {
+      this.isPlaying = false;
+      this.hideCaption();
+      this.emit("dialog:stop");
+    } else {
+      this.emit("dialog:complete", dialogInfo.dialogData);
+    }
+
+    // Handle playNext chaining
+    if (dialogInfo.dialogData.playNext) {
+      this._handlePlayNext(dialogInfo.dialogData);
+    }
+  }
+
+  /**
+   * Handle dialog completion for a specific dialog
+   * @private
+   */
+  _handleDialogComplete(dialogId) {
+    this._removeDialog(dialogId);
+  }
+
+  /**
+   * Handle playNext chaining
+   * @private
+   */
+  async _handlePlayNext(completedDialogData) {
+    if (!completedDialogData || !completedDialogData.playNext) {
+      if (!completedDialogData) {
+        this.logger.warn(
+          "_handlePlayNext called with null/undefined dialogData"
+        );
+      } else {
+        this.logger.log(
+          `Dialog "${completedDialogData.id}" has no playNext property`
+        );
+      }
       return;
     }
 
-    // If fade out is requested and duration > 0, start fade out
-    if (
-      fadeOutDuration > 0 ||
-      (this.currentDialog?.fadeOutDuration !== undefined &&
-        this.currentDialog.fadeOutDuration > 0)
-    ) {
-      const dialogFadeOut =
-        fadeOutDuration > 0
-          ? fadeOutDuration
-          : this.currentDialog.fadeOutDuration;
-      if (dialogFadeOut > 0) {
-        this.isFadingOut = true;
-        this.fadeOutDuration = dialogFadeOut;
-        this.fadeOutTimer = 0;
-        this.fadeOutStartVolume = this.currentAudio.volume();
-        return; // Don't stop immediately, let fade out complete
+    this.logger.log(
+      `Chaining to next dialog from "${completedDialogData.id}" -> "${completedDialogData.playNext}"`
+    );
+
+    // Resolve the next dialog (could be an object or string ID)
+    let nextDialog;
+    if (typeof completedDialogData.playNext === "string") {
+      this.logger.log(
+        `Resolving dialog by ID: "${completedDialogData.playNext}"`
+      );
+      nextDialog = await this.resolveDialogById(completedDialogData.playNext);
+      if (!nextDialog) {
+        this.logger.error(
+          `Failed to resolve dialog "${completedDialogData.playNext}" from "${completedDialogData.id}"`
+        );
+      } else {
+        this.logger.log(
+          `Resolved dialog "${completedDialogData.playNext}": found ${nextDialog.id}`
+        );
       }
+    } else {
+      nextDialog = completedDialogData.playNext;
+      this.logger.log(
+        `Using direct dialog object: ${nextDialog.id || "unknown"}`
+      );
     }
 
-    // Immediate stop (or no fade out duration)
-    if (this.currentAudio) {
-      this.currentAudio.stop();
-      this.currentAudio.unload();
-      this.currentAudio = null;
+    if (!nextDialog) {
+      this.logger.warn(
+        `playNext dialog not found for "${completedDialogData.id}": ${completedDialogData.playNext}`
+      );
+      return;
     }
 
-    this.hideCaption();
-    this.isPlaying = false;
-    this.isFadingOut = false;
-    this.currentDialog = null;
-    this.captionQueue = [];
-    this.captionIndex = 0;
-    this.captionTimer = 0;
-    this.currentProgressTriggers = [];
-    this.progressTriggersFired.clear();
-    this.fadeOutTimer = 0;
-    this.fadeOutDuration = 0;
+    this.logger.log(`Processing playNext for "${nextDialog.id}"`);
 
-    this.emit("dialog:stop");
+    // Check if dialog should play based on criteria
+    // Note: If criteria is not defined, allow the dialog to play (it's explicitly chained)
+    if (this.gameManager && nextDialog.criteria) {
+      const currentState = this.gameManager.getState();
+      const playCriteria = nextDialog.criteria;
+
+      if (!checkCriteria(currentState, playCriteria)) {
+        this.logger.log(
+          `Next dialog "${nextDialog.id}" criteria not met, skipping playNext`
+        );
+        return;
+      }
+      this.logger.log(`Next dialog "${nextDialog.id}" criteria met`);
+    } else {
+      this.logger.log(
+        `Next dialog "${nextDialog.id}" has no criteria - allowing playNext chain`
+      );
+    }
+
+    // Check if dialog was already played once (if once flag is set)
+    if (
+      nextDialog.once &&
+      this.playedDialogs &&
+      this.playedDialogs.has(nextDialog.id)
+    ) {
+      this.logger.log(
+        `Next dialog "${nextDialog.id}" already played once, skipping playNext`
+      );
+      return;
+    }
+
+    // Mark the next dialog as played if it has "once" flag
+    // Do this BEFORE playing so it doesn't get triggered again
+    if (nextDialog.once && this.playedDialogs) {
+      this.playedDialogs.add(nextDialog.id);
+      this.logger.log(`Marked chained dialog "${nextDialog.id}" as played`);
+    }
+
+    // Check if next dialog has a delay
+    const delay = nextDialog.delay || 0;
+    if (delay > 0) {
+      this.logger.log(`Chaining to "${nextDialog.id}" with ${delay}s delay`);
+      setTimeout(() => {
+        this.logger.log(`Playing delayed chained dialog "${nextDialog.id}"`);
+        this.playDialog(nextDialog);
+      }, delay * 1000);
+    } else {
+      // Play immediately
+      this.logger.log(`Playing chained dialog "${nextDialog.id}" immediately`);
+      this.playDialog(nextDialog);
+    }
   }
 
   /**
@@ -603,6 +1088,14 @@ class DialogManager {
     // Only show caption if captions are enabled
     if (this.captionsEnabled) {
       this.captionElement.textContent = caption.text;
+    }
+
+    // Emit named event globally if specified
+    if (caption.emitEvent && this.gameManager) {
+      this.gameManager.emit(caption.emitEvent, caption);
+      this.logger.log(
+        `Emitted global event "${caption.emitEvent}" for caption: ${caption.text}`
+      );
     }
 
     this.captionTimer = 0;
@@ -617,121 +1110,113 @@ class DialogManager {
   }
 
   /**
-   * Handle dialog completion
-   */
-  async handleDialogComplete() {
-    this.hideCaption();
-    this.isPlaying = false;
-
-    const completedDialog = this.currentDialog;
-    this.currentDialog = null;
-    this.currentAudio = null;
-    this.currentProgressTriggers = [];
-    this.progressTriggersFired.clear();
-
-    // Check if this dialog chains to another via playNext
-    if (completedDialog && completedDialog.playNext) {
-      this.logger.log(`Chaining to next dialog from "${completedDialog.id}"`);
-
-      // Resolve the next dialog (could be an object or string ID)
-      let nextDialog;
-      if (typeof completedDialog.playNext === "string") {
-        nextDialog = await this.resolveDialogById(completedDialog.playNext);
-      } else {
-        nextDialog = completedDialog.playNext;
-      }
-
-      if (nextDialog) {
-        // Mark the next dialog as played if it has "once" flag
-        if (nextDialog.once && this.playedDialogs) {
-          this.playedDialogs.add(nextDialog.id);
-          this.logger.log(`Marked chained dialog "${nextDialog.id}" as played`);
-        }
-
-        // Call onComplete before moving to next dialog (if specified)
-        this.handleOnComplete(completedDialog);
-
-        // Emit completion event for the current dialog
-        this.emit("dialog:complete", completedDialog);
-
-        // Store the onCompleteCallback to preserve it through the chain
-        const chainedCallback = this.onCompleteCallback;
-
-        // Check if next dialog has a delay
-        const delay = nextDialog.delay || 0;
-        if (delay > 0) {
-          this.logger.log(
-            `Chaining to "${nextDialog.id}" with ${delay}s delay`
-          );
-          this.scheduleDelayedDialog(nextDialog, chainedCallback, delay);
-        } else {
-          // Play immediately
-          this._playDialogImmediate(nextDialog, chainedCallback);
-        }
-        return;
-      } else {
-        this.logger.warn(
-          `playNext dialog not found for "${completedDialog.id}"`
-        );
-      }
-    }
-
-    // Check if this dialog should trigger choices
-    if (completedDialog && this.dialogChoiceUI) {
-      // Import dialogChoiceData dynamically to check for choices
-      import("./dialogChoiceData.js").then((module) => {
-        const choiceConfig = module.getChoiceForDialog(completedDialog.id);
-
-        if (choiceConfig) {
-          this.logger.log(`Showing choices for dialog "${completedDialog.id}"`);
-          const choiceData = module.buildChoiceData(choiceConfig);
-          this.dialogChoiceUI.showChoices(choiceData);
-        } else {
-          // No choices, call onComplete if available
-          this.handleOnComplete(completedDialog);
-        }
-      });
-    } else {
-      // No choice UI, call onComplete if available
-      this.handleOnComplete(completedDialog);
-    }
-
-    this.emit("dialog:complete", completedDialog);
-
-    if (this.onCompleteCallback) {
-      this.onCompleteCallback(completedDialog);
-      this.onCompleteCallback = null;
-    }
-  }
-
-  /**
-   * Handle onComplete callback for dialog
-   * @param {Object} dialog - Completed dialog
-   */
-  handleOnComplete(dialog) {
-    if (dialog && dialog.onComplete && this.gameManager) {
-      if (typeof dialog.onComplete === "function") {
-        try {
-          this.logger.log(`Calling onComplete for dialog "${dialog.id}"`);
-          dialog.onComplete(this.gameManager);
-        } catch (error) {
-          this.logger.error(
-            `Error in onComplete for dialog "${dialog.id}":`,
-            error
-          );
-        }
-      }
-    }
-  }
-
-  /**
    * Resolve a dialog by ID from the dialogData
    * @param {string} dialogId - Dialog ID to resolve
    * @returns {Promise<Object|null>} Dialog object or null if not found
    */
   async resolveDialogById(dialogId) {
+    // Try to use cached dialogTracks first
+    if (this._dialogTracks && this._dialogTracks[dialogId]) {
+      return this._dialogTracks[dialogId];
+    }
+
+    // Otherwise import it
     const { dialogTracks } = await import("./dialogData.js");
-    return dialogTracks[dialogId] || null;
+
+    // Cache it for future use
+    if (!this._dialogTracks) {
+      this._dialogTracks = dialogTracks;
+    }
+
+    const dialog = dialogTracks[dialogId];
+    if (!dialog) {
+      this.logger.warn(`Dialog "${dialogId}" not found in dialogTracks`);
+    }
+    return dialog || null;
+  }
+
+  /**
+   * Check and trigger video-synced dialog for a specific video
+   * Called immediately when video:play event is emitted
+   * @param {string} videoId - Video ID
+   * @private
+   */
+  _checkAndTriggerVideoDialog(videoId) {
+    if (!this.videoManager || !this._dialogTracks || this.isFadingOut) {
+      return;
+    }
+
+    // Find dialog that matches this video
+    const dialog = Object.values(this._dialogTracks).find(
+      (d) => d.videoId === videoId && d.autoPlay
+    );
+
+    if (!dialog) return;
+
+    // Skip if already played and marked as "once"
+    if (
+      dialog.once &&
+      this.playedDialogs &&
+      this.playedDialogs.has(dialog.id)
+    ) {
+      return;
+    }
+
+    // Skip if already active
+    if (this.activeDialogs.has(dialog.id)) {
+      return;
+    }
+
+    // Skip if already pending
+    if (this.pendingDialogs.has(dialog.id)) {
+      return;
+    }
+
+    // Verify video is actually playing (delay may still be pending)
+    const videoPlayer = this.videoManager.getVideoPlayer(videoId);
+    if (!videoPlayer) {
+      return;
+    }
+
+    const hasPendingDelay =
+      this.videoManager.pendingDelays &&
+      this.videoManager.pendingDelays.has(videoId);
+
+    const isVideoPlaying =
+      !hasPendingDelay &&
+      videoPlayer.isPlaying &&
+      videoPlayer.video &&
+      !videoPlayer.video.paused &&
+      !videoPlayer.video.ended &&
+      videoPlayer.video.readyState >= 2 &&
+      videoPlayer.video.currentTime >= 0;
+
+    if (isVideoPlaying) {
+      const videoCurrentTime = videoPlayer.video.currentTime;
+      this.logger.log(
+        `Video-synced dialog "${
+          dialog.id
+        }" triggered via event (video "${videoId}" at ${videoCurrentTime.toFixed(
+          2
+        )}s)`
+      );
+
+      if (videoCurrentTime > 1.0) {
+        this.logger.warn(
+          `⚠️ Video "${videoId}" has advanced ${videoCurrentTime.toFixed(
+            2
+          )}s before dialog "${
+            dialog.id
+          }" triggered. Early captions may be missed!`
+        );
+      }
+
+      if (dialog.once && this.playedDialogs) {
+        this.playedDialogs.add(dialog.id);
+      }
+
+      this.playDialog(dialog);
+    }
   }
 
   /**
@@ -739,18 +1224,97 @@ class DialogManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
-    // Check for auto-play dialogs when not currently playing
+    // Fallback: Check for video-synced dialogs in update loop (if event-based trigger missed)
+    // Note: Video-synced dialogs can play even if another dialog is playing
     if (
       this.gameManager &&
-      !this.isPlaying &&
+      this.videoManager &&
       !this.isFadingOut &&
-      this._getDialogsForState
+      this._dialogTracks
     ) {
+      // Check all dialogs for video-synced ones
+      for (const dialog of Object.values(this._dialogTracks)) {
+        // Only check video-synced dialogs with autoPlay
+        if (!dialog.videoId || !dialog.autoPlay) continue;
+
+        // Skip if already played and marked as "once"
+        if (
+          dialog.once &&
+          this.playedDialogs &&
+          this.playedDialogs.has(dialog.id)
+        ) {
+          continue;
+        }
+
+        // Skip if already active
+        if (this.activeDialogs.has(dialog.id)) {
+          continue;
+        }
+
+        // Skip if already pending
+        if (this.pendingDialogs.has(dialog.id)) {
+          continue;
+        }
+
+        // Check if the video is actually playing
+        const videoPlayer = this.videoManager.getVideoPlayer(dialog.videoId);
+        if (!videoPlayer) {
+          continue;
+        }
+
+        const hasPendingDelay =
+          this.videoManager.pendingDelays &&
+          this.videoManager.pendingDelays.has(dialog.videoId);
+
+        const isVideoPlaying =
+          !hasPendingDelay &&
+          videoPlayer.isPlaying &&
+          videoPlayer.video &&
+          !videoPlayer.video.paused &&
+          !videoPlayer.video.ended &&
+          videoPlayer.video.readyState >= 2 &&
+          videoPlayer.video.currentTime >= 0;
+
+        if (isVideoPlaying) {
+          const videoCurrentTime = videoPlayer.video.currentTime;
+          this.logger.log(
+            `Video-synced dialog "${
+              dialog.id
+            }" triggered via update loop (video "${
+              dialog.videoId
+            }" at ${videoCurrentTime.toFixed(2)}s)`
+          );
+
+          if (videoCurrentTime > 1.0) {
+            this.logger.warn(
+              `⚠️ Video "${
+                dialog.videoId
+              }" has advanced ${videoCurrentTime.toFixed(2)}s before dialog "${
+                dialog.id
+              }" triggered. Early captions may be missed!`
+            );
+          }
+
+          if (dialog.once && this.playedDialogs) {
+            this.playedDialogs.add(dialog.id);
+          }
+
+          this.playDialog(dialog);
+          break;
+        }
+      }
+    }
+
+    // Check for auto-play dialogs (can interrupt current dialog)
+    if (this.gameManager && !this.isFadingOut && this._getDialogsForState) {
       const currentState = this.gameManager.getState();
       const matchingDialogs = this._getDialogsForState(
         currentState,
         this.playedDialogs || new Set()
       );
+
+      // Filter out video-synced dialogs (already handled above)
+      const nonVideoDialogs = matchingDialogs.filter((d) => !d.videoId);
 
       // Debug: Log when we're checking for these specific dialogs
       if (
@@ -759,7 +1323,7 @@ class DialogManager {
         currentState.viewmasterOverheatDialogIndex !== null &&
         currentState.viewmasterOverheatDialogIndex !== undefined
       ) {
-        const targetDialogs = matchingDialogs.filter(
+        const targetDialogs = nonVideoDialogs.filter(
           (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
         );
         if (targetDialogs.length > 0 && !this.isPlaying) {
@@ -771,19 +1335,20 @@ class DialogManager {
         }
       }
 
-      // Play matching dialogs that aren't already playing or pending
-      for (const dialog of matchingDialogs) {
-        // Skip if already played and marked as "once"
+      // Play matching dialogs that aren't already active or pending
+      for (const dialog of nonVideoDialogs) {
+        // Skip if already played and marked as "once" (check this FIRST)
         if (
           dialog.once &&
           this.playedDialogs &&
           this.playedDialogs.has(dialog.id)
         ) {
+          // Don't log - this is expected behavior for "once" dialogs
           continue;
         }
 
-        // Skip if this is already the current dialog (avoid re-triggering)
-        if (this.currentDialog && this.currentDialog.id === dialog.id) {
+        // Skip if already active
+        if (this.activeDialogs.has(dialog.id)) {
           continue;
         }
 
@@ -792,6 +1357,7 @@ class DialogManager {
           continue;
         }
 
+        // All dialogs can run concurrently (add to active dialogs, don't stop existing)
         this.logger.log(`Auto-playing dialog "${dialog.id}"`);
 
         // Only track in playedDialogs if marked as "once" (allows replay for once: false)
@@ -800,59 +1366,19 @@ class DialogManager {
         }
 
         // Play the dialog (will be scheduled with its delay if specified)
+        // This adds to activeDialogs, doesn't stop existing dialogs
         this.playDialog(dialog);
         break; // Only play one dialog per frame
       }
     }
-    // Handle fade out
-    if (this.isFadingOut && this.currentAudio) {
-      this.fadeOutTimer += dt;
-      const progress = Math.min(this.fadeOutTimer / this.fadeOutDuration, 1.0);
-      const currentVolume = this.fadeOutStartVolume * (1.0 - progress);
-
-      if (this.currentAudio.volume) {
-        this.currentAudio.volume(currentVolume);
-      }
-
-      // When fade out completes, stop dialog
-      if (progress >= 1.0) {
-        if (this.currentAudio) {
-          this.currentAudio.stop();
-          this.currentAudio.unload();
-          this.currentAudio = null;
-        }
-        this.hideCaption();
-        this.isPlaying = false;
-        this.isFadingOut = false;
-        const completedDialog = this.currentDialog;
-        this.currentDialog = null;
-        this.captionQueue = [];
-        this.captionIndex = 0;
-        this.captionTimer = 0;
-        this.currentProgressTriggers = [];
-        this.progressTriggersFired.clear();
-        this.fadeOutTimer = 0;
-        this.fadeOutDuration = 0;
-        this.emit("dialog:stop");
-        return;
-      }
-      return; // Don't process other updates while fading out
-    }
-
-    // Note: Criteria checking for stopping dialogs is handled by the normal
-    // dialog system via state change events. No need for continuous checking here.
 
     // Update pending delayed dialogs
     if (this.pendingDialogs.size > 0) {
       for (const [dialogId, pending] of this.pendingDialogs) {
         pending.timer += dt;
 
-        // Check if delay has elapsed and no dialog is currently playing
-        if (
-          pending.timer >= pending.delay &&
-          !this.isPlaying &&
-          !this.isFadingOut
-        ) {
+        // Check if delay has elapsed
+        if (pending.timer >= pending.delay) {
           this.logger.log(`Playing delayed dialog "${dialogId}"`);
           this.pendingDialogs.delete(dialogId);
           this._playDialogImmediate(pending.dialogData, pending.onComplete);
@@ -861,58 +1387,174 @@ class DialogManager {
       }
     }
 
-    // Progress-based state triggers for current dialog (configured in dialogData)
-    if (
-      this.isPlaying &&
-      this.currentAudio &&
-      this.gameManager &&
-      this.currentProgressTriggers.length > 0
-    ) {
-      try {
-        const dur = this.currentAudio.duration
-          ? this.currentAudio.duration()
-          : 0;
-        const pos = this.currentAudio.seek ? this.currentAudio.seek() : 0;
-        if (dur > 0) {
-          const prog = pos / dur; // 0..1
-          for (let i = 0; i < this.currentProgressTriggers.length; i++) {
-            const trig = this.currentProgressTriggers[i];
-            if (prog >= trig.progress && !this.progressTriggersFired.has(i)) {
-              // Fire state change
-              if (typeof this.gameManager.setState === "function") {
-                this.gameManager.setState({ currentState: trig.state });
+    // Progress-based state triggers for all active dialogs
+    if (this.gameManager && this.activeDialogs.size > 0) {
+      for (const [dialogId, dialogInfo] of this.activeDialogs.entries()) {
+        if (!dialogInfo.audio || dialogInfo.progressTriggers.length === 0) {
+          continue;
+        }
+
+        try {
+          const dur = dialogInfo.audio.duration
+            ? dialogInfo.audio.duration()
+            : 0;
+          const pos = dialogInfo.audio.seek ? dialogInfo.audio.seek() : 0;
+          if (dur > 0) {
+            const prog = pos / dur; // 0..1
+            for (let i = 0; i < dialogInfo.progressTriggers.length; i++) {
+              const trig = dialogInfo.progressTriggers[i];
+              if (
+                prog >= trig.progress &&
+                !dialogInfo.progressTriggersFired.has(i)
+              ) {
+                // Fire state change
+                if (typeof this.gameManager.setState === "function") {
+                  this.gameManager.setState({ currentState: trig.state });
+                }
+                dialogInfo.progressTriggersFired.add(i);
               }
-              this.progressTriggersFired.add(i);
             }
           }
+        } catch (e) {
+          // ignore seek() while not loaded
         }
-      } catch (e) {
-        // ignore seek() while not loaded
       }
     }
 
-    // Update current dialog captions
-    if (!this.isPlaying || this.captionQueue.length === 0) {
-      return;
+    // Rebuild unified caption queue only when needed (dialogs added/removed)
+    // For video-synced captions, update absolute times incrementally
+    if (this.queueNeedsRebuild && this.activeDialogs.size > 0) {
+      this._rebuildUnifiedCaptionQueue();
+      this.queueNeedsRebuild = false;
+    } else if (this.activeDialogs.size > 0) {
+      // Update absolute times for video-synced captions without full rebuild
+      this._updateVideoCaptionTimes();
     }
 
-    this.captionTimer += dt;
+    // Update caption display based on unified queue
+    if (this.activeDialogs.size > 0) {
+      const currentTime = Date.now();
 
-    const currentCaption = this.captionQueue[this.captionIndex];
-    if (currentCaption && this.captionTimer >= currentCaption.duration) {
-      // Move to next caption
-      this.captionIndex++;
+      // Find which caption should be shown now
+      // Check ALL captions in the queue - don't stop at first gap
+      let activeCaptionEntry = null;
+      let activeCaptionIndex = -1;
 
-      if (this.captionIndex < this.captionQueue.length) {
-        this.showCaption(this.captionQueue[this.captionIndex]);
-      } else {
-        // No more captions
-        this.hideCaption();
+      for (let i = 0; i < this.unifiedCaptionQueue.length; i++) {
+        const captionEntry = this.unifiedCaptionQueue[i];
 
-        // If there's no audio (caption-only dialog), complete the dialog now
-        if (!this.currentAudio) {
-          this.handleDialogComplete();
+        // Check if this caption should be active now
+        // A caption is active if current time is between its start and end
+        // This catches captions that started in the past (e.g., if dialog triggered late via playNext)
+        // but are still within their display duration
+        const isCurrentlyActive =
+          currentTime >= captionEntry.absoluteStartTime &&
+          currentTime < captionEntry.absoluteEndTime;
+
+        if (isCurrentlyActive) {
+          // This caption should be shown
+          activeCaptionEntry = captionEntry;
+          activeCaptionIndex = i;
+          break; // First match is correct (queue is sorted by time)
         }
+      }
+
+      // Show the active caption if found
+      if (activeCaptionEntry) {
+        if (this.currentCaptionIndex !== activeCaptionIndex) {
+          this.currentCaptionIndex = activeCaptionIndex;
+          this.showCaption(activeCaptionEntry.caption);
+        }
+      } else {
+        // No active caption found - check if current caption has actually expired
+        if (
+          this.currentCaptionIndex >= 0 &&
+          this.currentCaptionIndex < this.unifiedCaptionQueue.length
+        ) {
+          const currentCaption =
+            this.unifiedCaptionQueue[this.currentCaptionIndex];
+
+          // Only hide if the current caption has actually expired
+          // Don't hide just because we're in a gap - there might be another caption coming
+          if (currentTime >= currentCaption.absoluteEndTime) {
+            // Current caption expired - check if we're past ALL captions
+            const lastCaption =
+              this.unifiedCaptionQueue[this.unifiedCaptionQueue.length - 1];
+            if (currentTime >= lastCaption.absoluteEndTime) {
+              // Past last caption entirely - hide it
+              this.currentCaptionIndex = this.unifiedCaptionQueue.length;
+              this.hideCaption();
+            } else {
+              // Between captions - current expired, but more may come
+              // Don't update index yet, just hide - will find next caption next frame
+              this.hideCaption();
+            }
+          }
+          // If current caption hasn't expired, keep showing it (even if in a gap from another dialog)
+        } else if (this.unifiedCaptionQueue.length === 0) {
+          // No captions at all - hide if showing something
+          this.currentCaptionIndex = 0;
+          this.hideCaption();
+        }
+      }
+
+      // Check if we've passed all captions and no dialogs are active
+      if (this.currentCaptionIndex >= this.unifiedCaptionQueue.length) {
+        // Check if any dialogs are still active
+        let allComplete = true;
+        for (const [dialogId, dialogInfo] of this.activeDialogs.entries()) {
+          if (dialogInfo.audio) {
+            try {
+              if (dialogInfo.audio.playing && dialogInfo.audio.playing()) {
+                allComplete = false;
+                break;
+              }
+            } catch (e) {
+              // Audio might not be loaded
+            }
+          } else if (dialogInfo.videoId && this.videoManager) {
+            const videoPlayer = this.videoManager.getVideoPlayer(
+              dialogInfo.videoId
+            );
+            if (videoPlayer && videoPlayer.isPlaying) {
+              allComplete = false;
+              break;
+            }
+          }
+        }
+
+        // If all dialogs are complete, hide caption (but don't remove dialogs yet - they'll be removed on audio/video end)
+        if (allComplete) {
+          // Captions are already hidden, dialogs will be cleaned up on audio/video end
+        }
+      }
+    } else {
+      // No active dialogs
+      if (this.currentCaptionIndex < this.unifiedCaptionQueue.length) {
+        this.hideCaption();
+        this.currentCaptionIndex = this.unifiedCaptionQueue.length;
+      }
+    }
+
+    // Handle fade out
+    if (this.isFadingOut) {
+      this.fadeOutTimer += dt;
+      const progress = Math.min(this.fadeOutTimer / this.fadeOutDuration, 1.0);
+      const currentVolume = this.fadeOutStartVolume * (1.0 - progress);
+
+      // Fade out all active audio
+      for (const [dialogId, dialogInfo] of this.activeDialogs.entries()) {
+        if (dialogInfo.audio && dialogInfo.audio.volume) {
+          dialogInfo.audio.volume(currentVolume);
+        }
+      }
+
+      // When fade out completes, stop all dialogs
+      if (progress >= 1.0) {
+        this.isFadingOut = false;
+        this.fadeOutTimer = 0;
+        this.fadeOutDuration = 0;
+        this.stopDialog(); // Stop all dialogs
       }
     }
   }
@@ -927,75 +1569,69 @@ class DialogManager {
 
   /**
    * Apply default caption styling
+   * Note: The CSS file (dialog.css) already defines the styling, including the custom font.
+   * We only set properties that aren't defined in CSS or need to be dynamic.
    */
   applyDefaultCaptionStyle() {
-    this.setCaptionStyle({
-      fontFamily: "PXCountryTypewriter, Arial, sans-serif",
-      fontSize: "32px",
-      background: "transparent",
-      padding: "20px 40px",
-      color: "#ffffff",
-      textShadow: "2px 2px 8px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.7)",
-      maxWidth: "90%",
-      lineHeight: "1.4",
-    });
+    // Only set properties that aren't already in dialog.css
+    // The font-family "PXCountryTypewriter" is set in dialog.css, so we don't override it here
+    // Most styling is handled by the CSS file, which is imported in main.js
   }
 
   /**
-   * Set audio volume
-   * @param {number} volume - Volume level (0-1)
+   * Set dialog volume
+   * @param {number} volume - Volume level (0.0-1.0)
    */
   setVolume(volume) {
-    const clamped = Math.max(0, Math.min(1, volume));
-    this.baseVolume = clamped;
+    this.baseVolume = Math.max(0, Math.min(1, volume));
     this.updateVolume();
   }
 
   /**
-   * Update volume based on SFX manager
+   * Update volume for all active dialogs
    */
   updateVolume() {
+    this.audioVolume = this.baseVolume;
     if (this.sfxManager) {
-      this.audioVolume = this.baseVolume * this.sfxManager.getMasterVolume();
-    } else {
-      this.audioVolume = this.baseVolume;
+      this.audioVolume *= this.sfxManager.getMasterVolume();
     }
 
-    if (this.currentAudio) {
-      this.currentAudio.volume(this.audioVolume);
+    // Update volume for all active audio
+    for (const [dialogId, dialogInfo] of this.activeDialogs.entries()) {
+      if (dialogInfo.audio && dialogInfo.audio.volume) {
+        dialogInfo.audio.volume(this.audioVolume);
+      }
     }
+
+    // Update volume for preloaded audio
+    this.preloadedAudio.forEach((audio) => {
+      if (audio.volume) {
+        audio.volume(this.audioVolume);
+      }
+    });
   }
 
   /**
-   * Set whether captions are enabled
-   * @param {boolean} enabled - Whether to show captions
+   * Set captions enabled/disabled
+   * @param {boolean} enabled - Whether captions should be shown
    */
   setCaptionsEnabled(enabled) {
     this.captionsEnabled = enabled;
-
-    // If disabling captions and currently showing one, hide it
     if (!enabled) {
       this.hideCaption();
     }
-    // If enabling captions and currently playing dialog, show current caption
-    else if (enabled && this.isPlaying && this.captionQueue.length > 0) {
-      const currentCaption = this.captionQueue[this.captionIndex];
-      if (currentCaption) {
-        this.captionElement.textContent = currentCaption.text;
-      }
-    }
   }
 
   /**
-   * Check if dialog is currently playing
+   * Check if any dialog is currently playing
    * @returns {boolean}
    */
   isDialogPlaying() {
-    return this.isPlaying;
+    return this.isPlaying && this.activeDialogs.size > 0;
   }
 
   /**
-   * Check if a dialog is pending (scheduled with delay)
+   * Check if a specific dialog is pending (scheduled with delay)
    * @param {string} dialogId - Dialog ID to check
    * @returns {boolean}
    */
@@ -1004,7 +1640,7 @@ class DialogManager {
   }
 
   /**
-   * Check if any dialog is pending
+   * Check if any dialogs are pending
    * @returns {boolean}
    */
   hasDialogsPending() {
@@ -1012,104 +1648,125 @@ class DialogManager {
   }
 
   /**
-   * Get the duration of a dialog audio file
-   * @param {string} dialogId - Dialog ID to get duration for
-   * @returns {number} Duration in seconds, or 0 if not available
+   * Get dialog duration (for audio-based dialogs)
+   * @param {string} dialogId - Dialog ID
+   * @returns {number|null} Duration in seconds or null if not found/not loaded
    */
   getDialogDuration(dialogId) {
-    // Check if audio is preloaded
+    const dialogInfo = this.activeDialogs.get(dialogId);
+    if (dialogInfo && dialogInfo.audio) {
+      try {
+        return dialogInfo.audio.duration ? dialogInfo.audio.duration() : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Check preloaded audio
     if (this.preloadedAudio.has(dialogId)) {
-      const howl = this.preloadedAudio.get(dialogId);
-      const duration = howl.duration();
-      this.logger.log(`Dialog "${dialogId}" duration: ${duration}s`);
-      return duration || 0;
+      const audio = this.preloadedAudio.get(dialogId);
+      try {
+        return audio.duration ? audio.duration() : null;
+      } catch (e) {
+        return null;
+      }
     }
 
-    // Check if it's a deferred dialog
-    if (this.deferredDialogs.has(dialogId)) {
-      this.logger.warn(
-        `Dialog "${dialogId}" is deferred and not yet loaded, cannot get duration`
-      );
-      return 0;
-    }
-
-    this.logger.warn(`Dialog "${dialogId}" not found`);
-    return 0;
+    return null;
   }
 
   /**
-   * Get the total duration of a dialog including captions
+   * Get total dialog duration including all captions
    * @param {Object} dialogData - Dialog data object
    * @returns {number} Total duration in seconds
    */
   getTotalDialogDuration(dialogData) {
-    // If there's audio, use audio duration
-    if (dialogData.audio && this.preloadedAudio.has(dialogData.id)) {
-      return this.getDialogDuration(dialogData.id);
+    if (!dialogData) return 0;
+
+    // For video-synced dialogs, use last caption end time
+    if (dialogData.videoId && dialogData.captions) {
+      let maxEndTime = 0;
+      for (const caption of dialogData.captions) {
+        const startTime = caption.startTime || 0;
+        const endTime = startTime + (caption.duration || 3.0);
+        maxEndTime = Math.max(maxEndTime, endTime);
+      }
+      return maxEndTime;
     }
 
-    // Otherwise, sum caption durations
-    if (dialogData.captions && dialogData.captions.length > 0) {
-      const captionDuration = dialogData.captions.reduce(
-        (total, caption) => total + (caption.duration || 0),
+    // For audio-based dialogs, sum caption durations
+    if (dialogData.captions) {
+      return dialogData.captions.reduce(
+        (total, caption) => total + (caption.duration || 3.0),
         0
       );
-      return captionDuration;
     }
 
     return 0;
   }
 
   /**
-   * Add event listener
+   * Register event listener
    * @param {string} event - Event name
-   * @param {function} callback - Callback function
+   * @param {Function} callback - Callback function
    */
   on(event, callback) {
-    if (this.eventListeners[event]) {
-      this.eventListeners[event].push(callback);
+    if (!this.eventListeners[event]) {
+      this.eventListeners[event] = [];
     }
+    this.eventListeners[event].push(callback);
   }
 
   /**
    * Remove event listener
    * @param {string} event - Event name
-   * @param {function} callback - Callback function
+   * @param {Function} callback - Callback function
    */
   off(event, callback) {
-    if (this.eventListeners[event]) {
-      const index = this.eventListeners[event].indexOf(callback);
-      if (index > -1) {
-        this.eventListeners[event].splice(index, 1);
-      }
+    if (!this.eventListeners[event]) {
+      return;
+    }
+    const index = this.eventListeners[event].indexOf(callback);
+    if (index !== -1) {
+      this.eventListeners[event].splice(index, 1);
     }
   }
 
   /**
-   * Emit an event
+   * Emit event
    * @param {string} event - Event name
-   * @param {...any} args - Arguments to pass to callbacks
+   * @param {...any} args - Event arguments
    */
   emit(event, ...args) {
-    if (this.eventListeners[event]) {
-      this.eventListeners[event].forEach((callback) => callback(...args));
+    if (!this.eventListeners[event]) {
+      return;
     }
+    this.eventListeners[event].forEach((callback) => {
+      try {
+        callback(...args);
+      } catch (error) {
+        this.logger.error(`Error in event listener for "${event}":`, error);
+      }
+    });
   }
 
   /**
-   * Clean up resources
+   * Clean up
    */
   destroy() {
+    // Stop all dialogs
     this.stopDialog();
 
-    // Clear pending dialogs
-    this.pendingDialogs.clear();
+    // Clean up preloaded audio
+    this.preloadedAudio.forEach((audio) => {
+      audio.unload();
+    });
+    this.preloadedAudio.clear();
 
+    // Remove caption element
     if (this.captionElement && this.captionElement.parentNode) {
       this.captionElement.parentNode.removeChild(this.captionElement);
     }
-
-    this.eventListeners = {};
   }
 }
 

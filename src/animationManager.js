@@ -4,6 +4,9 @@ import { objectAnimations } from "./animationObjectData.js";
 import { Logger } from "./utils/logger.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 
+// Store objectAnimations reference for playNext resolution
+let objectAnimationsData = objectAnimations;
+
 /**
  * AnimationManager - Manages playback of camera and object animations
  *
@@ -67,6 +70,10 @@ class AnimationManager {
     // Animation library
     this.animations = new Map();
 
+    // Store references to animation data for playNext resolution
+    this.cameraAnimationsData = null; // Set by loadAnimationsFromData
+    this.objectAnimationsData = objectAnimationsData; // Use imported objectAnimations
+
     // Tracking for playOnce
     this.playedAnimations = new Set();
 
@@ -99,6 +106,7 @@ class AnimationManager {
     this.isFading = false;
     this.fadeElapsed = 0;
     this.fadeData = null; // Current fade animation data
+    this.fadeAnimData = null; // Store full animation data for playNext
     this.fadeCube = null; // Mesh for fade effect
     this.fadeOnComplete = null;
     this.fadeInputControl = null; // Store input control settings for fade
@@ -170,6 +178,9 @@ class AnimationManager {
    * @returns {Promise<void>}
    */
   async loadAnimationsFromData(animationData) {
+    // Store reference to animation data for playNext resolution
+    this.cameraAnimationsData = animationData;
+
     const animations = Object.values(animationData);
     // Only load JSON animations (jsonAnimation or animation type with path), skip lookats and moveTos
     const animationsToLoad = animations.filter(
@@ -206,6 +217,61 @@ class AnimationManager {
       this.logger.log(
         `Loaded ${preloadAnimations.length} JSON animations from data (${deferredAnimations.length} deferred, ${nonJsonCount} lookats/moveTos)`
       );
+
+    // Register event listeners for animations with fireOnEvent
+    this._registerEventListeners(animations);
+  }
+
+  /**
+   * Register event listeners for animations that have fireOnEvent
+   * @param {Array} animations - Array of all animation data objects
+   * @private
+   */
+  _registerEventListeners(animations) {
+    if (!this.gameManager) {
+      this.logger.warn("Cannot register event listeners, no gameManager");
+      return;
+    }
+
+    for (const animData of animations) {
+      if (animData.fireOnEvent) {
+        const eventName = animData.fireOnEvent;
+        this.logger.log(
+          `Registering event listener for animation "${animData.id}" on event "${eventName}"`
+        );
+
+        // Create a listener that plays this animation when the event fires
+        const listener = (eventData) => {
+          // Check if animation has already been played (if playOnce is set)
+          if (animData.playOnce && this.playedAnimations.has(animData.id)) {
+            this.logger.log(
+              `Animation "${animData.id}" already played (playOnce), skipping event "${eventName}"`
+            );
+            return;
+          }
+
+          // Check if animation is already playing
+          if (
+            this.isPlaying &&
+            this.currentAnimationData &&
+            this.currentAnimationData.id === animData.id
+          ) {
+            this.logger.log(
+              `Animation "${animData.id}" is already playing, skipping event "${eventName}"`
+            );
+            return;
+          }
+
+          this.logger.log(
+            `Event "${eventName}" fired, playing animation "${animData.id}"`
+          );
+          this.playFromData(animData);
+        };
+
+        // Register listener with gameManager
+        this.gameManager.on(eventName, listener);
+      }
+    }
   }
 
   /**
@@ -264,6 +330,10 @@ class AnimationManager {
         if (!anim.criteria) return false;
         const matches = checkCriteria(newState, anim.criteria);
         if (matches && anim.playOnce && this.playedAnimations.has(anim.id)) {
+          return false;
+        }
+        // Skip if already active (unless it's a loop or retry scenario)
+        if (matches && this.activeObjectAnimations.has(anim.id)) {
           return false;
         }
         return matches;
@@ -375,6 +445,90 @@ class AnimationManager {
   }
 
   /**
+   * Resolve an animation by ID from camera or object animations
+   * @param {string} animId - Animation ID
+   * @returns {Object|null} Animation data or null if not found
+   */
+  async resolveAnimationById(animId) {
+    // Try camera animations first
+    if (this.cameraAnimationsData && this.cameraAnimationsData[animId]) {
+      return this.cameraAnimationsData[animId];
+    }
+
+    // Try object animations
+    if (this.objectAnimationsData && this.objectAnimationsData[animId]) {
+      return this.objectAnimationsData[animId];
+    }
+
+    // Fallback: import and check cameraAnimations
+    try {
+      const { cameraAnimations } = await import("./animationCameraData.js");
+      if (cameraAnimations[animId]) {
+        return cameraAnimations[animId];
+      }
+    } catch (e) {
+      // Ignore import errors
+    }
+
+    // Fallback: import and check objectAnimations
+    try {
+      const { objectAnimations } = await import("./animationObjectData.js");
+      if (objectAnimations[animId]) {
+        return objectAnimations[animId];
+      }
+    } catch (e) {
+      // Ignore import errors
+    }
+
+    return null;
+  }
+
+  /**
+   * Handle playNext chaining for an animation
+   * @param {Object} completedAnimData - Animation data that just completed
+   * @private
+   */
+  async _handlePlayNext(completedAnimData) {
+    if (!completedAnimData || !completedAnimData.playNext) {
+      return;
+    }
+
+    this.logger.log(
+      `Chaining to next animation from "${completedAnimData.id}"`
+    );
+
+    // Resolve the next animation (could be an object or string ID)
+    let nextAnim;
+    if (typeof completedAnimData.playNext === "string") {
+      nextAnim = await this.resolveAnimationById(completedAnimData.playNext);
+    } else {
+      nextAnim = completedAnimData.playNext;
+    }
+
+    if (nextAnim) {
+      // Mark the next animation as played if it has "playOnce" flag
+      if (nextAnim.playOnce) {
+        this.playedAnimations.add(nextAnim.id);
+        this.logger.log(`Marked chained animation "${nextAnim.id}" as played`);
+      }
+
+      // Check if next animation has a delay
+      const delay = nextAnim.delay || 0;
+      if (delay > 0) {
+        this.logger.log(`Chaining to "${nextAnim.id}" with ${delay}s delay`);
+        this.scheduleDelayedAnimation(nextAnim, delay);
+      } else {
+        // Play immediately
+        this.playFromData(nextAnim);
+      }
+    } else {
+      this.logger.warn(
+        `playNext animation not found for "${completedAnimData.id}": ${completedAnimData.playNext}`
+      );
+    }
+  }
+
+  /**
    * Play an animation from data config
    * @param {Object} animData - Animation data from cameraAnimationData.js
    * @returns {boolean} Success
@@ -408,7 +562,7 @@ class AnimationManager {
     if (animData.type === "jsonAnimation" || animData.type === "animation") {
       const success = this.play(
         animData.id,
-        () => {
+        async () => {
           // Mark as played if playOnce
           if (animData.playOnce) {
             this.playedAnimations.add(animData.id);
@@ -417,6 +571,8 @@ class AnimationManager {
           if (animData.onComplete) {
             animData.onComplete(this.gameManager);
           }
+          // Handle playNext chaining
+          await this._handlePlayNext(animData);
         },
         animData
       );
@@ -466,6 +622,9 @@ class AnimationManager {
     if (fadeData.playOnce) {
       this.playedAnimations.add(fadeData.id);
     }
+
+    // Store full animation data for playNext
+    this.fadeAnimData = fadeData;
 
     // Store input control settings
     this.fadeInputControl = fadeData.inputControl || null;
@@ -523,7 +682,7 @@ class AnimationManager {
     // Set color
     const color = this.fadeData.color;
     cube.material.color.setRGB(color.r, color.g, color.b);
-    
+
     // If fadeInTime is 0, start at maxOpacity to prevent flash when transitioning from another fade
     // Otherwise start at 0 and fade in normally
     if (this.fadeData.fadeInTime === 0) {
@@ -597,6 +756,16 @@ class AnimationManager {
     // Get lookat hold duration (separate from zoom hold duration)
     const lookAtHoldDuration = lookAtData.lookAtHoldDuration || 0;
 
+    // Disable input during lookat (always fully disabled to prevent conflicts)
+    if (this.characterController) {
+      this.characterController.inputDisabled = true;
+      this.characterController.inputManager.disable();
+      if (this.debug)
+        this.logger.log(
+          `Lookat '${lookAtData.id}': Disabled all input (movement + rotation)`
+        );
+    }
+
     // Get restoreInput config (default: restore both for backwards compatibility)
     const restoreInputConfig =
       lookAtData.restoreInput !== undefined ? lookAtData.restoreInput : true;
@@ -610,6 +779,27 @@ class AnimationManager {
       normalizedRestore.movement || normalizedRestore.rotation;
     const needsDelayedRestore =
       shouldRestoreSomething && lookAtData.enableZoom && lookAtData.zoomOptions;
+
+    // Check if playNext needs to wait for hold durations
+    // When returnToOriginalView is false, lookAtHoldDuration is NOT respected by characterController
+    // We need to delay playNext by lookAtHoldDuration + zoom holdDuration if applicable
+    const needsDelayedPlayNext =
+      lookAtData.playNext &&
+      !lookAtData.returnToOriginalView &&
+      (lookAtHoldDuration > 0 ||
+        (lookAtData.enableZoom &&
+          lookAtData.zoomOptions &&
+          lookAtData.zoomOptions.holdDuration > 0));
+
+    // Calculate total delay for playNext
+    const playNextDelay = needsDelayedPlayNext
+      ? lookAtHoldDuration +
+        (lookAtData.enableZoom &&
+        lookAtData.zoomOptions &&
+        lookAtData.zoomOptions.holdDuration
+          ? lookAtData.zoomOptions.holdDuration
+          : 0)
+      : 0;
 
     // Store user-defined onComplete callback
     const userOnComplete = lookAtData.onComplete;
@@ -645,7 +835,7 @@ class AnimationManager {
       }
 
       // Provide onComplete that schedules delayed restoration and calls user callback
-      onComplete = () => {
+      onComplete = async () => {
         this.pendingInputRestore = {
           timer: 0,
           delay: delayAfterLookat,
@@ -655,10 +845,31 @@ class AnimationManager {
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
+        // Handle playNext chaining - delay if hold durations are needed
+        if (needsDelayedPlayNext && playNextDelay > 0) {
+          this.logger.log(
+            `Lookat '${
+              lookAtData.id
+            }': Delaying playNext by ${playNextDelay.toFixed(
+              2
+            )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+              lookAtData.enableZoom &&
+              lookAtData.zoomOptions &&
+              lookAtData.zoomOptions.holdDuration
+                ? ` + zoom holdDuration: ${lookAtData.zoomOptions.holdDuration}s`
+                : ""
+            })`
+          );
+          setTimeout(async () => {
+            await this._handlePlayNext(lookAtData);
+          }, playNextDelay * 1000);
+        } else {
+          await this._handlePlayNext(lookAtData);
+        }
       };
     } else if (shouldRestoreSomething) {
       // Immediate restoration when lookat completes (if restoreInput specifies something to restore)
-      onComplete = () => {
+      onComplete = async () => {
         if (this.characterController) {
           this._restoreInputControls(restoreInputConfig);
           if (this.debug)
@@ -670,16 +881,58 @@ class AnimationManager {
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
+        // Handle playNext chaining - delay if hold durations are needed
+        if (needsDelayedPlayNext && playNextDelay > 0) {
+          this.logger.log(
+            `Lookat '${
+              lookAtData.id
+            }': Delaying playNext by ${playNextDelay.toFixed(
+              2
+            )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+              lookAtData.enableZoom &&
+              lookAtData.zoomOptions &&
+              lookAtData.zoomOptions.holdDuration
+                ? ` + zoom holdDuration: ${lookAtData.zoomOptions.holdDuration}s`
+                : ""
+            })`
+          );
+          setTimeout(async () => {
+            await this._handlePlayNext(lookAtData);
+          }, playNextDelay * 1000);
+        } else {
+          await this._handlePlayNext(lookAtData);
+        }
       };
     } else {
       // Don't restore input - just call user callback if provided
-      onComplete = () => {
+      onComplete = async () => {
         this.logger.log(
           `AnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
         );
         // Call user-defined callback if provided
         if (userOnComplete) {
           userOnComplete(this.gameManager);
+        }
+        // Handle playNext chaining - delay if hold durations are needed
+        if (needsDelayedPlayNext && playNextDelay > 0) {
+          this.logger.log(
+            `Lookat '${
+              lookAtData.id
+            }': Delaying playNext by ${playNextDelay.toFixed(
+              2
+            )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+              lookAtData.enableZoom &&
+              lookAtData.zoomOptions &&
+              lookAtData.zoomOptions.holdDuration
+                ? ` + zoom holdDuration: ${lookAtData.zoomOptions.holdDuration}s`
+                : ""
+            })`
+          );
+          setTimeout(async () => {
+            await this._handlePlayNext(lookAtData);
+          }, playNextDelay * 1000);
+        } else {
+          await this._handlePlayNext(lookAtData);
         }
       };
     }
@@ -697,6 +950,7 @@ class AnimationManager {
         enableZoom: lookAtData.enableZoom || false,
         zoomOptions: lookAtData.zoomOptions || {},
         colliderId: `camera-data-${lookAtData.id}`,
+        disableInput: true, // CharacterController uses this for lookat rotation override
       });
     } else {
       this.logger.warn(`Cannot play lookat '${lookAtData.id}', no gameManager`);
@@ -754,6 +1008,17 @@ class AnimationManager {
     const returnTransitionTime =
       lookAtData.returnTransitionTime ?? transitionTime;
 
+    // Disable input during lookat (always fully disabled to prevent conflicts)
+    // Only apply on first position of sequence
+    if (index === 0 && this.characterController) {
+      this.characterController.inputDisabled = true;
+      this.characterController.inputManager.disable();
+      if (this.debug)
+        this.logger.log(
+          `Lookat '${lookAtData.id}': Disabled all input (movement + rotation)`
+        );
+    }
+
     // Get restoreInput config (only on last position if not looping)
     const restoreInputConfig =
       isLastPosition &&
@@ -767,6 +1032,23 @@ class AnimationManager {
       normalizedRestore.movement || normalizedRestore.rotation;
     const needsDelayedRestore =
       shouldRestoreSomething && enableZoom && zoomOptions;
+
+    // Check if playNext needs to wait for hold durations
+    // When returnToOriginalView is false, lookAtHoldDuration is NOT respected by characterController
+    // We need to delay playNext by lookAtHoldDuration + zoom holdDuration if applicable
+    const needsDelayedPlayNext =
+      lookAtData.playNext &&
+      !returnToOriginalView &&
+      (lookAtHoldDuration > 0 ||
+        (enableZoom && zoomOptions && zoomOptions.holdDuration > 0));
+
+    // Calculate total delay for playNext
+    const playNextDelay = needsDelayedPlayNext
+      ? lookAtHoldDuration +
+        (enableZoom && zoomOptions && zoomOptions.holdDuration
+          ? zoomOptions.holdDuration
+          : 0)
+      : 0;
 
     // Store user-defined onComplete callback (only call on final position)
     const userOnComplete =
@@ -820,7 +1102,7 @@ class AnimationManager {
         );
       }
 
-      onComplete = () => {
+      onComplete = async () => {
         this.pendingInputRestore = {
           timer: 0,
           delay: delayAfterLookat,
@@ -829,11 +1111,33 @@ class AnimationManager {
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
+        // Handle playNext chaining (only on final position)
+        // Delay if hold durations are needed
+        if (isLastPosition && !shouldLoop) {
+          if (needsDelayedPlayNext && playNextDelay > 0) {
+            this.logger.log(
+              `Lookat '${
+                lookAtData.id
+              }' [${index}]: Delaying playNext by ${playNextDelay.toFixed(
+                2
+              )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+                enableZoom && zoomOptions && zoomOptions.holdDuration
+                  ? ` + zoom holdDuration: ${zoomOptions.holdDuration}s`
+                  : ""
+              })`
+            );
+            setTimeout(async () => {
+              await this._handlePlayNext(lookAtData);
+            }, playNextDelay * 1000);
+          } else {
+            await this._handlePlayNext(lookAtData);
+          }
+        }
         progressSequence();
       };
     } else if (shouldRestoreSomething) {
       // Immediate restoration when lookat completes (if restoreInput specifies something to restore)
-      onComplete = () => {
+      onComplete = async () => {
         if (this.characterController) {
           this._restoreInputControls(restoreInputConfig);
           if (this.debug)
@@ -844,11 +1148,33 @@ class AnimationManager {
         if (userOnComplete) {
           userOnComplete(this.gameManager);
         }
+        // Handle playNext chaining (only on final position)
+        // Delay if hold durations are needed
+        if (isLastPosition && !shouldLoop) {
+          if (needsDelayedPlayNext && playNextDelay > 0) {
+            this.logger.log(
+              `Lookat '${
+                lookAtData.id
+              }' [${index}]: Delaying playNext by ${playNextDelay.toFixed(
+                2
+              )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+                enableZoom && zoomOptions && zoomOptions.holdDuration
+                  ? ` + zoom holdDuration: ${zoomOptions.holdDuration}s`
+                  : ""
+              })`
+            );
+            setTimeout(async () => {
+              await this._handlePlayNext(lookAtData);
+            }, playNextDelay * 1000);
+          } else {
+            await this._handlePlayNext(lookAtData);
+          }
+        }
         progressSequence();
       };
     } else {
       // Don't restore input - just progress sequence
-      onComplete = () => {
+      onComplete = async () => {
         if (isLastPosition && !shouldLoop) {
           this.logger.log(
             `AnimationManager: Lookat '${lookAtData.id}' complete, input NOT restored (manual restoration required)`
@@ -856,6 +1182,28 @@ class AnimationManager {
         }
         if (userOnComplete) {
           userOnComplete(this.gameManager);
+        }
+        // Handle playNext chaining (only on final position)
+        // Delay if hold durations are needed
+        if (isLastPosition && !shouldLoop) {
+          if (needsDelayedPlayNext && playNextDelay > 0) {
+            this.logger.log(
+              `Lookat '${
+                lookAtData.id
+              }' [${index}]: Delaying playNext by ${playNextDelay.toFixed(
+                2
+              )}s (lookAtHoldDuration: ${lookAtHoldDuration}s${
+                enableZoom && zoomOptions && zoomOptions.holdDuration
+                  ? ` + zoom holdDuration: ${zoomOptions.holdDuration}s`
+                  : ""
+              })`
+            );
+            setTimeout(async () => {
+              await this._handlePlayNext(lookAtData);
+            }, playNextDelay * 1000);
+          } else {
+            await this._handlePlayNext(lookAtData);
+          }
         }
         progressSequence();
       };
@@ -881,6 +1229,7 @@ class AnimationManager {
         enableZoom: enableZoom,
         zoomOptions: zoomOptions || {},
         colliderId: `camera-data-${lookAtData.id}-${index}`,
+        disableInput: true, // CharacterController uses this for lookat rotation override
       });
     } else {
       this.logger.warn(`Cannot play lookat '${lookAtData.id}', no gameManager`);
@@ -960,8 +1309,12 @@ class AnimationManager {
     let targetObject = this.sceneManager.getObject(animData.targetObjectId);
     if (!targetObject) {
       this.logger.warn(
-        `Cannot play objectAnimation '${animData.id}', object '${animData.targetObjectId}' not found`
+        `Cannot play objectAnimation '${animData.id}', object '${animData.targetObjectId}' not found - will retry on next state check`
       );
+      // Don't mark as played if playOnce, so it can retry when object loads
+      if (animData.playOnce) {
+        this.playedAnimations.delete(animData.id);
+      }
       return;
     }
 
@@ -1396,6 +1749,16 @@ class AnimationManager {
     const transitionTime =
       moveToData.transitionTime || moveToData.duration || 2.0;
 
+    // Wrap onComplete to handle playNext
+    const originalOnComplete = moveToData.onComplete || null;
+    const wrappedOnComplete = async () => {
+      if (originalOnComplete) {
+        originalOnComplete();
+      }
+      // Handle playNext chaining
+      await this._handlePlayNext(moveToData);
+    };
+
     // Calculate final position with auto-height if enabled
     let finalPosition = { ...moveToData.position };
 
@@ -1453,7 +1816,7 @@ class AnimationManager {
           moveToData.restoreInput !== undefined
             ? moveToData.restoreInput
             : true, // Default to true for backwards compatibility
-        onComplete: moveToData.onComplete || null,
+        onComplete: wrappedOnComplete,
       });
     } else {
       this.logger.warn(`Cannot play moveTo '${moveToData.id}', no gameManager`);
@@ -1650,30 +2013,53 @@ class AnimationManager {
     // Get Y-axis scale from animation data (default to 1.0)
     this.scaleY = this.currentAnimationData?.scaleY ?? 1.0;
 
-    // Get playback rate from animation data (default to 1.0)
-    this.playbackRate = this.currentAnimationData?.playbackRate ?? 1.0;
-
     // Get playback percentage from animation data (default to 1.0)
     this.playbackPercentage = Math.max(
       0,
       Math.min(1, this.currentAnimationData?.playbackPercentage ?? 1.0)
     );
 
+    // Get playback rate from animation data
+    // If duration is specified, calculate playbackRate to achieve that duration
+    // The target duration applies to the effective portion (after playbackPercentage)
+    // Otherwise use playbackRate directly (default to 1.0)
+    if (this.currentAnimationData?.duration !== undefined) {
+      const targetDuration = this.currentAnimationData.duration;
+      const originalDuration = this.currentAnimation.duration;
+      const effectiveDuration = originalDuration * this.playbackPercentage;
+      if (targetDuration > 0 && effectiveDuration > 0) {
+        // Calculate playbackRate so that effectiveDuration completes in targetDuration
+        this.playbackRate = effectiveDuration / targetDuration;
+      } else {
+        this.playbackRate = 1.0;
+      }
+    } else {
+      this.playbackRate = this.currentAnimationData?.playbackRate ?? 1.0;
+    }
+
     // Get blend settings from animation data
     this.blendWithPlayer = this.currentAnimationData?.blendWithPlayer ?? false;
     const rawBlendAmount = this.currentAnimationData?.blendAmount ?? 0.5;
     this.blendAmount = Math.max(0, Math.min(1, rawBlendAmount));
 
-    if (this.debug)
+    if (this.debug) {
+      const durationInfo = this.currentAnimationData?.duration
+        ? ` (target duration: ${this.currentAnimationData.duration.toFixed(
+            2
+          )}s, calculated rate: ${this.playbackRate.toFixed(3)}x)`
+        : this.playbackRate !== 1.0
+        ? ` at ${this.playbackRate}x speed`
+        : "";
       this.logger.log(
         `Starting animation playback from level horizon (pitch=0)${
           this.scaleY !== 1.0 ? ` with Y-scale ${this.scaleY}` : ""
-        }${this.playbackRate !== 1.0 ? ` at ${this.playbackRate}x speed` : ""}${
+        }${durationInfo}${
           this.blendWithPlayer
             ? ` blending ${(this.blendAmount * 100).toFixed(0)}% with player`
             : ""
         }`
       );
+    }
   }
 
   /**
@@ -1712,6 +2098,14 @@ class AnimationManager {
 
     const normalized = this._normalizeRestoreInput(restoreInput);
 
+    // Debug logging
+    this.logger.log(
+      `_restoreInputControls called with restoreInput:`,
+      restoreInput,
+      `normalized:`,
+      normalized
+    );
+
     if (normalized.movement && normalized.rotation) {
       // Restore everything
       this.characterController.enableInput();
@@ -1734,7 +2128,7 @@ class AnimationManager {
       this.characterController.inputManager.enableRotation();
       this.characterController.inputManager.disableMovement();
       this.logger.log(
-        "AnimationManager: Stopped, input restored (rotation only)"
+        "AnimationManager: Stopped, input restored (rotation only) - rotation should now be enabled"
       );
     } else {
       // Restore nothing - disable camera sync to leave camera frozen
@@ -1767,12 +2161,10 @@ class AnimationManager {
 
     if (!this.isPlaying) return;
 
-    // Use animData config if available
-    if (this.currentAnimationData) {
-      restoreInput =
-        this.currentAnimationData.restoreInput !== undefined
-          ? this.currentAnimationData.restoreInput
-          : restoreInput;
+    // Extract restoreInput from animData BEFORE clearing currentAnimationData
+    const animDataRestoreInput = this.currentAnimationData?.restoreInput;
+    if (animDataRestoreInput !== undefined) {
+      restoreInput = animDataRestoreInput;
     }
 
     this.isPlaying = false;
@@ -1868,6 +2260,42 @@ class AnimationManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
+    // Retry object animations that should be playing but couldn't start (e.g., object not loaded yet)
+    // Only check once per second to avoid performance impact
+    if (!this._lastRetryCheck || Date.now() - this._lastRetryCheck > 1000) {
+      this._lastRetryCheck = Date.now();
+      if (this.gameManager && this.sceneManager) {
+        const currentState = this.gameManager.getState();
+        const objectAnims = Object.values(objectAnimations).filter((anim) => {
+          if (!anim.criteria) return false;
+          const matches = checkCriteria(currentState, anim.criteria);
+          // Only retry if it matches criteria but isn't active and isn't marked as played
+          if (
+            matches &&
+            !this.activeObjectAnimations.has(anim.id) &&
+            !(anim.playOnce && this.playedAnimations.has(anim.id))
+          ) {
+            return true;
+          }
+          return false;
+        });
+
+        // Try to play any matching animations that aren't active
+        for (const animData of objectAnims) {
+          const targetObject = this.sceneManager.getObject(
+            animData.targetObjectId
+          );
+          if (targetObject) {
+            // Object is now available, try playing again
+            this.logger.log(
+              `Retrying objectAnimation '${animData.id}' - object now available`
+            );
+            this.playObjectAnimation(animData);
+          }
+        }
+      }
+    }
+
     // If blending with player, capture current camera state AFTER character controller updates
     // This happens at the end of the previous frame's character controller update
     // We'll capture it right before we apply our blend (so it's the latest player state)
@@ -1959,7 +2387,9 @@ class AnimationManager {
 
               const callback = this.fadeOnComplete;
               const restoreInput = this.fadeRestoreInput;
+              const fadeAnimData = this.fadeAnimData; // Store before clearing
               this.fadeData = null;
+              this.fadeAnimData = null;
               this.fadeOnComplete = null;
               this.fadeInputControl = null;
               this.fadeRestoreInput = true;
@@ -1978,6 +2408,11 @@ class AnimationManager {
                 callback(this.gameManager);
               }
 
+              // Handle playNext chaining
+              if (fadeAnimData) {
+                this._handlePlayNext(fadeAnimData);
+              }
+
               this.logger.log(`Fade complete`);
             }
           } else if (this.fadeElapsed < fadeOutEnd) {
@@ -1991,7 +2426,9 @@ class AnimationManager {
 
             const callback = this.fadeOnComplete;
             const restoreInput = this.fadeRestoreInput;
+            const fadeAnimData = this.fadeAnimData; // Store before clearing
             this.fadeData = null;
+            this.fadeAnimData = null;
             this.fadeOnComplete = null;
             this.fadeInputControl = null;
             this.fadeRestoreInput = true;
@@ -2008,6 +2445,11 @@ class AnimationManager {
 
             if (callback) {
               callback(this.gameManager);
+            }
+
+            // Handle playNext chaining
+            if (fadeAnimData) {
+              this._handlePlayNext(fadeAnimData);
             }
 
             this.logger.log(`Fade complete`);
@@ -2208,6 +2650,9 @@ class AnimationManager {
               animData.onComplete(this.gameManager);
             }
 
+            // Handle playNext chaining
+            this._handlePlayNext(animData);
+
             if (this.debug) {
               this.logger.log(`objectAnimation '${animId}' complete`);
             }
@@ -2237,11 +2682,17 @@ class AnimationManager {
         // Complete by stopping - use animation data settings if available
         if (animData) {
           this.currentAnimationData = animData;
-          this.stop(true); // Will be overridden by animData
+          const restoreInputToUse =
+            animData.restoreInput !== undefined ? animData.restoreInput : true;
+          this.stop(restoreInputToUse);
         } else {
           this.stop(true);
         }
         if (callback) callback();
+        // Handle playNext chaining (after onComplete)
+        if (animData) {
+          this._handlePlayNext(animData);
+        }
       }
       return;
     }
@@ -2316,13 +2767,15 @@ class AnimationManager {
 
         const currentPos = this.camera.position.clone();
         const blend = Math.max(0, Math.min(1, this.blendAmount || 0.5));
-        
+
         // For blending: apply animation delta relative to CURRENT player rotation, not original base
         // This prevents 180-degree flipping when player rotates during animation
         // Calculate what the animation rotation would be relative to current player rotation
-        const animRelativeToCurrent = currentQuat.clone().multiply(targetFrame.qd);
+        const animRelativeToCurrent = currentQuat
+          .clone()
+          .multiply(targetFrame.qd);
         animRelativeToCurrent.normalize();
-        
+
         // Blend: lerp from player state (currentQuat) toward animation applied to current rotation
         // This ensures animation is always relative to current look direction
         this.camera.quaternion
@@ -2370,8 +2823,16 @@ class AnimationManager {
 
       // Complete
       const callback = this.onComplete;
-      this.stop(true); // Use default (restore both), will be overridden by animData if present
+      const animData = this.currentAnimationData; // Store before stop() clears it
+      // Use restoreInput from animData if available, otherwise default to true
+      const restoreInputToUse =
+        animData?.restoreInput !== undefined ? animData.restoreInput : true;
+      this.stop(restoreInputToUse);
       if (callback) callback();
+      // Handle playNext chaining (after onComplete)
+      if (animData) {
+        this._handlePlayNext(animData);
+      }
       return;
     }
 
@@ -2443,7 +2904,9 @@ class AnimationManager {
       // For blending: apply animation delta relative to CURRENT player rotation, not original base
       // This prevents 180-degree flipping when player rotates during animation
       // Calculate what the animation rotation would be relative to current player rotation
-      const animRelativeToCurrent = currentQuat.clone().multiply(this._interpDelta);
+      const animRelativeToCurrent = currentQuat
+        .clone()
+        .multiply(this._interpDelta);
       animRelativeToCurrent.normalize();
 
       // Blend: lerp from player state (currentQuat) toward animation applied to current rotation

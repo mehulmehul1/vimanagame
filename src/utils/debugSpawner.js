@@ -188,10 +188,18 @@ const stateOverrides = {
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
   },
 
+  LIGHTS_OUT: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+    playerRotation: { x: 0.0, y: 0, z: 0.0 },
+  },
+
   WAKING_UP: {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+    playerRotation: { x: 0.0, y: 0, z: 0.0 },
   },
 
   CURSOR: {
@@ -204,6 +212,14 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 }, // Inside club scene
+  },
+
+  SHADOW_AMPLIFICATIONS: {
+    isPlaying: true,
+    controlEnabled: true,
+
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+    playerRotation: { x: 0.0, y: 0, z: 0.0 },
   },
 };
 

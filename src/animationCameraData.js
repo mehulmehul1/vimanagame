@@ -14,6 +14,17 @@
  * - priority: Higher priority animations are checked first (default: 0)
  * - playOnce: If true, only plays once per game session (default: false)
  * - delay: Delay in seconds before playing after state conditions are met (default: 0)
+ * - fireOnEvent: (optional) Event name to listen for on gameManager. When this event is emitted, the animation will play
+ *   - Takes precedence over criteria-based triggering (animation can play on event even if criteria don't match)
+ *   - Useful for event-driven animations triggered by dialogs, interactions, or other game events
+ *   - Example: fireOnEvent: "shadow:speaks" - animation plays when "shadow:speaks" event is emitted
+ *   - Note: If both fireOnEvent and criteria are specified, the animation can trigger from either source
+ * - playNext: Chain to another animation after this one completes (supported by all types)
+ *   - Can be an animation object (e.g., cameraAnimations.nextAnim) or string ID (e.g., "nextAnim")
+ *   - Allows creating animation sequences without requiring game state changes between animations
+ *   - The chained animation's delay property is respected if specified
+ *   - Example: playNext: "leclaireLookat" or playNext: cameraAnimations.leclaireLookat
+ *   - Note: When using playNext, onComplete is called before moving to the next animation
  *
  * Input Control Properties Summary:
  * - restoreInput: Supported by ALL types (jsonAnimation, lookat, moveTo, fade)
@@ -23,8 +34,10 @@
  *     - restoreInput: true (or { movement: true, rotation: true }) - restore both movement and rotation
  *     - restoreInput: false (or { movement: false, rotation: false }) - restore nothing, camera frozen
  *     - restoreInput: { movement: true, rotation: false } - restore movement only, keep rotation disabled
- * - inputControl: Supported ONLY by "moveTo" and "fade" types
+ * - inputControl: Supported by "moveTo" and "fade" types
  *   - Controls what input to disable DURING animation: { disableMovement: boolean, disableRotation: boolean }
+ *   - For moveTo: defaults to { disableMovement: true, disableRotation: true }
+ *   - For fade: defaults to { disableMovement: false, disableRotation: false }
  *   - NOT supported by jsonAnimation or lookat (input is always fully disabled during those animations)
  *
  * Type-specific properties:
@@ -45,6 +58,11 @@
  * - playbackRate: Optional playback speed multiplier (default: 1.0)
  *   - Values < 1.0 play slower, > 1.0 play faster
  *   - Example: 0.5 for half speed, 2.0 for double speed
+ *   - Note: If duration is specified, playbackRate is calculated automatically and this property is ignored
+ * - duration: Optional target duration in seconds to play the animation (overrides playbackRate if specified)
+ *   - The system calculates the required playbackRate automatically to achieve this duration
+ *   - Example: duration: 5.0 will play the animation in exactly 5 seconds regardless of its natural length
+ *   - If both duration and playbackRate are specified, duration takes precedence
  * - playbackPercentage: Optional percentage of animation to play (0.0 to 1.0, default: 1.0)
  *   - Values < 1.0 play only a portion of the animation from the start
  *   - Example: 0.5 plays the first 50% of the animation and treats it as the full duration
@@ -88,8 +106,7 @@
  *     - restoreInput: true - restore both movement and rotation
  *     - restoreInput: { movement: false, rotation: true } - restore rotation only
  *     - restoreInput: false - restore nothing, inputs remain disabled
- * - inputControl: NOT SUPPORTED for lookat - input is always fully disabled (both movement and rotation)
- *   - InputControl is only supported for "fade" and "moveTo" animation types
+ *     - restoreInput: { movement: true, rotation: false } - restore movement only, keep rotation disabled
  * - zoomOptions: Optional zoom configuration
  *   - zoomFactor: Camera zoom multiplier (e.g., 2.0 for 2x zoom)
  *   - minAperture: DoF effect strength at peak
@@ -100,9 +117,9 @@
  * - onComplete: Optional callback when lookat completes. Receives gameManager as parameter.
  *   Example: onComplete: (gameManager) => { gameManager.setState({...}); }
  *
- * Input control: Always fully disabled (both movement and rotation) during lookat. By default, restored
- *                when complete (or if zoom is enabled without returnToOriginalView, after holdDuration +
- *                transitionDuration). Set restoreInput to false to keep inputs disabled after animation completes.
+ * Input control: Input is always fully disabled (both movement and rotation) during lookat to prevent conflicts.
+ *                By default, input is restored when complete (or if zoom is enabled without returnToOriginalView,
+ *                after holdDuration + transitionDuration). Use restoreInput to control what gets restored after completion.
  *
  * For type "moveTo":
  * - position: {x, y, z} world position to move character to
@@ -559,6 +576,26 @@ export const cameraAnimations = {
     },
   },
 
+  lightsOutMoveTo: {
+    id: "lightsOutMoveTo",
+    type: "moveTo",
+    description:
+      "Move player to consistent position/rotation during blackout (unseen behind fade)",
+    position: { x: -5.14, y: 2.05, z: 83.66 }, // From WAKING_UP debug spawn
+    rotation: { yaw: 0, pitch: 0 }, // From WAKING_UP debug spawn
+    transitionTime: 0.1,
+    autoHeight: false, // Use exact Y position
+    inputControl: {
+      disableMovement: true,
+      disableRotation: true,
+    },
+    restoreInput: false, // Keep inputs disabled (will be restored by wakingUp animation)
+    criteria: { currentState: GAME_STATES.LIGHTS_OUT },
+    priority: 100,
+    playOnce: true,
+    delay: 0.5, // Start after fade begins but before it completes
+  },
+
   wakingUpFadeIn: {
     id: "wakingUpFadeIn",
     type: "fade",
@@ -588,6 +625,126 @@ export const cameraAnimations = {
       movement: false, // Keep movement disabled after animation
       rotation: true, // Restore rotation after animationfalse
     },
+    playNext: "leclaireLookat",
+    duration: 6.0,
+  },
+
+  leclaireLookat: {
+    id: "leclaireLookat",
+    type: "lookat",
+    description: "Look at LeClaire",
+    position: videos.hesTiedUsUp.position,
+    transitionTime: 1.0,
+    priority: 110,
+    playNext: "shadowUnkindLookat",
+    enableZoom: true,
+    lookAtHoldDuration: 1.5,
+    zoomOptions: {
+      zoomFactor: 2.0,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 1.5,
+    },
+  },
+
+  shadowUnkindLookat: {
+    id: "shadowUnkindLookat",
+    type: "lookat",
+    description: "Look at shadow unkind video",
+    position: videos.soUnkind.position,
+    transitionTime: 1.0,
+    priority: 100,
+    playOnce: true,
+    enableZoom: true,
+    restoreInput: {
+      movement: false,
+      rotation: true,
+    },
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.2,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 6.0,
+    },
+  },
+
+  shadowAmplificationsLookat: {
+    id: "shadowAmplificationsLookat",
+    type: "lookat",
+    description: "Look at shadowAmplifications video when it appears",
+    position: videos.shadowAmplifications.position,
+    transitionTime: 1.0,
+    priority: 100,
+    playOnce: false,
+    fireOnEvent: "video:play:shadowAmplifications",
+    enableZoom: true,
+    restoreInput: {
+      movement: false,
+      rotation: true,
+    },
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.2,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 7.0,
+    },
+  },
+
+  amplifierLookat: {
+    id: "amplifierLookat",
+    type: "lookat",
+    description:
+      "Look at amplifier, quick glance to shadow, then back to amplifier",
+    positions: [
+      { x: -3.77, y: 0.79, z: 80.9 }, // Amplifier position
+      { x: -8.47, y: 1.96, z: 75.51 }, // Shadow amplifications position (quick glance)
+      { x: -3.77, y: 0.79, z: 80.9 }, // Back to amplifier (quick glance)
+    ],
+    transitionTime: 1.0,
+    lookAtHoldDuration: 2.0, // Hold at amplifier initially
+    returnToOriginalView: false,
+    priority: 100,
+    playOnce: false, // Allow retry if object not loaded yet
+    fireOnEvent: "shadow:amplifications",
+    enableZoom: true,
+    restoreInput: {
+      movement: false,
+      rotation: true,
+    },
+    zoomOptions: {
+      zoomFactor: 1.5,
+      minAperture: 0.2,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 0.75,
+      holdDuration: 1.5,
+    },
+    sequenceSettings: [
+      null, // Position 0: use defaults (amplifier with zoom)
+      {
+        // Position 1: quick glance at shadow (zoom, fast transition)
+        transitionTime: 1.0,
+        lookAtHoldDuration: 4.5,
+        zoomOptions: {
+          zoomFactor: 2.0,
+          minAperture: 0.2,
+          maxAperture: 0.35,
+          transitionStart: 0.6,
+          transitionDuration: 1.5,
+          holdDuration: 4.5,
+        },
+      },
+      {
+        // Position 2: quick glance back to amplifier (no zoom, fast transition)
+        transitionTime: 1.0,
+        lookAtHoldDuration: 1.0,
+        enableZoom: false,
+      },
+    ],
   },
 
   woozy: {
@@ -606,7 +763,7 @@ export const cameraAnimations = {
     restoreInput: true,
     blendWithPlayer: true,
     blendAmount: 0.8,
-    playbackRate: 1.0,
+
     playbackPercentage: 0.5,
   },
 };

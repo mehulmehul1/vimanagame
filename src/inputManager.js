@@ -124,17 +124,26 @@ class InputManager {
     });
 
     // Pointer lock + mouse look
-    this.rendererDomElement.addEventListener("click", () => {
-      console.log(
-        "[InputManager] Click handler - enabled:",
-        this.enabled,
-        "blocked:",
-        this.pointerLockBlocked
-      );
+    this.rendererDomElement.addEventListener("click", (event) => {
+      // Check if drawing manager is active - if so, don't request pointer lock (needs cursor)
+      const drawingActive = window.drawingManager?.isActive || false;
+      if (drawingActive) {
+        console.log(
+          "[InputManager] Drawing active, NOT requesting pointer lock"
+        );
+        return;
+      }
 
-      if (!this.enabled) return;
-      if (this.pointerLockBlocked) {
-        console.log("[InputManager] Pointer lock blocked, NOT requesting");
+      // Check if gizmo mode is active - if so, don't request pointer lock (gizmos need cursor)
+      const gizmoActive =
+        window.gizmoManager?.enabled &&
+        (window.gizmoManager.objects?.length > 0 ||
+          window.gizmoManager.hasGizmoInDefinitions ||
+          window.gizmoManager.hasGizmoURLParam);
+      if (gizmoActive) {
+        console.log(
+          "[InputManager] Gizmo mode active, NOT requesting pointer lock"
+        );
         return;
       }
 
@@ -144,6 +153,14 @@ class InputManager {
         if (currentState < GAME_STATES.TITLE_SEQUENCE) {
           return; // Don't request pointer lock during start screen
         }
+      }
+
+      // Allow pointer lock even if movement/rotation are disabled
+      // (user might want to look around even if they can't move)
+      // Only block if pointerLockBlocked is true (set by gizmo mode or drawing mode)
+      if (this.pointerLockBlocked) {
+        console.log("[InputManager] Pointer lock blocked, NOT requesting");
+        return;
       }
 
       console.log("[InputManager] Requesting pointer lock");
@@ -176,18 +193,26 @@ class InputManager {
         !overGizmo
       ) {
         // Validate clientX/Y and lastMousePos before calculating delta
-        const clientX = isFinite(event.clientX) ? event.clientX : this.lastMousePos.x;
-        const clientY = isFinite(event.clientY) ? event.clientY : this.lastMousePos.y;
-        const lastX = isFinite(this.lastMousePos.x) ? this.lastMousePos.x : clientX;
-        const lastY = isFinite(this.lastMousePos.y) ? this.lastMousePos.y : clientY;
-        
+        const clientX = isFinite(event.clientX)
+          ? event.clientX
+          : this.lastMousePos.x;
+        const clientY = isFinite(event.clientY)
+          ? event.clientY
+          : this.lastMousePos.y;
+        const lastX = isFinite(this.lastMousePos.x)
+          ? this.lastMousePos.x
+          : clientX;
+        const lastY = isFinite(this.lastMousePos.y)
+          ? this.lastMousePos.y
+          : clientY;
+
         const dx = clientX - lastX;
         const dy = clientY - lastY;
-        
+
         // Only accumulate if delta is finite
         if (isFinite(dx)) this.mouseDelta.x += dx;
         if (isFinite(dy)) this.mouseDelta.y += dy;
-        
+
         this.lastMousePos.x = clientX;
         this.lastMousePos.y = clientY;
       }
@@ -364,7 +389,7 @@ class InputManager {
     if (gamepad) {
       const rawRightX = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_X];
       const rawRightY = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_Y];
-      
+
       // Validate gamepad axes before use
       const rightX = isFinite(rawRightX) ? this.applyDeadzone(rawRightX) : 0;
       const rightY = isFinite(rawRightY) ? this.applyDeadzone(rawRightY) : 0;
@@ -376,7 +401,7 @@ class InputManager {
         const stickScale = 2.5; // Radians per second at full deflection
         const scaledX = rightX * stickScale * this.stickSensitivity * dt;
         const scaledY = rightY * stickScale * this.stickSensitivity * dt;
-        
+
         // Only add if finite
         if (isFinite(scaledX)) deltaX += scaledX;
         if (isFinite(scaledY)) deltaY += scaledY;
@@ -391,12 +416,12 @@ class InputManager {
       // Validate touch input
       const touchX = isFinite(touchInput?.x) ? touchInput.x : 0;
       const touchY = isFinite(touchInput?.y) ? touchInput.y : 0;
-      
+
       // Convert touch input to camera delta (scale by dt for frame-rate independence)
       const touchScale = 2.5; // Radians per second at full deflection
       const scaledX = touchX * touchScale * dt;
       const scaledY = touchY * touchScale * dt;
-      
+
       // Only add if finite
       if (isFinite(scaledX)) deltaX += scaledX;
       if (isFinite(scaledY)) deltaY -= scaledY; // Invert Y for natural camera movement
@@ -445,7 +470,7 @@ class InputManager {
     // Reset mouseDelta, but also ensure values are finite
     this.mouseDelta.x = 0;
     this.mouseDelta.y = 0;
-    
+
     // If mouseDelta somehow got corrupted, reset it
     if (!isFinite(this.mouseDelta.x)) this.mouseDelta.x = 0;
     if (!isFinite(this.mouseDelta.y)) this.mouseDelta.y = 0;
@@ -492,6 +517,7 @@ class InputManager {
    */
   enableMovement() {
     this.movementEnabled = true;
+    this.enabled = true; // Enable input system so pointer lock can work
     // Clear selective disable flag if both are now enabled
     if (this.rotationEnabled) {
       this.hasSelectiveDisable = false;
@@ -526,6 +552,7 @@ class InputManager {
    */
   enableRotation() {
     this.rotationEnabled = true;
+    this.enabled = true; // Enable input system so pointer lock can work
     // Clear selective disable flag if both are now enabled
     if (this.movementEnabled) {
       this.hasSelectiveDisable = false;

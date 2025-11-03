@@ -210,7 +210,8 @@ const defaultSpawnRot = {
 };
 
 const spawnPos = gameManager.getDebugSpawnPosition() || defaultSpawnPos;
-const character = physicsManager.createCharacter(spawnPos, defaultSpawnRot);
+const spawnRot = gameManager.getDebugSpawnRotation() || defaultSpawnRot;
+const character = physicsManager.createCharacter(spawnPos, spawnRot);
 // Removed visual mesh for character;
 
 // Sync camera to character spawn position
@@ -246,7 +247,7 @@ const characterController = new CharacterController(
   sfxManager,
   spark, // Pass spark renderer for DoF control
   null, // idleHelper (set later)
-  defaultSpawnRot // Initial rotation from spawn data
+  spawnRot // Initial rotation from spawn data
 );
 
 // Register SFX from data
@@ -426,6 +427,11 @@ try {
 } catch (error) {
   logger.error("❌ Failed to initialize GameManager:", error);
   throw error;
+}
+
+// Pass videoManager to dialogManager for video-synced captions
+if (gameManager.videoManager && dialogManager) {
+  dialogManager.videoManager = gameManager.videoManager;
 }
 
 // Set up event listeners for managers
