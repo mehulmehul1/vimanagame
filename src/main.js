@@ -36,6 +36,7 @@ import { Logger } from "./utils/logger.js";
 import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
 import { DrawingManager } from "./drawing/drawingManager.js";
 import { RuneManager } from "./content/runeManager.js";
+import { detectPlatform } from "./utils/platformDetection.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
@@ -101,6 +102,10 @@ const gameManager = new GameManager();
 
 // Expose for debug console access
 window.gameManager = gameManager;
+
+// Detect platform capabilities early so other systems can use the state
+detectPlatform(gameManager);
+logger.log("✅ Platform detection complete");
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 // Pass loadingScreen for progress tracking, renderer for contact shadows, gameManager for state updates

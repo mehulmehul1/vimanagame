@@ -12,6 +12,7 @@ export class TouchJoystick {
     this.stickSize = options.stickSize || 50; // Inner stick diameter in pixels
     this.maxDistance = (this.size - this.stickSize) / 2; // Max stick travel distance
     this.deadzone = options.deadzone || 0.15; // Dead zone (0-1)
+    this.isTouchDevice = options.isTouchDevice || false; // Touch support flag (set by UIManager)
 
     // State
     this.active = false;
@@ -26,9 +27,6 @@ export class TouchJoystick {
     // Create DOM elements
     this.createElements();
     this.setupEventListeners();
-
-    // Only show on touch devices
-    this.checkTouchSupport();
   }
 
   /**
@@ -74,18 +72,6 @@ export class TouchJoystick {
 
     this.container.appendChild(this.stick);
     document.body.appendChild(this.container);
-  }
-
-  /**
-   * Check if device supports touch and show/hide accordingly
-   * Note: Starts hidden by default, will be shown when controls are enabled
-   */
-  checkTouchSupport() {
-    this.isTouchDevice =
-      "ontouchstart" in window || navigator.maxTouchPoints > 0;
-
-    // Always start hidden - will be shown when character controller is enabled
-    this.container.style.display = "none";
   }
 
   /**

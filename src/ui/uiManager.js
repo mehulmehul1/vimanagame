@@ -55,29 +55,16 @@ export class UIManager {
    * Detect platform capabilities and update game state
    */
   detectPlatform() {
-    // Detect iOS (which doesn't support fullscreen API)
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPad with iOS 13+
-
-    // Check if any fullscreen API is available
-    const isFullscreenSupported =
-      !isIOS &&
-      (document.fullscreenEnabled ||
-        document.webkitFullscreenEnabled ||
-        document.mozFullScreenEnabled ||
-        document.msFullscreenEnabled);
-
-    // Update game state
-    if (this.gameManager) {
-      this.gameManager.setState({
-        isIOS: isIOS,
-        isFullscreenSupported: isFullscreenSupported,
-      });
-    }
+    // Get platform detection from gameManager state (set by platformDetection utility)
+    const state = this.gameManager?.getState?.();
+    const isIOS = state?.isIOS || false;
+    const isFullscreenSupported = state?.isFullscreenSupported !== undefined 
+      ? state.isFullscreenSupported 
+      : true; // Default to true if not set
+    const isMobile = state?.isMobile || false;
 
     this.logger.log(
-      `Platform detected - iOS: ${isIOS}, Fullscreen supported: ${isFullscreenSupported}`
+      `Platform detected - iOS: ${isIOS}, Fullscreen supported: ${isFullscreenSupported}, Mobile: ${isMobile}`
     );
   }
 

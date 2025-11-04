@@ -87,12 +87,16 @@ class InputManager {
    * Set up touch joysticks for mobile devices
    */
   setupTouchJoysticks() {
+    // Get touch support from gameManager state (set by platformDetection utility)
+    const isTouchDevice = this.gameManager?.getState?.()?.isMobile || false;
+
     // Left joystick for movement
     this.leftJoystick = new TouchJoystick({
       side: "left",
       size: 120,
       stickSize: 50,
       deadzone: 0.15,
+      isTouchDevice: isTouchDevice,
     });
 
     // Right joystick for camera
@@ -101,6 +105,7 @@ class InputManager {
       size: 120,
       stickSize: 50,
       deadzone: 0.15,
+      isTouchDevice: isTouchDevice,
     });
   }
 
