@@ -295,7 +295,7 @@ export const cameraAnimations = {
     description: "Move character into phone booth when player enters trigger",
     position: {
       x: sceneObjects.phonebooth.position.x,
-      y: 0, // Y will be auto-calculated based on floor collider
+      y: 1.2, // Y will be auto-calculated based on floor collider
       z: sceneObjects.phonebooth.position.z - 0.15,
     },
     rotation: {
@@ -518,7 +518,7 @@ export const cameraAnimations = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.PUNCH_OUT,
-        $lte: GAME_STATES.LIGHTS_OUT,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
     priority: 100,
@@ -570,9 +570,7 @@ export const cameraAnimations = {
         gameManager.characterController.resetToUpright();
       }
 
-      setTimeout(() => {
-        gameManager.setState({ currentState: GAME_STATES.WAKING_UP });
-      }, 3000);
+      // WAKING_UP state will be triggered by TimePassesSequence when it completes
     },
   },
 
@@ -605,6 +603,7 @@ export const cameraAnimations = {
     holdTime: 0,
     fadeOutTime: 8.0,
     maxOpacity: 1.0,
+    startFrom: "current",
     criteria: { currentState: GAME_STATES.WAKING_UP },
     priority: 100,
     playOnce: true,
@@ -700,9 +699,9 @@ export const cameraAnimations = {
     description:
       "Look at amplifier, quick glance to shadow, then back to amplifier",
     positions: [
-      { x: -3.77, y: 0.79, z: 80.9 }, // Amplifier position
-      { x: -8.47, y: 1.96, z: 75.51 }, // Shadow amplifications position (quick glance)
-      { x: -3.77, y: 0.79, z: 80.9 }, // Back to amplifier (quick glance)
+      sceneObjects.amplifier.position, // Amplifier position
+      videos.shadowAmplifications.position,
+      sceneObjects.amplifier.position, // Back to amplifier (quick glance)
     ],
     transitionTime: 1.0,
     lookAtHoldDuration: 2.0, // Hold at amplifier initially
@@ -747,6 +746,35 @@ export const cameraAnimations = {
     ],
   },
 
+  cursorHesTiedUsUpLookat: {
+    id: "cursorHesTiedUsUpLookat",
+    type: "lookat",
+    description:
+      "Look at hesTiedUsUp video position when entering CURSOR state",
+    position: videos.hesTiedUsUp.position,
+    transitionTime: 1.0,
+    lookAtHoldDuration: 2.0,
+    criteria: { currentState: GAME_STATES.CURSOR },
+    priority: 100,
+    playOnce: true,
+    playNext: "shadowTranceLookat",
+  },
+
+  shadowTranceLookat: {
+    id: "shadowTranceLookat",
+    type: "lookat",
+    description: "Look at shadow trance video",
+    position: videos.shadowTrance.position,
+    transitionTime: 1.0,
+    priority: 105,
+    lookAtHoldDuration: 2.0,
+    enableZoom: false,
+    restoreInput: {
+      movement: true,
+      rotation: true,
+    },
+  },
+
   woozy: {
     id: "woozy",
     type: "jsonAnimation",
@@ -754,8 +782,8 @@ export const cameraAnimations = {
     description:
       "Woozy camera animation blending with player movement during viewmaster overheat",
     criteria: {
-      currentState: GAME_STATES.CURSOR,
-      isViewmasterEquipped: true,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      // Allow woozy effect when intensity is high (works whether mask is equipped or just removed)
       viewmasterInsanityIntensity: { $gte: 0.1 },
     },
     priority: 95,
@@ -765,6 +793,31 @@ export const cameraAnimations = {
     blendAmount: 0.8,
 
     playbackPercentage: 0.5,
+  },
+
+  catChewLookat: {
+    id: "catChewLookat",
+    type: "lookat",
+    description: "Look at cat chew video when headset comes off after glitch",
+    position: videos.catChew.position,
+    transitionTime: 1.0,
+    returnToOriginalView: false,
+    enableZoom: true,
+    restoreInput: {
+      movement: false,
+      rotation: true,
+    },
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 3.0,
+    },
+    criteria: { currentState: GAME_STATES.CAT_SAVE },
+    playOnce: true,
+    priority: 100,
   },
 };
 

@@ -10,7 +10,7 @@ import PhoneCord from "./phoneCord.js";
  * Features:
  * - Physics-based cord with chain segments
  * - Two rigid segments at amplifier end (similar to phonebooth)
- * - Connects amplifier's CordAttach to viewmaster
+ * - Connects amplifier's CordAttach to viewmaster's CordAttach
  * - Only exists after LIGHTS_OUT state
  */
 class AmplifierCord {
@@ -22,20 +22,20 @@ class AmplifierCord {
 
     // Cord components
     this.cordAttach = null; // CordAttach mesh from amplifier
-    this.viewmaster = null; // Viewmaster object (attachment point)
+    this.viewmasterCordAttach = null; // CordAttach mesh from viewmaster
     this.phoneCord = null; // PhoneCord instance
 
     // Configuration
     this.config = {
-      // Cord configuration (long cord spanning several meters, touching ground)
+      // Cord configuration (short cord connecting amplifier to viewmaster)
       cordConfig: {
-        cordSegments: 50, // Many segments for a long cord
-        cordSegmentLength: 0.08, // Longer segments (50 * 0.08 = 4m total length)
+        cordSegments: 38, // Reduced segments for shorter cord
+        cordSegmentLength: 0.08,
         cordSegmentRadius: 0.002,
         cordMass: 0.002,
         cordDamping: 8.0,
         cordAngularDamping: 8.0,
-        cordDroopAmount: 8, // Heavy droop so it hangs down and touches ground
+        cordDroopAmount: 6, // Reduced droop for shorter cord
         cordRigidSegments: 2, // Two rigid segments at amplifier end
         cordColor: 0x808080, // Grey color
         cordVisualRadius: 0.008,
@@ -96,31 +96,29 @@ class AmplifierCord {
       "CordAttach"
     );
 
-    // Find the viewmaster object
-    this.viewmaster = this.sceneManager.getObject("viewmaster");
+    // Find the CordAttach mesh from viewmaster
+    this.viewmasterCordAttach = this.sceneManager.findChildByName(
+      "viewmaster",
+      "CordAttach"
+    );
 
     if (!this.cordAttach) {
-      this.logger.warn(
-        "CordAttach mesh not found in amplifier model"
-      );
+      this.logger.warn("CordAttach mesh not found in amplifier model");
     }
 
-    if (!this.viewmaster) {
-      this.logger.warn("Viewmaster object not found");
+    if (!this.viewmasterCordAttach) {
+      this.logger.warn("CordAttach mesh not found in viewmaster model");
     }
 
     // Create the cord if criteria is met and components are present
     if (
       this.gameManager &&
       this.cordAttach &&
-      this.viewmaster &&
+      this.viewmasterCordAttach &&
       this.physicsManager
     ) {
       const currentState = this.gameManager.getState();
-      const criteriaMet = checkCriteria(
-        currentState,
-        this.config.cordCriteria
-      );
+      const criteriaMet = checkCriteria(currentState, this.config.cordCriteria);
 
       if (criteriaMet) {
         this.createCord();
@@ -134,9 +132,13 @@ class AmplifierCord {
    * Create the phone cord using the PhoneCord module
    */
   createCord() {
-    if (!this.cordAttach || !this.viewmaster || !this.physicsManager) {
+    if (
+      !this.cordAttach ||
+      !this.viewmasterCordAttach ||
+      !this.physicsManager
+    ) {
       this.logger.warn(
-        "Cannot create cord - missing CordAttach, Viewmaster, or PhysicsManager"
+        "Cannot create cord - missing CordAttach (amplifier or viewmaster), or PhysicsManager"
       );
       return;
     }
@@ -146,7 +148,7 @@ class AmplifierCord {
       scene: this.scene,
       physicsManager: this.physicsManager,
       cordAttach: this.cordAttach,
-      receiver: this.viewmaster, // Viewmaster acts as the "receiver" attachment point
+      receiver: this.viewmasterCordAttach, // Viewmaster's CordAttach acts as the "receiver" attachment point
       loggerName: "AmplifierCord.Cord",
       config: this.config.cordConfig,
     });
@@ -203,10 +205,9 @@ class AmplifierCord {
     }
 
     this.cordAttach = null;
-    this.viewmaster = null;
+    this.viewmasterCordAttach = null;
     this.logger.log("Destroyed");
   }
 }
 
 export default AmplifierCord;
-

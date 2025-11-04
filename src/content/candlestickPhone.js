@@ -1195,8 +1195,65 @@ class CandlestickPhone {
    * Clean up resources
    */
   destroy() {
-    // Detach from camera first
+    // Detach from camera first - this removes reparented parts
     this.detachFromCamera();
+
+    // Also explicitly remove any reparented parts from camera or scene
+    if (this.camera) {
+      const toRemove = [];
+      this.camera.traverse((child) => {
+        if (
+          child.name === "Receiver" ||
+          child.name === "PhoneBody" ||
+          child.name === "Phone_Parent_Empty" ||
+          child.name === "Phone Group"
+        ) {
+          toRemove.push(child);
+        }
+      });
+      toRemove.forEach((obj) => {
+        if (obj.parent) {
+          obj.parent.remove(obj);
+          this.logger.log(`Removed ${obj.name} from camera`);
+        }
+      });
+    }
+
+    if (this.scene) {
+      const toRemove = [];
+      this.scene.traverse((child) => {
+        if (
+          child !== this.scene &&
+          (child.name === "Receiver" ||
+            child.name === "PhoneBody" ||
+            child.name === "Phone_Parent_Empty" ||
+            child.name === "Phone Group")
+        ) {
+          // Only remove if not a child of the phone object (which will be removed separately)
+          let isPhoneObjectChild = false;
+          let parent = child.parent;
+          while (parent && parent !== this.scene) {
+            if (
+              parent.name === "candlestickPhone" ||
+              parent.userData?.objectId === "candlestickPhone"
+            ) {
+              isPhoneObjectChild = true;
+              break;
+            }
+            parent = parent.parent;
+          }
+          if (!isPhoneObjectChild) {
+            toRemove.push(child);
+          }
+        }
+      });
+      toRemove.forEach((obj) => {
+        if (obj.parent) {
+          obj.parent.remove(obj);
+          this.logger.log(`Removed ${obj.name} from scene`);
+        }
+      });
+    }
 
     // Destroy the phone cord
     if (this.phoneCord) {
@@ -1227,6 +1284,9 @@ class CandlestickPhone {
 
     this.receiver = null;
     this.cordAttach = null;
+    this.phoneBody = null;
+    this.phoneGroup = null;
+    this.phoneObject = null;
     this.logger.log("Destroyed");
   }
 }

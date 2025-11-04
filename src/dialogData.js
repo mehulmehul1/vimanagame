@@ -163,7 +163,7 @@ export const dialogTracks = {
       dialogChoice1: DIALOG_RESPONSE_TYPES.EMPATH,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
@@ -187,7 +187,7 @@ export const dialogTracks = {
       dialogChoice1: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
@@ -211,7 +211,7 @@ export const dialogTracks = {
       dialogChoice1: DIALOG_RESPONSE_TYPES.LAWFUL,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 1.0,
     onComplete: (gameManager) => {
@@ -288,7 +288,7 @@ export const dialogTracks = {
       catDialogChoice: DIALOG_RESPONSE_TYPES.CAT_GOOD_KITTY,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 0.5,
   },
@@ -304,7 +304,7 @@ export const dialogTracks = {
       catDialogChoice: DIALOG_RESPONSE_TYPES.CAT_DAMN_CATS,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 0.5,
   },
@@ -498,7 +498,7 @@ export const dialogTracks = {
       catDialogChoice2: DIALOG_RESPONSE_TYPES.CAT_MY_FRIEND,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     delay: 0.5,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
@@ -514,7 +514,7 @@ export const dialogTracks = {
       catDialogChoice2: DIALOG_RESPONSE_TYPES.CAT_GIT,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     delay: 0.5,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
@@ -571,7 +571,7 @@ export const dialogTracks = {
       dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 0.5,
     playNext: "dialogChoice2EmpathResponse",
@@ -590,7 +590,7 @@ export const dialogTracks = {
       dialogChoice2: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 0.5,
     playNext: "dialogChoice2PsychologistResponse",
@@ -609,7 +609,7 @@ export const dialogTracks = {
       dialogChoice2: DIALOG_RESPONSE_TYPES.LAWFUL,
     },
     once: true,
-    autoPlay: true,
+    autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 0.5,
     playNext: "dialogChoice2LawfulResponse",
@@ -738,7 +738,7 @@ export const dialogTracks = {
     audio: "./audio/dialog/leclaire-drawing-failure-1.mp3",
     captions: [{ text: "That was wrong!", duration: 1.5 }],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       lastDrawingSuccess: false,
       drawingFailureCount: { $mod: [3, 1], $gt: 0 },
     },
@@ -755,7 +755,7 @@ export const dialogTracks = {
       { text: "Try again!", duration: 1.5 },
     ],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       lastDrawingSuccess: false,
       drawingFailureCount: { $mod: [3, 2], $gt: 0 },
     },
@@ -772,7 +772,7 @@ export const dialogTracks = {
       { text: "Use the View-Master!", duration: 1.8 },
     ],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       lastDrawingSuccess: false,
       drawingFailureCount: { $mod: [3, 0], $gt: 0 },
     },
@@ -787,7 +787,7 @@ export const dialogTracks = {
     audio: "./audio/dialog/leclaire-drawing-success-1.mp3",
     captions: [{ text: "It worked! Now find the next.", duration: 2.75 }],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       lastDrawingSuccess: true,
       drawingSuccessCount: 1,
     },
@@ -801,7 +801,7 @@ export const dialogTracks = {
     audio: "./audio/dialog/leclaire-drawing-success-2.mp3",
     captions: [{ text: "Yes! Just one more.", duration: 2.0 }],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       lastDrawingSuccess: true,
       drawingSuccessCount: 2,
     },
@@ -821,8 +821,8 @@ export const dialogTracks = {
       { text: "Gimme a sec...", duration: 2.0 },
     ],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
-      isViewmasterEquipped: true,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      // Allow dialog when intensity is high and dialog index matches (works whether mask is equipped or just removed)
       viewmasterOverheatDialogIndex: 0,
       viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
     },
@@ -841,8 +841,8 @@ export const dialogTracks = {
       { text: "Just a quick break.", duration: 2.0 },
     ],
     criteria: {
-      currentState: GAME_STATES.CURSOR,
-      isViewmasterEquipped: true,
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      // Allow dialog when intensity is high and dialog index matches (works whether mask is equipped or just removed)
       viewmasterOverheatDialogIndex: 1,
       viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
     },
@@ -911,19 +911,33 @@ export const dialogTracks = {
       {
         text: "You see, we have made certain...",
         startTime: 4.0,
-        duration: 3.5,
+        duration: 4.0,
       },
       {
         text: "Amplifications.",
         startTime: 7.5,
-        duration: 3.0,
+        duration: 5.75,
         emitEvent: "shadow:amplifications",
       },
-      { text: "Let us try.", startTime: 10.5, duration: 3.0 },
+      { text: "Let us try.", startTime: 10.5, duration: 4.0 },
     ],
     once: true,
     autoPlay: true,
     priority: 90,
+  },
+
+  coleHeyIKnewYouWereMyPal: {
+    id: "coleHeyIKnewYouWereMyPal",
+    audio: "./audio/dialog/cole-hey-i-knew-you-were-my-pal.mp3",
+    captions: [{ text: "Hey, I knew you were my pal.", duration: 3.5 }],
+    criteria: { currentState: GAME_STATES.CAT_SAVE },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.CURSOR });
+    },
   },
 };
 

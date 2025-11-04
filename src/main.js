@@ -23,6 +23,7 @@ import {
 import { videos } from "./videoData.js";
 import { lights } from "./lightData.js";
 import { StartScreen } from "./ui/startScreen.js";
+import { TimePassesSequence } from "./ui/timePassesSequence.js";
 import { GAME_STATES } from "./gameData.js";
 import AnimationManager from "./animationManager.js";
 import cameraAnimations from "./animationCameraData.js";
@@ -193,6 +194,17 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   vfxManager.setSize(window.innerWidth, window.innerHeight);
+
+  // Update text camera aspect ratios
+  if (startScreen && startScreen.textCamera) {
+    startScreen.textCamera.aspect = window.innerWidth / window.innerHeight;
+    startScreen.textCamera.updateProjectionMatrix();
+  }
+  if (timePassesSequence && timePassesSequence.textCamera) {
+    timePassesSequence.textCamera.aspect =
+      window.innerWidth / window.innerHeight;
+    timePassesSequence.textCamera.updateProjectionMatrix();
+  }
 });
 
 // Use debug spawn position if available, otherwise default
@@ -329,6 +341,9 @@ loadingScreen.setManagers({
 // Initialize start screen - will be created when state transitions to START_SCREEN
 let startScreen = null;
 
+// Initialize time passes sequence - will be created when state transitions to LIGHTS_OUT
+let timePassesSequence = null;
+
 // One-time listener to initialize StartScreen
 const initStartScreen = (newState, oldState) => {
   if (newState.currentState === GAME_STATES.START_SCREEN && !startScreen) {
@@ -361,6 +376,22 @@ const initStartScreen = (newState, oldState) => {
 };
 
 gameManager.on("state:changed", initStartScreen);
+
+// One-time listener to initialize TimePassesSequence
+const initTimePassesSequence = (newState, oldState) => {
+  if (newState.currentState === GAME_STATES.LIGHTS_OUT && !timePassesSequence) {
+    logger.log("Creating TimePassesSequence");
+    timePassesSequence = new TimePassesSequence(camera, {
+      uiManager: uiManager,
+      gameManager: gameManager,
+    });
+    timePassesSequence.start();
+    // Remove this listener after it runs once
+    gameManager.off("state:changed", initTimePassesSequence);
+  }
+};
+
+gameManager.on("state:changed", initTimePassesSequence);
 
 // Initialize options menu
 const optionsMenu = new OptionsMenu({
@@ -604,6 +635,11 @@ renderer.setAnimationLoop(function animate(time) {
     }
   }
 
+  // Update time passes sequence
+  if (timePassesSequence) {
+    timePassesSequence.update(dt);
+  }
+
   // Always update music manager (handles fades)
   musicManager.update(dt);
 
@@ -686,6 +722,16 @@ renderer.setAnimationLoop(function animate(time) {
   // Render text splats on top (separate scene for title sequence)
   if (startScreen && startScreen.getTextRenderInfo) {
     const textInfo = startScreen.getTextRenderInfo();
+    if (textInfo && textInfo.scene && textInfo.camera) {
+      renderer.autoClear = false;
+      renderer.render(textInfo.scene, textInfo.camera);
+      renderer.autoClear = true;
+    }
+  }
+
+  // Render time passes text sequence
+  if (timePassesSequence) {
+    const textInfo = timePassesSequence.getTextRenderInfo();
     if (textInfo && textInfo.scene && textInfo.camera) {
       renderer.autoClear = false;
       renderer.render(textInfo.scene, textInfo.camera);

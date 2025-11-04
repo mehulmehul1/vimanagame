@@ -13,7 +13,7 @@ export function createParticleText(scene, options = {}) {
     fontSize = 60,
     color = new THREE.Color(0xff00ff),
     position = { x: 0, y: 5, z: -2.5 },
-    scale = 0.6 / 80,
+    scale = 0.0075,
     animate = true,
     particleDensity = 0.3, // Particles per pixel (lower = fewer particles)
   } = options;
@@ -172,7 +172,7 @@ export function createParticleImage(scene, options = {}) {
   const {
     imageUrl = "/images/Czar_MainTitle.png",
     position = { x: 0, y: 0, z: -2.5 },
-    scale = 2.5 / 80,
+    scale = 0.03125,
     animate = true,
     particleDensity = 0.5, // roughly 1/step pixels sampled
     alphaThreshold = 0.5, // include pixels with alpha > 0.5
@@ -311,7 +311,7 @@ export function createParticleImage(scene, options = {}) {
       colors[idx * 3 + 2] = c.b;
 
       sizes[idx] = 0.15;
-      opacities[idx] = 1.0;
+      opacities[idx] = 0.0;
     });
 
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));

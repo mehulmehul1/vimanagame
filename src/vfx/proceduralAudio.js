@@ -45,6 +45,7 @@ export class ProceduralAudio {
     this.config = {
       baseFrequency: config.baseFrequency || 155.56, // Eb3
       volume: config.volume || 0.3,
+      volumeThreshold: config.volumeThreshold || 0.05, // Don't play audio below this volume
       baseOscType: config.baseOscType || "sawtooth", // sawtooth, sine, square, triangle
       subOscType: config.subOscType || "sine",
       modOscType: config.modOscType || "sine",
@@ -190,6 +191,16 @@ export class ProceduralAudio {
   start() {
     if (!this.audioContext) {
       this.logger.warn("Cannot start - audio not initialized");
+      return;
+    }
+
+    // Don't start if volume is below threshold
+    if (this.config.volume < this.config.volumeThreshold) {
+      this.logger.log(
+        `Not starting audio - volume ${this.config.volume.toFixed(
+          3
+        )} below threshold ${this.config.volumeThreshold}`
+      );
       return;
     }
 
@@ -444,6 +455,17 @@ export class ProceduralAudio {
 
     // Volume - skip if we're in fade-in or fade-out period
     if (params.volume !== undefined && !isFadingIn && !this.isFadingOut) {
+      // If volume drops below threshold, stop the audio
+      if (params.volume < this.config.volumeThreshold) {
+        this.stop();
+        this.logger.log(
+          `Audio stopped - volume ${params.volume.toFixed(3)} below threshold ${
+            this.config.volumeThreshold
+          }`
+        );
+        return;
+      }
+
       this.targetVolume = params.volume;
       this.masterGain.gain.cancelScheduledValues(now);
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
@@ -471,6 +493,17 @@ export class ProceduralAudio {
    */
   setVolume(volume) {
     this.config.volume = Math.max(0, Math.min(1, volume));
+
+    // If volume drops below threshold, stop the audio
+    if (this.config.volume < this.config.volumeThreshold && this.isPlaying) {
+      this.stop();
+      this.logger.log(
+        `Audio stopped - volume ${this.config.volume.toFixed(
+          3
+        )} below threshold ${this.config.volumeThreshold}`
+      );
+      return;
+    }
 
     if (this.masterGain && this.isPlaying && !this.isFadingOut) {
       const ctx = this.audioContext;

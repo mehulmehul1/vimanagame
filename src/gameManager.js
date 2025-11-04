@@ -359,6 +359,13 @@ class GameManager {
         objectsToUnload[0]
       );
       objectsToUnload.forEach((id) => {
+        // Clean up script instances before removing object
+        if (id === "candlestickPhone" && this.candlestickPhone) {
+          this.logger.log("Destroying candlestickPhone script instance");
+          this.candlestickPhone.destroy();
+          this.candlestickPhone = null;
+        }
+        
         this.sceneManager.removeObject(id);
         this.loadedScenes.delete(id);
       });

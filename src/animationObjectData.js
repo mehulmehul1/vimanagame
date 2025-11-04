@@ -162,7 +162,7 @@ export const objectAnimations = {
       position: {
         // Player position: { x: -5.14, y: 2.05, z: 83.66 } with yaw: 0 (facing -Z)
         // 3m in front means 3m in -Z direction: z: 83.66 - 3 = 80.66
-        to: { x: -3.31, y: 1.85, z: 81.3 },
+        to: { x: -3.31, y: 0.85, z: 81.3 },
       },
       rotation: {
         // Reset rotation for clean positioning

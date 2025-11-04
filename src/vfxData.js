@@ -102,6 +102,7 @@ export const desaturationEffects = {
       mode: "fade",
     },
     criteria: {
+      isViewmasterEquipped: false, // Only apply when viewmaster is off
       currentState: {
         $gt: GAME_STATES.POST_VIEWMASTER, // Match only AFTER POST_VIEWMASTER completes
       },
@@ -119,7 +120,7 @@ export const desaturationEffects = {
     criteria: {
       isViewmasterEquipped: true,
       currentState: {
-        $gte: GAME_STATES.CURSOR,
+        $gte: GAME_STATES.SHADOW_AMPLIFICATIONS,
       },
     },
     priority: 80,
@@ -177,6 +178,7 @@ export const splatFractalEffects = {
     parameters: {
       effectType: "waves",
       intensity: 0.8,
+      enableAudio: false,
       rampDuration: 4.0, // Ramp up over 4 seconds before morph
       rampOutDuration: 1.0, // Ramp down over 1 second when leaving state
       targetMeshIds: ["interior", "officeHell"], // Apply to both splats
@@ -188,6 +190,7 @@ export const splatFractalEffects = {
   },
 
   // Explicitly turn off fractal effect at POST_VIEWMASTER (ensures cleanup after hellWaves)
+  // Only applies when viewmaster is NOT equipped (to avoid conflict with viewmasterToggleAmbient)
   postViewmasterOff: {
     id: "postViewmasterOff",
     parameters: {
@@ -198,8 +201,10 @@ export const splatFractalEffects = {
       targetMeshIds: ["interior", "officeHell"], // Same meshes as hellWaves
     },
     criteria: {
+      isViewmasterEquipped: false, // Only apply when viewmaster is off
       currentState: {
         $gte: GAME_STATES.POST_VIEWMASTER,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
     priority: 15, // Higher priority than hellWaves to ensure it takes over
@@ -213,14 +218,15 @@ export const splatFractalEffects = {
       rampDuration: 0.0,
       rampOutDuration: 0.0,
       targetMeshIds: ["club"],
+      audioOctaveMultiplier: 4,
     },
     criteria: {
       isViewmasterEquipped: true,
       currentState: {
-        $gte: GAME_STATES.CURSOR,
+        $gte: GAME_STATES.SHADOW_AMPLIFICATIONS,
       },
     },
-    priority: 5,
+    priority: 20, // Higher than postViewmasterOff (15) to take precedence
   },
 };
 
@@ -336,6 +342,40 @@ export const dissolveEffects = {
 };
 
 /**
+ * Glitch Effect
+ * Controls digital glitch post-processing
+ */
+export const glitchEffects = {
+  defaultOff: {
+    id: "defaultOff",
+    parameters: {
+      intensity: 0.0,
+      goWild: false,
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.START_SCREEN,
+      },
+    },
+    priority: 0,
+  },
+  shadowAmplificationsGlitch: {
+    id: "shadowAmplificationsGlitch",
+    parameters: {
+      intensity: 0.5, // Heavy glitching
+      goWild: true, // Continuous intense glitching
+    },
+    criteria: {
+      glitchIntense: true, // Triggered by flag
+      currentState: {
+        $eq: GAME_STATES.SHADOW_AMPLIFICATIONS,
+      },
+    },
+    priority: 100, // High priority to override defaultOff
+  },
+};
+
+/**
  * All VFX effects organized by type
  */
 export const vfxEffects = {
@@ -344,6 +384,7 @@ export const vfxEffects = {
   splatFractal: splatFractalEffects,
   splatMorph: splatMorphEffects,
   dissolve: dissolveEffects,
+  glitch: glitchEffects,
 };
 
 /**
@@ -382,6 +423,10 @@ export function getSplatMorphEffectForState(gameState) {
 
 export function getDissolveEffectForState(gameState) {
   return getVfxEffectForState("dissolve", gameState);
+}
+
+export function getGlitchEffectForState(gameState) {
+  return getVfxEffectForState("glitch", gameState);
 }
 
 export default vfxEffects;

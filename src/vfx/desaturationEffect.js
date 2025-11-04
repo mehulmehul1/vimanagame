@@ -242,18 +242,28 @@ export class DesaturationEffect extends VFXManager {
    */
   async onFirstEnable(effect, state) {
     this.logger.log("Enabling desaturation effect for first time");
+
+    // Check if audio should be enabled from effect parameters
+    // Default to false if not specified
+    const params = effect.parameters || {};
+    this.enableAudio = params.enableAudio === true;
+
+    // Stop any currently playing audio if disabled
+    if (!this.enableAudio && this.audio && this.audio.isPlaying) {
+      this.audio.stop();
+    }
+
     this.enable(true);
-    // Initialize audio if enabled
+    // Initialize audio only if enabled
     if (this.enableAudio) {
       await this.audio.initialize();
+      // Start audio if we're in color mode (progress < 0.5)
+      if (this.currentState < 0.5 && !this.audio.isPlaying) {
+        this.audio.start();
+      }
     }
     // Apply the initial effect
     this.applyEffect(effect, state);
-
-    // Start audio if we're in color mode (progress < 0.5)
-    if (this.enableAudio && this.currentState < 0.5 && !this.audio.isPlaying) {
-      this.audio.start();
-    }
   }
 
   /**
@@ -263,6 +273,27 @@ export class DesaturationEffect extends VFXManager {
    */
   applyEffect(effect, state) {
     const params = effect.parameters || {};
+
+    // Update enableAudio from effect parameters - default to false if not specified
+    this.enableAudio = params.enableAudio === true;
+
+    // If audio is being disabled, stop it
+    if (!this.enableAudio && this.audio && this.audio.isPlaying) {
+      this.audio.stop();
+    }
+    // If audio is being enabled and context doesn't exist, initialize it
+    if (this.enableAudio && !this.audio.audioContext) {
+      this.audio.initialize().catch((err) => {
+        this.logger.warn(`Failed to initialize desaturation audio: ${err}`);
+      });
+    }
+
+    // Debug logging for SHADOW_AMPLIFICATIONS
+    if (state?.currentState === 32) {
+      this.logger.log(
+        `[DEBUG] Desaturation applyEffect: ${effect.id}, target: ${params.target}, isViewmasterEquipped: ${state?.isViewmasterEquipped}`
+      );
+    }
 
     // Update animation duration if specified
     if (params.duration !== undefined) {
@@ -328,14 +359,14 @@ export class DesaturationEffect extends VFXManager {
     }
 
     this.animationTarget = THREE.MathUtils.clamp(targetAmount, 0, 1);
-    
+
     // Handle instant transitions (duration = 0)
     if (this.animationDuration <= 0) {
       this.progress = this.animationTarget;
       this.currentState = this.animationTarget;
       this.animating = false;
       this.lastProgress = this.progress;
-      
+
       // Configure transition mode even for instant transitions
       const mode = options.mode || "bleed";
       this.transitionMode = mode;
@@ -358,7 +389,7 @@ export class DesaturationEffect extends VFXManager {
       }
       return;
     }
-    
+
     this.animationSpeed = 1.0 / this.animationDuration;
     this.animating = true;
 
@@ -551,6 +582,50 @@ export class DesaturationEffect extends VFXManager {
    */
   setSize(width, height) {
     this.renderTarget.setSize(width, height);
+    if (this._intermediateTarget) {
+      this._intermediateTarget.setSize(width, height);
+    }
+  }
+
+  /**
+   * Render the scene with desaturation effect to a texture (for chaining effects)
+   * @param {THREE.Scene} scene
+   * @param {THREE.Camera} camera
+   * @param {THREE.WebGLRenderTarget} outputTarget - Optional output render target
+   * @returns {THREE.Texture|null} The output texture, or null if not enabled
+   */
+  renderToTexture(scene, camera, outputTarget = null) {
+    if (!this.enabled || !this._hasEverBeenEnabled) {
+      return null;
+    }
+
+    // Create intermediate render target if needed
+    if (!outputTarget) {
+      const size = this.renderer.getSize(new THREE.Vector2());
+      if (!this._intermediateTarget) {
+        this._intermediateTarget = new THREE.WebGLRenderTarget(size.x, size.y, {
+          minFilter: THREE.LinearFilter,
+          magFilter: THREE.LinearFilter,
+          format: THREE.RGBAFormat,
+        });
+      }
+      outputTarget = this._intermediateTarget;
+    }
+
+    // Render scene to texture
+    this.renderer.setRenderTarget(this.renderTarget);
+    this.renderer.render(scene, camera);
+
+    // Apply desaturation shader
+    this.postMaterial.uniforms.tDiffuse.value = this.renderTarget.texture;
+    this.postMaterial.uniforms.desatAmount.value = this.currentState;
+    this.postMaterial.uniforms.animProgress.value = this.progress;
+
+    // Render to output target
+    this.renderer.setRenderTarget(outputTarget);
+    this.renderer.render(this.postScene, this.postCamera);
+
+    return outputTarget.texture;
   }
 
   /**
@@ -588,6 +663,9 @@ export class DesaturationEffect extends VFXManager {
    */
   dispose() {
     this.renderTarget.dispose();
+    if (this._intermediateTarget) {
+      this._intermediateTarget.dispose();
+    }
     this.postMaterial.dispose();
     if (this.enableAudio && this.audio) {
       this.audio.dispose();

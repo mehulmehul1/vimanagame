@@ -122,10 +122,20 @@ export class DissolveEffect extends VFXManager {
       const wasEnabled = this.enableAudio;
       this.enableAudio = params.enableAudio;
 
-      // Initialize audio if it's being enabled for the first time
-      if (this.enableAudio && !wasEnabled && !this.audio.audioContext) {
+      // Initialize audio if it's being enabled and context doesn't exist
+      if (this.enableAudio && !this.audio.audioContext) {
         await this.audio.initialize();
         this.logger.log("Audio initialized for dissolve effect");
+      }
+
+      // If audio context exists but is suspended, resume it
+      if (
+        this.enableAudio &&
+        this.audio.audioContext &&
+        this.audio.audioContext.state === "suspended"
+      ) {
+        await this.audio.audioContext.resume();
+        this.logger.log("Audio context resumed");
       }
     }
 
@@ -185,6 +195,19 @@ export class DissolveEffect extends VFXManager {
 
       // Check if mode changed - if so, need to recreate
       const modeChanged = existingDissolve && existingDissolve.mode !== mode;
+
+      // Check if object still exists in scene manager
+      const sceneObject = this.sceneManager.getObject(objectId);
+      if (!sceneObject) {
+        // Object no longer exists - remove any existing dissolve
+        if (existingDissolve) {
+          this.logger.log(
+            `Object ${objectId} no longer exists, removing dissolve`
+          );
+          this.removeDissolve(objectId);
+        }
+        return; // Skip this object
+      }
 
       if (!existingDissolve || modeChanged) {
         // Update existing dissolve in place if mode changed
@@ -331,6 +354,10 @@ export class DissolveEffect extends VFXManager {
     const sceneObject = this.sceneManager.getObject(objectId);
     if (!sceneObject) {
       this.logger.error(`Object not found: ${objectId}`);
+      // Remove any existing dissolve if object doesn't exist
+      if (this.activeDissolves.has(objectId)) {
+        this.removeDissolve(objectId);
+      }
       return;
     }
 
@@ -421,61 +448,168 @@ export class DissolveEffect extends VFXManager {
     // Apply shader to all materials in the object
     const modifiedMaterials = [];
     let materialMeshCount = 0;
+    const meshesToProcess = [];
+
+    // Collect meshes from root object
     sceneObject.traverse((child) => {
       if (child.isMesh && child.material) {
-        materialMeshCount++;
-        // Skip contact shadow meshes by checking parent hierarchy
-        if (isContactShadowMesh(child)) {
-          this.logger.log(
-            `Skipping contact shadow mesh for materials: ${
-              child.name || "unnamed"
-            }`
-          );
-          return;
-        }
+        meshesToProcess.push(child);
+      }
+    });
 
-        const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
+    // Also collect reparented meshes for candlestickPhone (from camera when held, scene when put down)
+    const camera = this.gameManager?.camera || window.camera;
+    const scene = this.scene;
+    if (objectId === "candlestickPhone" && scene) {
+      const phonePartObjects = [];
 
-        materials.forEach((mat) => {
-          // Store original onBeforeCompile if not already stored
-          if (!mat.userData.originalOnBeforeCompile) {
-            mat.userData.originalOnBeforeCompile = mat.onBeforeCompile;
-          }
-
-          const originalOnBeforeCompile = mat.userData.originalOnBeforeCompile;
-
-          mat.onBeforeCompile = (shader) => {
-            // Call original if exists
-            if (originalOnBeforeCompile) {
-              originalOnBeforeCompile(shader);
+      // Check camera (when phone is held)
+      if (camera) {
+        camera.traverse((child) => {
+          if (
+            child.name === "Receiver" ||
+            child.name === "PhoneBody" ||
+            child.name === "Phone_Parent_Empty" ||
+            child.name === "Phone Group"
+          ) {
+            if (!phonePartObjects.includes(child)) {
+              phonePartObjects.push(child);
             }
-
-            // Inject dissolve shader
-            setupUniforms(shader, dissolveUniforms);
-            setupShaderSnippets(
-              shader,
-              vertexGlobal,
-              vertexMain,
-              perlinNoise + fragmentGlobal,
-              fragmentMain
-            );
-          };
-
-          mat.userData.dissolveModified = true;
-          mat.userData.dissolveUniforms = dissolveUniforms;
-
-          // Force material version bump to invalidate Three.js shader cache
-          mat.version++;
-          mat.needsUpdate = true;
-
-          if (!modifiedMaterials.includes(mat)) {
-            modifiedMaterials.push(mat);
           }
         });
       }
-    });
+
+      // Check scene root (when phone is put down)
+      scene.traverse((child) => {
+        if (
+          child !== scene &&
+          (child.name === "Receiver" ||
+            child.name === "PhoneBody" ||
+            child.name === "Phone_Parent_Empty" ||
+            child.name === "Phone Group")
+        ) {
+          // Only add if it's not a child of the phone object (to avoid duplicates)
+          let isPhoneObjectChild = false;
+          let parent = child.parent;
+          while (parent && parent !== scene) {
+            if (parent === sceneObject) {
+              isPhoneObjectChild = true;
+              break;
+            }
+            parent = parent.parent;
+          }
+
+          if (!isPhoneObjectChild && !phonePartObjects.includes(child)) {
+            phonePartObjects.push(child);
+          }
+        }
+      });
+
+      // Traverse phone part objects to find meshes
+      for (const phonePart of phonePartObjects) {
+        phonePart.traverse((child) => {
+          if (child.isMesh && child.material) {
+            if (!meshesToProcess.includes(child)) {
+              meshesToProcess.push(child);
+            }
+          }
+        });
+      }
+
+      // Also check if Receiver is a direct mesh
+      if (camera) {
+        camera.traverse((child) => {
+          if (
+            child.isMesh &&
+            child.material &&
+            child.name === "Receiver" &&
+            !meshesToProcess.includes(child)
+          ) {
+            meshesToProcess.push(child);
+          }
+        });
+      }
+
+      scene.traverse((child) => {
+        if (
+          child !== scene &&
+          child.isMesh &&
+          child.material &&
+          child.name === "Receiver" &&
+          !meshesToProcess.includes(child)
+        ) {
+          // Only if not a child of phone object
+          let isPhoneObjectChild = false;
+          let parent = child.parent;
+          while (parent && parent !== scene) {
+            if (parent === sceneObject) {
+              isPhoneObjectChild = true;
+              break;
+            }
+            parent = parent.parent;
+          }
+
+          if (!isPhoneObjectChild) {
+            meshesToProcess.push(child);
+          }
+        }
+      });
+    }
+
+    // Process all collected meshes
+    for (const child of meshesToProcess) {
+      materialMeshCount++;
+      // Skip contact shadow meshes by checking parent hierarchy
+      if (isContactShadowMesh(child)) {
+        this.logger.log(
+          `Skipping contact shadow mesh for materials: ${
+            child.name || "unnamed"
+          }`
+        );
+        continue;
+      }
+
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material];
+
+      materials.forEach((mat) => {
+        // Store original onBeforeCompile if not already stored
+        if (!mat.userData.originalOnBeforeCompile) {
+          mat.userData.originalOnBeforeCompile = mat.onBeforeCompile;
+        }
+
+        const originalOnBeforeCompile = mat.userData.originalOnBeforeCompile;
+
+        mat.onBeforeCompile = (shader) => {
+          // Call original if exists
+          if (originalOnBeforeCompile) {
+            originalOnBeforeCompile(shader);
+          }
+
+          // Inject dissolve shader
+          setupUniforms(shader, dissolveUniforms);
+          setupShaderSnippets(
+            shader,
+            vertexGlobal,
+            vertexMain,
+            perlinNoise + fragmentGlobal,
+            fragmentMain
+          );
+        };
+
+        mat.userData.dissolveModified = true;
+        mat.userData.dissolveUniforms = dissolveUniforms;
+
+        // Force material version bump to invalidate Three.js shader cache
+        mat.version++;
+        mat.needsUpdate = true;
+
+        if (!modifiedMaterials.includes(mat)) {
+          modifiedMaterials.push(mat);
+        }
+      });
+    }
 
     this.logger.log(
       `Applied dissolve shader to ${modifiedMaterials.length} material(s) from ${materialMeshCount} mesh(es) for ${objectId}`
@@ -525,7 +659,153 @@ export class DissolveEffect extends VFXManager {
           } ${child.children.length} children`
         );
       });
-      return;
+
+      // Special case: candlestickPhone may have parts reparented to camera (when held) or scene root (when put down)
+      // Check both camera and scene root for Receiver and PhoneBody/PhoneGroup
+      const camera = this.gameManager?.camera || window.camera;
+      const scene = this.scene;
+      if (objectId === "candlestickPhone" && scene) {
+        this.logger.log(
+          `Checking for reparented phone parts (camera: ${!!camera}, scene: ${!!scene})`
+        );
+        const reparentedMeshes = [];
+        const phonePartObjects = [];
+
+        // Check camera (when phone is held)
+        if (camera) {
+          camera.traverse((child) => {
+            if (
+              child.name === "Receiver" ||
+              child.name === "PhoneBody" ||
+              child.name === "Phone_Parent_Empty" ||
+              child.name === "Phone Group"
+            ) {
+              if (!phonePartObjects.includes(child)) {
+                phonePartObjects.push(child);
+                this.logger.log(
+                  `Found phone part on camera: ${child.name} (type: ${child.type})`
+                );
+              }
+            }
+          });
+        }
+
+        // Check scene root (when phone is put down - putDownToOriginal() uses scene.attach())
+        scene.traverse((child) => {
+          if (
+            child !== scene &&
+            (child.name === "Receiver" ||
+              child.name === "PhoneBody" ||
+              child.name === "Phone_Parent_Empty" ||
+              child.name === "Phone Group")
+          ) {
+            // Only add if it's not a child of the phone object (to avoid duplicates)
+            let isPhoneObjectChild = false;
+            let parent = child.parent;
+            while (parent && parent !== scene) {
+              if (parent === sceneObject) {
+                isPhoneObjectChild = true;
+                break;
+              }
+              parent = parent.parent;
+            }
+
+            if (!isPhoneObjectChild && !phonePartObjects.includes(child)) {
+              phonePartObjects.push(child);
+              this.logger.log(
+                `Found phone part in scene: ${child.name} (type: ${
+                  child.type
+                }, parent: ${child.parent?.name || "scene"})`
+              );
+            }
+          }
+        });
+
+        this.logger.log(
+          `Found ${phonePartObjects.length} phone part objects total`
+        );
+
+        // Now traverse all phone part objects to find meshes
+        for (const phonePart of phonePartObjects) {
+          phonePart.traverse((child) => {
+            if (child.isMesh && child.geometry) {
+              if (!reparentedMeshes.includes(child)) {
+                reparentedMeshes.push(child);
+                this.logger.log(
+                  `Found mesh in phone part: ${
+                    child.name || "unnamed"
+                  } (parent: ${phonePart.name}, ${
+                    child.geometry.attributes.position.count
+                  } vertices)`
+                );
+              }
+            }
+          });
+        }
+
+        // Also check if Receiver is a direct mesh (not nested)
+        camera.traverse((child) => {
+          if (
+            child.isMesh &&
+            child.geometry &&
+            child.name === "Receiver" &&
+            !reparentedMeshes.includes(child)
+          ) {
+            reparentedMeshes.push(child);
+            this.logger.log(
+              `Found Receiver as direct mesh: ${child.geometry.attributes.position.count} vertices`
+            );
+          }
+        });
+
+        this.logger.log(
+          `Found ${reparentedMeshes.length} reparented meshes on camera`
+        );
+
+        // Add geometries from reparented meshes
+        for (const mesh of reparentedMeshes) {
+          if (isContactShadowMesh(mesh)) {
+            this.logger.log(
+              `Skipping contact shadow mesh: ${mesh.name || "unnamed"}`
+            );
+            continue;
+          }
+
+          const geo = mesh.geometry.clone();
+          mesh.updateMatrixWorld(true);
+          geo.applyMatrix4(mesh.matrixWorld);
+          geometries.push(geo);
+          this.logger.log(
+            `Added geometry from reparented mesh: ${mesh.name || "unnamed"} (${
+              geo.attributes.position.count
+            } vertices)`
+          );
+        }
+
+        if (geometries.length === 0) {
+          this.logger.warn(
+            "No geometries found in root object or reparented to camera/scene"
+          );
+          // Remove any existing dissolve since we can't set it up
+          if (this.activeDissolves.has(objectId)) {
+            this.removeDissolve(objectId);
+          }
+          return;
+        }
+      } else {
+        // Not candlestickPhone or no scene access - return early
+        if (objectId === "candlestickPhone") {
+          this.logger.warn(
+            `Cannot check for candlestickPhone: gameManager=${!!this
+              .gameManager}, scene=${!!this.scene}`
+          );
+        }
+        // Remove any existing dissolve since we can't set it up
+        if (this.activeDissolves.has(objectId)) {
+          this.removeDissolve(objectId);
+        }
+        return;
+      }
     }
 
     const mergedGeo =
@@ -739,6 +1019,14 @@ export class DissolveEffect extends VFXManager {
       mat.needsUpdate = true;
     });
 
+    // Clear all references to allow object to be garbage collected
+    dissolveState.object = null;
+    dissolveState.modifiedMaterials = null;
+    dissolveState.dissolveUniforms = null;
+    dissolveState.particleSystem = null;
+    dissolveState.particleUniforms = null;
+    dissolveState.contactShadow = null;
+
     this.activeDissolves.delete(objectId);
   }
 
@@ -747,6 +1035,25 @@ export class DissolveEffect extends VFXManager {
    * @param {number} deltaTime - Time since last frame in seconds
    */
   update(deltaTime) {
+    if (this.activeDissolves.size === 0) {
+      if (this.enableAudio && this.audio.audioContext && this.audio.isPlaying) {
+        this.audio.stop();
+      }
+      return;
+    }
+
+    // Clean up dissolves for objects that no longer exist in scene manager
+    const activeIds = Array.from(this.activeDissolves.keys());
+    activeIds.forEach((objectId) => {
+      const sceneObject = this.sceneManager.getObject(objectId);
+      if (!sceneObject) {
+        this.logger.log(
+          `Object ${objectId} no longer exists, removing dissolve`
+        );
+        this.removeDissolve(objectId);
+      }
+    });
+
     if (this.activeDissolves.size === 0) {
       if (this.enableAudio && this.audio.audioContext && this.audio.isPlaying) {
         this.audio.stop();
@@ -861,13 +1168,41 @@ export class DissolveEffect extends VFXManager {
 
     // Audio: Play during active transitions, update based on progress
     // Check both enableAudio and !suppressAudio (suppressAudio is for reverse transitions)
-    if (this.enableAudio && !this.suppressAudio && this.audio.audioContext) {
-      if (anyTransitioning) {
+    if (this.enableAudio && !this.suppressAudio) {
+      // Ensure audio context is initialized and valid
+      if (!this.audio.audioContext) {
+        // Audio was stopped/closed, need to re-initialize
+        this.audio
+          .initialize()
+          .then(() => {
+            this.logger.log("Audio re-initialized in update loop");
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to re-initialize audio: ${err}`);
+          });
+      } else if (this.audio.audioContext.state === "suspended") {
+        // Resume suspended audio context (browser may suspend it after inactivity)
+        this.audio.audioContext
+          .resume()
+          .then(() => {
+            this.logger.log("Audio context resumed in update loop");
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to resume audio context: ${err}`);
+          });
+      }
+
+      if (
+        this.audio.audioContext &&
+        this.audio.audioContext.state === "running" &&
+        anyTransitioning
+      ) {
         if (!this.audio.isPlaying) {
           this.audio.start();
+          this.logger.log("Audio started in update loop");
         }
         this._updateAudio(maxAbsProgress, deltaTime);
-      } else if (this.audio.isPlaying) {
+      } else if (this.audio.isPlaying && !anyTransitioning) {
         this.audio.stop();
       }
     } else if (this.audio.audioContext && this.audio.isPlaying) {
@@ -934,9 +1269,14 @@ export class DissolveEffect extends VFXManager {
       `❌ No effect matches (state: ${state?.currentState}) - cleaning up dissolves`
     );
 
-    if (this.enableAudio && this.audio.audioContext && this.audio.isPlaying) {
+    // Stop audio
+    if (this.audio.audioContext && this.audio.isPlaying) {
       this.audio.stop();
     }
+
+    // Reset flags so next effect can enable audio fresh
+    this.enableAudio = false;
+    this.suppressAudio = false;
 
     // Remove all active dissolves
     const activeIds = Array.from(this.activeDissolves.keys());

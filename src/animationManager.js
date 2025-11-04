@@ -660,6 +660,27 @@ class AnimationManager {
       }
     }
 
+    // Get or create fade cube
+    const cube = this._getOrCreateFadeCube();
+
+    // Determine starting opacity
+    let startOpacity = 0;
+    if (fadeData.startFrom !== undefined) {
+      if (fadeData.startFrom === "current") {
+        // Read current opacity from fade cube
+        startOpacity = cube.material.opacity;
+      } else {
+        // Use explicit value (0-1)
+        startOpacity = fadeData.startFrom;
+      }
+    } else if (fadeData.fadeInTime === 0) {
+      // Default behavior: if fadeInTime is 0, start at maxOpacity
+      startOpacity =
+        fadeData.maxOpacity !== undefined ? fadeData.maxOpacity : 1.0;
+    } else {
+      startOpacity = 0;
+    }
+
     // Store fade data
     this.isFading = true;
     this.fadeElapsed = 0;
@@ -671,25 +692,18 @@ class AnimationManager {
       maxOpacity: fadeData.maxOpacity !== undefined ? fadeData.maxOpacity : 1.0,
       persistWhileCriteria: fadeData.persistWhileCriteria || false,
       criteria: fadeData.criteria || null,
+      startOpacity: startOpacity, // Store starting opacity for fade calculations
     };
     this.fadeOnComplete = fadeData.onComplete || null;
     this.fadeOnFadeInComplete = fadeData.onFadeInComplete || null;
     this.fadeInCompleteTriggered = false;
 
-    // Get or create fade cube
-    const cube = this._getOrCreateFadeCube();
-
     // Set color
     const color = this.fadeData.color;
     cube.material.color.setRGB(color.r, color.g, color.b);
 
-    // If fadeInTime is 0, start at maxOpacity to prevent flash when transitioning from another fade
-    // Otherwise start at 0 and fade in normally
-    if (this.fadeData.fadeInTime === 0) {
-      cube.material.opacity = this.fadeData.maxOpacity;
-    } else {
-      cube.material.opacity = 0;
-    }
+    // Set starting opacity
+    cube.material.opacity = startOpacity;
 
     if (this.debug)
       this.logger.log(
@@ -1346,6 +1360,37 @@ class AnimationManager {
     const properties = animData.properties || {};
     const duration = animData.duration || 1.0;
 
+    // Check if object is currently parented to camera and needs to be unparented
+    // This handles cases where a previous animation attached it to camera
+    const isCurrentlyParentedToCamera =
+      this.camera && targetObject.parent === this.camera;
+    if (isCurrentlyParentedToCamera && !animData.reparentToCamera) {
+      // Unparent from camera and restore to world space
+      const currentLocalPosition = new THREE.Vector3();
+      const currentLocalQuaternion = new THREE.Quaternion();
+      const currentLocalScale = new THREE.Vector3();
+      targetObject.getWorldPosition(currentLocalPosition);
+      targetObject.getWorldQuaternion(currentLocalQuaternion);
+      targetObject.getWorldScale(currentLocalScale);
+
+      // Remove from camera
+      this.camera.remove(targetObject);
+
+      // Add to scene root (camera's parent, typically the THREE.Scene)
+      if (this.camera.parent) {
+        this.camera.parent.add(targetObject);
+      }
+
+      // Restore world transform (these are already in world space from getWorld*)
+      targetObject.position.copy(currentLocalPosition);
+      targetObject.quaternion.copy(currentLocalQuaternion);
+      targetObject.scale.copy(currentLocalScale);
+
+      this.logger.log(
+        `Unparented '${animData.targetObjectId}' from camera and restored to world space`
+      );
+    }
+
     // Handle reparenting to camera (like phone receiver)
     let originalParent = null;
     let worldPosition = null;
@@ -1771,7 +1816,7 @@ class AnimationManager {
         200 // Max ray distance
       );
 
-      if (floorY !== null) {
+      if (floorY !== null && isFinite(floorY)) {
         // Calculate body center Y (character center is at floor + half height)
         // Character capsule: halfHeight=0.6, radius=0.3, so center is at floor + 0.9
         const characterCenterY = 0.9; // From physicsManager.createCharacter: halfHeight=0.6 + radius=0.3
@@ -1780,23 +1825,46 @@ class AnimationManager {
         // Final Y = floor + character center + camera offset
         finalPosition.y = floorY + characterCenterY + cameraHeight;
 
-        this.logger.log(
-          `MoveTo '${
-            moveToData.id
-          }': Auto-calculated Y=${finalPosition.y.toFixed(2)} ` +
-            `(floor=${floorY.toFixed(
-              2
-            )} + center=${characterCenterY} + camera=${cameraHeight})`
-        );
+        // Validate calculated Y
+        if (!isFinite(finalPosition.y)) {
+          this.logger.warn(
+            `MoveTo '${moveToData.id}': Calculated Y is invalid (${finalPosition.y}), using current character height`
+          );
+          // Fall back to current character height
+          if (this.characterController && this.characterController.character) {
+            const currentPos = this.characterController.character.translation();
+            finalPosition.y = currentPos.y;
+          } else {
+            // Last resort: use provided Y if it's valid
+            finalPosition.y = moveToData.position.y;
+          }
+        } else {
+          this.logger.log(
+            `MoveTo '${
+              moveToData.id
+            }': Auto-calculated Y=${finalPosition.y.toFixed(2)} ` +
+              `(floor=${floorY.toFixed(
+                2
+              )} + center=${characterCenterY} + camera=${cameraHeight})`
+          );
+        }
       } else {
+        // Floor not found - use current character height instead of provided Y
         this.logger.warn(
           `MoveTo '${
             moveToData.id
           }': Failed to find floor at (${moveToData.position.x.toFixed(2)}, ` +
             `${moveToData.position.z.toFixed(
               2
-            )}), using provided Y=${moveToData.position.y.toFixed(2)}`
+            )}), using current character height`
         );
+        if (this.characterController && this.characterController.character) {
+          const currentPos = this.characterController.character.translation();
+          finalPosition.y = currentPos.y;
+        } else {
+          // Last resort: use provided Y if it's valid
+          finalPosition.y = moveToData.position.y;
+        }
       }
     }
 
@@ -2339,13 +2407,25 @@ class AnimationManager {
         const holdEnd = fadeInEnd + holdTime;
         const fadeOutEnd = holdEnd + fadeOutTime;
 
-        let opacity = 0;
+        const startOpacity =
+          this.fadeData.startOpacity !== undefined
+            ? this.fadeData.startOpacity
+            : 0;
+        let opacity = startOpacity;
 
-        if (this.fadeElapsed < fadeInEnd) {
-          // Fade in phase
+        if (fadeInTime === 0 && holdTime === 0) {
+          // Both fadeInTime and holdTime are 0 - fade out immediately from startOpacity
+          if (this.fadeElapsed < fadeOutTime) {
+            const t = this.fadeElapsed / fadeOutTime;
+            opacity = THREE.MathUtils.lerp(startOpacity, 0, t);
+          } else {
+            opacity = 0;
+          }
+        } else if (this.fadeElapsed < fadeInEnd) {
+          // Fade in phase - interpolate from startOpacity to maxOpacity
           if (fadeInTime > 0) {
             const t = this.fadeElapsed / fadeInTime;
-            opacity = t * maxOpacity;
+            opacity = THREE.MathUtils.lerp(startOpacity, maxOpacity, t);
           } else {
             // fadeInTime is 0 - immediately at maxOpacity
             opacity = maxOpacity;
@@ -2378,8 +2458,35 @@ class AnimationManager {
               }
             } else if (this.fadeElapsed < holdEnd + fadeOutTime) {
               // Criteria no longer match, start/continue fade out
-              const t = (this.fadeElapsed - holdEnd) / fadeOutTime;
-              opacity = (1 - t) * maxOpacity;
+              if (fadeOutTime > 0) {
+                const t = (this.fadeElapsed - holdEnd) / fadeOutTime;
+                opacity = (1 - t) * maxOpacity;
+              } else {
+                // fadeOutTime is 0 - immediately clear
+                opacity = 0;
+                this.isFading = false;
+
+                const callback = this.fadeOnComplete;
+                const restoreInput = this.fadeRestoreInput;
+                const fadeAnimData = this.fadeAnimData;
+                this.fadeData = null;
+                this.fadeAnimData = null;
+                this.fadeOnComplete = null;
+                this.fadeInputControl = null;
+                this.fadeRestoreInput = true;
+
+                if (this.characterController) {
+                  this._restoreInputControls(restoreInput);
+                }
+
+                if (callback) {
+                  callback(this.gameManager);
+                }
+
+                if (fadeAnimData) {
+                  this._handlePlayNext(fadeAnimData);
+                }
+              }
             } else {
               // Fade out complete
               opacity = 0;

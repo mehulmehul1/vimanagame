@@ -469,17 +469,55 @@ export class SplatMorphEffect extends VFXManager {
       this.lastPhase = 0;
       this.lastVelocity = 0;
       if (!params.suppressAudio) {
-        this.audio.start();
+        // Ensure audio context is valid before starting
+        if (!this.audio.audioContext) {
+          this.audio
+            .initialize()
+            .then(() => {
+              this.audio.start();
+              this.logger.log("Audio started for morph transition");
+            })
+            .catch((err) => {
+              this.logger.warn(`Failed to initialize audio: ${err}`);
+            });
+        } else if (this.audio.audioContext.state === "suspended") {
+          this.audio.audioContext
+            .resume()
+            .then(() => {
+              this.audio.start();
+              this.logger.log(
+                "Audio started for morph transition (after resume)"
+              );
+            })
+            .catch((err) => {
+              this.logger.warn(`Failed to resume audio: ${err}`);
+            });
+        } else {
+          this.audio.start();
+          this.logger.log("Audio started for morph transition");
+        }
       }
     } else if (params.trigger === "pause") {
       this.isPaused = true;
       this.isTransitioning = false;
-      this.audio.stop();
+      if (this.audio.isPlaying) {
+        this.audio.stop();
+        this.logger.log("Audio stopped - morph paused");
+      }
     } else if (params.trigger === "reset") {
       this.time.value = 0.0;
       this.isPaused = true;
       this.isTransitioning = false;
-      this.audio.stop();
+      if (this.audio.isPlaying) {
+        this.audio.stop();
+        this.logger.log("Audio stopped - morph reset");
+      }
+    } else {
+      // No trigger specified - ensure audio is stopped if not transitioning
+      if (!this.isTransitioning && this.audio.isPlaying) {
+        this.audio.stop();
+        this.logger.log("Audio stopped - no active transition");
+      }
     }
 
     this.logger.log(`Applied effect: ${effect.id}`, this.parameters);
@@ -538,9 +576,15 @@ export class SplatMorphEffect extends VFXManager {
     }
 
     // Stop audio after transition completes
-    if (afterTrans && this.audio.isPlaying) {
-      this.audio.stop();
-      this.logger.log("Transition complete - stopping audio");
+    if (afterTrans) {
+      if (this.audio.isPlaying) {
+        this.audio.stop();
+        this.logger.log("Transition complete - stopping audio");
+      }
+      // Don't update audio parameters after transition completes
+      this.lastPhase = uPhase;
+      this.lastVelocity = 0;
+      return;
     }
 
     // Determine if we're scattering or reforming

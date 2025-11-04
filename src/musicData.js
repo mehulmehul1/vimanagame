@@ -59,7 +59,7 @@ export const musicTracks = {
     description: "Duke Ac",
     preload: true,
     criteria: {
-      currentState: { $gte: GAME_STATES.WAKING, $lte: GAME_STATES.POST_CURSOR },
+      currentState: { $gte: GAME_STATES.CURSOR, $lte: GAME_STATES.POST_CURSOR },
     },
     fadeTime: 0,
     priority: 10,

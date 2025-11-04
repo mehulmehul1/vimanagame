@@ -157,6 +157,11 @@ export class VFXManager {
       this._cancelDelayedEffect();
     }
 
+    // If switching to a different effect
+    if (this.currentEffectId && this.currentEffectId !== effect.id) {
+      // Switching effects
+    }
+
     // Check if effect has a delay
     const delay = effect.delay || 0;
 
@@ -275,7 +280,9 @@ export function findMatchingEffect(effects, gameState, checkCriteria) {
 
   // Return first matching effect
   for (const effect of effectsArray) {
-    if (effect.criteria && checkCriteria(gameState, effect.criteria)) {
+    const matches =
+      effect.criteria && checkCriteria(gameState, effect.criteria);
+    if (matches) {
       return effect;
     }
   }
@@ -335,11 +342,17 @@ export class VFXSystemManager {
       );
       const { SplatMorphEffect } = await import("./vfx/splatMorph.js");
       const { DissolveEffect } = await import("./vfx/dissolveEffect.js");
+      const { GlitchEffect } = await import("./vfx/glitchEffect.js");
 
       // Create desaturation post-processing effect
       this.logger.log("Creating DesaturationEffect...");
       this.effects.desaturation = new DesaturationEffect(this.renderer);
       this.logger.log("✅ DesaturationEffect created");
+
+      // Create glitch post-processing effect
+      this.logger.log("Creating GlitchEffect...");
+      this.effects.glitch = new GlitchEffect(this.renderer);
+      this.logger.log("✅ GlitchEffect created");
 
       // Create cloud particles shader
       this.logger.log("Creating CloudParticles...");
@@ -422,6 +435,10 @@ export class VFXSystemManager {
       this.effects.dissolve.setGameManager(gameManager, "dissolve");
     }
 
+    if (this.effects.glitch) {
+      this.effects.glitch.setGameManager(gameManager, "glitch");
+    }
+
     this.logger.log("All VFX effects connected to game manager");
   }
 
@@ -449,6 +466,10 @@ export class VFXSystemManager {
     if (this.effects.dissolve) {
       this.effects.dissolve.update(deltaTime);
     }
+
+    if (this.effects.glitch) {
+      this.effects.glitch.update(deltaTime);
+    }
   }
 
   /**
@@ -457,8 +478,29 @@ export class VFXSystemManager {
    * @param {THREE.Camera} camera - The camera to use
    */
   render(scene, camera) {
-    // Desaturation effect handles rendering (includes post-processing)
-    if (this.effects.desaturation) {
+    // Render pipeline: scene -> desaturation -> glitch -> screen
+
+    // Check if glitch is enabled
+    const glitchEnabled =
+      this.effects.glitch &&
+      this.effects.glitch.enabled &&
+      this.effects.glitch._hasEverBeenEnabled;
+
+    // Step 1: Render scene through desaturation
+    let intermediateTexture = null;
+    if (this.effects.desaturation && glitchEnabled) {
+      // If glitch is enabled, render desaturation to texture
+      intermediateTexture = this.effects.desaturation.renderToTexture(
+        scene,
+        camera
+      );
+    }
+
+    // Step 2: Apply glitch to the result if enabled
+    if (glitchEnabled && intermediateTexture) {
+      this.effects.glitch.render(intermediateTexture);
+    } else if (this.effects.desaturation) {
+      // Glitch not active, use desaturation's normal render path
       this.effects.desaturation.render(scene, camera);
     } else {
       // Fallback to direct rendering if no post-processing
@@ -474,6 +516,9 @@ export class VFXSystemManager {
   setSize(width, height) {
     if (this.effects.desaturation) {
       this.effects.desaturation.setSize(width, height);
+    }
+    if (this.effects.glitch) {
+      this.effects.glitch.setSize(width, height);
     }
   }
 

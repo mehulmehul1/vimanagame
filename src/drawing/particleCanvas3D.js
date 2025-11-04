@@ -1160,7 +1160,43 @@ export class ParticleCanvas3D {
     const HOME_ATTRACTION_STRENGTH = 0.0003; // Pull back to home position (reduced to allow more drift)
     const STROKE_REPULSION_STRENGTH = 0.003; // Push away from strokes
     const MAX_REPULSION_DISTANCE = this.strokeRepulsionDistance; // Max distance for stroke influence
+    const MAX_REPULSION_DISTANCE_SQ =
+      MAX_REPULSION_DISTANCE * MAX_REPULSION_DISTANCE; // Squared for distance comparison
     const AMBIENT_DRIFT_STRENGTH = 0.00008; // Gentle floating motion
+
+    // Pre-calculate stroke segment world positions and bounds (only if segments exist)
+    const activeSegments = this.strokeSegments.length;
+    let strokeWorldPositions = null;
+    let strokeBounds = null;
+
+    if (activeSegments > 0) {
+      strokeWorldPositions = new Float32Array(activeSegments * 2);
+      strokeBounds = new Float32Array(activeSegments * 4); // minX, minY, maxX, maxY
+
+      for (let s = 0; s < activeSegments; s++) {
+        const segment = this.strokeSegments[s];
+        const worldX1 = (segment.uvX1 - 0.5) * this.strokeScale;
+        const worldY1 = -(segment.uvY1 - 0.5) * this.strokeScale;
+        const worldX2 = (segment.uvX2 - 0.5) * this.strokeScale;
+        const worldY2 = -(segment.uvY2 - 0.5) * this.strokeScale;
+
+        strokeWorldPositions[s * 2] = worldX2;
+        strokeWorldPositions[s * 2 + 1] = worldY2;
+
+        // Store bounding box with padding for early rejection
+        const padding = MAX_REPULSION_DISTANCE;
+        strokeBounds[s * 4] = Math.min(worldX1, worldX2) - padding;
+        strokeBounds[s * 4 + 1] = Math.min(worldY1, worldY2) - padding;
+        strokeBounds[s * 4 + 2] = Math.max(worldX1, worldX2) + padding;
+        strokeBounds[s * 4 + 3] = Math.max(worldY1, worldY2) + padding;
+      }
+    }
+
+    // Pre-calculate common values
+    const effectiveRadius = this.strokeScale * 0.9 + 0.0001;
+    const swirlIntensity = this.galaxySwirlIntensity;
+    const timeForSwirl = this.time * 0.9;
+    const timeForDrift = this.time;
 
     for (let i = 0; i < this.particleCount; i++) {
       const i3 = i * 3;
@@ -1184,26 +1220,33 @@ export class ParticleCanvas3D {
       vz *= VELOCITY_RELAXATION;
 
       // Force 1: Ambient drift (gentle floating motion like clouds)
-      const timeOffset = this.time + i * 0.1;
-      const driftX =
-        Math.sin(timeOffset * 0.3 + i * 0.05) * Math.cos(timeOffset * 0.17);
-      const driftY =
-        Math.cos(timeOffset * 0.25 + i * 0.07) * Math.sin(timeOffset * 0.19);
-      const driftZ =
-        Math.sin(timeOffset * 0.15 + i * 0.03) * Math.cos(timeOffset * 0.21);
+      // Use cached time values and pre-calculate offsets
+      const iOffset = i * 0.1;
+      const timeOffset = timeForDrift + iOffset;
+      const phase1 = timeOffset * 0.3 + i * 0.05;
+      const phase2 = timeOffset * 0.17;
+      const phase3 = timeOffset * 0.25 + i * 0.07;
+      const phase4 = timeOffset * 0.19;
+      const phase5 = timeOffset * 0.15 + i * 0.03;
+      const phase6 = timeOffset * 0.21;
+
+      const driftX = Math.sin(phase1) * Math.cos(phase2);
+      const driftY = Math.cos(phase3) * Math.sin(phase4);
+      const driftZ = Math.sin(phase5) * Math.cos(phase6);
 
       vx += driftX * AMBIENT_DRIFT_STRENGTH;
       vy += driftY * AMBIENT_DRIFT_STRENGTH;
       vz += driftZ * AMBIENT_DRIFT_STRENGTH * 0.5;
 
       // Force 2: Galaxy-style swirl around center
-      const radius = Math.sqrt(px * px + py * py);
-      const effectiveRadius = this.strokeScale * 0.9 + 0.0001;
+      const radiusSq = px * px + py * py;
+      const radius = Math.sqrt(radiusSq);
       const radiusFactor = Math.min(radius / effectiveRadius, 1.0);
 
       if (radius > 0.0005) {
-        const swirlDirX = -py / radius;
-        const swirlDirY = px / radius;
+        const invRadius = 1.0 / radius;
+        const swirlDirX = -py * invRadius;
+        const swirlDirY = px * invRadius;
 
         const radialInfluence = Math.pow(
           radiusFactor,
@@ -1215,24 +1258,27 @@ export class ParticleCanvas3D {
           radialInfluence;
 
         const swirlNoise =
-          1.0 + Math.sin(this.time * 0.9 + i * 0.13) * GALAXY_SWIRL_NOISE;
+          1.0 + Math.sin(timeForSwirl + i * 0.13) * GALAXY_SWIRL_NOISE;
 
-        const swirlIntensity = this.galaxySwirlIntensity;
-
-        vx += swirlDirX * swirlStrength * swirlNoise * swirlIntensity;
-        vy += swirlDirY * swirlStrength * swirlNoise * swirlIntensity;
+        const swirlForce = swirlStrength * swirlNoise * swirlIntensity;
+        vx += swirlDirX * swirlForce;
+        vy += swirlDirY * swirlForce;
       }
 
       // Force 3: Attraction to home position (but loosely, to maintain organic spread)
       const dx = hx - px;
       const dy = hy - py;
       const dz = hz - pz;
-      const distToHome = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const distToHomeSq = dx * dx + dy * dy + dz * dz;
 
-      if (distToHome > 0.001) {
-        const dirX = dx / distToHome;
-        const dirY = dy / distToHome;
-        const dirZ = dz / distToHome;
+      if (distToHomeSq > 0.000001) {
+        // 0.001^2
+        const distToHome = Math.sqrt(distToHomeSq);
+        const invDistToHome = 1.0 / distToHome;
+
+        const dirX = dx * invDistToHome;
+        const dirY = dy * invDistToHome;
+        const dirZ = dz * invDistToHome;
 
         // Only pull back if particle is getting too far from home
         const pullStrength =
@@ -1245,25 +1291,44 @@ export class ParticleCanvas3D {
         vz += dirZ * pullStrength;
       }
 
-      // Force 4: Repulsion from stroke segments
-      for (const segment of this.strokeSegments) {
-        const worldX = (segment.uvX2 - 0.5) * this.strokeScale;
-        const worldY = -(segment.uvY2 - 0.5) * this.strokeScale;
+      // Force 4: Repulsion from stroke segments (optimized with spatial bounds)
+      if (activeSegments > 0 && strokeWorldPositions && strokeBounds) {
+        for (let s = 0; s < activeSegments; s++) {
+          // Early rejection using bounding box
+          const minX = strokeBounds[s * 4];
+          const minY = strokeBounds[s * 4 + 1];
+          const maxX = strokeBounds[s * 4 + 2];
+          const maxY = strokeBounds[s * 4 + 3];
 
-        const sdx = px - worldX;
-        const sdy = py - worldY;
-        const distToStroke = Math.sqrt(sdx * sdx + sdy * sdy);
+          if (px < minX || px > maxX || py < minY || py > maxY) {
+            continue; // Skip this segment - particle is outside bounds
+          }
 
-        if (distToStroke < MAX_REPULSION_DISTANCE && distToStroke > 0.001) {
-          const pushStrength =
-            (1.0 - distToStroke / MAX_REPULSION_DISTANCE) *
-            STROKE_REPULSION_STRENGTH;
+          const worldX = strokeWorldPositions[s * 2];
+          const worldY = strokeWorldPositions[s * 2 + 1];
 
-          const pushDirX = sdx / distToStroke;
-          const pushDirY = sdy / distToStroke;
+          const sdx = px - worldX;
+          const sdy = py - worldY;
+          const distToStrokeSq = sdx * sdx + sdy * sdy;
 
-          vx += pushDirX * pushStrength;
-          vy += pushDirY * pushStrength;
+          // Use squared distance comparison to avoid sqrt
+          if (
+            distToStrokeSq < MAX_REPULSION_DISTANCE_SQ &&
+            distToStrokeSq > 0.000001
+          ) {
+            const distToStroke = Math.sqrt(distToStrokeSq);
+            const invDistToStroke = 1.0 / distToStroke;
+
+            const pushStrength =
+              (1.0 - distToStroke * (1.0 / MAX_REPULSION_DISTANCE)) *
+              STROKE_REPULSION_STRENGTH;
+
+            const pushDirX = sdx * invDistToStroke;
+            const pushDirY = sdy * invDistToStroke;
+
+            vx += pushDirX * pushStrength;
+            vy += pushDirY * pushStrength;
+          }
         }
       }
 

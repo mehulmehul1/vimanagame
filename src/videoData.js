@@ -128,6 +128,7 @@ export const videos = {
     priority: 0,
     delay: 3.5,
   },
+
   // ciotat: {
   //   id: "ciotat",
   //   videoPath: "/video/ciotat.mp4",
@@ -148,6 +149,7 @@ export const videos = {
   //   priority: 0,
   //   delay: 3.5,
   // },
+
   punch: {
     id: "punch",
     videoPath: "/video/punch.webm",
@@ -180,18 +182,20 @@ export const videos = {
     autoPlay: true,
     delay: 0.2,
   },
+
   hesTiedUsUp: {
     id: "hesTiedUsUp",
     videoPath: "/video/cole-hes-tied-us-up.webm",
     preload: false, // Load after loading screen
-    position: { x: -11.61, y: 5.72, z: 74.6 },
+    position: { x: -4.28, y: 5.94, z: 75.77 },
     rotation: { x: 0.0, y: 0.0, z: 0.0 },
     scale: { x: 0.39, y: 0.67, z: 0.81 },
     autoPlay: true,
-    loop: true,
+    loop: false,
     billboard: true,
     muted: false,
     delay: 6.0,
+    once: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.WAKING_UP,
@@ -239,10 +243,15 @@ export const videos = {
     loop: false,
     billboard: false,
     muted: false,
-    delay: 2.0,
+    delay: 1.0,
     onComplete: (gameManager) => {
       console.log("shadowAmplifications complete");
-      gameManager.setState({ currentState: GAME_STATES.SHADOW_AMPLIFICATIONS });
+      gameManager.setState({
+        currentState: GAME_STATES.SHADOW_AMPLIFICATIONS,
+        isViewmasterEquipped: true,
+        viewmasterManuallyRemoved: false,
+        viewmasterOverheatDialogIndex: null,
+      });
     },
   },
 
@@ -250,18 +259,36 @@ export const videos = {
     id: "catChew",
     videoPath: "/video/cat-3-wire.webm",
     preload: false,
-    position: { x: -1.84, y: 1.81, z: 75.96 },
+    position: { x: -2.1, y: 1.26, z: 80.85 },
     rotation: { x: 0.0, y: -0.5905, z: 0.0 },
-    scale: { x: 0.18, y: 0.275, z: 3.04 },
+    scale: { x: 0.18, y: 0.28, z: 3.04 },
     autoPlay: true,
-    loop: true,
-    billboard: false,
+    loop: false,
+    billboard: true,
     muted: false,
     delay: 0.0,
+    once: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.CAT_SAVE,
       },
+    },
+  },
+
+  shadowTrance: {
+    id: "shadowTrance",
+    videoPath: "/video/shadow-trance.webm",
+    preload: false,
+    position: { x: -10.42, y: 2.2, z: 81.94 },
+    rotation: { x: 0.0, y: 1.4047, z: 0.0 },
+    scale: { x: 1.07, y: 1.52, z: 1.52 },
+    autoPlay: true,
+    loop: true,
+    billboard: true,
+    muted: false,
+    delay: 0.0,
+    criteria: {
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
     },
   },
 };

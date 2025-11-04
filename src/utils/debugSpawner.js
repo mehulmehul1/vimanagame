@@ -217,7 +217,9 @@ const stateOverrides = {
   SHADOW_AMPLIFICATIONS: {
     isPlaying: true,
     controlEnabled: true,
-
+    isViewmasterEquipped: true, // Viewmaster should be on in this state
+    viewmasterManuallyRemoved: false,
+    viewmasterOverheatDialogIndex: null,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
     playerRotation: { x: 0.0, y: 0, z: 0.0 },
   },

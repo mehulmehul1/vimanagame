@@ -12,7 +12,7 @@ export class TitleSequence {
     this.staggerDelay = options.staggerDelay || 1.0; // delay between texts
     this.disperseDistance = options.disperseDistance || 5.0;
     this.onComplete = options.onComplete || null; // Callback when sequence completes
-    this.basePointSize = options.basePointSize || 0.22; // Larger default for visibility
+    this.basePointSize = options.basePointSize || 0.15; // Larger default for visibility
 
     this.time = 0;
     this.completed = false; // Track if completion callback has been called
@@ -235,7 +235,9 @@ export class TitleSequence {
         positions.array[i * 3 + 1] = particle.position.y;
         positions.array[i * 3 + 2] = particle.position.z;
 
-        sizes.array[i] = this.basePointSize * particle.scale;
+        const pointSize =
+          text.pointSize !== undefined ? text.pointSize : this.basePointSize;
+        sizes.array[i] = pointSize * particle.scale;
         opacities.array[i] = particle.opacity;
       });
 
@@ -288,7 +290,9 @@ export class TitleSequence {
         positions.array[i * 3 + 1] = particle.position.y;
         positions.array[i * 3 + 2] = particle.position.z;
 
-        sizes.array[i] = this.basePointSize * particle.scale;
+        const pointSize =
+          text.pointSize !== undefined ? text.pointSize : this.basePointSize;
+        sizes.array[i] = pointSize * particle.scale;
         opacities.array[i] = particle.opacity;
       });
 

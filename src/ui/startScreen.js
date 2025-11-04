@@ -395,7 +395,7 @@ export class StartScreen {
     const imageData1 = createParticleImage(this.textScene, {
       imageUrl: "/images/Czar_MainTitle.png",
       position: { x: 0, y: 0, z: -4.25 },
-      scale: 2.5 / 80,
+      scale: 0.03125,
       animate: true,
       particleDensity: 0.5,
       alphaThreshold: 0.1, // keep semi-opaque pixels, discard near-fully transparent
@@ -403,7 +403,7 @@ export class StartScreen {
     this.textScene.remove(imageData1.mesh);
     this.textCamera.add(imageData1.mesh);
     this.textScene.add(this.textCamera);
-    imageData1.mesh.userData.baseScale = 1.0 / 80;
+    imageData1.mesh.userData.baseScale = 0.0125;
     imageData1.mesh.visible = false; // Hide initially
 
     // Create a wrapper object that includes particles
@@ -417,7 +417,7 @@ export class StartScreen {
     const imageData2 = createParticleImage(this.textScene, {
       imageUrl: "/images/JamesCKane.png",
       position: { x: 0, y: -1.2, z: -3.6 },
-      scale: 2.5 / 80,
+      scale: 0.025,
       animate: true,
       particleDensity: 0.5,
       alphaThreshold: 0.1,
@@ -426,7 +426,7 @@ export class StartScreen {
     });
     this.textScene.remove(imageData2.mesh);
     this.textCamera.add(imageData2.mesh);
-    imageData2.mesh.userData.baseScale = 1.0 / 80;
+    imageData2.mesh.userData.baseScale = 0.0125;
     imageData2.mesh.visible = false; // Hide initially
 
     // Create a wrapper object that includes particles
@@ -434,6 +434,7 @@ export class StartScreen {
       mesh: imageData2.mesh,
       particles: imageData2.particles,
       update: imageData2.update,
+      pointSize: 0.15,
     };
 
     return { title, byline };

@@ -352,12 +352,8 @@ export class DrawingRecognitionManager {
       allPredictions: predictions,
     };
 
-    if (this.gameManager) {
-      this.gameManager.setState(
-        recognized ? "drawingSuccess" : "drawingFailed",
-        result
-      );
-    }
+    // Note: State updates for drawing success/failure are handled by DrawingManager.handleSubmit()
+    // This method just returns the result for the caller to handle
 
     return result;
   }

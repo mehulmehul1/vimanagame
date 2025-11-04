@@ -422,7 +422,7 @@ class PhoneCord {
    * Update the visual line to match physics simulation
    */
   updateCordLine() {
-    if (!this.cordLineMesh || !this.cordAttach || !this.receiver) return;
+    if (!this.cordLineMesh || !this.cordAttach) return;
 
     // Collect all points along the cord
     const points = [];
@@ -443,10 +443,18 @@ class PhoneCord {
       );
     }
 
-    // End point (Receiver)
-    const receiverPos = new THREE.Vector3();
-    this.receiver.getWorldPosition(receiverPos);
-    points.push(receiverPos.clone());
+    // End point (Receiver or receiverAnchor if severed)
+    if (this.receiver) {
+      const receiverPos = new THREE.Vector3();
+      this.receiver.getWorldPosition(receiverPos);
+      points.push(receiverPos.clone());
+    } else if (this.receiverAnchor) {
+      // After severing, use receiverAnchor position (will fall with physics)
+      const translation = this.receiverAnchor.translation();
+      points.push(
+        new THREE.Vector3(translation.x, translation.y, translation.z)
+      );
+    }
 
     // Create a smooth curve through the points
     const curve = new THREE.CatmullRomCurve3(points);
@@ -532,6 +540,41 @@ class PhoneCord {
     console.log("===============================");
 
     return transforms;
+  }
+
+  /**
+   * Sever the cord connection - detach from receiver and let it fall
+   */
+  sever() {
+    if (this.isDestroyed || !this.physicsManager || !this.receiverAnchor) {
+      return;
+    }
+
+    this.logger.log("Severing cord connection from receiver");
+
+    const world = this.physicsManager.world;
+    const RAPIER = this.physicsManager.RAPIER;
+
+    // Find and remove the joint connecting the last segment to receiverAnchor
+    const receiverLink = this.cordLinks.find((link) => link.isReceiverAnchor);
+    if (receiverLink && receiverLink.joint) {
+      world.removeImpulseJoint(receiverLink.joint, true);
+      receiverLink.joint = null;
+    }
+
+    // Make receiverAnchor dynamic so it falls
+    if (this.receiverAnchor) {
+      this.receiverAnchor.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      // Apply a slight downward impulse to help it fall
+      this.receiverAnchor.setLinvel(
+        { x: 0, y: -1, z: 0 },
+        true
+      );
+    }
+
+    // Stop updating the receiver anchor position (it's now dynamic and will fall)
+    // Keep receiverAnchor reference for visual line updates, but stop following receiver
+    this.receiver = null;
   }
 
   /**

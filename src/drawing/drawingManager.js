@@ -11,7 +11,7 @@ const DRAWING_CONFIG = {
   strokeRepulsionSmoothness: 1.0, // 0=linear, 1.0=smoothstep, higher=even smoother
 
   // Debug
-  canvasGizmo: false, // Enable gizmo for positioning/scaling canvas (disabled - final position set)
+  canvasGizmo: false, // Enable gizmo for positioning/scaling canvas
 };
 
 const EMOJI_MAP = {
@@ -27,7 +27,7 @@ export class DrawingManager {
     this.scene = scene;
     this.recognitionManager = drawingRecognitionManager;
     this.gameManager = gameManager;
-    this.logger = new Logger("DrawingManager", true);
+    this.logger = new Logger("DrawingManager", false);
 
     this.targetLabel = null;
     this.targetEmojiElement = null;
@@ -78,7 +78,6 @@ export class DrawingManager {
 
   setInputManager(inputManager) {
     this.inputManager = inputManager;
-    this.logger.log("Input manager reference set");
   }
 
   refillLabelPool() {
@@ -90,7 +89,6 @@ export class DrawingManager {
         this.labelPool[i],
       ];
     }
-    this.logger.log("Label pool refilled and shuffled:", this.labelPool);
   }
 
   setupKeyboardShortcuts() {
@@ -121,6 +119,25 @@ export class DrawingManager {
 
   bindGameStateListener() {
     if (this.gameManager) {
+      // Check initial state in case we're already in CURSOR state (e.g., debug spawn)
+      // Delay slightly to ensure dependencies (camera, inputManager) are ready
+      setTimeout(() => {
+        const currentState = this.gameManager.getState();
+        if (currentState) {
+          const isCursorState =
+            currentState.currentState === GAME_STATES.CURSOR ||
+            currentState.currentState === GAME_STATES.CURSOR_FINAL;
+
+          if (isCursorState && !this.isActive) {
+            this.startGame(
+              currentState.currentState === GAME_STATES.CURSOR_FINAL
+            );
+            this.updateRuneVisibility(currentState);
+          }
+        }
+      }, 100);
+
+      // Listen for future state changes
       this.gameManager.on("state:changed", (newState, oldState) => {
         const isCursorState =
           newState.currentState === GAME_STATES.CURSOR ||
@@ -208,12 +225,30 @@ export class DrawingManager {
   }
 
   startGame(isFinalRound = false) {
-    this.logger.log(
-      `Starting drawing game... ${isFinalRound ? "(FINAL ROUND)" : ""}`
-    );
-    this.logger.log("InputManager reference:", this.inputManager);
-    this.logger.log("GizmoManager available:", !!window.gizmoManager);
-    this.logger.log("Canvas gizmo enabled:", this.canvasGizmo);
+    // Check if camera and inputManager are available before proceeding
+    const camera = window.camera;
+    const inputMgr = this.inputManager || window.inputManager;
+
+    if (!camera) {
+      this.logger.warn("Camera not available yet, retrying in 100ms...");
+      setTimeout(() => {
+        if (!this.isActive) {
+          this.startGame(isFinalRound);
+        }
+      }, 100);
+      return;
+    }
+
+    if (!inputMgr) {
+      this.logger.warn("InputManager not available yet, retrying in 100ms...");
+      setTimeout(() => {
+        if (!this.isActive) {
+          this.startGame(isFinalRound);
+        }
+      }, 100);
+      return;
+    }
+
     this.isActive = true;
     this.successCount = isFinalRound ? 2 : 0; // Start at 2/3 for final round
     this.gameStartTime = Date.now(); // Track when game starts
@@ -228,13 +263,8 @@ export class DrawingManager {
       });
     }
 
-    // Use window.inputManager as fallback if not set
-    const inputMgr = this.inputManager || window.inputManager;
-    this.logger.log("Using inputManager:", inputMgr);
-
     // Block pointer lock and enable drag-to-look
     if (inputMgr) {
-      this.logger.log("Calling setPointerLockBlocked(true)...");
       inputMgr.setPointerLockBlocked(true);
 
       // Store the existing gizmo probe (if any) and combine it with our canvas probe
@@ -247,10 +277,6 @@ export class DrawingManager {
         const overExisting = existingProbe ? existingProbe() : false;
         return overCanvas || overExisting;
       });
-
-      this.logger.log(
-        "Pointer lock blocked, drag-to-look enabled, canvas probe combined"
-      );
     } else {
       this.logger.warn("No inputManager available!");
     }
@@ -261,9 +287,6 @@ export class DrawingManager {
     // Monitor pointer lock changes and force exit if engaged during CURSOR state
     this.pointerLockChangeHandler = () => {
       if (this.isActive && document.pointerLockElement) {
-        this.logger.log(
-          "Pointer lock engaged during CURSOR state, forcing exit"
-        );
         document.exitPointerLock();
       }
     };
@@ -282,7 +305,6 @@ export class DrawingManager {
 
     if (this.recognitionManager.showEmojiUI && this.targetEmojiElement) {
       this.targetEmojiElement.classList.add("active");
-      this.logger.log("Target emoji element activated");
     }
 
     // Delay registering stroke callback to prevent initial false triggers
@@ -291,24 +313,14 @@ export class DrawingManager {
         this.recognitionManager.setOnStrokeEndCallback(() => {
           this.autoSubmitDrawing();
         });
-        this.logger.log("Stroke end callback registered");
       }
     }, 1500);
 
-    this.logger.log(
-      "Checking if canvas exists:",
-      this.recognitionManager.drawingCanvas
-    );
-
     if (!this.recognitionManager.drawingCanvas) {
-      this.logger.log("Creating drawing canvas...");
-
       // Fixed canvas position, rotation, and scale
-      const canvasPos = { x: -2.85, y: 2.85, z: 87.45 };
-      const canvasRot = { x: -3.1416, y: 0.1655, z: 3.1416 };
+      const canvasPos = { x: -8.77, y: 2.85, z: 81.87 };
+      const canvasRot = { x: 0.0, y: 1.4047, z: -0.0 };
       const canvasScale = 1.5;
-
-      this.logger.log("Canvas position:", canvasPos);
 
       this.recognitionManager.createDrawingCanvas(
         this.scene,
@@ -357,8 +369,6 @@ export class DrawingManager {
             this.logger.warn(
               "Canvas gizmo enabled but particleSystem not found"
             );
-          } else {
-            this.logger.log("Canvas gizmo disabled in config");
           }
         }
 
@@ -390,9 +400,6 @@ export class DrawingManager {
 
         // If starting in final round, set to white particles immediately
         if (isFinalRound) {
-          this.logger.log(
-            "Setting canvas to FINAL ROUND state (white, stage 2)"
-          );
           canvas.colorStage = 2;
           canvas.currentColor.copy(canvas.redColor);
           canvas.currentJitterIntensity = 0.5;
@@ -418,26 +425,16 @@ export class DrawingManager {
         };
       }
 
-      this.logger.log("Canvas created:", this.recognitionManager.drawingCanvas);
-
       const domElement =
         window.inputManager?.domElement || document.querySelector("canvas");
-
-      this.logger.log(
-        "Enabling drawing mode with camera:",
-        camera,
-        "domElement:",
-        domElement
-      );
+      const camera = window.camera;
 
       if (camera && domElement) {
         this.recognitionManager.enableDrawingMode(camera, domElement);
-        this.logger.log("Drawing mode enabled");
       } else {
         this.logger.warn("Missing camera or domElement!");
       }
     } else {
-      this.logger.log("Canvas already exists, skipping creation");
       if (this.recognitionManager.drawingCanvas?.particleSystem) {
         this.recognitionManager.drawingCanvas.particleSystem.visible = true;
       }
@@ -469,8 +466,6 @@ export class DrawingManager {
           }
         } else if (this.canvasGizmo) {
           this.logger.warn("Canvas gizmo enabled but particleSystem not found");
-        } else {
-          this.logger.log("Canvas gizmo disabled in config");
         }
 
         // Set lightning rune position if not already set
@@ -487,17 +482,13 @@ export class DrawingManager {
     // Clear any existing strokes from previous sessions
     if (this.recognitionManager.drawingCanvas) {
       this.recognitionManager.clearCanvas();
-      this.logger.log("Cleared any existing strokes from canvas");
     }
 
     // Pick new target after canvas and position are set up
-    this.logger.log("About to pick new target...");
     this.pickNewTarget();
-    this.logger.log("Target picked, game ready");
   }
 
   stopGame() {
-    this.logger.log("Stopping drawing game...");
     this.isActive = false;
     this.gameStartTime = 0;
 
@@ -545,8 +536,6 @@ export class DrawingManager {
 
       // Restore the original gizmo probe (if there was one)
       inputMgr.setGizmoProbe(this.originalGizmoProbe || null);
-
-      this.logger.log("Pointer lock unblocked, canvas probe restored");
     }
 
     // Remove gloved hand cursor from body
@@ -612,9 +601,6 @@ export class DrawingManager {
       window.gizmoManager
     ) {
       window.gizmoManager.unregisterObject(this.canvasParticleSystem);
-      this.logger.log(
-        "Unregistered drawing particle system from gizmo manager"
-      );
       this.gizmoRegistered = false;
     }
     this.canvasParticleSystem = null;
@@ -637,10 +623,6 @@ export class DrawingManager {
 
     this.targetLabel = this.labelPool.pop();
 
-    this.logger.log(
-      `Picked new target: ${this.targetLabel} (${this.labelPool.length} remaining in pool)`
-    );
-
     // Update game state with new target
     if (this.gameManager) {
       this.gameManager.setState({
@@ -648,21 +630,13 @@ export class DrawingManager {
       });
     }
 
-    const setResult = this.recognitionManager.setExpectedDrawing(
-      this.targetLabel
-    );
-    this.logger.log(`setExpectedDrawing returned: ${setResult}`);
-    this.logger.log(
-      `RecognitionManager.expectedDrawing is now: ${this.recognitionManager.expectedDrawing}`
-    );
+    this.recognitionManager.setExpectedDrawing(this.targetLabel);
 
     if (this.recognitionManager.showEmojiUI) {
       const emoji = EMOJI_MAP[this.targetLabel];
-      this.logger.log(`Emoji to display: ${emoji}`);
 
       if (this.targetEmoji) {
         this.targetEmoji.textContent = emoji;
-        this.logger.log(`Updated display element to: ${emoji}`);
       } else {
         this.logger.warn(`targetEmoji is null!`);
       }
@@ -757,21 +731,21 @@ export class DrawingManager {
       this.logger.log(`Success ${this.successCount}/${this.maxRounds}!`);
       this.showResult("✅");
 
-      // Update game state and immediately clear flag to prevent re-triggers
+      // Update game state and clear flag after a delay to allow dialog to trigger
       if (this.gameManager) {
         this.gameManager.setState({
           drawingSuccessCount: this.successCount,
           lastDrawingSuccess: true,
         });
 
-        // Clear flag on next tick so dialog triggers once then stops
-        Promise.resolve().then(() => {
+        // Clear flag after a short delay to allow dialog system to process the state change
+        setTimeout(() => {
           if (this.gameManager && this.isActive) {
             this.gameManager.setState({
               lastDrawingSuccess: null,
             });
           }
-        });
+        }, 100);
       }
 
       // Trigger success animation or explosion
@@ -868,14 +842,14 @@ export class DrawingManager {
           drawingFailureCount: currentFailureCount + 1,
         });
 
-        // Clear flag on next tick so dialog triggers once then stops
-        Promise.resolve().then(() => {
+        // Clear flag after a short delay to allow dialog system to process the state change
+        setTimeout(() => {
           if (this.gameManager && this.isActive) {
             this.gameManager.setState({
               lastDrawingSuccess: null,
             });
           }
-        });
+        }, 100);
       }
     }
   }

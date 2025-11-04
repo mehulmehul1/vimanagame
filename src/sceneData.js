@@ -479,11 +479,22 @@ export const sceneObjects = {
     preload: false,
     description:
       "Amplifier GLTF model positioned next to viewmaster during LIGHTS_OUT",
-    position: { x: -3.77, y: 0.79, z: 80.9 },
-    rotation: { x: 0.0, y: -0.4547, z: 0.0 },
+    position: { x: -2.28, y: 0.86, z: 81.04 },
+    rotation: { x: 0.0, y: -0.5129, z: 0.0 },
     scale: { x: 1.91, y: 2.04, z: 1.53 },
     options: {
       useContainer: true,
+      contactShadow: {
+        size: { x: 0.75, y: 0.75 }, // Plane dimensions
+        offset: { x: 0, y: 0, z: 0 }, // Position offset
+        blur: 1.5, // Shadow blur amount
+        darkness: 1.5, // Shadow darkness multiplier
+        opacity: 0.85, // Overall shadow opacity
+        cameraHeight: 1.35, // Height for shadow camera
+        isStatic: true, // Never moves - render once
+        fadeDuration: 2.0, // Fade in/out duration in seconds
+        debug: false, // Set to true to visualize the shadow camera AND see texture
+      },
     },
     criteria: {
       currentState: {

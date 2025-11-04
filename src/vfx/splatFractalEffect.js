@@ -4,6 +4,15 @@ import { Logger } from "../utils/logger.js";
 import { ProceduralAudio } from "./proceduralAudio.js";
 
 /**
+ * Convert number of octaves to audio pitch multiplier
+ * @param {number} octaves - Number of octaves to ramp over
+ * @returns {number} Multiplier value (2^octaves - 1)
+ */
+export function octavesToMultiplier(octaves) {
+  return Math.pow(2, octaves) - 1;
+}
+
+/**
  * SplatFractalEffect - Applies fractal shader effects to splat meshes
  *
  * Creates various visual effects including:
@@ -57,7 +66,7 @@ export class SplatFractalEffect extends VFXManager {
     this.audio = new ProceduralAudio({
       name: "SplatFractalAudio",
       baseFrequency: 155.56, // Eb3 - same key as morph
-      volume: 0.25, // Slightly quieter than morph
+      volume: 0.1, // Slightly quieter than morph
       baseOscType: "sine", // Start smooth
       subOscType: "sine",
       modOscType: "sine",
@@ -96,7 +105,7 @@ export class SplatFractalEffect extends VFXManager {
 
       // Get target mesh IDs from effect parameters
       const targetIds = effect.parameters?.targetMeshIds || [];
-      
+
       // Ensure targetIds is an array
       if (!Array.isArray(targetIds)) {
         this.logger.error("targetMeshIds must be an array", targetIds);
@@ -111,16 +120,12 @@ export class SplatFractalEffect extends VFXManager {
       // Check if we actually need meshes for this effect
       const intensity = effect.parameters?.intensity ?? 0;
       const rampDuration = effect.parameters?.rampDuration ?? 0;
-      const needsMeshes = intensity > 0 || rampDuration > 0;
+      // Always load meshes if targetMeshIds are specified - external intensity may be set later
+      const needsMeshes = targetIds.length > 0;
 
       if (!needsMeshes) {
-        // Effect has zero intensity and no ramp - no meshes needed
-        this.logger.log(
-          "Effect has zero intensity and no ramp - skipping mesh loading"
-        );
-        // Store target IDs for potential future use, but don't load meshes
-        this.targetMeshIds = Array.isArray(targetIds) ? [...targetIds] : [];
-        // Apply effect directly (will be a no-op but sets up state correctly)
+        // No target mesh IDs specified - nothing to do
+        this.logger.log("No target mesh IDs specified - skipping mesh loading");
         this.applyEffect(effect, state);
         return;
       }
@@ -128,14 +133,17 @@ export class SplatFractalEffect extends VFXManager {
       // Wait for and get meshes from sceneManager
       for (const meshId of targetIds) {
         // Validate meshId
-        if (typeof meshId !== 'string') {
-          this.logger.warn(`Invalid meshId type: ${typeof meshId}, skipping`, meshId);
+        if (typeof meshId !== "string") {
+          this.logger.warn(
+            `Invalid meshId type: ${typeof meshId}, skipping`,
+            meshId
+          );
           continue;
         }
 
         // Check if mesh already exists before waiting
         let mesh = this.sceneManager.getObject(meshId);
-        
+
         if (!mesh) {
           // Only wait for mesh if it's actually being loaded
           if (this.sceneManager.isLoading(meshId)) {
@@ -173,7 +181,7 @@ export class SplatFractalEffect extends VFXManager {
       this.applyEffect(effect, state);
 
       // Start audio when effect starts
-      if (this.audio && !this.audio.isPlaying) {
+      if (this.audio && this.audio.audioContext && !this.audio.isPlaying) {
         this.audio.start();
       }
     } catch (error) {
@@ -406,7 +414,8 @@ export class SplatFractalEffect extends VFXManager {
    * @private
    */
   async _tryLoadMeshes(targetIds) {
-    if (!targetIds || !Array.isArray(targetIds) || targetIds.length === 0) return;
+    if (!targetIds || !Array.isArray(targetIds) || targetIds.length === 0)
+      return;
 
     // Ensure arrays are properly initialized
     if (!Array.isArray(this.targetMeshes)) {
@@ -418,8 +427,11 @@ export class SplatFractalEffect extends VFXManager {
 
     for (const meshId of targetIds) {
       // Validate meshId
-      if (typeof meshId !== 'string') {
-        this.logger.warn(`Invalid meshId type in _tryLoadMeshes: ${typeof meshId}, skipping`, meshId);
+      if (typeof meshId !== "string") {
+        this.logger.warn(
+          `Invalid meshId type in _tryLoadMeshes: ${typeof meshId}, skipping`,
+          meshId
+        );
         continue;
       }
 
@@ -430,7 +442,7 @@ export class SplatFractalEffect extends VFXManager {
 
       // Try to get mesh (might be available now)
       let mesh = this.sceneManager.getObject(meshId);
-      
+
       if (!mesh && this.sceneManager.isLoading(meshId)) {
         // Mesh is loading, wait for it
         mesh = await this._waitForMesh(meshId);
@@ -448,10 +460,81 @@ export class SplatFractalEffect extends VFXManager {
   }
 
   /**
+   * Override: Check if effect should be re-applied even if ID is same
+   * Force re-apply if targetMeshIds are different
+   */
+  shouldReapplyEffect(effect) {
+    const newTargetIds = Array.isArray(effect.parameters?.targetMeshIds)
+      ? effect.parameters.targetMeshIds
+      : [];
+    const currentIds = Array.isArray(this.targetMeshIds)
+      ? this.targetMeshIds
+      : [];
+
+    // Force re-apply if target mesh IDs changed (compare sorted arrays for consistency)
+    const newIdsSorted = [...newTargetIds].sort();
+    const currentIdsSorted = [...currentIds].sort();
+    const idsChanged =
+      JSON.stringify(newIdsSorted) !== JSON.stringify(currentIdsSorted);
+
+    if (idsChanged) {
+      this.logger.log(
+        `[DEBUG] shouldReapplyEffect: Target mesh IDs changed, forcing re-apply: [${currentIds.join(
+          ", "
+        )}] -> [${newTargetIds.join(", ")}]`
+      );
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Hook: Apply effect parameters
    */
   applyEffect(effect, state) {
     const params = effect.parameters || {};
+
+    // CRITICAL: Clear old meshes if switching to a different effect with different targetMeshIds
+    const newTargetIds = Array.isArray(params.targetMeshIds)
+      ? params.targetMeshIds
+      : [];
+    const currentIds = Array.isArray(this.targetMeshIds)
+      ? this.targetMeshIds
+      : [];
+    const effectChanged =
+      this.currentEffectId && this.currentEffectId !== effect.id;
+    const meshIdsChanged =
+      JSON.stringify(newTargetIds.sort()) !== JSON.stringify(currentIds.sort());
+
+    // Debug logging
+    if (state?.currentState === 32) {
+      this.logger.log(
+        `[DEBUG] applyEffect called for ${effect.id}, currentEffectId: ${this.currentEffectId}, effectChanged: ${effectChanged}, meshIdsChanged: ${meshIdsChanged}`
+      );
+      this.logger.log(
+        `[DEBUG] targetMeshes: ${
+          this.targetMeshes.length
+        }, targetMeshIds: [${this.targetMeshIds.join(
+          ", "
+        )}], newTargetMeshIds: [${newTargetIds.join(", ")}]`
+      );
+    }
+
+    // FORCE clear meshes if effect ID changed OR mesh IDs changed
+    if ((effectChanged || meshIdsChanged) && this.targetMeshes.length > 0) {
+      this.logger.log(
+        `[DEBUG] FORCING mesh clear - effectChanged: ${effectChanged}, meshIdsChanged: ${meshIdsChanged}, clearing ${this.targetMeshes.length} meshes`
+      );
+      this.targetMeshes.forEach((mesh) => {
+        if (mesh.objectModifier) {
+          mesh.objectModifier = null;
+          mesh.updateGenerator();
+        }
+      });
+      this.targetMeshes = [];
+      this.targetMeshIds = [];
+    }
 
     // Update parameters from vfxData.js
     this.parameters = { ...params };
@@ -468,9 +551,6 @@ export class SplatFractalEffect extends VFXManager {
       `Applying fractal effect: ${params.effectType} (type=${effectType}), target intensity=${targetIntensity}, ramp=${rampDuration}s, rampOut=${rampOutDuration}s`
     );
 
-    // Update target mesh IDs if provided
-    const targetIds = params.targetMeshIds || this.targetMeshIds || [];
-    
     // Ensure arrays are properly initialized
     if (!Array.isArray(this.targetMeshes)) {
       this.targetMeshes = [];
@@ -478,34 +558,138 @@ export class SplatFractalEffect extends VFXManager {
     if (!Array.isArray(this.targetMeshIds)) {
       this.targetMeshIds = [];
     }
-    
-    // Update targetMeshIds if provided (create a new array to avoid reference issues)
-    if (Array.isArray(params.targetMeshIds) && params.targetMeshIds.length > 0) {
+
+    // Update targetMeshIds FIRST before checking for changes
+    // ALWAYS use params.targetMeshIds if provided, don't fall back to old values
+    if (
+      Array.isArray(params.targetMeshIds) &&
+      params.targetMeshIds.length > 0
+    ) {
       this.targetMeshIds = [...params.targetMeshIds];
-    } else if (Array.isArray(targetIds) && targetIds.length > 0 && this.targetMeshIds.length === 0) {
-      this.targetMeshIds = [...targetIds];
+      this.logger.log(
+        `[DEBUG] Set targetMeshIds from params: [${this.targetMeshIds.join(
+          ", "
+        )}]`
+      );
+    } else {
+      // Clear if no targetMeshIds provided
+      if (this.targetMeshIds.length > 0) {
+        this.logger.log(
+          `[DEBUG] No targetMeshIds in params, clearing old IDs: [${this.targetMeshIds.join(
+            ", "
+          )}]`
+        );
+        this.targetMeshIds = [];
+      }
     }
 
-    // If we need meshes but don't have them, try to load them asynchronously
-    if ((targetIntensity > 0 || rampDuration > 0) && this.targetMeshes.length === 0 && targetIds.length > 0) {
-      this.logger.log("Meshes needed but not loaded - attempting to load asynchronously");
-      // Fire and forget - meshes will be picked up when they become available
-      this._tryLoadMeshes(targetIds).then(() => {
-        // When meshes are loaded, apply the effect if still needed
-        if (this.currentIntensity > 0 || this.isRamping) {
-          const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
-          this.targetMeshes.forEach((mesh) => {
-            mesh.objectModifier = this._getFractalModifier(
-              effectType,
-              this.currentIntensity
-            );
-            mesh.updateGenerator();
-          });
-          this.logger.log(`Applied effect to ${this.targetMeshes.length} mesh(es) after async load`);
+    // Always try to load meshes if targetMeshIds are specified (even with 0 intensity, for external intensity support)
+    // Also reload if meshes exist but IDs changed (switching between effects)
+    const needsMeshes =
+      this.targetMeshes.length === 0 && this.targetMeshIds.length > 0;
+    const shouldReloadMeshes =
+      (effectChanged || meshIdsChanged) && this.targetMeshIds.length > 0;
+
+    if (needsMeshes || shouldReloadMeshes) {
+      const meshIdsToLoad = this.targetMeshIds;
+      this.logger.log(
+        `[DEBUG] Loading meshes (needsMeshes: ${needsMeshes}, shouldReload: ${shouldReloadMeshes}, targetMeshIds: [${meshIdsToLoad.join(
+          ", "
+        )}])`
+      );
+
+      // Try to get meshes synchronously first (they might already be loaded)
+      const synchronousMeshes = [];
+      for (const meshId of meshIdsToLoad) {
+        if (!this.sceneManager) {
+          this.logger.error(
+            `[DEBUG] sceneManager is null! Cannot get mesh: ${meshId}`
+          );
+          continue;
         }
-      }).catch((error) => {
-        this.logger.error("Failed to load meshes asynchronously:", error);
-      });
+        const mesh = this.sceneManager.getObject(meshId);
+        if (mesh) {
+          synchronousMeshes.push({ mesh, meshId });
+          this.logger.log(
+            `[DEBUG] Found mesh synchronously: ${meshId} (type: ${mesh.constructor.name})`
+          );
+        } else {
+          this.logger.warn(
+            `[DEBUG] Mesh "${meshId}" not found in sceneManager.getObject() - checking if it's loading...`
+          );
+          // Check if it's loading
+          if (
+            this.sceneManager.isLoading &&
+            this.sceneManager.isLoading(meshId)
+          ) {
+            this.logger.log(`[DEBUG] Mesh "${meshId}" is currently loading`);
+          } else {
+            this.logger.warn(
+              `[DEBUG] Mesh "${meshId}" is not loading and not found - may not be loaded for current state`
+            );
+          }
+        }
+      }
+
+      // Apply to whatever meshes we have synchronously (even if not all are loaded)
+      if (synchronousMeshes.length > 0) {
+        this.targetMeshes = synchronousMeshes.map((m) => m.mesh);
+        this.logger.log(
+          `[DEBUG] Found ${
+            synchronousMeshes.length
+          } mesh(es) synchronously: [${synchronousMeshes
+            .map((m) => m.meshId)
+            .join(", ")}]`
+        );
+        // Apply effect immediately to available meshes
+        const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
+        this.targetMeshes.forEach((mesh) => {
+          mesh.objectModifier = this._getFractalModifier(
+            effectType,
+            this.currentIntensity
+          );
+          mesh.updateGenerator();
+        });
+        this.logger.log(
+          `[DEBUG] Applied effect to ${this.targetMeshes.length} available mesh(es) with intensity ${this.currentIntensity}`
+        );
+      }
+
+      // If some meshes are still missing, try to load them asynchronously
+      if (synchronousMeshes.length < meshIdsToLoad.length) {
+        const missingMeshIds = meshIdsToLoad.filter(
+          (id) => !synchronousMeshes.find((m) => m.meshId === id)
+        );
+        this.logger.log(
+          `[DEBUG] Some meshes missing, loading asynchronously: [${missingMeshIds.join(
+            ", "
+          )}]`
+        );
+        this._tryLoadMeshes(missingMeshIds)
+          .then(() => {
+            this.logger.log(
+              `[DEBUG] Successfully loaded additional meshes, total: ${
+                this.targetMeshes.length
+              } mesh(es): [${this.targetMeshIds.join(", ")}]`
+            );
+            // When additional meshes are loaded, apply the effect with current intensity
+            const effectType =
+              this.effectTypeMap[this.parameters.effectType] || 3;
+            this.targetMeshes.forEach((mesh) => {
+              mesh.objectModifier = this._getFractalModifier(
+                effectType,
+                this.currentIntensity
+              );
+              mesh.updateGenerator();
+            });
+            this.logger.log(
+              `[DEBUG] Applied effect to ${this.targetMeshes.length} mesh(es) after async load (intensity: ${this.currentIntensity})`
+            );
+          })
+          .catch((error) => {
+            this.logger.error("Failed to load meshes asynchronously:", error);
+          });
+      }
     }
 
     // Store ramp-out duration for when effect ends
@@ -530,33 +714,68 @@ export class SplatFractalEffect extends VFXManager {
       this.isRamping = false;
     }
 
-    // Apply modifier to all target meshes (or remove if intensity is 0)
-    if (this.currentIntensity <= 0) {
-      // Remove modifiers when intensity is 0
-      this.targetMeshes.forEach((mesh) => {
-        if (mesh.objectModifier) {
-          mesh.objectModifier = null;
-          mesh.updateGenerator();
-        }
-      });
-      this.logger.log(`Removed fractal modifiers (intensity is 0)`);
+    // Apply modifier to all target meshes
+    // IMPORTANT: Even with 0 intensity, we still need meshes loaded for setExternalIntensity to work
+    if (this.targetMeshes.length === 0) {
+      this.logger.warn(
+        `[DEBUG] Cannot apply effect yet - no target meshes available (targetMeshIds: [${this.targetMeshIds.join(
+          ", "
+        )}]). Effect will apply when meshes are loaded.`
+      );
     } else {
-      // Apply modifier with current intensity
-      if (this.targetMeshes.length === 0) {
-        this.logger.warn(
-          "Cannot apply effect - no target meshes available. Effect will apply when meshes are loaded."
+      // Apply modifier with current intensity (even if 0, so setExternalIntensity can update it)
+      this.targetMeshes.forEach((mesh) => {
+        mesh.objectModifier = this._getFractalModifier(
+          effectType,
+          this.currentIntensity
         );
-      } else {
-        this.targetMeshes.forEach((mesh) => {
-          mesh.objectModifier = this._getFractalModifier(
-            effectType,
-            this.currentIntensity
-          );
-          mesh.updateGenerator();
-        });
-        this.logger.log(`Applied effect to ${this.targetMeshes.length} mesh(es)`);
+        mesh.updateGenerator();
+      });
+      this.logger.log(
+        `[DEBUG] Applied effect to ${
+          this.targetMeshes.length
+        } mesh(es) with intensity ${
+          this.currentIntensity
+        } (targetMeshIds: [${this.targetMeshIds.join(", ")}])`
+      );
+    }
+
+    // Restart audio if it was stopped (e.g., from previous effect ending)
+    // Audio should start if we're ramping OR if intensity is > 0 (for external intensity control)
+    if (
+      this.audio &&
+      (this.isRamping || this.currentIntensity > 0 || this.targetIntensity > 0)
+    ) {
+      // Ensure audio context is initialized and valid
+      if (!this.audio.audioContext) {
+        this.audio
+          .initialize()
+          .then(() => {
+            if (!this.audio.isPlaying) {
+              this.audio.start();
+            }
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to re-initialize audio: ${err}`);
+          });
+      } else if (this.audio.audioContext.state === "suspended") {
+        this.audio.audioContext
+          .resume()
+          .then(() => {
+            if (!this.audio.isPlaying) {
+              this.audio.start();
+            }
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to resume audio context: ${err}`);
+          });
+      } else if (!this.audio.isPlaying) {
+        this.audio.start();
       }
     }
+
+    // Store current effect ID for change detection
+    this.currentEffectId = effect.id;
   }
 
   /**
@@ -599,6 +818,52 @@ export class SplatFractalEffect extends VFXManager {
 
     // Update animation time
     this.animateT.value += dt;
+
+    // Manage audio based on intensity
+    const hasActiveIntensity = this.isRamping || this.currentIntensity > 0.01;
+
+    if (this.audio) {
+      if (hasActiveIntensity) {
+        // Ensure audio context is initialized and valid
+        if (!this.audio.audioContext) {
+          this.audio
+            .initialize()
+            .then(() => {
+              if (!this.audio.isPlaying) {
+                this.audio.start();
+              }
+            })
+            .catch((err) => {
+              this.logger.warn(
+                `Failed to re-initialize audio in update: ${err}`
+              );
+            });
+        } else if (this.audio.audioContext.state === "suspended") {
+          this.audio.audioContext
+            .resume()
+            .then(() => {
+              if (!this.audio.isPlaying) {
+                this.audio.start();
+              }
+            })
+            .catch((err) => {
+              this.logger.warn(
+                `Failed to resume audio context in update: ${err}`
+              );
+            });
+        } else if (
+          !this.audio.isPlaying &&
+          this.audio.audioContext.state === "running"
+        ) {
+          this.audio.start();
+        }
+      } else {
+        // No active intensity - stop audio
+        if (this.audio.isPlaying) {
+          this.audio.stop();
+        }
+      }
+    }
 
     // Handle intensity ramping (ramp in)
     if (this.isRamping) {
@@ -644,7 +909,8 @@ export class SplatFractalEffect extends VFXManager {
       const easedProgress = progress * progress * (3 - 2 * progress);
 
       // Ramp from start intensity to 0
-      this.currentIntensity = this.rampOutStartIntensity * (1.0 - easedProgress);
+      this.currentIntensity =
+        this.rampOutStartIntensity * (1.0 - easedProgress);
 
       // Update modifiers with new intensity
       const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
@@ -666,6 +932,11 @@ export class SplatFractalEffect extends VFXManager {
             mesh.updateGenerator();
           }
         });
+        // Stop audio when ramp-out completes
+        if (this.audio && this.audio.isPlaying) {
+          this.audio.stop();
+          this.logger.log("Audio stopped - ramp-out complete");
+        }
         this.logger.log("Ramp-out complete - removed fractal modifiers");
       }
     }
@@ -683,11 +954,101 @@ export class SplatFractalEffect extends VFXManager {
     this.currentIntensity = clamped;
     this.targetIntensity = clamped;
 
+    this.logger.log(
+      `[DEBUG] setExternalIntensity called with ${clamped}, targetMeshes: ${
+        this.targetMeshes.length
+      }, targetMeshIds: [${this.targetMeshIds.join(", ")}], effectType: ${
+        this.parameters.effectType || "none"
+      }`
+    );
+
     const effectType = this.effectTypeMap[this.parameters.effectType] || 3;
+
+    // Try to find meshes if they're not loaded yet
+    if (
+      this.targetMeshes.length === 0 &&
+      this.targetMeshIds.length > 0 &&
+      this.sceneManager
+    ) {
+      this.logger.log(
+        `[DEBUG] No meshes in targetMeshes, trying to find them now for setExternalIntensity`
+      );
+      for (const meshId of this.targetMeshIds) {
+        const mesh = this.sceneManager.getObject(meshId);
+        if (mesh && !this.targetMeshes.includes(mesh)) {
+          this.targetMeshes.push(mesh);
+          this.logger.log(
+            `[DEBUG] Found mesh ${meshId} for setExternalIntensity`
+          );
+        }
+      }
+    }
+
+    if (this.targetMeshes.length === 0) {
+      this.logger.warn(
+        `[DEBUG] No target meshes available for setExternalIntensity! targetMeshIds: [${this.targetMeshIds.join(
+          ", "
+        )}]`
+      );
+      return; // Can't apply effect without meshes
+    }
+
+    // Always apply visual effects
     this.targetMeshes.forEach((mesh) => {
       mesh.objectModifier = this._getFractalModifier(effectType, clamped);
       mesh.updateGenerator();
     });
+    this.logger.log(
+      `[DEBUG] Applied visual effect to ${this.targetMeshes.length} mesh(es) with intensity ${clamped}`
+    );
+
+    // Audio handling - stop if intensity is zero
+    if (clamped <= 0.01) {
+      if (this.audio && this.audio.isPlaying) {
+        this.audio.stop();
+      }
+      return;
+    }
+
+    // Ensure audio is running for non-zero intensity
+    if (this.audio) {
+      if (!this.audio.audioContext) {
+        this.audio
+          .initialize()
+          .then(() => {
+            if (!this.audio.isPlaying) {
+              this.audio.start();
+            }
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to initialize audio: ${err}`);
+          });
+      } else if (this.audio.audioContext.state === "suspended") {
+        this.audio.audioContext
+          .resume()
+          .then(() => {
+            if (!this.audio.isPlaying) {
+              this.audio.start();
+            }
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to resume audio: ${err}`);
+          });
+      } else if (!this.audio.isPlaying) {
+        this.audio.start();
+      }
+    }
+
+    // Update audio based on intensity progress
+    const FRACTAL_MIN_INTENSITY = 0.02;
+    const FRACTAL_MAX_INTENSITY = 10.0;
+    const intensityRange = FRACTAL_MAX_INTENSITY - FRACTAL_MIN_INTENSITY;
+    const normalizedIntensity = Math.max(
+      0,
+      (clamped - FRACTAL_MIN_INTENSITY) / intensityRange
+    );
+    const audioProgress = Math.pow(Math.min(normalizedIntensity, 1.0), 1 / 4);
+    this._updateAudio(audioProgress);
   }
 
   /**
@@ -710,8 +1071,25 @@ export class SplatFractalEffect extends VFXManager {
     const maxQ = 8;
     const targetQ = minQ + (maxQ - minQ) * progress;
 
-    // Pitch rises slightly as tension builds
-    const pitchMultiplier = 1.0 + progress * 0.3; // Up to 30% higher
+    // Pitch ramps based on octave multiplier parameter
+    // Can be either a direct multiplier value or an integer (octaves) that gets converted
+    // If it's an integer <= 20, treat it as octaves; otherwise treat as direct multiplier
+    let octaveMultiplier;
+    if (
+      typeof this.parameters?.audioOctaveMultiplier === "number" &&
+      this.parameters.audioOctaveMultiplier <= 20 &&
+      this.parameters.audioOctaveMultiplier ===
+        Math.floor(this.parameters.audioOctaveMultiplier)
+    ) {
+      // Integer octaves value - convert to multiplier
+      octaveMultiplier = octavesToMultiplier(
+        this.parameters.audioOctaveMultiplier
+      );
+    } else {
+      // Direct multiplier value or undefined (default: 5 octaves = 31.0)
+      octaveMultiplier = this.parameters?.audioOctaveMultiplier ?? 31.0;
+    }
+    const pitchMultiplier = 1.0 + progress * octaveMultiplier;
 
     // Volume follows intensity closely
     const maxVolume = this.audio.config.volume;

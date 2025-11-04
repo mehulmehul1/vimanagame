@@ -527,11 +527,139 @@ class VideoManager {
   }
 
   /**
+   * Retry gizmo registration for videos that need it
+   * @private
+   */
+  _retryGizmoRegistrations() {
+    if (!this.gizmoManager) return;
+
+    this.videoPlayers.forEach((player, videoId) => {
+      const videoConfig = videos[videoId];
+      if (!videoConfig || !videoConfig.gizmo) return;
+
+      // Check if already registered by looking for the object in gizmo manager
+      const isRegistered = this.gizmoManager.objects?.some(
+        (obj) => obj.id === videoId && obj.object === player.videoMesh
+      );
+
+      // If not registered and video mesh exists, register it
+      if (!isRegistered && player.videoMesh) {
+        player.config.billboard = false;
+        this.logger.log(`Retrying gizmo registration for "${videoId}"`);
+        this.gizmoManager.registerObject(player.videoMesh, videoId, "video");
+        if (typeof this.gizmoManager.selectObjectById === "function") {
+          this.gizmoManager.selectObjectById(videoId);
+        }
+        player._needsGizmoRegistration = false;
+      }
+    });
+  }
+
+  /**
    * Update all active videos (call in animation loop)
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
-    this.videoPlayers.forEach((player) => player.update(dt));
+    const currentTime = performance.now() * 0.001;
+
+    // Batch spatial audio listener updates - only update once per frame for all videos
+    let spatialAudioListenerUpdated = false;
+    let spatialAudioContext = null;
+    let spatialAudioListener = null;
+
+    this.videoPlayers.forEach((player) => {
+      // Update player with current time for throttling
+      player.update(dt, currentTime);
+
+      // Collect spatial audio context for batching (all videos share the same context)
+      if (
+        player.config.spatialAudio &&
+        player.isPlaying &&
+        player.cachedVisible &&
+        !spatialAudioListenerUpdated
+      ) {
+        if (player.audioContext && player.audioContext.listener) {
+          spatialAudioContext = player.audioContext;
+          spatialAudioListener = player.audioContext.listener;
+          spatialAudioListenerUpdated = true;
+        }
+      }
+    });
+
+    // Update spatial audio listener once for all videos (if any video needs it)
+    if (spatialAudioListenerUpdated && spatialAudioContext && this.camera) {
+      this._updateSpatialAudioListener(
+        spatialAudioContext,
+        spatialAudioListener
+      );
+    }
+
+    // Retry gizmo registrations in case gizmo manager became available after video creation
+    this._retryGizmoRegistrations();
+  }
+
+  /**
+   * Update spatial audio listener position/orientation once per frame for all videos
+   * @private
+   */
+  _updateSpatialAudioListener(audioContext, listener) {
+    if (!this.camera || !audioContext || !listener) return;
+
+    // Update listener position
+    if (listener.positionX) {
+      // Modern API
+      listener.positionX.setValueAtTime(
+        this.camera.position.x,
+        audioContext.currentTime
+      );
+      listener.positionY.setValueAtTime(
+        this.camera.position.y,
+        audioContext.currentTime
+      );
+      listener.positionZ.setValueAtTime(
+        this.camera.position.z,
+        audioContext.currentTime
+      );
+    } else {
+      // Legacy API
+      listener.setPosition(
+        this.camera.position.x,
+        this.camera.position.y,
+        this.camera.position.z
+      );
+    }
+
+    // Update listener orientation
+    const cameraDirection = this.camera.getWorldDirection(new THREE.Vector3());
+
+    if (listener.forwardX) {
+      // Modern API
+      listener.forwardX.setValueAtTime(
+        cameraDirection.x,
+        audioContext.currentTime
+      );
+      listener.forwardY.setValueAtTime(
+        cameraDirection.y,
+        audioContext.currentTime
+      );
+      listener.forwardZ.setValueAtTime(
+        cameraDirection.z,
+        audioContext.currentTime
+      );
+      listener.upX.setValueAtTime(this.camera.up.x, audioContext.currentTime);
+      listener.upY.setValueAtTime(this.camera.up.y, audioContext.currentTime);
+      listener.upZ.setValueAtTime(this.camera.up.z, audioContext.currentTime);
+    } else {
+      // Legacy API
+      listener.setOrientation(
+        cameraDirection.x,
+        cameraDirection.y,
+        cameraDirection.z,
+        this.camera.up.x,
+        this.camera.up.y,
+        this.camera.up.z
+      );
+    }
   }
 
   /**
@@ -598,6 +726,11 @@ class VideoPlayer {
     this.intendedVisible = true; // Track intended visibility (before viewmaster check)
     this.viewmasterRevealTimeout = null; // Timeout for delayed visibility when viewmaster is removed
     this.wasViewmasterEquipped = false; // Track previous frame's viewmaster state
+    this.cachedVisible = true; // Cache visibility state to avoid redundant work
+    this.lastBillboardUpdate = 0; // Track last billboard update time
+    this.lastCameraPosition = new THREE.Vector3(); // Cache camera position for billboard throttling
+    this.billboardUpdateThreshold = 0.1; // Update billboard if camera moved this much
+    this.billboardUpdateInterval = 0.033; // Update billboard at most every 33ms (30fps)
 
     // Web Audio API for spatial audio
     this.audioContext = null;
@@ -693,6 +826,11 @@ class VideoPlayer {
       y: this.config.rotation.y,
       z: this.config.rotation.z,
     };
+
+    // Initialize camera position cache for billboard throttling
+    if (this.camera) {
+      this.lastCameraPosition.copy(this.camera.position);
+    }
 
     // Add to scene
     if (this.scene) {
@@ -907,9 +1045,13 @@ class VideoPlayer {
 
   /**
    * Apply visibility based on intended state and viewmaster equipped state
+   * @returns {boolean} True if video is visible, false otherwise
    */
   applyVisibility() {
-    if (!this.videoMesh) return;
+    if (!this.videoMesh) {
+      this.cachedVisible = false;
+      return false;
+    }
     const isViewmasterEquipped =
       this.gameManager?.getState()?.isViewmasterEquipped || false;
 
@@ -922,18 +1064,20 @@ class VideoPlayer {
 
       // Keep video hidden and schedule reveal after 0.5s delay
       this.videoMesh.visible = false;
+      this.cachedVisible = false;
       this.viewmasterRevealTimeout = setTimeout(() => {
         this.viewmasterRevealTimeout = null;
         // Re-apply visibility now that delay is complete
         if (this.videoMesh && !this.isDestroying) {
           const currentState = this.gameManager?.getState();
           const currentlyEquipped = currentState?.isViewmasterEquipped || false;
-          this.videoMesh.visible = this.intendedVisible && !currentlyEquipped;
+          this.cachedVisible = this.intendedVisible && !currentlyEquipped;
+          this.videoMesh.visible = this.cachedVisible;
         }
       }, 500);
       // Update previous state before returning
       this.wasViewmasterEquipped = isViewmasterEquipped;
-      return;
+      return false;
     }
 
     // Viewmaster was just put on - clear any pending reveal timeout
@@ -943,42 +1087,56 @@ class VideoPlayer {
         this.viewmasterRevealTimeout = null;
       }
       this.videoMesh.visible = false;
+      this.cachedVisible = false;
       this.wasViewmasterEquipped = isViewmasterEquipped;
-      return;
+      return false;
     }
 
     // Apply visibility based on current state
+    let visible;
     if (isViewmasterEquipped) {
       // Viewmaster is on - always hide
-      this.videoMesh.visible = false;
+      visible = false;
     } else if (this.viewmasterRevealTimeout) {
       // Viewmaster is off but reveal delay is still pending - keep hidden
-      this.videoMesh.visible = false;
+      visible = false;
     } else {
       // Viewmaster is off and no delay pending - show if intended
-      this.videoMesh.visible = this.intendedVisible;
+      visible = this.intendedVisible;
+    }
+
+    // Only update if changed to avoid unnecessary work
+    if (this.cachedVisible !== visible) {
+      this.videoMesh.visible = visible;
+      this.cachedVisible = visible;
     }
 
     // Update previous state
     this.wasViewmasterEquipped = isViewmasterEquipped;
+    return visible;
   }
 
   /**
    * Update method - call in animation loop
    */
-  update(dt) {
+  update(dt, currentTime = performance.now() * 0.001) {
     // Apply visibility (respects viewmaster equipped state)
-    this.applyVisibility();
+    const isVisible = this.applyVisibility();
+
+    // Early exit if video is not visible - skip all rendering work
+    if (!isVisible) {
+      return;
+    }
+
+    // Early exit if video is not playing or not ready
+    if (!this.isPlaying || !this.video || !this.canvasReady) {
+      return;
+    }
 
     // Draw video to canvas only if not using video frame callback
     // (If using callback, frames are drawn in scheduleVideoFrameCallback instead)
     if (!this.useVideoFrameCallback) {
-      if (
-        this.canvasReady &&
-        this.isPlaying &&
-        this.video &&
-        this.video.readyState >= this.video.HAVE_CURRENT_DATA
-      ) {
+      if (this.video.readyState >= this.video.HAVE_CURRENT_DATA) {
         this.canvasContext.clearRect(
           0,
           0,
@@ -990,20 +1148,34 @@ class VideoPlayer {
       }
     }
 
-    // Update spatial audio listener position
-    if (this.config.spatialAudio && this.isPlaying) {
-      this.updateSpatialAudio(this.camera);
-    }
+    // Note: Spatial audio listener updates are now batched in VideoManager.update()
+    // to avoid redundant updates when multiple videos use spatial audio
 
     // Billboard to camera if enabled (Y-axis only)
+    // Throttle updates to reduce CPU overhead
     if (this.config.billboard && this.videoMesh && this.camera) {
-      // Calculate angle to camera in XZ plane only
-      const dx = this.camera.position.x - this.videoMesh.position.x;
-      const dz = this.camera.position.z - this.videoMesh.position.z;
-      const angle = Math.atan2(dx, dz);
+      const timeSinceLastUpdate = currentTime - this.lastBillboardUpdate;
+      const cameraMoved = this.lastCameraPosition.distanceTo(
+        this.camera.position
+      );
 
-      // Apply only Y rotation, preserve original X and Z rotations
-      this.videoMesh.rotation.y = angle;
+      // Update if enough time has passed OR camera moved significantly
+      if (
+        timeSinceLastUpdate >= this.billboardUpdateInterval ||
+        cameraMoved >= this.billboardUpdateThreshold
+      ) {
+        // Calculate angle to camera in XZ plane only
+        const dx = this.camera.position.x - this.videoMesh.position.x;
+        const dz = this.camera.position.z - this.videoMesh.position.z;
+        const angle = Math.atan2(dx, dz);
+
+        // Apply only Y rotation, preserve original X and Z rotations
+        this.videoMesh.rotation.y = angle;
+
+        // Cache values for next frame
+        this.lastBillboardUpdate = currentTime;
+        this.lastCameraPosition.copy(this.camera.position);
+      }
     }
   }
 

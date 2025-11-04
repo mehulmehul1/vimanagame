@@ -224,10 +224,10 @@ class PhoneBooth {
       this.logger.log("  World position:", worldPos.toArray());
       this.logger.log("  Parent:", this.receiver.parent?.type || "none");
 
-      // Disable character physics collisions to prevent cord from pushing character
-      if (this.characterController) {
-        this.characterController.disablePhysicsCollisions();
-      }
+      // Don't disable physics collisions - the phone cord is already configured
+      // to only collide with environment (group 3), not with the character (group 1),
+      // so it won't push the character anyway. Keeping full collisions ensures
+      // the character can properly maintain ground contact.
 
       // Start lerp animation to move receiver to target position
       this.startReceiverLerp();
