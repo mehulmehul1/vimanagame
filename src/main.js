@@ -57,6 +57,7 @@ logger.log("🚀 Main.js starting...");
 
 // Initialize loading screen immediately (before any asset loading)
 const loadingScreen = new LoadingScreen();
+window.loadingScreen = loadingScreen; // Make accessible globally for lazy initialization
 logger.log("✅ Loading screen created");
 
 // Register loading tasks (scene assets and audio files will register themselves as they load)
@@ -104,8 +105,10 @@ const gameManager = new GameManager();
 window.gameManager = gameManager;
 
 // Detect platform capabilities early so other systems can use the state
-detectPlatform(gameManager);
-logger.log("✅ Platform detection complete");
+const platformInfo = detectPlatform(gameManager);
+logger.log(
+  `✅ Platform detection complete - Mobile: ${platformInfo?.isMobile}, iOS: ${platformInfo?.isIOS}, Fullscreen supported: ${platformInfo?.isFullscreenSupported}`
+);
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 // Pass loadingScreen for progress tracking, renderer for contact shadows, gameManager for state updates
@@ -162,15 +165,11 @@ logger.log("✅ RuneManager created");
 // Make rune manager globally accessible
 window.runeManager = runeManager;
 
-// Initialize Drawing Recognition Manager
+// Initialize Drawing Recognition Manager (lazy initialization - will load TensorFlow when needed)
 logger.log("Creating DrawingRecognitionManager...");
 const drawingRecognitionManager = new DrawingRecognitionManager(gameManager);
-try {
-  await drawingRecognitionManager.initialize();
-  logger.log("✅ DrawingRecognitionManager initialized");
-} catch (error) {
-  logger.error("❌ Failed to initialize DrawingRecognitionManager:", error);
-}
+// Note: initialize() will be called lazily when drawing game starts (LIGHTS_OUT/CURSOR states)
+// This defers loading ~15MB of TensorFlow.js assets until after loading screen
 
 // Initialize Drawing Manager
 logger.log("Creating DrawingManager...");
@@ -335,12 +334,14 @@ const dialogManager = new DialogManager({
 });
 
 // Set manager references for loading screen (for deferred asset loading)
+// Note: videoManager is created inside gameManager.initialize(), so we need to set it after
 loadingScreen.setManagers({
   renderer: renderer,
   musicManager: musicManager,
   sfxManager: sfxManager,
   dialogManager: dialogManager,
   cameraAnimationManager: cameraAnimationManager,
+  videoManager: null, // Will be set after gameManager initialization
 });
 
 // Initialize start screen - will be created when state transitions to START_SCREEN
@@ -468,6 +469,19 @@ try {
 // Pass videoManager to dialogManager for video-synced captions
 if (gameManager.videoManager && dialogManager) {
   dialogManager.videoManager = gameManager.videoManager;
+}
+
+// Pass loadingScreen to videoManager and update loadingScreen with videoManager reference
+if (gameManager.videoManager) {
+  gameManager.videoManager.loadingScreen = loadingScreen;
+  loadingScreen.setManagers({
+    renderer: renderer,
+    musicManager: musicManager,
+    sfxManager: sfxManager,
+    dialogManager: dialogManager,
+    cameraAnimationManager: cameraAnimationManager,
+    videoManager: gameManager.videoManager,
+  });
 }
 
 // Set up event listeners for managers

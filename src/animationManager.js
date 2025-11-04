@@ -194,7 +194,9 @@ class AnimationManager {
     const deferredAnimations = [];
 
     for (const anim of animationsToLoad) {
-      const preload = anim.preload !== false; // Default to true
+      // Treat undefined preload as false (deferred) to match documentation
+      // Explicitly set preload: true to load during loading screen
+      const preload = anim.preload === true;
       if (preload) {
         preloadAnimations.push(anim);
       } else {

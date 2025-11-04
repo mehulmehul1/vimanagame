@@ -237,9 +237,10 @@ class SFXManager {
     // Keep a reference to the raw data definitions for state-driven rules
     this._data = soundsData;
     Object.values(soundsData).forEach((sound) => {
-      const preload = sound.preload !== false; // Default to true
+      // Treat undefined preload as true (default preload for backwards compatibility)
+      const preload = sound.preload !== undefined ? sound.preload : true;
 
-      // If preload is false, defer loading
+      // If preload is false, defer loading (file won't be fetched until after loading screen)
       if (!preload) {
         this.deferredSounds.set(sound.id, sound);
         this.logger.log(`Deferred loading for sound "${sound.id}"`);

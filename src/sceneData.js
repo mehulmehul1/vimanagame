@@ -112,6 +112,7 @@ export const sceneObjects = {
     rotation: { x: 0, y: Math.PI, z: Math.PI },
     scale: { x: 1, y: 1, z: 1 },
     priority: 100, // Load first
+    preload: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
@@ -136,6 +137,7 @@ export const sceneObjects = {
     },
     loadByDefault: false,
     priority: 90,
+    preload: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.START_SCREEN,
@@ -160,6 +162,7 @@ export const sceneObjects = {
         $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
+    preload: false,
   },
 
   officeHell: {
@@ -179,6 +182,7 @@ export const sceneObjects = {
         $lte: GAME_STATES.POST_VIEWMASTER,
       },
     },
+    preload: false,
   },
 
   club: {
@@ -194,6 +198,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LIGHTS_OUT,
       },
     },
+    preload: false,
   },
 
   officeCollider: {
@@ -217,6 +222,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.POST_DRIVE_BY,
       },
     },
+    preload: false,
   },
 
   phonebooth: {
@@ -228,6 +234,7 @@ export const sceneObjects = {
     position: { x: 5.94, y: 0.27, z: 65.76 },
     rotation: { x: 0.0, y: Math.PI / 1.7, z: 0.0 },
     scale: { x: 1.5, y: 1.575, z: 1.5 },
+    preload: true,
     options: {
       // Create a container group for proper scaling
       useContainer: true,
@@ -279,6 +286,7 @@ export const sceneObjects = {
       useContainer: true,
     },
     priority: 50,
+    preload: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
@@ -290,6 +298,8 @@ export const sceneObjects = {
   car: {
     id: "car",
     type: "gltf",
+    preload: false,
+
     path: "/gltf/Old_Car_01.glb",
     description: "Car GLTF model",
     position: { x: -15.67, y: 0.2, z: 62.5 },
@@ -339,6 +349,8 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/Basement_Door.glb",
     description: "Doors GLTF model",
+    preload: false,
+
     position: { x: 6.34, y: 1.95, z: 78.1 },
     rotation: { x: -3.1416, y: 1.1453, z: -3.1416 },
     scale: { x: 0.28, y: 0.29, z: 0.38 },
@@ -357,6 +369,8 @@ export const sceneObjects = {
     id: "rustedCar",
     type: "splat",
     path: "/rusted-car-2.sog",
+    preload: false,
+
     description: "Car test splat - positioned at origin for testing",
     position: { x: 14.06, y: 0.91, z: 35.28 },
     rotation: { x: 0.0937, y: -1.048, z: -3.0978 },
@@ -420,6 +434,7 @@ export const sceneObjects = {
         },
       },
     ],
+    preload: true,
   },
 
   viewmaster: {
@@ -641,9 +656,12 @@ export const sceneObjects = {
 /**
  * Get scene objects that should be loaded for the current game state
  * @param {Object} gameState - Current game state
+ * @param {Object} options - Options object
+ * @param {boolean} options.preloadOnly - If true, only return objects with preload: true
+ * @param {boolean} options.deferredOnly - If true, only return objects with preload: false
  * @returns {Array<Object>} Array of scene objects that should be loaded
  */
-export function getSceneObjectsForState(gameState) {
+export function getSceneObjectsForState(gameState, options = {}) {
   // Convert to array and sort by priority (descending)
   const sortedObjects = Object.values(sceneObjects).sort(
     (a, b) => (b.priority || 0) - (a.priority || 0)
@@ -652,6 +670,16 @@ export function getSceneObjectsForState(gameState) {
   const matchingObjects = [];
 
   for (const obj of sortedObjects) {
+    // Filter by preload if requested
+    // Treat undefined preload as false (deferred)
+    const objPreload = obj.preload !== undefined ? obj.preload : false;
+    if (options.preloadOnly && objPreload !== true) {
+      continue;
+    }
+    if (options.deferredOnly && objPreload !== false) {
+      continue;
+    }
+
     // Always include objects marked as loadByDefault
     if (obj.loadByDefault === true) {
       matchingObjects.push(obj);

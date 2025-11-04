@@ -224,7 +224,25 @@ export class DrawingManager {
     document.body.appendChild(this.targetEmojiElement);
   }
 
-  startGame(isFinalRound = false) {
+  async startGame(isFinalRound = false) {
+    // Ensure recognition manager is initialized (lazy loading)
+    // This will load TensorFlow.js assets (~15MB) only when needed
+    if (!this.recognitionManager.isModelLoaded) {
+      this.logger.log(
+        "Initializing DrawingRecognitionManager (lazy load TensorFlow.js)..."
+      );
+      try {
+        await this.recognitionManager.ensureInitialized();
+        this.logger.log("✅ DrawingRecognitionManager initialized");
+      } catch (error) {
+        this.logger.error(
+          "❌ Failed to initialize DrawingRecognitionManager:",
+          error
+        );
+        return; // Don't start game if initialization failed
+      }
+    }
+
     // Check if camera and inputManager are available before proceeding
     const camera = window.camera;
     const inputMgr = this.inputManager || window.inputManager;

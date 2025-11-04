@@ -51,6 +51,7 @@ class SceneManager {
     this.gltfLoader = new GLTFLoader();
     this.loadingPromises = new Map(); // Track loading promises
     this.physicsColliderObjects = new Set(); // Track which objects have physics colliders
+    this.objectsNotInScene = new Set(); // Track objects loaded but not added to scene (deferred loading)
 
     // Animation management
     this.animationMixers = new Map(); // Map of objectId -> THREE.AnimationMixer
@@ -127,9 +128,10 @@ class SceneManager {
   /**
    * Load objects based on current game state
    * @param {Array<Object>} objectsToLoad - Array of scene object data from getSceneObjectsForState()
+   * @param {boolean} skipAddToScene - If true, load but don't add to scene (for deferred loading)
    * @returns {Promise<void>}
    */
-  async loadObjectsForState(objectsToLoad) {
+  async loadObjectsForState(objectsToLoad, skipAddToScene = false) {
     if (!objectsToLoad || objectsToLoad.length === 0) {
       this.logger.log("No objects to load for current state");
       return;
@@ -141,7 +143,7 @@ class SceneManager {
 
     let foundGizmo = false;
     const loadPromises = objectsToLoad.map((objectData) =>
-      this.loadObject(objectData)
+      this.loadObject(objectData, skipAddToScene)
         .catch((error) => {
           this.logger.error(`Failed to load object "${objectData.id}":`, error);
           // Continue loading other objects even if one fails
@@ -149,6 +151,10 @@ class SceneManager {
         })
         .then((obj) => {
           if (objectData && objectData.gizmo === true) foundGizmo = true;
+          // Track objects that aren't in scene
+          if (skipAddToScene && obj) {
+            this.objectsNotInScene.add(objectData.id);
+          }
           return obj;
         })
     );
@@ -170,9 +176,10 @@ class SceneManager {
   /**
    * Load a single scene object
    * @param {Object} objectData - Object data from sceneData.js
+   * @param {boolean} skipAddToScene - If true, load but don't add to scene (for deferred loading)
    * @returns {Promise<THREE.Object3D>}
    */
-  async loadObject(objectData) {
+  async loadObject(objectData, skipAddToScene = false) {
     const { id, type } = objectData;
 
     // Check if already loading
@@ -190,10 +197,10 @@ class SceneManager {
 
     switch (type) {
       case "splat":
-        loadPromise = this._loadSplat(objectData);
+        loadPromise = this._loadSplat(objectData, skipAddToScene);
         break;
       case "gltf":
-        loadPromise = this._loadGLTF(objectData);
+        loadPromise = this._loadGLTF(objectData, skipAddToScene);
         break;
       default:
         this.logger.error(`Unknown object type "${type}"`);
@@ -207,7 +214,15 @@ class SceneManager {
       this.objects.set(id, object);
       this.objectData.set(id, objectData); // Store original config
       this.loadingPromises.delete(id);
-      this.logger.log(`Loaded "${id}" (${type})`);
+
+      if (skipAddToScene) {
+        this.objectsNotInScene.add(id);
+        this.logger.log(
+          `Loaded "${id}" (${type}) - not added to scene (deferred)`
+        );
+      } else {
+        this.logger.log(`Loaded "${id}" (${type})`);
+      }
 
       // Handle parenting if specified
       if (objectData.parent) {
@@ -249,14 +264,18 @@ class SceneManager {
   /**
    * Load a splat mesh
    * @param {Object} objectData - Splat object data
+   * @param {boolean} skipAddToScene - If true, load but don't add to scene
    * @returns {Promise<SplatMesh>}
    * @private
    */
-  async _loadSplat(objectData) {
+  async _loadSplat(objectData, skipAddToScene = false) {
     const { id, path, position, rotation, scale, quaternion } = objectData;
 
-    // Register with loading screen if available
-    if (this.loadingScreen) {
+    // Register with loading screen only if preload is true
+    // Treat undefined preload as false (deferred)
+    const shouldPreload = objectData.preload === true;
+    const shouldTrackProgress = shouldPreload && this.loadingScreen;
+    if (shouldTrackProgress) {
       this.loadingScreen.registerTask(`splat_${id}`, 100);
     }
 
@@ -265,7 +284,7 @@ class SceneManager {
       editable: false, // Don't apply SplatEdit operations to scene splats (only fog)
       onProgress: (progress) => {
         // Progress is a number between 0 and 1
-        if (this.loadingScreen) {
+        if (shouldTrackProgress) {
           const percentage = Math.round(progress * 100);
           this.loadingScreen.updateTask(`splat_${id}`, percentage, 100);
         }
@@ -298,13 +317,15 @@ class SceneManager {
       }
     }
 
-    this.scene.add(splatMesh);
+    if (!skipAddToScene) {
+      this.scene.add(splatMesh);
+    }
 
     // Wait for splat to initialize
     await splatMesh.initialized;
 
-    // Mark as complete
-    if (this.loadingScreen) {
+    // Mark as complete only if tracking progress
+    if (shouldTrackProgress) {
       this.loadingScreen.completeTask(`splat_${id}`);
     }
 
@@ -314,24 +335,28 @@ class SceneManager {
   /**
    * Load a GLTF model
    * @param {Object} objectData - GLTF object data
+   * @param {boolean} skipAddToScene - If true, load but don't add to scene
    * @returns {Promise<THREE.Object3D>}
    * @private
    */
-  _loadGLTF(objectData) {
+  _loadGLTF(objectData, skipAddToScene = false) {
     return new Promise((resolve, reject) => {
       const { id, path, position, rotation, scale, options, animations } =
         objectData;
 
-      // Register with loading screen if available
-      if (this.loadingScreen) {
+      // Register with loading screen only if preload is true
+      // Treat undefined preload as false (deferred)
+      const shouldPreload = objectData.preload === true;
+      const shouldTrackProgress = shouldPreload && this.loadingScreen;
+      if (shouldTrackProgress) {
         this.loadingScreen.registerTask(`gltf_${id}`, 100);
       }
 
       this.gltfLoader.load(
         path,
         (gltf) => {
-          // Mark as complete
-          if (this.loadingScreen) {
+          // Mark as complete only if tracking progress
+          if (shouldTrackProgress) {
             this.loadingScreen.completeTask(`gltf_${id}`);
           }
 
@@ -487,7 +512,9 @@ class SceneManager {
             );
           }
 
-          this.scene.add(finalObject);
+          if (!skipAddToScene) {
+            this.scene.add(finalObject);
+          }
 
           // Create physics collider if flag is set
           if (options && options.physicsCollider && this.physicsManager) {
@@ -541,7 +568,7 @@ class SceneManager {
         },
         (xhr) => {
           // Progress callback
-          if (xhr.lengthComputable && this.loadingScreen) {
+          if (xhr.lengthComputable && shouldTrackProgress) {
             const percentage = Math.round((xhr.loaded / xhr.total) * 100);
             this.loadingScreen.updateTask(`gltf_${id}`, percentage, 100);
           }
@@ -1088,6 +1115,30 @@ class SceneManager {
   }
 
   /**
+   * Add an object to the scene (for objects that were loaded but not added due to deferred loading)
+   * @param {string} id - Object ID
+   */
+  addObjectToScene(id) {
+    const object = this.objects.get(id);
+    if (!object) {
+      this.logger.warn(`Cannot add object "${id}" to scene - object not found`);
+      return false;
+    }
+
+    // Check if object is already in scene
+    if (object.parent === this.scene || this.scene.children.includes(object)) {
+      this.objectsNotInScene.delete(id);
+      return true; // Already in scene
+    }
+
+    // Add to scene
+    this.scene.add(object);
+    this.objectsNotInScene.delete(id);
+    this.logger.log(`Added deferred object "${id}" to scene`);
+    return true;
+  }
+
+  /**
    * Get a loaded object by ID
    * @param {string} id - Object ID
    * @returns {THREE.Object3D|null}
@@ -1285,6 +1336,7 @@ class SceneManager {
 
       this.objects.delete(id);
       this.objectData.delete(id);
+      this.objectsNotInScene.delete(id); // Clean up deferred loading tracking
       this.logger.log(`Removed "${id}"`);
     }
   }

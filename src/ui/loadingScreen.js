@@ -150,6 +150,7 @@ export class LoadingScreen {
     this.sfxManager = managers.sfxManager;
     this.dialogManager = managers.dialogManager;
     this.cameraAnimationManager = managers.cameraAnimationManager;
+    this.videoManager = managers.videoManager;
   }
 
   /**
@@ -179,6 +180,8 @@ export class LoadingScreen {
       if (this.dialogManager) this.dialogManager.loadDeferredDialogs();
       if (this.cameraAnimationManager)
         this.cameraAnimationManager.loadDeferredAnimations();
+      if (this.gameManager) this.gameManager.loadDeferredSceneObjects();
+      if (this.videoManager) this.videoManager.loadDeferredVideos();
     }, 600); // Start loading after fade completes
   }
 

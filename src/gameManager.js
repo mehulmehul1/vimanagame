@@ -128,8 +128,9 @@ class GameManager {
     }
 
     // Load initial scene objects based on starting state
+    // Only load preload: true objects during initial loading
     if (this.sceneManager) {
-      await this.updateSceneForState();
+      await this.updateSceneForState({ preloadOnly: true });
       // Trigger initial animation check after loading
       this.sceneManager.updateAnimationsForState(this.state);
     }
@@ -195,10 +196,12 @@ class GameManager {
     // Note: candlestickPhone will be initialized when its scene object loads (POST_DRIVE_BY state)
 
     // Initialize video manager with state-based playback
+    // Note: loadingScreen will be set after initialization via setManagers
     this.videoManager = new VideoManager({
       scene: managers.scene,
       gameManager: this,
       camera: this.camera,
+      loadingScreen: null, // Will be set in main.js after VideoManager is created
     });
 
     // Note: Music, dialogs, SFX, and videos are now handled by their respective managers via state:changed events
@@ -340,11 +343,13 @@ class GameManager {
    * Update scene objects based on current game state
    * Loads new objects that match current state conditions
    * Unloads objects that no longer match current state conditions
+   * @param {Object} options - Options object
+   * @param {boolean} options.preloadOnly - If true, only load objects with preload: true
    */
-  async updateSceneForState() {
+  async updateSceneForState(options = {}) {
     if (!this.sceneManager) return;
 
-    const objectsToLoad = getSceneObjectsForState(this.state);
+    const objectsToLoad = getSceneObjectsForState(this.state, options);
     const objectIdsToLoad = new Set(objectsToLoad.map((obj) => obj.id));
 
     // Find objects that are loaded but should no longer be
@@ -365,7 +370,7 @@ class GameManager {
           this.candlestickPhone.destroy();
           this.candlestickPhone = null;
         }
-        
+
         this.sceneManager.removeObject(id);
         this.loadedScenes.delete(id);
       });
@@ -387,6 +392,71 @@ class GameManager {
 
       await this.sceneManager.loadObjectsForState(newObjects);
     }
+
+    // Check for objects that are loaded but not in scene (deferred loading)
+    // Add them to scene if criteria match
+    for (const obj of objectsToLoad) {
+      if (
+        this.loadedScenes.has(obj.id) &&
+        this.sceneManager.objectsNotInScene.has(obj.id)
+      ) {
+        this.sceneManager.addObjectToScene(obj.id);
+      }
+    }
+  }
+
+  /**
+   * Load deferred scene objects (preload: false) - prefetch files but don't fully initialize
+   * Called after loading screen completes
+   * Files are fetched but objects aren't fully loaded until criteria match
+   */
+  async loadDeferredSceneObjects() {
+    if (!this.sceneManager) return;
+
+    // Import sceneObjects to get all objects directly
+    const { sceneObjects } = await import("./sceneData.js");
+
+    // Find all objects with preload: false that aren't already loaded
+    const deferredObjects = [];
+    for (const [id, obj] of Object.entries(sceneObjects)) {
+      const objPreload = obj.preload !== undefined ? obj.preload : false;
+      if (!objPreload && !this.loadedScenes.has(id)) {
+        deferredObjects.push(obj);
+      }
+    }
+
+    if (deferredObjects.length === 0) {
+      return;
+    }
+
+    this.logger.log(
+      `Prefetching ${deferredObjects.length} deferred scene objects`
+    );
+
+    // Just prefetch the files - don't fully load them
+    // This starts the download but doesn't block on initialization
+    deferredObjects.forEach((obj) => {
+      if (obj.type === "splat") {
+        // For splats, we can't easily prefetch without creating the mesh
+        // So we'll just skip prefetching splats - they'll load when needed
+        // The browser will cache them anyway after first load
+        return;
+      } else if (obj.type === "gltf") {
+        // For GLTF, we can prefetch by just fetching the file
+        // This downloads it but doesn't parse it until actually needed
+        fetch(obj.path, { method: "HEAD" }).catch(() => {
+          // Ignore errors - file might not exist or CORS might block HEAD
+        });
+        // Also try GET to actually cache it
+        fetch(obj.path).catch(() => {
+          // Ignore errors
+        });
+      }
+    });
+
+    this.logger.log(
+      `Prefetched ${deferredObjects.length} deferred scene objects (files cached, will load when criteria match)`
+    );
   }
 
   /**

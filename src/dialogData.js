@@ -106,7 +106,7 @@ export const dialogTracks = {
   heyYouBeingWatched: {
     id: "heyYouBeingWatched",
     audio: "./audio/dialog/cole-hey-you-being-watched.mp3",
-    preload: false, // Load after loading screen
+    preload: false,
     captions: [
       { text: "Hey, you!", duration: 2.0 },
       { text: "Feels like I'm being watched...", duration: 3.5 },
@@ -190,6 +190,7 @@ export const dialogTracks = {
     autoPlay: false, // Triggered directly by choice selection, not auto-play
     priority: 100,
     delay: 1.0,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ dialogChoice1Response: true });
     },
@@ -351,6 +352,7 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 100,
     delay: 0.5,
+    preload: false,
   },
 
   // PETIT's final warning before drive-by
@@ -376,6 +378,7 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 100,
     delay: 0.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_VIEWMASTER });
     },
@@ -391,6 +394,7 @@ export const dialogTracks = {
     criteria: { currentState: GAME_STATES.PRE_VIEWMASTER },
     once: true,
     autoPlay: true,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER });
     },
@@ -409,6 +413,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 0.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_COLOR });
     },
@@ -426,6 +431,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 0.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_DISSOLVE });
     },
@@ -439,6 +445,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 4.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_DIALOG });
     },
@@ -452,6 +459,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 1.0,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.VIEWMASTER_HELL });
     },
@@ -469,6 +477,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 4.0,
+    preload: false,
     playNext: "remainHereTooLong",
   },
 
@@ -484,6 +493,7 @@ export const dialogTracks = {
       { text: "Exactement!", duration: 1.75 },
     ],
     once: true,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.POST_VIEWMASTER });
     },
@@ -500,6 +510,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: false, // Triggered directly by choice selection, not auto-play
     delay: 0.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
     },
@@ -516,6 +527,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: false, // Triggered directly by choice selection, not auto-play
     delay: 0.5,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.PRE_EDISON });
     },
@@ -532,6 +544,7 @@ export const dialogTracks = {
     ],
     once: true,
     autoPlay: true,
+    preload: false,
     criteria: { currentState: GAME_STATES.PRE_EDISON },
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.EDISON });
@@ -553,6 +566,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     delay: 5.0,
+    preload: false,
     criteria: { currentState: GAME_STATES.EDISON },
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.DIALOG_CHOICE_2 });
@@ -676,6 +690,7 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 100,
+    preload: false,
     playNext: "twoBitCrook",
   },
 
@@ -695,6 +710,7 @@ export const dialogTracks = {
     ],
     once: true,
     priority: 100,
+    preload: false,
     playNext: "theVerySame",
   },
 
@@ -708,6 +724,7 @@ export const dialogTracks = {
     ],
     once: true,
     priority: 100,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.SHOULDER_TAP });
     },
@@ -728,6 +745,7 @@ export const dialogTracks = {
     criteria: { currentState: GAME_STATES.CURSOR },
     autoPlay: true,
     once: true,
+    preload: false,
     priority: 100,
     delay: 1.5,
   },
@@ -745,6 +763,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: false,
     priority: 90,
+    preload: false,
   },
 
   drawingFailure2: {
@@ -762,6 +781,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: false,
     priority: 90,
+    preload: false,
   },
 
   drawingFailure3: {
@@ -779,6 +799,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: false,
     priority: 90,
+    preload: false,
   },
 
   // Drawing game successes
@@ -794,6 +815,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: true,
     priority: 100,
+    preload: false,
   },
 
   drawingSuccess2: {
@@ -808,6 +830,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: true,
     priority: 100,
+    preload: false,
   },
 
   // Viewmaster insanity buildup dialogs - cycle through when intensity crosses threshold
@@ -829,6 +852,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: false,
     priority: 95,
+    preload: false,
   },
 
   coleUghItsTooMuch: {
@@ -849,6 +873,7 @@ export const dialogTracks = {
     autoPlay: true,
     once: false,
     priority: 95,
+    preload: false,
   },
 
   heWonThatRound: {
@@ -864,6 +889,7 @@ export const dialogTracks = {
     autoPlay: true,
     priority: 120,
     delay: 0.0,
+    preload: false,
   },
 
   hesTiedUsUp: {
@@ -884,7 +910,6 @@ export const dialogTracks = {
   soUnkind: {
     id: "soUnkind",
     videoId: "soUnkind", // Reference to video in videoData.js
-    preload: false,
     captions: [
       { text: "[Footsteps]", startTime: 3.0, duration: 2.0 },
       { text: "Quiet!", startTime: 6.0, duration: 1.5 },
@@ -935,6 +960,7 @@ export const dialogTracks = {
     once: true,
     priority: 100,
     delay: 1.0,
+    preload: false,
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.CURSOR });
     },

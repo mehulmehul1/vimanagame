@@ -58,6 +58,19 @@ class MusicManager {
       resolve: null,
     };
 
+    // Crossfade state (for simultaneous fade-out and fade-in)
+    this.crossfadeState = {
+      active: false,
+      fadeOutTrack: null,
+      fadeInTrack: null,
+      fadeOutStartVolume: 0,
+      fadeInStartVolume: 0,
+      fadeInTargetVolume: 0,
+      duration: 0,
+      startTime: 0,
+      resolve: null,
+    };
+
     // Volume change state
     this.volumeChangeState = {
       active: false,
@@ -128,7 +141,18 @@ class MusicManager {
         // Listen for state changes
         this.gameManager.on("state:changed", (newState, oldState) => {
           const track = getMusicForState(newState);
-          if (!track) return;
+
+          // If no track should play, stop current music
+          if (!track) {
+            const currentTrack = this.getCurrentTrack();
+            if (currentTrack) {
+              this.logger.log(
+                `No music track matches state ${newState.currentState}, stopping current track "${currentTrack}"`
+              );
+              this.stopMusic();
+            }
+            return;
+          }
 
           // Only change music if it's different from current track
           if (this.getCurrentTrack() !== track.id) {
@@ -217,6 +241,10 @@ class MusicManager {
         },
         ...options,
       });
+      // Explicitly trigger loading to start the fetch immediately
+      if (this.tracks[name].state && this.tracks[name].state() === "unloaded") {
+        this.tracks[name].load();
+      }
     }
     this.deferredTracks.clear();
   }
@@ -288,38 +316,100 @@ class MusicManager {
     const previousTrack = this.currentTrack;
     this.currentTrack = trackName;
 
-    // Fade out and stop any currently playing tracks
+    // Log what's currently playing for debugging
+    const currentlyPlaying = [];
     Object.keys(this.tracks).forEach((name) => {
-      if (name !== trackName && this.tracks[name].playing()) {
-        const startVolume = this.tracks[name].volume();
-        this._fadeOut(name, startVolume, fadeIn).then(() => {
-          this.tracks[name].stop();
-        });
+      if (this.tracks[name].playing()) {
+        currentlyPlaying.push(name);
+      }
+    });
+    if (currentlyPlaying.length > 0) {
+      this.logger.log(
+        `Changing to "${trackName}" - Currently playing: ${currentlyPlaying.join(
+          ", "
+        )}, previousTrack: ${previousTrack || "none"}`
+      );
+    }
+
+    // Stop all OTHER tracks (not the previous track if we're crossfading, not the new track)
+    Object.keys(this.tracks).forEach((name) => {
+      if (
+        name !== trackName &&
+        name !== previousTrack &&
+        this.tracks[name].playing()
+      ) {
+        // Stop any other playing tracks immediately
+        this.logger.log(
+          `Stopping track "${name}" to make way for "${trackName}"`
+        );
+        this.tracks[name].stop();
       }
     });
 
     if (fadeIn > 0) {
-      // If there's a previous track playing, fade it out
-      if (previousTrack && this.tracks[previousTrack].playing()) {
-        const startVolume = this.tracks[previousTrack].volume();
-        this._fadeOut(previousTrack, startVolume, fadeIn)
-          .then(() => {
-            this.tracks[previousTrack].stop();
-            // Start new track with fade in
-            this.tracks[trackName].volume(0);
-            this.tracks[trackName].play();
-            return this._fadeIn(trackName, this.defaultVolume, fadeIn);
-          })
-          .then(() => {
+      // Crossfade: fade out previous track while fading in new track
+      if (
+        previousTrack &&
+        this.tracks[previousTrack] &&
+        this.tracks[previousTrack].playing()
+      ) {
+        this.logger.log(
+          `Starting crossfade from "${previousTrack}" to "${trackName}"`
+        );
+        const fadeOutStartVolume = this.tracks[previousTrack].volume();
+        // Start new track at volume 0
+        this.tracks[trackName].volume(0);
+        try {
+          const playId = this.tracks[trackName].play();
+          if (playId === undefined || playId === null) {
+            this.logger.error(
+              `Failed to play track "${trackName}" - Howl returned ${playId}`
+            );
             this.isTransitioning = false;
-          });
+            return;
+          }
+          // Verify track is actually playing
+          if (!this.tracks[trackName].playing()) {
+            this.logger.error(`Track "${trackName}" failed to start playing`);
+            this.isTransitioning = false;
+            return;
+          }
+          this.logger.log(
+            `Track "${trackName}" started playing (id: ${playId})`
+          );
+          // Start crossfade
+          this._startCrossfade(
+            previousTrack,
+            trackName,
+            fadeOutStartVolume,
+            this.defaultVolume,
+            fadeIn
+          );
+        } catch (error) {
+          this.logger.error(`Error playing track "${trackName}":`, error);
+          this.isTransitioning = false;
+          return;
+        }
       } else {
         // No previous track, just fade in the new one
         this.tracks[trackName].volume(0);
-        this.tracks[trackName].play();
-        this._fadeIn(trackName, this.defaultVolume, fadeIn).then(() => {
+        try {
+          const playId = this.tracks[trackName].play();
+          if (playId === undefined || playId === null) {
+            this.logger.error(
+              `Failed to play track "${trackName}" - Howl returned ${playId}`
+            );
+            this.isTransitioning = false;
+            return;
+          }
+          this._fadeIn(trackName, this.defaultVolume, fadeIn).then(() => {
+            this.isTransitioning = false;
+          });
+        } catch (error) {
+          this.logger.error(`Error playing track "${trackName}":`, error);
           this.isTransitioning = false;
-        });
+          return;
+        }
       }
     } else {
       // Immediate change without fading
@@ -327,8 +417,21 @@ class MusicManager {
         this.tracks[previousTrack].stop();
       }
       this.tracks[trackName].volume(this.defaultVolume);
-      this.tracks[trackName].play();
-      this.isTransitioning = false;
+      try {
+        const playId = this.tracks[trackName].play();
+        if (playId === undefined || playId === null) {
+          this.logger.error(
+            `Failed to play track "${trackName}" - Howl returned ${playId}`
+          );
+          this.isTransitioning = false;
+          return;
+        }
+        this.isTransitioning = false;
+      } catch (error) {
+        this.logger.error(`Error playing track "${trackName}":`, error);
+        this.isTransitioning = false;
+        return;
+      }
     }
   }
 
@@ -372,6 +475,37 @@ class MusicManager {
         duration: duration,
         startTime: Date.now(),
         fadeIn: false,
+        resolve: resolve,
+      };
+    });
+  }
+
+  /**
+   * Start a crossfade (simultaneous fade-out and fade-in)
+   * @param {string} fadeOutTrack - Track to fade out
+   * @param {string} fadeInTrack - Track to fade in
+   * @param {number} fadeOutStartVolume - Starting volume of fade-out track
+   * @param {number} fadeInTargetVolume - Target volume of fade-in track
+   * @param {number} duration - Duration in seconds
+   * @returns {Promise}
+   */
+  _startCrossfade(
+    fadeOutTrack,
+    fadeInTrack,
+    fadeOutStartVolume,
+    fadeInTargetVolume,
+    duration
+  ) {
+    return new Promise((resolve) => {
+      this.crossfadeState = {
+        active: true,
+        fadeOutTrack: fadeOutTrack,
+        fadeInTrack: fadeInTrack,
+        fadeOutStartVolume: fadeOutStartVolume,
+        fadeInStartVolume: 0,
+        fadeInTargetVolume: fadeInTargetVolume,
+        duration: duration,
+        startTime: Date.now(),
         resolve: resolve,
       };
     });
@@ -466,8 +600,60 @@ class MusicManager {
    * @param {number} dt - Delta time in seconds
    */
   update(dt) {
-    // Handle fade operations
-    if (this.fadeState.active) {
+    // Handle crossfade operations (simultaneous fade-out and fade-in)
+    if (this.crossfadeState.active) {
+      const elapsed = (Date.now() - this.crossfadeState.startTime) / 1000;
+      const t = Math.min(elapsed / this.crossfadeState.duration, 1);
+
+      const fadeOutTrack = this.tracks[this.crossfadeState.fadeOutTrack];
+      const fadeInTrack = this.tracks[this.crossfadeState.fadeInTrack];
+
+      if (fadeOutTrack) {
+        // Fade out the old track
+        const fadeOutVolume = this._lerp(
+          this.crossfadeState.fadeOutStartVolume,
+          0,
+          t
+        );
+        fadeOutTrack.volume(fadeOutVolume);
+      }
+
+      if (fadeInTrack) {
+        // Check if track stopped unexpectedly
+        if (!fadeInTrack.playing() && t < 1) {
+          this.logger.error(
+            `Crossfade: fade-in track "${this.crossfadeState.fadeInTrack}" stopped unexpectedly during crossfade! Attempting to restart...`
+          );
+          try {
+            fadeInTrack.play();
+          } catch (e) {
+            this.logger.error(`Failed to restart fade-in track:`, e);
+          }
+        }
+        // Fade in the new track
+        const fadeInVolume = this._lerp(
+          this.crossfadeState.fadeInStartVolume,
+          this.crossfadeState.fadeInTargetVolume,
+          t
+        );
+        fadeInTrack.volume(fadeInVolume);
+      }
+
+      if (t >= 1) {
+        // Crossfade complete - stop the old track
+        if (fadeOutTrack) {
+          fadeOutTrack.stop();
+        }
+        this.crossfadeState.active = false;
+        this.isTransitioning = false;
+        if (this.crossfadeState.resolve) {
+          this.crossfadeState.resolve();
+        }
+      }
+    }
+
+    // Handle single fade operations (only if not crossfading)
+    if (!this.crossfadeState.active && this.fadeState.active) {
       const elapsed = (Date.now() - this.fadeState.startTime) / 1000;
       const t = Math.min(elapsed / this.fadeState.duration, 1);
       const track = this.tracks[this.fadeState.trackName];

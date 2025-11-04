@@ -353,13 +353,19 @@ class DialogManager {
     Object.values(dialogsData).forEach((dialog) => {
       if (!dialog.audio) return; // Skip dialogs without audio
 
-      const preload = dialog.preload !== false; // Default to true
+      // Treat undefined preload as true (default preload for backwards compatibility)
+      const preload = dialog.preload !== undefined ? dialog.preload : true;
 
-      // If preload is false, defer loading
+      // If preload is false, defer loading (file won't be fetched until after loading screen)
       if (!preload) {
         this.deferredDialogs.set(dialog.id, dialog);
         this.logger.log(`Deferred loading for dialog "${dialog.id}"`);
         return;
+      }
+
+      // Register with loading screen if available and preloading
+      if (this.loadingScreen && preload) {
+        this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
       }
 
       // Preload the audio
@@ -367,6 +373,18 @@ class DialogManager {
         src: [dialog.audio],
         volume: this.audioVolume,
         preload: true,
+        onload: () => {
+          this.logger.log(`Loaded dialog "${dialog.id}"`);
+          if (this.loadingScreen && preload) {
+            this.loadingScreen.completeTask(`dialog_${dialog.id}`);
+          }
+        },
+        onloaderror: (id, error) => {
+          this.logger.error(`Failed to load dialog "${dialog.id}":`, error);
+          if (this.loadingScreen && preload) {
+            this.loadingScreen.completeTask(`dialog_${dialog.id}`);
+          }
+        },
       });
 
       this.preloadedAudio.set(dialog.id, howl);

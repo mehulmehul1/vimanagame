@@ -340,6 +340,7 @@ export const cameraAnimations = {
     id: "lookAndJump",
     type: "jsonAnimation",
     path: "/json/look-and-jump.json",
+    preload: false,
     description: "Camera animation for drive-by sequence",
     criteria: { currentState: GAME_STATES.DRIVE_BY },
     priority: 100,
@@ -514,6 +515,7 @@ export const cameraAnimations = {
     id: "punchOut",
     type: "jsonAnimation",
     path: "/json/punchout.json",
+    preload: false,
     description: "Camera animation for punch-out sequence",
     criteria: {
       currentState: {
@@ -613,6 +615,7 @@ export const cameraAnimations = {
     id: "wakingUp",
     type: "jsonAnimation",
     path: "/json/waking-up.json",
+    preload: false,
     description:
       "Passing out animation blending with player movement during wake up",
     criteria: { currentState: GAME_STATES.WAKING_UP },
@@ -779,6 +782,7 @@ export const cameraAnimations = {
     id: "woozy",
     type: "jsonAnimation",
     path: "/json/woozy.json",
+    preload: false,
     description:
       "Woozy camera animation blending with player movement during viewmaster overheat",
     criteria: {

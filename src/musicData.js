@@ -29,7 +29,7 @@ export const musicTracks = {
     id: "dukeKoko",
     path: "./audio/music/Duke-Ellington-Ko-Ko.mp3",
     description: "Duke Koko - interior sequence",
-    preload: true, // Load before showing game
+    preload: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.ENTERING_OFFICE,
@@ -43,7 +43,7 @@ export const musicTracks = {
     id: "dukeMooche",
     path: "./audio/music/duke-ellington-the-mooche.mp3",
     description: "Duke Mooche - Intro sequence",
-    preload: true, // Load before showing game
+    preload: false, // Load before showing game
     criteria: {
       currentState: {
         $gte: GAME_STATES.NEAR_RADIO,
@@ -57,7 +57,7 @@ export const musicTracks = {
     id: "dukeAc",
     path: "./audio/music/duke-ellington-air-conditioned-jungle.mp3",
     description: "Duke Ac",
-    preload: true,
+    preload: false,
     criteria: {
       currentState: { $gte: GAME_STATES.CURSOR, $lte: GAME_STATES.POST_CURSOR },
     },
@@ -70,7 +70,7 @@ export const musicTracks = {
     id: "dukeStLouis",
     path: "./audio/music/duke-ellington-east-st-louis-toodle-oo.mp3",
     description: "Duke St Louis",
-    preload: true,
+    preload: false,
     criteria: {
       currentState: { $in: [GAME_STATES.GAME_OVER, GAME_STATES.WAKING_UP] },
     },
@@ -150,9 +150,9 @@ export function getMusicForState(gameState) {
     return track;
   }
 
-  // Fallback: return default track or first track
+  // Fallback: return default track if explicitly marked, otherwise null
   const defaultTrack = sortedTracks.find((t) => t.isDefault);
-  return defaultTrack || sortedTracks[0] || null;
+  return defaultTrack || null;
 }
 
 /**

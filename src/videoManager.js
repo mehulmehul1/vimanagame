@@ -18,12 +18,16 @@ class VideoManager {
     this.gameManager = options.gameManager;
     this.camera = options.camera;
     this.gizmoManager = options.gizmoManager; // For debug positioning
+    this.loadingScreen = options.loadingScreen || null; // For checking if loading is complete
     this.logger = new Logger("VideoManager", false);
 
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
     this.playedOnce = new Set(); // Track videos that have played once
     this.pendingDelays = new Map(); // id -> setTimeout handle for delayed playback
+
+    // Track deferred videos (preload: false) that haven't been loaded yet
+    this.deferredVideos = new Set(); // Set of video IDs that should be deferred
 
     // Listen for game state changes
     if (this.gameManager) {
@@ -160,6 +164,20 @@ class VideoManager {
 
       // Handle spawn criteria (video existence)
       if (matchesSpawnCriteria) {
+        // Check if this video should be deferred (preload: false and loading screen still active)
+        const shouldPreload = videoConfig.preload !== false; // Default to true
+        const isLoadingComplete =
+          !this.loadingScreen || this.loadingScreen.isLoadingComplete();
+
+        // Skip creating video if preload is false and loading screen is still active
+        if (!shouldPreload && !isLoadingComplete) {
+          this.deferredVideos.add(videoId);
+          this.logger.log(
+            `Deferred loading for video "${videoId}" (preload: false)`
+          );
+          continue;
+        }
+
         // Video should exist - create player if it doesn't exist yet
         if (!exists) {
           // Check if we should delay playback
@@ -479,10 +497,27 @@ class VideoManager {
       return;
     }
 
+    // Check if video should be deferred (preload: false and loading screen still active)
+    const shouldPreload = videoConfig.preload !== false; // Default to true
+    const isLoadingComplete =
+      !this.loadingScreen || this.loadingScreen.isLoadingComplete();
+
+    // If video is deferred and loading screen is still active, defer it
+    if (!shouldPreload && !isLoadingComplete) {
+      this.deferredVideos.add(videoId);
+      this.logger.log(
+        `Deferred loading for video "${videoId}" (preload: false, playVideo called)`
+      );
+      return;
+    }
+
     // Get or create video player
     let player = this.videoPlayers.get(videoId);
 
     if (!player) {
+      // Remove from deferred set if it was deferred
+      this.deferredVideos.delete(videoId);
+
       player = this.createVideoPlayer(videoId);
       if (!player) {
         return; // Video not found or creation failed
@@ -663,6 +698,61 @@ class VideoManager {
   }
 
   /**
+   * Load deferred videos (preload: false) - fetch all of them regardless of state
+   * Called after loading screen completes
+   */
+  loadDeferredVideos() {
+    // Find all videos with preload: false
+    const deferredVideoIds = [];
+    for (const [videoId, videoConfig] of Object.entries(videos)) {
+      const shouldPreload = videoConfig.preload !== false; // Default to true
+      if (!shouldPreload) {
+        deferredVideoIds.push(videoId);
+      }
+    }
+
+    if (deferredVideoIds.length === 0) {
+      return;
+    }
+
+    this.logger.log(`Loading ${deferredVideoIds.length} deferred videos`);
+
+    // Create video players for all deferred videos (even if they were already created)
+    // Also ensure existing players start fetching if they haven't already
+    for (const videoId of deferredVideoIds) {
+      const videoConfig = videos[videoId];
+      if (!videoConfig) continue;
+
+      let player = this.videoPlayers.get(videoId);
+
+      if (!player) {
+        // Create the player (this will trigger the fetch via preload="auto" + load())
+        player = this.createVideoPlayer(videoId);
+        if (player) {
+          // Hide the video and keep it paused until criteria match
+          player.setVisible(false);
+          this.logger.log(
+            `Preloaded deferred video "${videoId}" (hidden, paused)`
+          );
+        }
+      } else {
+        // Player already exists (created by updateVideosForState before loadDeferredVideos ran)
+        // Ensure it's fetching - check if video element exists and call load() if needed
+        if (player.video && player.video.readyState === 0) {
+          // Video hasn't started loading yet (readyState 0 = HAVE_NOTHING), trigger it
+          player.video.load();
+          this.logger.log(
+            `Triggered fetch for already-created deferred video "${videoId}"`
+          );
+        }
+      }
+    }
+
+    // Clear the deferred set since we've loaded them all
+    this.deferredVideos.clear();
+  }
+
+  /**
    * Clean up all videos
    */
   destroy() {
@@ -674,6 +764,7 @@ class VideoManager {
     this.videoPlayers.forEach((player) => player.destroy());
     this.videoPlayers.clear();
     this.playedOnce.clear();
+    this.deferredVideos.clear();
   }
 }
 
@@ -751,8 +842,12 @@ class VideoPlayer {
     this.video.crossOrigin = "anonymous";
     this.video.loop = this.config.loop;
     this.video.playsInline = true;
-    this.video.preload = "auto";
+    this.video.preload = "auto"; // Browser will fetch metadata and possibly video data
     this.video.playbackRate = this.config.playbackRate;
+
+    // Explicitly trigger loading to start the fetch immediately
+    // This ensures the video starts downloading even if it's not playing
+    this.video.load();
 
     // Set up spatial audio if enabled
     const useSpatialAudio = this.config.spatialAudio && !this.config.muted;

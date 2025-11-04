@@ -27,9 +27,21 @@ export class DrawingRecognitionManager {
       if (existing) {
         if (existing.dataset.loaded === "true") {
           resolve();
-        } else {
-          existing.addEventListener("load", resolve);
-          existing.addEventListener("error", reject);
+          return;
+        }
+        // Script is loading, wait for it
+        const onLoad = () => {
+          existing.dataset.loaded = "true";
+          resolve();
+        };
+        const onError = reject;
+        
+        existing.addEventListener("load", onLoad, { once: true });
+        existing.addEventListener("error", onError, { once: true });
+        
+        // Also check if already loaded (in case event fired before listener)
+        if (existing.dataset.loaded === "true") {
+          resolve();
         }
         return;
       }
@@ -45,7 +57,55 @@ export class DrawingRecognitionManager {
     });
   }
 
+  /**
+   * Lazy initialization - ensures model is loaded when needed
+   * Can be called multiple times safely (idempotent)
+   * @returns {Promise<void>}
+   */
+  async ensureInitialized() {
+    if (this.isModelLoaded) {
+      return; // Already initialized
+    }
+
+    // If initialization is already in progress, wait for it
+    if (this._initializationPromise) {
+      return this._initializationPromise;
+    }
+
+    // Check if loading screen is still active - wait if it is
+    const loadingScreen = window.loadingScreen;
+    if (loadingScreen && !loadingScreen.isLoadingComplete()) {
+      this.logger.log(
+        "Waiting for loading screen to complete before initializing TensorFlow..."
+      );
+      // Wait for loading screen to complete
+      await new Promise((resolve) => {
+        const checkLoading = () => {
+          if (loadingScreen.isLoadingComplete()) {
+            resolve();
+          } else {
+            setTimeout(checkLoading, 100);
+          }
+        };
+        checkLoading();
+      });
+    }
+
+    // Start initialization
+    this._initializationPromise = this.initialize();
+    try {
+      await this._initializationPromise;
+    } finally {
+      this._initializationPromise = null;
+    }
+  }
+
   async initialize() {
+    if (this.isModelLoaded) {
+      this.logger.log("Model already initialized, skipping");
+      return;
+    }
+
     this.logger.log("Loading Quick Draw model...");
 
     try {
@@ -227,6 +287,11 @@ export class DrawingRecognitionManager {
   }
 
   async predict() {
+    // Ensure model is initialized before predicting
+    if (!this.isModelLoaded) {
+      await this.ensureInitialized();
+    }
+
     if (!this.isModelLoaded) {
       this.logger.error("Model not loaded yet");
       return null;

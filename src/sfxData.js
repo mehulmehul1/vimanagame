@@ -96,7 +96,7 @@ export const sfxSounds = {
       distanceModel: "inverse",
       maxDistance: 100,
     },
-    preload: true,
+    preload: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.PHONE_BOOTH_RINGING,
@@ -138,7 +138,7 @@ export const sfxSounds = {
       distanceModel: "inverse",
       maxDistance: 100,
     },
-    preload: true,
+    preload: false,
     criteria: {
       currentState: GAME_STATES.OFFICE_INTERIOR,
     },
@@ -165,7 +165,7 @@ export const sfxSounds = {
     volume: 0.7,
     loop: true,
     spatial: false,
-    preload: true,
+    preload: false,
   },
 
   // Ambient sounds (non-spatial)
@@ -198,7 +198,7 @@ export const sfxSounds = {
       distanceModel: "inverse",
       maxDistance: 15,
     },
-    preload: true,
+    preload: false,
     criteria: { currentState: GAME_STATES.ANSWERED_PHONE },
     playOnce: true, // One-shot sound triggered by state
   },
@@ -209,7 +209,7 @@ export const sfxSounds = {
     volume: 0.1,
     loop: false,
     spatial: false,
-    preload: true,
+    preload: false,
     criteria: { currentState: GAME_STATES.EDISON },
     playOnce: true,
     delay: 0.0,
@@ -221,7 +221,7 @@ export const sfxSounds = {
     volume: 0.9,
     loop: false,
     spatial: false, // Non-spatial for dramatic effect
-    preload: true,
+    preload: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.DRIVE_BY_PREAMBLE,
@@ -284,7 +284,7 @@ export const sfxSounds = {
     volume: 0.7,
     loop: false,
     spatial: false,
-    preload: true,
+    preload: false,
     criteria: { currentState: GAME_STATES.PUNCH_OUT },
     playOnce: true,
     delay: 0.35,
@@ -296,7 +296,7 @@ export const sfxSounds = {
     volume: 0.7,
     loop: false,
     spatial: false,
-    preload: true,
+    preload: false,
     criteria: { currentState: { $eq: GAME_STATES.PUNCH_OUT } },
     playOnce: true,
     delay: 1.5,
@@ -308,7 +308,7 @@ export const sfxSounds = {
     volume: 0.5,
     loop: false,
     spatial: false,
-    preload: true,
+    preload: false,
     criteria: { currentState: GAME_STATES.VIEWMASTER },
     playOnce: true,
     delay: 2.0,
@@ -331,7 +331,7 @@ export const sfxSounds = {
       distanceModel: "linear",
       maxDistance: 14,
     },
-    preload: true,
+    preload: false,
     criteria: {
       currentState: { $gte: GAME_STATES.NEAR_RADIO },
     },
