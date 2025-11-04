@@ -103,16 +103,106 @@ const interiorPosition = { x: 5.36, y: 0.83, z: 78.39 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
 export const sceneObjects = {
-  exterior: {
-    id: "exterior",
+  // exterior: {
+  //   id: "exterior",
+  //   type: "splat",
+  //   path: "/exterior-clean-final.sog",
+  //   description: "Main exterior environment splat mesh",
+  //   position: { x: 0.35, y: 1.0, z: 1.9 },
+  //   rotation: { x: 0, y: Math.PI, z: Math.PI },
+  //   scale: { x: 1, y: 1, z: 1 },
+  //   priority: 100, // Load first
+  //   preload: true,
+  //   criteria: {
+  //     currentState: {
+  //       $gte: GAME_STATES.LOADING,
+  //       $lt: GAME_STATES.OFFICE_INTERIOR,
+  //     },
+  //   },
+  // },
+
+  plaza: {
+    id: "plaza",
     type: "splat",
-    path: "/exterior-clean-final.sog",
-    description: "Main exterior environment splat mesh",
+    path: "/splats/Plaza.sog",
+    description: "Plaza section of exterior environment",
     position: { x: 0.35, y: 1.0, z: 1.9 },
     rotation: { x: 0, y: Math.PI, z: Math.PI },
     scale: { x: 1, y: 1, z: 1 },
-    priority: 100, // Load first
+    priority: 100,
     preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  fourWay: {
+    id: "fourWay",
+    type: "splat",
+    path: "/splats/FourWay.sog",
+    description: "Four-way intersection section of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 100,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  introAlley: {
+    id: "introAlley",
+    type: "splat",
+    path: "/splats/IntroAlley.sog",
+    description: "Intro alley section of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 70, // Load first of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  threeWay: {
+    id: "threeWay",
+    type: "splat",
+    path: "/splats/ThreeWay.sog",
+    description: "Three-way intersection section of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  threeWay2: {
+    id: "threeWay2",
+    type: "splat",
+    path: "/splats/ThreeWay2.sog",
+    description: "Three-way intersection section 2 of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 68, // Load third of deferred exterior pieces
+    preload: false,
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
@@ -154,7 +244,7 @@ export const sceneObjects = {
     position: interiorPosition,
     rotation: { x: 0.0, y: -1.283, z: -3.1416 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
-    priority: 100, // Load first
+    priority: 67, // Load fourth (after threeWay2)
     envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
     criteria: {
       currentState: {
@@ -174,7 +264,7 @@ export const sceneObjects = {
     position: { x: -2.36, y: 2.73, z: 84.04 },
     rotation: { x: -0.0, y: -1.3373, z: 3.1416 },
     scale: { x: 2.06, y: 2.06, z: 2.06 },
-    priority: 95, // Load slightly after main interior
+    priority: 66, // Load fifth (after interior)
     envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Same environment map center as interior
     criteria: {
       currentState: {
@@ -193,6 +283,7 @@ export const sceneObjects = {
     position: { x: -6.36, y: 2.73, z: 82.26 },
     rotation: { x: 0, y: -Math.PI / 2, z: -Math.PI },
     scale: { x: 1.1, y: 1.1, z: 1.1 },
+    priority: 65, // Load sixth (after officeHell)
     criteria: {
       currentState: {
         $gte: GAME_STATES.LIGHTS_OUT,

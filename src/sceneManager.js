@@ -137,29 +137,31 @@ class SceneManager {
       return;
     }
 
+    // Sort by priority (descending) to ensure high-priority objects load first
+    const sortedObjects = [...objectsToLoad].sort(
+      (a, b) => (b.priority || 0) - (a.priority || 0)
+    );
+
     this.logger.log(
-      `Loading ${objectsToLoad.length} objects for current state`
+      `Loading ${sortedObjects.length} objects for current state (in priority order)`
     );
 
     let foundGizmo = false;
-    const loadPromises = objectsToLoad.map((objectData) =>
-      this.loadObject(objectData, skipAddToScene)
-        .catch((error) => {
-          this.logger.error(`Failed to load object "${objectData.id}":`, error);
-          // Continue loading other objects even if one fails
-          return null;
-        })
-        .then((obj) => {
-          if (objectData && objectData.gizmo === true) foundGizmo = true;
-          // Track objects that aren't in scene
-          if (skipAddToScene && obj) {
-            this.objectsNotInScene.add(objectData.id);
-          }
-          return obj;
-        })
-    );
 
-    await Promise.all(loadPromises);
+    // Load objects sequentially in priority order
+    for (const objectData of sortedObjects) {
+      try {
+        const obj = await this.loadObject(objectData, skipAddToScene);
+        if (objectData && objectData.gizmo === true) foundGizmo = true;
+        // Track objects that aren't in scene
+        if (skipAddToScene && obj) {
+          this.objectsNotInScene.add(objectData.id);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to load object "${objectData.id}":`, error);
+        // Continue loading other objects even if one fails
+      }
+    }
 
     // Set global gizmo-in-data flag on gameManager if any object declares gizmo
     try {
