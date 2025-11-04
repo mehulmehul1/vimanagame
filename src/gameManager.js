@@ -433,26 +433,31 @@ class GameManager {
       `Prefetching ${deferredObjects.length} deferred scene objects`
     );
 
-    // Just prefetch the files - don't fully load them
-    // This starts the download but doesn't block on initialization
-    deferredObjects.forEach((obj) => {
-      if (obj.type === "splat") {
-        // For splats, we can't easily prefetch without creating the mesh
-        // So we'll just skip prefetching splats - they'll load when needed
-        // The browser will cache them anyway after first load
-        return;
-      } else if (obj.type === "gltf") {
-        // For GLTF, we can prefetch by just fetching the file
-        // This downloads it but doesn't parse it until actually needed
-        fetch(obj.path, { method: "HEAD" }).catch(() => {
-          // Ignore errors - file might not exist or CORS might block HEAD
-        });
-        // Also try GET to actually cache it
+    // Separate into GLTF (smaller, needed first) and splat (larger) objects
+    const gltfObjects = deferredObjects.filter((obj) => obj.type === "gltf");
+    const splatObjects = deferredObjects.filter((obj) => obj.type === "splat");
+
+    // Prefetch GLTF files immediately (smaller, needed in first scene)
+    gltfObjects.forEach((obj) => {
+      // Prefetch GLTF files - browser will cache them
+      fetch(obj.path, { method: "HEAD" }).catch(() => {
+        // Ignore errors - file might not exist or CORS might block HEAD
+      });
+      // Also try GET to actually cache it
+      fetch(obj.path).catch(() => {
+        // Ignore errors
+      });
+    });
+
+    // Prefetch splat files after a delay (larger, not needed immediately)
+    setTimeout(() => {
+      splatObjects.forEach((obj) => {
+        // Prefetch splat files - browser will cache them
         fetch(obj.path).catch(() => {
           // Ignore errors
         });
-      }
-    });
+      });
+    }, 2000); // Wait 2 seconds before prefetching splats
 
     this.logger.log(
       `Prefetched ${deferredObjects.length} deferred scene objects (files cached, will load when criteria match)`
