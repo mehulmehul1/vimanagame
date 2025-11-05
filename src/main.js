@@ -78,7 +78,7 @@ const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
-renderer.toneMapping = THREE.CineonToneMapping; // Better HDR tone mapping for bloom effects
+renderer.toneMapping = THREE.CineonToneMapping; // Better HDR tone mapping
 renderer.toneMappingExposure = 1.0; // Adjust exposure for bloom
 renderer.outputColorSpace = THREE.SRGBColorSpace; // Proper color space
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
@@ -94,8 +94,8 @@ const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
-  maxStdDev: Math.sqrt(2),
-  minAlpha: 0.5 * (1.0 / 255.0), // Explicitly set to default to avoid internal logging spam
+  maxStdDev: Math.sqrt(4),
+  minAlpha: 0.5 * (1.0 / 255.0),
 });
 spark.renderOrder = 9998;
 scene.add(spark);
