@@ -69,7 +69,7 @@ const camera = new THREE.PerspectiveCamera(
   60,
   window.innerWidth / window.innerHeight,
   0.01,
-  200
+  100
 );
 camera.position.set(0, 5, 0);
 scene.add(camera); // Add camera to scene so its children render
@@ -604,9 +604,13 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Determine if we should use camera-based zone detection
   // Use camera during START_SCREEN or when camera animation is playing (but not during normal gameplay)
+  // Also continue using camera during startScreen transition (when isActive or isFollowingUnifiedPath)
   const currentState = gameManager.getState();
+  const isStartScreenTransition =
+    startScreen && (startScreen.isActive || startScreen.isFollowingUnifiedPath);
   const shouldUseCamera =
     currentState.currentState === GAME_STATES.START_SCREEN ||
+    isStartScreenTransition ||
     (cameraAnimationManager.isPlaying && !gameManager.isControlEnabled());
 
   // Update camera probe position if using camera (must happen before physics step)
@@ -631,14 +635,16 @@ renderer.setAnimationLoop(function animate(time) {
     physicsManager.step();
   }
 
-  // Update collider manager for zone detection (always update, even during START_SCREEN)
-  // Use camera position during START_SCREEN or camera animations
+  // Update collider manager for collision detection (always update, even during START_SCREEN)
+  // Zone colliders use camera probe when shouldUseCamera=true
+  // Regular trigger colliders always use character body (if available)
   // NOTE: This checks intersections AFTER physics step so collision detection uses updated positions
   if (shouldUseCamera) {
-    colliderManager.update(null, true); // useCamera = true
-  } else if (gameManager.isControlEnabled() && characterController.body) {
-    // Use character body during normal gameplay
-    colliderManager.update(characterController.body, false);
+    // During camera transitions: check zones with camera, regular triggers with character (if available)
+    colliderManager.update(characterController.character || null, true);
+  } else if (characterController.character) {
+    // Normal gameplay: use character body for all colliders (always check if body exists)
+    colliderManager.update(characterController.character, false);
   }
 
   // Don't update most game logic if options menu is open or start screen is active
@@ -667,12 +673,6 @@ renderer.setAnimationLoop(function animate(time) {
       !cameraAnimationManager.playing
     ) {
       characterController.update(dt);
-    }
-
-    // Update collider manager (check for trigger intersections)
-    // Use character position during normal gameplay (physics already stepped above)
-    if (!shouldUseCamera && gameManager.isControlEnabled()) {
-      colliderManager.update(character, false); // useCharacter = true
     }
   }
 

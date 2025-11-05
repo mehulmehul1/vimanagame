@@ -67,6 +67,8 @@ class SceneManager {
 
     // Material render order management
     this.materialRenderOrders = new Map(); // Map of objectId -> { materialName: { renderOrder, criteria, meshes: [] } }
+    this.materialRenderOrderState = new Map(); // Track previous state to avoid spam logging
+    this.contactShadowState = new Map(); // Track previous shadow state to avoid spam logging
 
     // Environment map cache (stores promises to ensure only one render per position)
     this.envMapCache = new Map(); // Map of cacheKey -> Promise<envMap texture>
@@ -469,6 +471,11 @@ class SceneManager {
               ...options.contactShadow,
               name: `${id}_contactShadow`,
             };
+            // Map 'static' to 'isStatic' for backward compatibility
+            if (shadowConfig.static !== undefined) {
+              shadowConfig.isStatic = shadowConfig.static;
+              delete shadowConfig.static;
+            }
             const contactShadow = new ContactShadow(
               this.renderer,
               this.scene,
@@ -1288,22 +1295,37 @@ class SceneManager {
         if (!config.criteria) continue;
 
         const matches = checkCriteria(gameState, config.criteria);
+        const stateKey = `${objectId}:${materialName}`;
+        const previousState = this.materialRenderOrderState.get(stateKey);
 
-        config.meshes.forEach((mesh) => {
-          if (matches) {
-            mesh.renderOrder = config.renderOrder;
-          } else {
-            mesh.renderOrder = 0;
-          }
-        });
+        // Only log if state actually changed
+        if (previousState !== matches) {
+          config.meshes.forEach((mesh) => {
+            if (matches) {
+              mesh.renderOrder = config.renderOrder;
+            } else {
+              mesh.renderOrder = 0;
+            }
+          });
 
-        this.logger.log(
-          `Material "${materialName}" on "${objectId}": renderOrder ${
-            matches ? config.renderOrder : 0
-          } (state=${gameState.currentState}, criteria ${
-            matches ? "matched" : "not matched"
-          })`
-        );
+          this.logger.log(
+            `Material "${materialName}" on "${objectId}": renderOrder ${
+              matches ? config.renderOrder : 0
+            } (state=${gameState.currentState}, criteria ${
+              matches ? "matched" : "not matched"
+            })`
+          );
+          this.materialRenderOrderState.set(stateKey, matches);
+        } else {
+          // Still update renderOrder even if logging is skipped
+          config.meshes.forEach((mesh) => {
+            if (matches) {
+              mesh.renderOrder = config.renderOrder;
+            } else {
+              mesh.renderOrder = 0;
+            }
+          });
+        }
       }
     }
   }
@@ -1638,20 +1660,24 @@ class SceneManager {
       if (!contactShadow) continue;
 
       const matches = checkCriteria(gameState, criteria);
+      const previousState = this.contactShadowState.get(id);
 
-      // Use enable/disable methods to trigger fade animations
-      if (matches) {
-        contactShadow.enable();
-      } else {
-        contactShadow.disable();
+      // Only log if state actually changed
+      if (previousState !== matches) {
+        // Use enable/disable methods to trigger fade animations
+        if (matches) {
+          contactShadow.enable();
+        } else {
+          contactShadow.disable();
+        }
+
+        this.logger.log(
+          `Contact shadow "${id}" ${matches ? "enabled" : "disabled"} (state=${
+            gameState.currentState
+          }, criteria check ${matches ? "passed" : "failed"})`
+        );
+        this.contactShadowState.set(id, matches);
       }
-
-      // Always log for debugging
-      this.logger.log(
-        `Contact shadow "${id}" ${matches ? "enabled" : "disabled"} (state=${
-          gameState.currentState
-        }, criteria check ${matches ? "passed" : "failed"})`
-      );
     }
   }
 

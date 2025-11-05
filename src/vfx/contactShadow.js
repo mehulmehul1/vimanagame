@@ -27,6 +27,7 @@ const logger = new Logger("ContactShadow", false);
  *   darkness: 1.5,
  *   opacity: 0.5,
  *   fadeDuration: 0.3,  // Fade in/out duration (seconds)
+ *   shadowScale: { x: 1.5, y: 1.5 },  // Scale shadow plane display (doesn't affect capture area)
  *   isStatic: true  // Render once and stop
  * });
  *
@@ -71,6 +72,7 @@ export class ContactShadow {
       updateFrequency = 3, // Update every N frames (1 = every frame, higher = better performance)
       isStatic = false, // If true, render once and never again (for static objects)
       fadeDuration = 0.3, // Fade in/out duration in seconds
+      shadowScale = { x: 1, y: 1 }, // Scale multiplier for shadow plane display (doesn't affect camera capture area)
     } = config;
 
     this.config = {
@@ -82,6 +84,7 @@ export class ContactShadow {
       cameraHeight,
       debug,
       isStatic,
+      shadowScale,
     };
 
     logger.log(
@@ -155,6 +158,9 @@ export class ContactShadow {
     this.plane = new THREE.Mesh(planeGeometry, planeMaterial);
     this.plane.renderOrder = 10000; // Render after everything, including splats
     this.plane.scale.y = -1; // Flip Y from texture
+    // Apply shadow scale (scale X and Z, keep Y flip)
+    this.plane.scale.x = shadowScale.x;
+    this.plane.scale.z = shadowScale.y;
     this.shadowGroup.add(this.plane);
 
     logger.log(
@@ -504,6 +510,20 @@ export class ContactShadow {
 
     if (updates.fadeDuration !== undefined) {
       this.fadeDuration = updates.fadeDuration;
+      changed = true;
+    }
+
+    if (updates.shadowScale !== undefined) {
+      const scale = updates.shadowScale;
+      if (typeof scale === "number") {
+        this.plane.scale.x = scale;
+        this.plane.scale.z = scale;
+        this.config.shadowScale = { x: scale, y: scale };
+      } else {
+        this.plane.scale.x = scale.x;
+        this.plane.scale.z = scale.y;
+        this.config.shadowScale = { x: scale.x, y: scale.y };
+      }
       changed = true;
     }
 

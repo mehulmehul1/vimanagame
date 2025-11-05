@@ -45,6 +45,7 @@ class GameManager {
 
     // Track loaded scene objects
     this.loadedScenes = new Set();
+    this.previousObjectsToLoad = null; // Track previous objects list to avoid spam logging
 
     // Throttle non-currentState change logs
     this.lastStateLogTime = 0;
@@ -352,13 +353,21 @@ class GameManager {
     const objectsToLoad = getSceneObjectsForState(this.state, options);
     const objectIdsToLoad = new Set(objectsToLoad.map((obj) => obj.id));
 
-    // Debug: Log which objects are being loaded
-    if (objectsToLoad.length > 0) {
+    // Debug: Log which objects are being loaded (only if list changed)
+    const currentObjectsList = objectsToLoad
+      .map((obj) => obj.id)
+      .sort()
+      .join(",");
+    if (
+      objectsToLoad.length > 0 &&
+      currentObjectsList !== this.previousObjectsToLoad
+    ) {
       this.logger.log(
         `Objects to load for state ${this.state.currentState}: ${objectsToLoad
           .map((obj) => obj.id)
           .join(", ")}`
       );
+      this.previousObjectsToLoad = currentObjectsList;
     }
 
     // Find objects that are loaded but should no longer be

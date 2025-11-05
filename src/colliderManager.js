@@ -330,17 +330,23 @@ class ColliderManager {
     this.updateDebugMeshVisibility();
 
     // Determine which collider to use for intersection checks
-    let probeCollider = null;
+    // Zone colliders use camera probe when useCamera=true
+    // Regular trigger colliders always use character body (if available)
+    let cameraProbeCollider = null;
+    let characterProbeCollider = null;
 
     if (useCamera && this.camera && this.cameraProbeBody) {
-      // Camera probe position is updated in main.js before physics step
-      // Just use the probe collider for intersection checks
-      probeCollider = this.cameraProbeCollider;
-    } else if (characterBody) {
-      // Use character collider
-      probeCollider = characterBody.collider(0);
-    } else {
-      // No valid probe available
+      // Camera probe for zone colliders
+      cameraProbeCollider = this.cameraProbeCollider;
+    }
+
+    if (characterBody) {
+      // Character collider for regular trigger colliders
+      characterProbeCollider = characterBody.collider(0);
+    }
+
+    // If no valid probe available, return early
+    if (!cameraProbeCollider && !characterProbeCollider) {
       return;
     }
 
@@ -355,32 +361,39 @@ class ColliderManager {
       if (!this.checkActivationConditions(data)) return;
 
       // Check intersection
-      // For zone colliders, use Three.js raycasting for point-in-mesh check
-      // For other colliders, use physics intersection check
+      // For zone colliders, use Three.js raycasting for point-in-mesh check with camera probe
+      // For other colliders, use physics intersection check with character body
       let isIntersecting = false;
 
       if (id.startsWith("zone-") && this.zoneMeshes.has(id)) {
-        // Use raycasting for zone colliders
-        const zoneMesh = this.zoneMeshes.get(id);
-        const probePos =
-          useCamera && this.cameraProbeBody
-            ? this.cameraProbeBody.translation()
-            : characterBody
-            ? characterBody.translation()
-            : null;
-
-        if (probePos) {
+        // Zone colliders: use camera probe when available, otherwise fall back to character
+        if (useCamera && this.cameraProbeBody) {
+          const probePos = this.cameraProbeBody.translation();
           isIntersecting = this.checkPointInMesh(
-            zoneMesh,
+            this.zoneMeshes.get(id),
+            new THREE.Vector3(probePos.x, probePos.y, probePos.z)
+          );
+        } else if (characterProbeCollider && characterBody) {
+          const probePos = characterBody.translation();
+          isIntersecting = this.checkPointInMesh(
+            this.zoneMeshes.get(id),
             new THREE.Vector3(probePos.x, probePos.y, probePos.z)
           );
         }
       } else {
-        // Use physics intersection for regular colliders
-        isIntersecting = this.physicsManager.checkIntersection(
-          probeCollider,
-          collider
-        );
+        // Regular trigger colliders: prefer character body, but fall back to camera probe if character not available
+        let probeToUse = characterProbeCollider;
+        if (!probeToUse && cameraProbeCollider) {
+          // Fall back to camera probe if character body not available (e.g., during camera transitions)
+          probeToUse = cameraProbeCollider;
+        }
+
+        if (probeToUse) {
+          isIntersecting = this.physicsManager.checkIntersection(
+            probeToUse,
+            collider
+          );
+        }
       }
 
       const wasActive = this.activeColliders.has(id);

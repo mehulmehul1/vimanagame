@@ -351,15 +351,14 @@ export const sceneObjects = {
       // Create a container group for proper scaling
       useContainer: true,
       contactShadow: {
-        size: { x: 2, y: 2 }, // Larger plane for car
+        size: { x: 1, y: 1 }, // Capture area size
         offset: { x: 0, y: -0.01, z: 0 }, // Position offset
-        blur: 1.25, // Slightly more blur for larger shadow
-        darkness: 3.0, // Shadow darkness multiplier
-        opacity: 0.8, // Overall shadow opacity
-        cameraHeight: 2.5, // Taller camera for car
-        trackMesh: "Old_Car_01", // Track the actual car mesh (for animated models)
-        updateFrequency: 1, // Update every frame (animated object)
-        debug: false,
+        blur: 3.5, // Slightly more blur for larger shadow
+        darkness: 5, // Shadow darkness multiplier
+        opacity: 0.9, // Overall shadow opacity
+        cameraHeight: 2, // Taller camera for car
+        shadowScale: { x: 1.15, y: 1.15 }, // Scale shadow plane display (extends beyond capture area)
+        static: true,
       },
     },
     priority: 50,
@@ -444,7 +443,7 @@ export const sceneObjects = {
         clipName: null,
         loop: false,
         autoPlay: true,
-        timeScale: 0.5,
+        timeScale: 0.475,
         removeObjectOnFinish: true, // Despawn car after animation completes
         criteria: {
           currentState: {
