@@ -439,6 +439,9 @@ class ColliderManager {
         // For zone colliders, notify ZoneManager that this zone is now active
         if (id.startsWith("zone-")) {
           const zoneName = id.replace("zone-", "");
+          this.logger.log(
+            `[Zone] Entered zone collider "${id}" -> zone "${zoneName}"`
+          );
           if (this.gameManager && this.gameManager.zoneManager) {
             this.gameManager.zoneManager.addActiveZone(zoneName);
           }
@@ -610,7 +613,14 @@ class ColliderManager {
       this.logger.log(`Entered "${id}"`);
     }
 
-    // Set state if defined
+    // Zone colliders should NOT set currentZone in state - ZoneManager handles zone selection via priority logic
+    // Setting state here would override the priority logic when state changes occur
+    if (id.startsWith("zone-")) {
+      // Skip setStateOnEnter for zone colliders - ZoneManager is the source of truth for zones
+      return;
+    }
+
+    // Set state if defined (for non-zone colliders)
     if (data.setStateOnEnter) {
       this.gameManager.setState(data.setStateOnEnter);
     }

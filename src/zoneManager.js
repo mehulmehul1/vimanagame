@@ -5,8 +5,9 @@ import { GAME_STATES } from "./gameData.js";
  * ZoneManager - Manages loading/unloading of exterior splat zones based on player location
  *
  * Zone mapping:
- * - IntroAlley: loads IntroAlley + FourWay
- * - FourWay: loads FourWay + IntroAlley + ThreeWay + Plaza
+ * - AlleyIntro: loads AlleyIntro + AlleyNavigable
+ * - AlleyNavigable: loads AlleyNavigable + AlleyLongView + FourWay + AlleyIntro
+ * - FourWay: loads FourWay + AlleyNavigable + ThreeWay + Plaza
  * - ThreeWay: loads ThreeWay + FourWay + ThreeWay2
  * - ThreeWay2: loads ThreeWay2 + ThreeWay + Plaza
  * - Plaza: loads Plaza + ThreeWay2 + FourWay
@@ -22,8 +23,14 @@ class ZoneManager {
 
     // Zone to splat mapping
     this.zoneToSplats = {
-      introAlley: ["introAlley", "fourWay"],
-      fourWay: ["fourWay", "introAlley", "threeWay", "plaza"],
+      alleyIntro: ["alleyIntro", "alleyNavigable", "fourWay", "alleyLongView"],
+      alleyNavigable: [
+        "alleyNavigable",
+        "alleyLongView",
+        "fourWay",
+        "alleyIntro",
+      ],
+      fourWay: ["fourWay", "alleyNavigable", "threeWay", "plaza"],
       threeWay: ["threeWay", "fourWay", "threeWay2"],
       threeWay2: ["threeWay2", "threeWay", "plaza"],
       plaza: ["plaza", "threeWay2", "fourWay"],
@@ -109,48 +116,48 @@ class ZoneManager {
     // Do this BEFORE the transition checks so it works even during activation
     // BUT: Don't sync zones from state until zone detection is enabled (prevents false positives during init)
     // EXCEPT: Allow setting initial "plaza" zone ONCE when activating
+    // CRITICAL: Once zone detection is enabled via collision detection, ZoneManager is the source of truth
+    // and we should NOT sync from state anymore (zone colliders don't set state, they call addActiveZone)
     if (
       newState.currentZone &&
       newState.currentZone !== this.currentZone &&
       this.isActive
     ) {
-      // CRITICAL: Only sync from state if zone detection is enabled OR if it's the initial plaza setup
-      // This prevents state changes from triggering zone switches during initialization
-      if (this.hasMovedFromInitialState) {
-        // Zone detection enabled - sync normally
-        if (!this.activeZones.has(newState.currentZone)) {
-          this.activeZones.add(newState.currentZone);
-        }
-        this.setZone(newState.currentZone).catch((error) => {
-          this.logger.error("Error syncing zone from state:", error);
-        });
-      } else if (
-        newState.currentZone === "plaza" &&
-        this.currentZone === null
-      ) {
-        // Only allow initial plaza setup before zone detection is enabled
-        if (!this.activeZones.has(newState.currentZone)) {
-          this.activeZones.add(newState.currentZone);
-        }
-        this.setZone(newState.currentZone).catch((error) => {
-          this.logger.error("Error setting initial zone:", error);
-        });
-
-        // Delay zone detection by 10 seconds after plaza is set to let everything settle
-        // Clear any existing timeout first
-        if (this.zoneDetectionTimeout) {
-          clearTimeout(this.zoneDetectionTimeout);
-        }
-        this.zoneDetectionTimeout = setTimeout(() => {
-          if (!this.hasMovedFromInitialState) {
-            this.hasMovedFromInitialState = true;
-            this.logger.log(
-              "Zone detection enabled after 10 second delay (plaza set)"
-            );
+      // CRITICAL: Only sync from state BEFORE zone detection is enabled
+      // Once zone detection is enabled, collision detection via addActiveZone/removeActiveZone is the source of truth
+      if (!this.hasMovedFromInitialState) {
+        // Zone detection not enabled yet - allow initial plaza setup
+        if (newState.currentZone === "plaza" && this.currentZone === null) {
+          // Only allow initial plaza setup before zone detection is enabled
+          if (!this.activeZones.has(newState.currentZone)) {
+            this.activeZones.add(newState.currentZone);
           }
-        }, 10000);
+          this.setZone(newState.currentZone).catch((error) => {
+            this.logger.error("Error setting initial zone:", error);
+          });
+
+          // Delay zone detection by 10 seconds after plaza is set to let everything settle
+          // Clear any existing timeout first
+          if (this.zoneDetectionTimeout) {
+            clearTimeout(this.zoneDetectionTimeout);
+          }
+          this.zoneDetectionTimeout = setTimeout(() => {
+            if (!this.hasMovedFromInitialState) {
+              this.hasMovedFromInitialState = true;
+              this.logger.log(
+                "Zone detection enabled after 10 second delay (plaza set)"
+              );
+            }
+          }, 10000);
+        }
+        // Otherwise, ignore state changes until zone detection is enabled
+      } else {
+        // Zone detection is enabled - ZoneManager is source of truth, don't sync from state
+        // Zone colliders call addActiveZone/removeActiveZone directly, not setState
+        this.logger.log(
+          `[Zone] Ignoring state.currentZone="${newState.currentZone}" - zone detection is enabled, collision detection is source of truth`
+        );
       }
-      // Otherwise, ignore state changes until zone detection is enabled
     }
 
     // If we transitioned into exterior, wait for collision detection to set active zones
@@ -178,13 +185,13 @@ class ZoneManager {
     if (!this.gameManager || !this.gameManager.sceneManager) return false;
     // Check if camera exists and has moved significantly
     // We'll check this via collision detection results - if we get a legitimate zone detection
-    // (not introAlley) after plaza, we know camera is positioned
+    // after plaza, we know camera is positioned
     return this.hasMovedFromInitialState;
   }
 
   /**
    * Set the current zone and load/unload splats accordingly
-   * @param {string} zone - Zone name (e.g., "introAlley", "fourWay")
+   * @param {string} zone - Zone name (e.g., "alleyIntro", "alleyNavigable", "fourWay")
    */
   async setZone(zone) {
     if (!this.isActive) {
@@ -340,7 +347,7 @@ class ZoneManager {
 
   /**
    * Load a splat if it's not already loaded
-   * @param {string} splatId - Splat ID (e.g., "introAlley", "fourWay")
+   * @param {string} splatId - Splat ID (e.g., "alleyIntro", "alleyNavigable", "alleyLongView", "fourWay")
    */
   async loadSplat(splatId) {
     if (!this.sceneManager) {
@@ -467,17 +474,43 @@ class ZoneManager {
     }
 
     this.activeZones.add(zoneName);
-    // Don't log every add - only log when currentZone actually changes
+    this.logger.log(
+      `[Zone] Added zone "${zoneName}" to active zones. Active zones: ${Array.from(
+        this.activeZones
+      ).join(", ")}`
+    );
 
     // Determine which zone to use when multiple are active
-    // Priority: use the zone that matches currentZone if it's still active, otherwise use the first active zone
+    // Priority: use the zone that matches currentZone if it's still active, otherwise prefer more specific zones
     let targetZone = null;
     if (this.currentZone && this.activeZones.has(this.currentZone)) {
       // Current zone is still active - keep it (prevents switching at boundaries)
       targetZone = this.currentZone;
     } else if (this.activeZones.size > 0) {
-      // Current zone is not active, but others are - switch to first active zone
-      targetZone = Array.from(this.activeZones)[0];
+      // Current zone is not active, but others are - pick most specific zone
+      // Zone priority (more specific first): alley zones > intersections > plaza > fourWay
+      const priorityOrder = [
+        "alleyIntro",
+        "alleyNavigable",
+        "alleyLongView",
+        "threeWay2",
+        "threeWay",
+        "plaza",
+        "fourWay", // Broadest - overlaps with many zones
+      ];
+
+      // Find highest priority zone that's active
+      for (const priorityZone of priorityOrder) {
+        if (this.activeZones.has(priorityZone)) {
+          targetZone = priorityZone;
+          break;
+        }
+      }
+
+      // Fallback (shouldn't happen if all zones are in priority list)
+      if (!targetZone) {
+        targetZone = Array.from(this.activeZones)[0];
+      }
     }
 
     // Only change zone if target is different and valid
@@ -524,11 +557,45 @@ class ZoneManager {
     }
 
     this.activeZones.delete(zoneName);
-    // Don't log every remove - only log when currentZone actually changes
+    this.logger.log(
+      `[Zone] Removed zone "${zoneName}" from active zones. Active zones: ${
+        Array.from(this.activeZones).join(", ") || "none"
+      }`
+    );
 
-    // If we removed the current zone and there are other active zones, switch to one of them
+    // If we removed the current zone and there are other active zones, switch to one of them using priority
     if (zoneName === this.currentZone && this.activeZones.size > 0) {
-      const newZone = Array.from(this.activeZones)[0];
+      // Use same priority order as addActiveZone
+      const priorityOrder = [
+        "alleyIntro",
+        "alleyNavigable",
+        "alleyLongView",
+        "threeWay2",
+        "threeWay",
+        "plaza",
+        "fourWay",
+      ];
+
+      // Find highest priority zone that's active
+      let newZone = null;
+      for (const priorityZone of priorityOrder) {
+        if (this.activeZones.has(priorityZone)) {
+          newZone = priorityZone;
+          break;
+        }
+      }
+
+      // Fallback
+      if (!newZone) {
+        newZone = Array.from(this.activeZones)[0];
+      }
+
+      this.logger.log(
+        `[Zone] Current zone "${zoneName}" removed. Selected new zone "${newZone}" from active zones: ${Array.from(
+          this.activeZones
+        ).join(", ")}`
+      );
+
       if (newZone !== this.currentZone) {
         // Debounce the switch
         this.pendingZoneChange = newZone;

@@ -941,7 +941,8 @@ class SceneManager {
 
     // Map mesh names to zone names
     const meshNameToZone = {
-      "ZoneCollider-IntroAlley": "introAlley",
+      "ZoneCollider-AlleyIntro": "alleyIntro",
+      "ZoneCollider-AlleyNavigable": "alleyNavigable",
       "ZoneCollider-FourWay": "fourWay",
       "ZoneCollider-ThreeWay": "threeWay",
       "ZoneCollider-ThreeWay2": "threeWay2",
@@ -955,9 +956,16 @@ class SceneManager {
         const zoneName = meshNameToZone[child.name];
         if (zoneName) {
           zoneMeshes.push({ mesh: child, zoneName });
+          this.logger.log(
+            `Found ZoneCollider mesh "${child.name}" -> mapped to zone "${zoneName}"`
+          );
         } else {
           this.logger.warn(
-            `Found ZoneCollider mesh "${child.name}" but no zone mapping defined`
+            `Found ZoneCollider mesh "${
+              child.name
+            }" but no zone mapping defined. Available mappings: ${Object.keys(
+              meshNameToZone
+            ).join(", ")}`
           );
         }
       }
@@ -1015,7 +1023,11 @@ class SceneManager {
 
         if (success) {
           this.logger.log(
-            `Registered trigger collider "${colliderId}" from mesh "${mesh.name}"`
+            `Registered trigger collider "${colliderId}" from mesh "${mesh.name}" -> zone "${zoneName}"`
+          );
+        } else {
+          this.logger.warn(
+            `Failed to register trigger collider "${colliderId}" from mesh "${mesh.name}"`
           );
         }
       }

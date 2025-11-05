@@ -209,15 +209,30 @@ export const colliders = [
   // Positions/dimensions below are placeholders - update to match your Blender geometry.
   // Each collider sets currentZone state on enter/exit to control splat loading.
   {
-    id: "zone-introAlley",
-    type: "box", // TODO: Update position/dimensions to match ZoneCollider-IntroAlley trimesh
+    id: "zone-alleyIntro",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-AlleyIntro trimesh (trimesh colliders from GLTF are primary)
     position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
     rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
     dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
-    setStateOnEnter: { currentZone: "introAlley" },
+    setStateOnEnter: { currentZone: "alleyIntro" },
     setStateOnExit: { currentZone: null }, // Clear zone when exiting
     once: false, // Allow entering/exiting multiple times
-    enabled: true,
+    enabled: false, // Disabled - using trimesh colliders from ExteriorZoneColliders.glb instead
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
+  {
+    id: "zone-alleyNavigable",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-AlleyNavigable trimesh (trimesh colliders from GLTF are primary)
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "alleyNavigable" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false, // Allow entering/exiting multiple times
+    enabled: false, // Disabled - using trimesh colliders from ExteriorZoneColliders.glb instead
     criteria: {
       currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
     },

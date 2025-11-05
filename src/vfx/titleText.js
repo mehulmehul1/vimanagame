@@ -94,7 +94,7 @@ export function createParticleText(scene, options = {}) {
     colors[i * 3 + 1] = color.g;
     colors[i * 3 + 2] = color.b;
 
-    sizes[i] = 0.15; // Increased from 0.05 for larger, more visible particles
+    sizes[i] = 0.3; // Doubled from 0.15 to compensate for reduced density
     opacities[i] = 1.0;
   });
 
@@ -310,7 +310,7 @@ export function createParticleImage(scene, options = {}) {
       colors[idx * 3 + 1] = c.g;
       colors[idx * 3 + 2] = c.b;
 
-      sizes[idx] = 0.15;
+      sizes[idx] = 0.3; // Doubled from 0.15 to compensate for reduced density
       opacities[idx] = 0.0;
     });
 

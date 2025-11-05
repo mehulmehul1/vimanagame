@@ -706,7 +706,7 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Update title sequence (pass dt in seconds)
   const titleSequence = startScreen ? startScreen.getTitleSequence() : null;
-  if (titleSequence) {
+  if (titleSequence && !titleSequence.isComplete()) {
     titleSequence.update(dt);
 
     // Enable character controller when the title outro begins

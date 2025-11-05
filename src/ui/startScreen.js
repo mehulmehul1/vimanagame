@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createParticleText, createParticleImage } from "../vfx/titleText.js";
 import { TitleSequence } from "../vfx/titleSequence.js";
+import { ImageTitleSequence } from "../vfx/imageTitleSequence.js";
 import { GAME_STATES } from "../gameData.js";
 import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
 import { Logger } from "../utils/logger.js";
@@ -31,6 +32,7 @@ export class StartScreen {
     this.title = null;
     this.byline = null;
     this.keystrokeIndex = 0; // Track which keystroke sound to play next (0-3)
+    this.useImageBackup = true; // Enable image backup system instead of particles
 
     // Gamepad navigation helper
     this.gamepadNav = new GamepadMenuNavigation({
@@ -106,10 +108,16 @@ export class StartScreen {
     // Create start button
     this.createStartButton();
 
-    // Create title text particles
-    const { title, byline } = this.createTitleText();
-    this.title = title;
-    this.byline = byline;
+    // Create title text (particles or image backup)
+    if (this.useImageBackup) {
+      const { title, byline } = this.createTitleImages();
+      this.title = title;
+      this.byline = byline;
+    } else {
+      const { title, byline } = this.createTitleText();
+      this.title = title;
+      this.byline = byline;
+    }
 
     // Load the camera curve animation
     this.loadCameraAnimation();
@@ -386,6 +394,49 @@ export class StartScreen {
   }
 
   /**
+   * Create simple HTML image elements for title backup system
+   */
+  createTitleImages() {
+    // Create container for title images
+    this.titleImageContainer = document.createElement("div");
+    this.titleImageContainer.id = "title-images";
+    this.titleImageContainer.className = "title-images-container";
+    document.body.appendChild(this.titleImageContainer);
+
+    // Create title image (50% screen width)
+    const titleImg = document.createElement("img");
+    titleImg.src = "/images/Czar_MainTitle.png";
+    titleImg.className = "title-image";
+    titleImg.style.width = "50%";
+    titleImg.style.opacity = "0";
+    this.titleImageContainer.appendChild(titleImg);
+
+    // Create byline image (30% screen width)
+    const bylineImg = document.createElement("img");
+    bylineImg.src = "/images/JamesCKane.png";
+    bylineImg.className = "byline-image";
+    bylineImg.style.width = "30%";
+    bylineImg.style.opacity = "0";
+    this.titleImageContainer.appendChild(bylineImg);
+
+    const title = {
+      element: titleImg,
+      fadeIn: false,
+      fadeOut: false,
+      opacity: 0,
+    };
+
+    const byline = {
+      element: bylineImg,
+      fadeIn: false,
+      fadeOut: false,
+      opacity: 0,
+    };
+
+    return { title, byline };
+  }
+
+  /**
    * Create title text particles for the start screen
    */
   createTitleText() {
@@ -406,7 +457,7 @@ export class StartScreen {
       position: { x: 0, y: 0, z: -4.25 },
       scale: 0.03125,
       animate: true,
-      particleDensity: 0.5,
+      particleDensity: 0.25, // Halved from 0.5 to reduce CPU usage
       alphaThreshold: 0.1, // keep semi-opaque pixels, discard near-fully transparent
     });
     this.textScene.remove(imageData1.mesh);
@@ -420,6 +471,7 @@ export class StartScreen {
       mesh: imageData1.mesh,
       particles: imageData1.particles,
       update: imageData1.update,
+      pointSize: 0.3, // Doubled from default to compensate for reduced density
     };
 
     // Create byline as image-based particles below title
@@ -428,7 +480,7 @@ export class StartScreen {
       position: { x: 0, y: -1.2, z: -3.6 },
       scale: 0.025,
       animate: true,
-      particleDensity: 0.5,
+      particleDensity: 0.25, // Halved from 0.5 to reduce CPU usage
       alphaThreshold: 0.1,
       useImageColor: false,
       tintColor: new THREE.Color(0xffffff),
@@ -443,7 +495,7 @@ export class StartScreen {
       mesh: imageData2.mesh,
       particles: imageData2.particles,
       update: imageData2.update,
-      pointSize: 0.15,
+      pointSize: 0.3, // Doubled from 0.15 to compensate for reduced density
     };
 
     return { title, byline };
@@ -1024,35 +1076,83 @@ export class StartScreen {
         sfxManager.play("city-ambiance");
       }
 
-      // Defer title particle sequence until INTRO_COMPLETE game state
+      // Defer title sequence until INTRO_COMPLETE game state
       const startTitleSequence = () => {
-        // Create sequence first so we can prime particle buffers before showing
-        this.titleSequence = new TitleSequence([this.title, this.byline], {
-          introDuration: 3.0,
-          staggerDelay: 2.0,
-          holdDuration: 3.0,
-          outroDuration: 2.0,
-          disperseDistance: 5.0,
-          basePointSize: 0.28,
-          onComplete: () => {
-            this.logger.log("Title sequence complete");
-            gameManager.setState({
-              currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
-            });
-          },
-        });
+        if (this.useImageBackup) {
+          // Use simple image fade-in sequence
+          this.titleSequence = new ImageTitleSequence(
+            [this.title, this.byline],
+            {
+              introDuration: 3.0,
+              staggerDelay: 2.0,
+              holdDuration: 3.0,
+              outroDuration: 2.0,
+              onComplete: () => {
+                this.logger.log("Title sequence complete");
+                // Clean up image elements
+                if (
+                  this.titleImageContainer &&
+                  this.titleImageContainer.parentNode
+                ) {
+                  this.titleImageContainer.parentNode.removeChild(
+                    this.titleImageContainer
+                  );
+                  this.titleImageContainer = null;
+                }
+                this.titleSequence = null;
+                gameManager.setState({
+                  currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+                });
+              },
+            }
+          );
+        } else {
+          // Create sequence first so we can prime particle buffers before showing
+          this.titleSequence = new TitleSequence([this.title, this.byline], {
+            introDuration: 3.0,
+            staggerDelay: 2.0,
+            holdDuration: 3.0,
+            outroDuration: 2.0,
+            disperseDistance: 5.0,
+            basePointSize: 0.56, // Doubled from 0.28 to compensate for reduced density
+            onComplete: () => {
+              this.logger.log("Title sequence complete");
+              // Clean up particles from scene to free memory and stop updates
+              if (this.title && this.title.mesh) {
+                if (this.title.mesh.parent) {
+                  this.title.mesh.parent.remove(this.title.mesh);
+                }
+                this.title.mesh.geometry.dispose();
+                this.title.mesh.material.dispose();
+                this.title.mesh = null;
+              }
+              if (this.byline && this.byline.mesh) {
+                if (this.byline.mesh.parent) {
+                  this.byline.mesh.parent.remove(this.byline.mesh);
+                }
+                this.byline.mesh.geometry.dispose();
+                this.byline.mesh.material.dispose();
+                this.byline.mesh = null;
+              }
+              this.titleSequence = null; // Clear reference to stop updates
+              gameManager.setState({
+                currentState: GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+              });
+            },
+          });
 
-        // Prime one update tick to ensure initial opacities/positions are set (avoids flash)
-        if (
-          this.titleSequence &&
-          typeof this.titleSequence.update === "function"
-        ) {
-          this.titleSequence.update(0);
+          // Prime one update tick to ensure initial opacities/positions are set (avoids flash)
+          if (
+            this.titleSequence &&
+            typeof this.titleSequence.update === "function"
+          ) {
+            this.titleSequence.update(0);
+          }
+
+          // Now make text visible
+          this.title.mesh.visible = true;
+          this.byline.mesh.visible = true;
         }
-
-        // Now make text visible
-        this.title.mesh.visible = true;
-        this.byline.mesh.visible = true;
 
         // Update game state - intro is ending, transitioning to gameplay
         gameManager.setState({

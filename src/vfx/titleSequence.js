@@ -16,6 +16,13 @@ export class TitleSequence {
 
     this.time = 0;
     this.completed = false; // Track if completion callback has been called
+
+    // Pre-allocate Vector3 instances to avoid per-frame allocations
+    this._windDir = new THREE.Vector3();
+    this._turbulence = new THREE.Vector3();
+    this._idOffset = new THREE.Vector3();
+    this._disperseDir = new THREE.Vector3();
+    this._offset = new THREE.Vector3();
     this.totalDuration =
       this.introDuration +
       this.staggerDelay * (texts.length - 1) +
@@ -145,28 +152,30 @@ export class TitleSequence {
     // Calculate dispersion - wind-driven effect
     // Intro (phase 1): particles start LEFT (-1.0) and move to center
     // Outro (phase 3): particles exit RIGHT (1.0)
-    const windDir = new THREE.Vector3(
+    // Reuse pre-allocated Vector3 to avoid allocations
+    this._windDir.set(
       phase === 3 ? 1.0 : -1.0, // Reversed: intro from left, outro to right
       0.3,
       phase === 3 ? 0.5 : -0.5
     );
 
     // Add turbulence per particle
-    const turbulence = new THREE.Vector3(
+    this._turbulence.set(
       particle._turbulence1 * 0.4 - 0.2,
       particle._turbulence2 * 0.4 - 0.2,
       particle._turbulence3 * 0.4 - 0.2
     );
 
     // ID-based offset
-    const idOffset = new THREE.Vector3(
+    this._idOffset.set(
       particle._hash2 * 2.0 - 1.0,
       particle._hash3 * 2.0 - 1.0,
       particle._hash4 * 2.0 - 1.0
     ).multiplyScalar(0.2);
 
     // Combine: strong wind + turbulence + ID-based offset
-    const disperseDir = windDir.add(turbulence).add(idOffset).normalize();
+    // Reuse pre-allocated disperseDir vector
+    this._disperseDir.copy(this._windDir).add(this._turbulence).add(this._idOffset).normalize();
 
     // Add random distance variation per particle
     const randomDist = 0.7 + particle._hash5 * 0.6;
@@ -185,11 +194,11 @@ export class TitleSequence {
       disperseFactor = 0.0;
     }
 
-    // Update particle position
-    const offset = disperseDir.multiplyScalar(
+    // Update particle position (reuse pre-allocated offset vector)
+    this._offset.copy(this._disperseDir).multiplyScalar(
       this.disperseDistance * randomDist * disperseFactor
     );
-    particle.position.copy(particle.originalPosition).add(offset);
+    particle.position.copy(particle.originalPosition).add(this._offset);
 
     // Scale effect
     if (phase === 1) {
@@ -215,6 +224,18 @@ export class TitleSequence {
   }
 
   update(dt) {
+    // Early return if sequence is complete - no need to update particles
+    if (this.isComplete()) {
+      // Still trigger completion callback if not already called
+      if (!this.completed) {
+        this.completed = true;
+        if (this.onComplete) {
+          this.onComplete();
+        }
+      }
+      return;
+    }
+
     this.time += dt;
 
     // Update all texts

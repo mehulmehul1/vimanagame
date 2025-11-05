@@ -157,15 +157,51 @@ export const sceneObjects = {
     },
   },
 
-  introAlley: {
-    id: "introAlley",
+  alleyIntro: {
+    id: "alleyIntro",
     type: "splat",
-    path: "/splats/IntroAlley.sog",
+    path: "/splats/AlleyIntro.sog",
     description: "Intro alley section of exterior environment",
     position: { x: 0.35, y: 1.0, z: 1.9 },
     rotation: { x: 0, y: Math.PI, z: Math.PI },
     scale: { x: 1, y: 1, z: 1 },
     priority: 70, // Load first of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  alleyLongView: {
+    id: "alleyLongView",
+    type: "splat",
+    path: "/splats/AlleyLongView.sog",
+    description: "Long view alley section of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  alleyNavigable: {
+    id: "alleyNavigable",
+    type: "splat",
+    path: "/splats/AlleyNavigable.sog",
+    description: "Navigable alley section of exterior environment",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 68, // Load third of deferred exterior pieces
     preload: false,
     criteria: {
       currentState: {
@@ -443,7 +479,7 @@ export const sceneObjects = {
         clipName: null,
         loop: false,
         autoPlay: true,
-        timeScale: 0.475,
+        timeScale: 0.45,
         removeObjectOnFinish: true, // Despawn car after animation completes
         criteria: {
           currentState: {
