@@ -5,7 +5,7 @@ import { GAME_STATES } from "./gameData.js";
  * ZoneManager - Manages loading/unloading of exterior splat zones based on player location
  *
  * Zone mapping:
- * - AlleyIntro: loads AlleyIntro + AlleyNavigable
+ * - AlleyIntro: loads AlleyIntro + AlleyNavigable + FourWay
  * - AlleyNavigable: loads AlleyNavigable + AlleyLongView + FourWay + AlleyIntro
  * - FourWay: loads FourWay + AlleyNavigable + ThreeWay + Plaza
  * - ThreeWay: loads ThreeWay + FourWay + ThreeWay2
@@ -23,7 +23,7 @@ class ZoneManager {
 
     // Zone to splat mapping
     this.zoneToSplats = {
-      alleyIntro: ["alleyIntro", "alleyNavigable", "fourWay", "alleyLongView"],
+      alleyIntro: ["alleyIntro", "alleyNavigable"],
       alleyNavigable: [
         "alleyNavigable",
         "alleyLongView",
