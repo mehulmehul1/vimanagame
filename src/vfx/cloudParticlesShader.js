@@ -507,9 +507,6 @@ class CloudParticlesShader extends VFXManager {
       // Check if transition is complete
       if (t >= 1.0) {
         this.isTransitioningOpacity = false;
-        this.logger.log(
-          `  Fog opacity transition complete at ${this.opacity.toFixed(2)}`
-        );
         // Schedule next opacity change
         const holdTime =
           this.opacityVariationHoldTimeMin +
@@ -517,7 +514,6 @@ class CloudParticlesShader extends VFXManager {
             (this.opacityVariationHoldTimeMax -
               this.opacityVariationHoldTimeMin);
         this.nextOpacityChangeTime = time + holdTime;
-        this.logger.log(`  Next opacity change in ${holdTime.toFixed(1)}s`);
       }
     }
   }

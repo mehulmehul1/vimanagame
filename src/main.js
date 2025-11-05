@@ -94,6 +94,8 @@ const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
+  maxStdDev: Math.sqrt(2),
+  minAlpha: 0.5 * (1.0 / 255.0), // Explicitly set to default to avoid internal logging spam
 });
 spark.renderOrder = 9998;
 scene.add(spark);
