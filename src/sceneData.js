@@ -354,7 +354,7 @@ export const sceneObjects = {
         size: { x: 1, y: 1 }, // Capture area size
         offset: { x: 0, y: -0.01, z: 0 }, // Position offset
         blur: 3.5, // Slightly more blur for larger shadow
-        darkness: 5, // Shadow darkness multiplier
+        darkness: 2.5, // Shadow darkness multiplier
         opacity: 0.9, // Overall shadow opacity
         cameraHeight: 2, // Taller camera for car
         shadowScale: { x: 1.15, y: 1.15 }, // Scale shadow plane display (extends beyond capture area)

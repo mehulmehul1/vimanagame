@@ -20,15 +20,15 @@ class CloudParticlesShader extends VFXManager {
     // Fog settings - edit these directly
     this.particleCount = 22000;
     this.cloudSize = 40;
-    this.particleSize = 1.5;
+    this.particleSize = 1.75;
     this.particleSizeMin = 0.75;
     this.particleSizeMax = 1.5;
     this.windSpeed = -0.5;
-    this.opacity = 0.025;
+    this.opacity = 0.03;
     this.color = 0xffffff;
     this.fluffiness = 8;
-    this.turbulence = 3;
-    this.groundLevel = -2;
+    this.turbulence = 2;
+    this.groundLevel = -3;
     this.fogHeight = 10.0;
     this.fogFalloff = 1;
 

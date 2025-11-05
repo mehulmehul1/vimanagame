@@ -35,6 +35,13 @@ class ZoneManager {
     // Current zone (null when not in exterior)
     this.currentZone = null;
 
+    // Track if we've moved from initial state (prevents false positives during init)
+    this.hasMovedFromInitialState = false;
+    this.zoneDetectionTimeout = null; // Store timeout reference
+
+    // Callback to enable zone detection (called by StartScreen when camera animation is ready)
+    this.enableZoneDetectionCallback = null;
+
     // Only active when in exterior (before OFFICE_INTERIOR)
     this.isActive = false;
 
@@ -60,6 +67,25 @@ class ZoneManager {
   }
 
   /**
+   * Enable zone detection (called by StartScreen when camera animation is ready)
+   * But still wait 10 seconds after plaza is set before actually enabling
+   */
+  enableZoneDetection() {
+    // Don't enable immediately - wait for the timeout set when plaza is initialized
+    // The timeout will set hasMovedFromInitialState after 10 seconds
+    this.logger.log(
+      "enableZoneDetection() called - will activate after 10 second delay from plaza setup"
+    );
+  }
+
+  /**
+   * Set callback to enable zone detection (called by StartScreen when camera animation is ready)
+   */
+  setEnableZoneDetectionCallback(callback) {
+    this.enableZoneDetectionCallback = callback;
+  }
+
+  /**
    * Handle game state changes
    * @param {Object} newState - New game state
    * @param {Object} oldState - Previous game state
@@ -78,6 +104,55 @@ class ZoneManager {
       return;
     }
 
+    // If currentZone is set in state but doesn't match our currentZone, sync it
+    // This handles hard-coded initial zones and state changes from other sources
+    // Do this BEFORE the transition checks so it works even during activation
+    // BUT: Don't sync zones from state until zone detection is enabled (prevents false positives during init)
+    // EXCEPT: Allow setting initial "plaza" zone ONCE when activating
+    if (
+      newState.currentZone &&
+      newState.currentZone !== this.currentZone &&
+      this.isActive
+    ) {
+      // CRITICAL: Only sync from state if zone detection is enabled OR if it's the initial plaza setup
+      // This prevents state changes from triggering zone switches during initialization
+      if (this.hasMovedFromInitialState) {
+        // Zone detection enabled - sync normally
+        if (!this.activeZones.has(newState.currentZone)) {
+          this.activeZones.add(newState.currentZone);
+        }
+        this.setZone(newState.currentZone).catch((error) => {
+          this.logger.error("Error syncing zone from state:", error);
+        });
+      } else if (
+        newState.currentZone === "plaza" &&
+        this.currentZone === null
+      ) {
+        // Only allow initial plaza setup before zone detection is enabled
+        if (!this.activeZones.has(newState.currentZone)) {
+          this.activeZones.add(newState.currentZone);
+        }
+        this.setZone(newState.currentZone).catch((error) => {
+          this.logger.error("Error setting initial zone:", error);
+        });
+
+        // Delay zone detection by 10 seconds after plaza is set to let everything settle
+        // Clear any existing timeout first
+        if (this.zoneDetectionTimeout) {
+          clearTimeout(this.zoneDetectionTimeout);
+        }
+        this.zoneDetectionTimeout = setTimeout(() => {
+          if (!this.hasMovedFromInitialState) {
+            this.hasMovedFromInitialState = true;
+            this.logger.log(
+              "Zone detection enabled after 10 second delay (plaza set)"
+            );
+          }
+        }, 10000);
+      }
+      // Otherwise, ignore state changes until zone detection is enabled
+    }
+
     // If we transitioned into exterior, wait for collision detection to set active zones
     if (!wasActive && this.isActive) {
       this.logger.log(
@@ -87,12 +162,24 @@ class ZoneManager {
           newState.currentState < GAME_STATES.OFFICE_INTERIOR
         }) - waiting for zone collision detection`
       );
-      // Don't set zone here - let collision detection handle it via addActiveZone
+      // Initial zone setup is handled above - no need to duplicate here
       return;
     }
 
     // Zone changes are now handled entirely by collision detection (addActiveZone/removeActiveZone)
-    // We don't react to currentZone state changes here to avoid feedback loops
+    // But we also sync with state changes for hard-coded initial zones
+  }
+
+  /**
+   * Check if camera has moved significantly from spawn to enable zone detection
+   * @returns {boolean} True if camera has moved at least 10 units from origin
+   */
+  _hasCameraMovedFromSpawn() {
+    if (!this.gameManager || !this.gameManager.sceneManager) return false;
+    // Check if camera exists and has moved significantly
+    // We'll check this via collision detection results - if we get a legitimate zone detection
+    // (not introAlley) after plaza, we know camera is positioned
+    return this.hasMovedFromInitialState;
   }
 
   /**
@@ -105,6 +192,19 @@ class ZoneManager {
         `Cannot set zone "${zone}" - ZoneManager is not active (must be before OFFICE_INTERIOR)`
       );
       return;
+    }
+
+    // CRITICAL: Don't allow zone changes until zone detection is enabled
+    // This prevents false positives during initialization
+    if (!this.hasMovedFromInitialState) {
+      // Only allow setting the initial zone (plaza) from state when currentZone is null
+      // Once plaza is set, block ALL other zone changes until enableZoneDetection() is called
+      if (zone !== "plaza" || this.currentZone !== null) {
+        this.logger.log(
+          `[BLOCKED] Zone change to "${zone}" - zone detection not enabled yet (currentZone: ${this.currentZone}, hasMovedFromInitialState: ${this.hasMovedFromInitialState})`
+        );
+        return;
+      }
     }
 
     if (!zone) {
@@ -120,6 +220,10 @@ class ZoneManager {
     if (zone === this.currentZone) {
       return;
     }
+
+    // REMOVED: Code that auto-enabled zone detection when switching from plaza
+    // Zone detection should ONLY be enabled via enableZoneDetection() called by StartScreen
+    // This prevents false positives during initialization
 
     const oldZone = this.currentZone;
     this.currentZone = zone;
@@ -218,11 +322,17 @@ class ZoneManager {
 
     // Then load new splats after cleanup is complete
     for (const splatId of splatsToLoad) {
+      this.logger.log(`[Zone "${zone}"] Loading splat: ${splatId}`);
       await this.loadSplat(splatId);
+      this.logger.log(`[Zone "${zone}"] ✓ Loaded splat: ${splatId}`);
     }
 
+    // Log what's currently loaded for this zone
+    const finalLoaded = Array.from(this.loadedSplats).filter((splatId) =>
+      requiredSplats.includes(splatId)
+    );
     this.logger.log(
-      `Zone "${zone}" configured - Loaded: ${Array.from(this.loadedSplats).join(
+      `[Zone "${zone}"] Zone configured - Loaded splats: ${finalLoaded.join(
         ", "
       )}`
     );
@@ -341,6 +451,16 @@ class ZoneManager {
   addActiveZone(zoneName) {
     if (!this.isActive) return;
 
+    // CRITICAL: Completely disable collision-based zone detection until explicitly enabled
+    // This prevents false positives during initialization when camera hasn't been positioned yet
+    if (!this.hasMovedFromInitialState) {
+      // Block ALL collision-based zone detection until enableZoneDetection() is called
+      this.logger.log(
+        `Ignoring collision detection for "${zoneName}" - waiting for camera animation to position camera`
+      );
+      return;
+    }
+
     // Only add if not already active (prevents duplicate calls from physics jitter)
     if (this.activeZones.has(zoneName)) {
       return;
@@ -426,6 +546,8 @@ class ZoneManager {
               debouncedZone !== this.currentZone &&
               this.activeZones.has(debouncedZone)
             ) {
+              // Zone detection should only be enabled via enableZoneDetection()
+              // Don't auto-enable here to prevent false positives during init
               this.setZone(debouncedZone).catch((error) => {
                 this.logger.error("Error switching zone after exit:", error);
               });

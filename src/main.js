@@ -94,8 +94,8 @@ const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
-  maxStdDev: Math.sqrt(4),
-  minAlpha: 0.5 * (1.0 / 255.0),
+  maxStdDev: Math.sqrt(3),
+  minAlpha: 0.8 * (1.0 / 255.0),
 });
 spark.renderOrder = 9998;
 scene.add(spark);
@@ -605,13 +605,15 @@ renderer.setAnimationLoop(function animate(time) {
   }
 
   // Determine if we should use camera-based zone detection
-  // Use camera during START_SCREEN or when camera animation is playing (but not during normal gameplay)
-  // Also continue using camera during startScreen transition (when isActive or isFollowingUnifiedPath)
+  // Use camera during START_SCREEN camera animation (after animation loads) and transition to starting position
+  // Also use camera when camera animation manager is playing (but not during normal gameplay)
   const currentState = gameManager.getState();
+  const isStartScreenActive =
+    startScreen && startScreen.isActive && !startScreen.isLoadingAnimation; // Only after animation has loaded and camera is positioned
   const isStartScreenTransition =
-    startScreen && (startScreen.isActive || startScreen.isFollowingUnifiedPath);
+    startScreen && startScreen.isFollowingUnifiedPath;
   const shouldUseCamera =
-    currentState.currentState === GAME_STATES.START_SCREEN ||
+    isStartScreenActive ||
     isStartScreenTransition ||
     (cameraAnimationManager.isPlaying && !gameManager.isControlEnabled());
 

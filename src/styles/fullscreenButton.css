@@ -41,6 +41,11 @@
   opacity: 1;
 }
 
+.fullscreen-button.is-pointer-locked {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .fullscreen-button img {
   width: 100%;
   height: 100%;

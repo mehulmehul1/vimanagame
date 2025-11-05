@@ -195,6 +195,15 @@ export class StartScreen {
       }
 
       this.isLoadingAnimation = false;
+
+      // Enable zone detection now that camera animation is loaded and positioned
+      if (
+        this.uiManager &&
+        this.uiManager.gameManager &&
+        this.uiManager.gameManager.zoneManager
+      ) {
+        this.uiManager.gameManager.zoneManager.enableZoneDetection();
+      }
     } catch (error) {
       this.logger.error("Error loading camera animation:", error);
       this.isLoadingAnimation = false;

@@ -321,6 +321,22 @@ class ColliderManager {
   }
 
   /**
+   * Check if camera probe has moved significantly from spawn (origin)
+   * This prevents false zone detection during initialization
+   * @returns {boolean} True if camera has moved at least 5 units from origin
+   */
+  _hasCameraMovedFromSpawn() {
+    if (!this.cameraProbeBody) return false;
+    const probePos = this.cameraProbeBody.translation();
+    const distanceFromOrigin = Math.sqrt(
+      probePos.x * probePos.x +
+        probePos.y * probePos.y +
+        probePos.z * probePos.z
+    );
+    return distanceFromOrigin > 5.0; // At least 5 units from origin
+  }
+
+  /**
    * Check for intersections with character or camera and trigger events
    * @param {Object} characterBody - Rapier rigid body of the character (optional if using camera)
    * @param {boolean} useCamera - If true, use camera position instead of character position
@@ -367,11 +383,26 @@ class ColliderManager {
 
       if (id.startsWith("zone-") && this.zoneMeshes.has(id)) {
         // Zone colliders: use camera probe when available, otherwise fall back to character
-        if (useCamera && this.cameraProbeBody) {
+        if (useCamera && this.cameraProbeBody && this.camera) {
           const probePos = this.cameraProbeBody.translation();
+
+          // HARDCODED: Use known good position for initial zone check (PHONE_BOOTH_RINGING spawn position)
+          // This prevents false positives from camera animation traversing zones during init
+          // Phonebooth position: { x: 5.94, y: 0.27, z: 65.76 }
+          // PHONE_BOOTH_RINGING spawn: { x: phonebooth.x + 5, y: 0.8, z: phonebooth.z - 8 }
+          // So hardcoded position: { x: 10.94, y: 0.8, z: 57.76 }
+          // Camera height offset: +1.6, so camera at: { x: 10.94, y: 2.4, z: 57.76 }
+          const hardcodedInitPosition = new THREE.Vector3(10.94, 2.4, 57.76);
+
+          // Use hardcoded position if zone detection not enabled yet (prevents false positives)
+          const positionToCheck = this.gameManager?.zoneManager
+            ?.hasMovedFromInitialState
+            ? new THREE.Vector3(probePos.x, probePos.y, probePos.z)
+            : hardcodedInitPosition;
+
           isIntersecting = this.checkPointInMesh(
             this.zoneMeshes.get(id),
-            new THREE.Vector3(probePos.x, probePos.y, probePos.z)
+            positionToCheck
           );
         } else if (characterProbeCollider && characterBody) {
           const probePos = characterBody.translation();
@@ -448,7 +479,7 @@ class ColliderManager {
    */
   /**
    * Check if a point is inside a mesh using raycasting against the geometry
-   * Since vertices are in world space, we can use the geometry directly
+   * Vertices need to be transformed to world space before checking
    * @param {THREE.Mesh} mesh - THREE.js mesh to test against
    * @param {THREE.Vector3} point - Point to test (in world space)
    * @returns {boolean} True if point is inside the mesh
@@ -459,6 +490,10 @@ class ColliderManager {
 
     const positionAttribute = geometry.attributes.position;
     if (!positionAttribute) return false;
+
+    // Update mesh world matrix to ensure it's current
+    mesh.updateWorldMatrix(true, false);
+    const worldMatrix = mesh.matrixWorld;
 
     // Get indices (either from index buffer or sequential)
     const indexAttribute = geometry.index;
@@ -481,37 +516,39 @@ class ColliderManager {
         const i0 = indices[i * 3];
         const i1 = indices[i * 3 + 1];
         const i2 = indices[i * 3 + 2];
+        // Transform vertices to world space
         v0 = new THREE.Vector3(
           positionAttribute.getX(i0),
           positionAttribute.getY(i0),
           positionAttribute.getZ(i0)
-        );
+        ).applyMatrix4(worldMatrix);
         v1 = new THREE.Vector3(
           positionAttribute.getX(i1),
           positionAttribute.getY(i1),
           positionAttribute.getZ(i1)
-        );
+        ).applyMatrix4(worldMatrix);
         v2 = new THREE.Vector3(
           positionAttribute.getX(i2),
           positionAttribute.getY(i2),
           positionAttribute.getZ(i2)
-        );
+        ).applyMatrix4(worldMatrix);
       } else {
+        // Transform vertices to world space
         v0 = new THREE.Vector3(
           positionAttribute.getX(i * 3),
           positionAttribute.getY(i * 3),
           positionAttribute.getZ(i * 3)
-        );
+        ).applyMatrix4(worldMatrix);
         v1 = new THREE.Vector3(
           positionAttribute.getX(i * 3 + 1),
           positionAttribute.getY(i * 3 + 1),
           positionAttribute.getZ(i * 3 + 1)
-        );
+        ).applyMatrix4(worldMatrix);
         v2 = new THREE.Vector3(
           positionAttribute.getX(i * 3 + 2),
           positionAttribute.getY(i * 3 + 2),
           positionAttribute.getZ(i * 3 + 2)
-        );
+        ).applyMatrix4(worldMatrix);
       }
 
       // Check ray-triangle intersection using Möller-Trumbore algorithm

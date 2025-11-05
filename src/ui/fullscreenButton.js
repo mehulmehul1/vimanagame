@@ -22,6 +22,9 @@ export class FullscreenButton {
 
     // Listen for fullscreen changes to update button state
     this.bindFullscreenEvents();
+
+    // Listen for pointer lock changes to update button state
+    this.bindPointerLockEvents();
   }
 
   /**
@@ -215,6 +218,44 @@ export class FullscreenButton {
       this.button.title = "Exit Fullscreen (ESC or F11)";
     } else {
       this.button.title = "Enter Fullscreen";
+    }
+  }
+
+  /**
+   * Bind pointer lock change events
+   */
+  bindPointerLockEvents() {
+    const updatePointerLockState = () => {
+      this.updatePointerLockState();
+    };
+
+    document.addEventListener("pointerlockchange", updatePointerLockState);
+    document.addEventListener("mozpointerlockchange", updatePointerLockState);
+    document.addEventListener("webkitpointerlockchange", updatePointerLockState);
+
+    // Check initial state
+    this.updatePointerLockState();
+  }
+
+  /**
+   * Check if pointer is locked
+   */
+  isPointerLocked() {
+    return document.pointerLockElement !== null;
+  }
+
+  /**
+   * Update button appearance based on pointer lock state
+   */
+  updatePointerLockState() {
+    const isLocked = this.isPointerLocked();
+
+    if (isLocked) {
+      this.button.classList.add("is-pointer-locked");
+      this.button.style.pointerEvents = "none";
+    } else {
+      this.button.classList.remove("is-pointer-locked");
+      this.button.style.pointerEvents = "";
     }
   }
 
