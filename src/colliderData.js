@@ -202,6 +202,87 @@ export const colliders = [
   //   onExit: [],
   // },
 
+  // Zone colliders for exterior splat loading/unloading
+  // Note: These should match your trimesh colliders (ZoneCollider-*) from Blender.
+  // If using trimesh colliders, you may need to approximate with box colliders here,
+  // or extend ColliderManager to support trimesh triggers.
+  // Positions/dimensions below are placeholders - update to match your Blender geometry.
+  // Each collider sets currentZone state on enter/exit to control splat loading.
+  {
+    id: "zone-introAlley",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-IntroAlley trimesh
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "introAlley" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false, // Allow entering/exiting multiple times
+    enabled: true,
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
+  {
+    id: "zone-fourWay",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-FourWay trimesh
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "fourWay" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false,
+    enabled: true,
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
+  {
+    id: "zone-threeWay",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-ThreeWay trimesh
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "threeWay" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false,
+    enabled: true,
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
+  {
+    id: "zone-threeWay2",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-ThreeWay2 trimesh
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "threeWay2" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false,
+    enabled: true,
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
+  {
+    id: "zone-plaza",
+    type: "box", // TODO: Update position/dimensions to match ZoneCollider-Plaza trimesh
+    position: { x: 0, y: 1, z: 0 }, // Placeholder - update with actual position
+    rotation: { x: 0, y: 0, z: 0 }, // Placeholder - update with actual rotation
+    dimensions: { x: 10, y: 4, z: 10 }, // Placeholder - update with actual dimensions
+    setStateOnEnter: { currentZone: "plaza" },
+    setStateOnExit: { currentZone: null }, // Clear zone when exiting
+    once: false,
+    enabled: true,
+    criteria: {
+      currentState: { $lt: GAME_STATES.OFFICE_INTERIOR }, // Only active before office
+    },
+  },
+
   // Add your colliders here...
 ];
 

@@ -352,6 +352,15 @@ class GameManager {
     const objectsToLoad = getSceneObjectsForState(this.state, options);
     const objectIdsToLoad = new Set(objectsToLoad.map((obj) => obj.id));
 
+    // Debug: Log which objects are being loaded
+    if (objectsToLoad.length > 0) {
+      this.logger.log(
+        `Objects to load for state ${this.state.currentState}: ${objectsToLoad
+          .map((obj) => obj.id)
+          .join(", ")}`
+      );
+    }
+
     // Find objects that are loaded but should no longer be
     const objectsToUnload = Array.from(this.loadedScenes).filter(
       (id) => !objectIdsToLoad.has(id)
@@ -381,16 +390,35 @@ class GameManager {
       (obj) => !this.loadedScenes.has(obj.id)
     );
 
-    // Load new objects that match criteria
-    if (newObjects.length > 0) {
+    // Filter out objects with preload: false - these should only be loaded by ZoneManager
+    // They're already prefetched but shouldn't be fully loaded until needed
+    const objectsToActuallyLoad = newObjects.filter((obj) => {
+      const objPreload = obj.preload !== undefined ? obj.preload : false;
+      if (objPreload === false) {
+        // Only skip if it's an exterior splat (managed by ZoneManager)
+        // Other deferred objects might still be loaded if criteria match
+        const isExteriorSplat =
+          obj.type === "splat" &&
+          obj.id !== "interior" &&
+          obj.id !== "officeHell" &&
+          obj.id !== "club";
+        if (isExteriorSplat) {
+          return false; // Skip - ZoneManager will load these when needed
+        }
+      }
+      return true; // Load preload: true objects or non-exterior deferred objects
+    });
+
+    // Load new objects that match criteria (excluding deferred exterior splats)
+    if (objectsToActuallyLoad.length > 0) {
       this.logger.log(
-        `Loading ${newObjects.length} new scene objects for state`
+        `Loading ${objectsToActuallyLoad.length} new scene objects for state`
       );
 
       // Track loaded objects BEFORE loading to prevent duplicate loads during async operations
-      newObjects.forEach((obj) => this.loadedScenes.add(obj.id));
+      objectsToActuallyLoad.forEach((obj) => this.loadedScenes.add(obj.id));
 
-      await this.sceneManager.loadObjectsForState(newObjects);
+      await this.sceneManager.loadObjectsForState(objectsToActuallyLoad);
     }
 
     // Check for objects that are loaded but not in scene (deferred loading)

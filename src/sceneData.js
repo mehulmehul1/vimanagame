@@ -94,7 +94,7 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 // Create module-level logger
-const logger = new Logger("SceneData", false);
+const logger = new Logger("SceneData", true); // Enable logging to debug exteriorZoneColliders
 
 const originPosition = { x: 0, y: 0, z: 0 };
 const originRotation = { x: 0, y: 0, z: 0 };
@@ -225,7 +225,29 @@ export const sceneObjects = {
       physicsCollider: true, // Flag to create physics trimesh collider
       debugMaterial: false, // Apply semi-transparent debug material to visualize collider
     },
-    loadByDefault: false,
+    priority: 90,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.START_SCREEN,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
+  exteriorZoneColliders: {
+    id: "exteriorZoneColliders",
+    type: "gltf",
+    path: "/gltf/colliders/ExteriorZoneColliders.glb",
+    description: "Exterior zone trigger colliders for splat loading/unloading",
+    position: originPosition,
+    rotation: originRotation,
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+      visible: false, // Hidden by default
+      triggerColliders: true, // Flag to create trigger colliders from child meshes
+    },
     priority: 90,
     preload: true,
     criteria: {
@@ -306,7 +328,6 @@ export const sceneObjects = {
       physicsCollider: true, // Flag to create physics trimesh collider
       debugMaterial: false, // Apply semi-transparent debug material to visualize collider
     },
-    loadByDefault: false,
     priority: 90,
     criteria: {
       currentState: {
@@ -765,9 +786,19 @@ export function getSceneObjectsForState(gameState, options = {}) {
     // Treat undefined preload as false (deferred)
     const objPreload = obj.preload !== undefined ? obj.preload : false;
     if (options.preloadOnly && objPreload !== true) {
+      if (obj.id === "exteriorZoneColliders") {
+        logger.log(
+          `exteriorZoneColliders skipped: preloadOnly=true but preload=${objPreload}`
+        );
+      }
       continue;
     }
     if (options.deferredOnly && objPreload !== false) {
+      if (obj.id === "exteriorZoneColliders") {
+        logger.log(
+          `exteriorZoneColliders skipped: deferredOnly=true but preload=${objPreload}`
+        );
+      }
       continue;
     }
 
@@ -781,15 +812,26 @@ export function getSceneObjectsForState(gameState, options = {}) {
     if (obj.criteria) {
       const matches = checkCriteria(gameState, obj.criteria);
       if (!matches) {
-        logger.log(
-          `${obj.id} does NOT match criteria (state=${gameState.currentState})`
-        );
+        if (obj.id === "exteriorZoneColliders") {
+          logger.log(
+            `exteriorZoneColliders does NOT match criteria (state=${gameState.currentState})`,
+            obj.criteria
+          );
+        }
         continue;
+      }
+      if (obj.id === "exteriorZoneColliders") {
+        logger.log(
+          `exteriorZoneColliders MATCHES criteria (state=${gameState.currentState})`
+        );
       }
     }
 
     // If we get here, all conditions passed
     matchingObjects.push(obj);
+    if (obj.id === "exteriorZoneColliders") {
+      logger.log(`exteriorZoneColliders added to matchingObjects`);
+    }
   }
 
   return matchingObjects;

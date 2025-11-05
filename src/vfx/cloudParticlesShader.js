@@ -24,7 +24,7 @@ class CloudParticlesShader extends VFXManager {
     this.particleSizeMin = 0.75;
     this.particleSizeMax = 1.5;
     this.windSpeed = -0.5;
-    this.opacity = 0.01;
+    this.opacity = 0.02;
     this.color = 0xffffff;
     this.fluffiness = 8;
     this.turbulence = 3;

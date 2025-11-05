@@ -46,6 +46,8 @@ class SceneManager {
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
     this.physicsManager = options.physicsManager || null; // For creating physics colliders
     this.gameManager = options.gameManager || null; // For state-based updates
+    this.colliderManager = null; // Will be set by setColliderManager() for trigger colliders
+    this.pendingTriggerColliders = null; // Map of id -> zoneMeshes for deferred registration
     this.objects = new Map(); // Map of id -> THREE.Object3D
     this.objectData = new Map(); // Map of id -> original config data (for gizmo flag)
     this.gltfLoader = new GLTFLoader();
@@ -76,7 +78,7 @@ class SceneManager {
     this.assetProgress = new Map(); // Map of asset id -> { loaded, total }
 
     // Logger for debug messages
-    this.logger = new Logger("SceneManager", false);
+    this.logger = new Logger("SceneManager", true); // Enable logging for debugging
 
     // Listen for state changes if gameManager provided
     if (this.gameManager) {
@@ -523,6 +525,16 @@ class SceneManager {
             this._createPhysicsCollider(id, finalObject, position, rotation);
           }
 
+          // Create trigger colliders from child meshes if flag is set
+          if (options && options.triggerColliders && this.physicsManager) {
+            this.logger.log(`Creating trigger colliders for "${id}"`);
+            this._createTriggerColliders(id, model, objectData);
+          } else if (options && options.triggerColliders) {
+            this.logger.warn(
+              `Cannot create trigger colliders for "${id}" - physicsManager not available`
+            );
+          }
+
           // Apply environment mapping if requested
           if (options && options.envMap) {
             if (this.sparkRenderer) {
@@ -900,6 +912,186 @@ class SceneManager {
     } catch (error) {
       this.logger.error(`Error rendering environment map for "${id}":`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Create trigger colliders from child meshes in a GLTF model
+   * Looks for meshes matching "ZoneCollider-*" pattern and registers them as trimesh trigger colliders
+   * @param {string} id - Object ID
+   * @param {THREE.Object3D} model - The loaded GLTF model
+   * @param {Object} objectData - Object data from sceneData.js
+   * @private
+   */
+  _createTriggerColliders(id, model, objectData) {
+    this.logger.log(`_createTriggerColliders called for "${id}"`);
+    if (!this.physicsManager) {
+      this.logger.warn(
+        `Cannot create trigger colliders for "${id}" - physicsManager not available`
+      );
+      return;
+    }
+
+    // Map mesh names to zone names
+    const meshNameToZone = {
+      "ZoneCollider-IntroAlley": "introAlley",
+      "ZoneCollider-FourWay": "fourWay",
+      "ZoneCollider-ThreeWay": "threeWay",
+      "ZoneCollider-ThreeWay2": "threeWay2",
+      "ZoneCollider-Plaza": "plaza",
+    };
+
+    // Find all meshes matching ZoneCollider-* pattern
+    const zoneMeshes = [];
+    model.traverse((child) => {
+      if (child.isMesh && child.name.startsWith("ZoneCollider-")) {
+        const zoneName = meshNameToZone[child.name];
+        if (zoneName) {
+          zoneMeshes.push({ mesh: child, zoneName });
+        } else {
+          this.logger.warn(
+            `Found ZoneCollider mesh "${child.name}" but no zone mapping defined`
+          );
+        }
+      }
+    });
+
+    if (zoneMeshes.length === 0) {
+      this.logger.warn(
+        `No ZoneCollider meshes found in "${id}" - expected meshes matching "ZoneCollider-*" pattern`
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Found ${zoneMeshes.length} ZoneCollider mesh(es) in "${id}"`
+    );
+
+    // Register each mesh as a trimesh trigger collider
+    // Note: ColliderManager needs to be accessible - it's set via setColliderManager
+    if (!this.colliderManager) {
+      this.logger.warn(
+        `Cannot register trigger colliders for "${id}" - colliderManager not set. Call sceneManager.setColliderManager(colliderManager) first. Storing for later registration.`
+      );
+      // Store for later registration
+      if (!this.pendingTriggerColliders) {
+        this.pendingTriggerColliders = new Map();
+      }
+      this.pendingTriggerColliders.set(id, zoneMeshes);
+      this.logger.log(
+        `Stored ${zoneMeshes.length} zone mesh(es) for "${id}" in pendingTriggerColliders`
+      );
+      return;
+    }
+
+    // Import GAME_STATES for criteria
+    import("./gameData.js").then(({ GAME_STATES }) => {
+      // Register each zone mesh as a trigger collider
+      for (const { mesh, zoneName } of zoneMeshes) {
+        const colliderId = `zone-${zoneName}`;
+        const colliderData = {
+          id: colliderId,
+          // Don't set state on enter/exit - let ColliderManager call addActiveZone/removeActiveZone directly
+          // This prevents feedback loops and state-based zone switching
+          once: false, // Allow entering/exiting multiple times
+          enabled: true,
+          criteria: {
+            currentState: { $lt: GAME_STATES.OFFICE_INTERIOR },
+          },
+        };
+
+        const success = this.colliderManager.registerTrimeshTriggerCollider(
+          colliderId,
+          mesh,
+          colliderData
+        );
+
+        if (success) {
+          this.logger.log(
+            `Registered trigger collider "${colliderId}" from mesh "${mesh.name}"`
+          );
+        }
+      }
+    });
+  }
+
+  /**
+   * Set collider manager reference (for registering trigger colliders from GLTF meshes)
+   * @param {ColliderManager} colliderManager - ColliderManager instance
+   */
+  setColliderManager(colliderManager) {
+    this.colliderManager = colliderManager;
+    this.logger.log(`ColliderManager set on SceneManager`);
+
+    // Register any pending trigger colliders
+    if (this.pendingTriggerColliders && this.pendingTriggerColliders.size > 0) {
+      this.logger.log(
+        `Registering ${
+          this.pendingTriggerColliders.size
+        } pending trigger collider set(s): ${Array.from(
+          this.pendingTriggerColliders.keys()
+        ).join(", ")}`
+      );
+      for (const [id, zoneMeshes] of this.pendingTriggerColliders) {
+        const objectData = this.objectData.get(id);
+        if (objectData && objectData.options?.triggerColliders) {
+          const model = this.objects.get(id);
+          if (model) {
+            // Find the actual model (might be wrapped in container)
+            const actualModel =
+              model.children.length > 0 && model.children[0]?.type === "Scene"
+                ? model.children[0]
+                : model;
+            this.logger.log(
+              `Registering pending trigger colliders for "${id}"`
+            );
+            this._createTriggerColliders(id, actualModel, objectData);
+          } else {
+            this.logger.warn(
+              `Cannot register pending trigger colliders for "${id}" - model not found`
+            );
+          }
+        } else {
+          this.logger.warn(
+            `Cannot register pending trigger colliders for "${id}" - objectData or triggerColliders option not found`
+          );
+        }
+      }
+      this.pendingTriggerColliders.clear();
+    } else {
+      this.logger.log(`No pending trigger colliders to register`);
+    }
+
+    // Also check all already-loaded objects for triggerColliders option
+    // This handles the case where objects were loaded before colliderManager was set
+    this.logger.log(
+      `Checking ${this.objects.size} already-loaded objects for triggerColliders`
+    );
+    for (const [id, model] of this.objects) {
+      const objectData = this.objectData.get(id);
+      if (objectData && objectData.options?.triggerColliders) {
+        // Check if colliders were already registered (would be in colliderManager.colliders)
+        const zoneColliders = this.colliderManager.colliders.filter((c) =>
+          c.id.startsWith(`zone-`)
+        );
+        const alreadyRegistered = zoneColliders.length > 0;
+
+        if (!alreadyRegistered) {
+          this.logger.log(
+            `Found already-loaded object "${id}" with triggerColliders option - creating trigger colliders now`
+          );
+          // Find the actual model (might be wrapped in container)
+          const actualModel =
+            model.children.length > 0 && model.children[0]?.type === "Scene"
+              ? model.children[0]
+              : model;
+          this._createTriggerColliders(id, actualModel, objectData);
+        } else {
+          this.logger.log(
+            `Trigger colliders already registered (${zoneColliders.length} zone colliders found)`
+          );
+        }
+      }
     }
   }
 

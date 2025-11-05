@@ -74,6 +74,16 @@ class PhysicsManager {
   }
 
   /**
+   * Create a sensor trimesh collider descriptor (trigger, no physics interaction)
+   * @param {Float32Array} vertices - Vertex positions (world space)
+   * @param {Uint32Array} indices - Triangle indices
+   * @returns {Object} Rapier ColliderDesc
+   */
+  createSensorTrimesh(vertices, indices) {
+    return this.RAPIER.ColliderDesc.trimesh(vertices, indices).setSensor(true);
+  }
+
+  /**
    * Create a sensor capsule collider descriptor (trigger, no physics interaction)
    * @param {number} halfHeight - Half height of the cylindrical part
    * @param {number} radius - Capsule radius
@@ -100,6 +110,39 @@ class PhysicsManager {
    */
   checkIntersection(collider1, collider2) {
     return this.world.intersectionPair(collider1, collider2);
+  }
+
+  /**
+   * Check if a point is inside a trimesh collider
+   * @param {Object} trimeshCollider - Rapier trimesh collider
+   * @param {Object} point - Point to check {x, y, z} or Rapier Vector3
+   * @returns {boolean} True if point is inside the trimesh
+   */
+  checkPointInTrimesh(trimeshCollider, point) {
+    // Use intersectionPair with a temporary sphere sensor at the point
+    // This is more reliable than intersectionPair for trimesh sensors
+    // The radius needs to be large enough to intersect with the trimesh even if slightly off
+    
+    const pointVec = point.x !== undefined 
+      ? new this.RAPIER.Vector3(point.x, point.y, point.z)
+      : point;
+    
+    // Create a temporary sphere sensor at the point with a reasonable radius
+    const tempBodyDesc = this.RAPIER.RigidBodyDesc.kinematicPositionBased()
+      .setTranslation(pointVec.x, pointVec.y, pointVec.z);
+    const tempBody = this.world.createRigidBody(tempBodyDesc);
+    const tempColliderDesc = this.RAPIER.ColliderDesc.ball(0.5).setSensor(true); // Larger radius for better detection
+    tempColliderDesc.setCollisionGroups(0xffff0000); // Match probe collision groups
+    const tempCollider = this.world.createCollider(tempColliderDesc, tempBody);
+    
+    // Check intersection - this should work even without a physics step
+    const intersects = this.world.intersectionPair(tempCollider, trimeshCollider);
+    
+    // Clean up immediately
+    this.world.removeCollider(tempCollider, false);
+    this.world.removeRigidBody(tempBody);
+    
+    return intersects;
   }
 
   /**
@@ -163,6 +206,57 @@ class PhysicsManager {
     return {
       vertices: new Float32Array(allVertices),
       indices: new Uint32Array(allIndices),
+    };
+  }
+
+  /**
+   * Extract geometry data from a single mesh (for trigger colliders)
+   * Uses vertices as-is since they're already in world space (mesh at origin, vertices offset)
+   * @param {THREE.Mesh} mesh - THREE.js mesh object
+   * @returns {Object} { vertices: Float32Array, indices: Uint32Array } or null if no geometry found
+   */
+  extractGeometryFromMesh(mesh) {
+    if (!mesh || !mesh.isMesh || !mesh.geometry) {
+      return null;
+    }
+
+    const geometry = mesh.geometry;
+    const positionAttribute = geometry.attributes.position;
+    if (!positionAttribute) {
+      return null;
+    }
+
+    // Extract vertices as-is (they're already in world space)
+    const vertices = [];
+    for (let i = 0; i < positionAttribute.count; i++) {
+      vertices.push(
+        positionAttribute.getX(i),
+        positionAttribute.getY(i),
+        positionAttribute.getZ(i)
+      );
+    }
+
+    // Extract indices
+    const indices = [];
+    if (geometry.index) {
+      const indexArray = geometry.index.array;
+      for (let i = 0; i < indexArray.length; i++) {
+        indices.push(indexArray[i]);
+      }
+    } else {
+      // No index buffer, generate sequential indices
+      for (let i = 0; i < positionAttribute.count; i++) {
+        indices.push(i);
+      }
+    }
+
+    if (vertices.length === 0 || indices.length === 0) {
+      return null;
+    }
+
+    return {
+      vertices: new Float32Array(vertices),
+      indices: new Uint32Array(indices),
     };
   }
 

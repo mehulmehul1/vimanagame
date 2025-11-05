@@ -74,6 +74,9 @@ export const startScreen = {
   // High-level state name
   currentState: GAME_STATES.LOADING,
 
+  // Zone management (for exterior splat loading/unloading)
+  currentZone: null, // Current zone name (e.g., "introAlley", "fourWay", "plaza") or null
+
   // Control flow
   controlEnabled: false, // When true, character controller updates/inputs are enabled
 

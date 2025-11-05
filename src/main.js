@@ -13,6 +13,7 @@ import DialogChoiceUI from "./ui/dialogChoiceUI.js";
 import GameManager from "./gameManager.js";
 import UIManager from "./ui/uiManager.js";
 import ColliderManager from "./colliderManager.js";
+import ZoneManager from "./zoneManager.js";
 import SceneManager from "./sceneManager.js";
 import colliders from "./colliderData.js";
 import {
@@ -536,6 +537,23 @@ const colliderManager = new ColliderManager(
 // Make collider manager globally accessible for debugging
 window.colliderManager = colliderManager;
 
+// Set camera on collider manager for camera-based zone detection during START_SCREEN and animations
+colliderManager.setCamera(camera);
+
+// Set collider manager reference on scene manager (for trigger colliders from GLTF meshes)
+sceneManager.setColliderManager(colliderManager);
+
+// Initialize zone manager for exterior splat loading/unloading
+const zoneManager = new ZoneManager(gameManager, sceneManager);
+window.zoneManager = zoneManager; // Make globally accessible for debugging
+
+// Make zoneManager accessible on gameManager for ColliderManager
+if (gameManager) {
+  gameManager.zoneManager = zoneManager;
+}
+
+logger.log("✅ ZoneManager initialized");
+
 // Pass gizmo manager to scene manager (physics manager already set earlier)
 sceneManager.gizmoManager = gizmoManager;
 if (gameManager.videoManager) {
@@ -584,6 +602,45 @@ renderer.setAnimationLoop(function animate(time) {
     startScreen.checkIntroStart(sfxManager, gameManager);
   }
 
+  // Determine if we should use camera-based zone detection
+  // Use camera during START_SCREEN or when camera animation is playing (but not during normal gameplay)
+  const currentState = gameManager.getState();
+  const shouldUseCamera =
+    currentState.currentState === GAME_STATES.START_SCREEN ||
+    (cameraAnimationManager.isPlaying && !gameManager.isControlEnabled());
+
+  // Update camera probe position if using camera (must happen before physics step)
+  if (
+    shouldUseCamera &&
+    colliderManager.camera &&
+    colliderManager.cameraProbeBody
+  ) {
+    colliderManager.cameraProbeBody.setTranslation(
+      {
+        x: colliderManager.camera.position.x,
+        y: colliderManager.camera.position.y,
+        z: colliderManager.camera.position.z,
+      },
+      true // wake up the body
+    );
+  }
+
+  // Physics step - needed for zone detection even during START_SCREEN
+  // Must happen AFTER camera probe position update so collision detection uses current position
+  if (!optionsMenu.isOpen) {
+    physicsManager.step();
+  }
+
+  // Update collider manager for zone detection (always update, even during START_SCREEN)
+  // Use camera position during START_SCREEN or camera animations
+  // NOTE: This checks intersections AFTER physics step so collision detection uses updated positions
+  if (shouldUseCamera) {
+    colliderManager.update(null, true); // useCamera = true
+  } else if (gameManager.isControlEnabled() && characterController.body) {
+    // Use character body during normal gameplay
+    colliderManager.update(characterController.body, false);
+  }
+
   // Don't update most game logic if options menu is open or start screen is active
   if (!optionsMenu.isOpen && (!startScreen || !startScreen.isActive)) {
     // Update input manager (gamepad state)
@@ -612,17 +669,17 @@ renderer.setAnimationLoop(function animate(time) {
       characterController.update(dt);
     }
 
-    // Physics step
-    physicsManager.step();
-
     // Update collider manager (check for trigger intersections)
-    if (gameManager.isControlEnabled()) {
-      colliderManager.update(character);
+    // Use character position during normal gameplay (physics already stepped above)
+    if (!shouldUseCamera && gameManager.isControlEnabled()) {
+      colliderManager.update(character, false); // useCharacter = true
     }
+  }
 
-    // (moved below) Video manager is updated unconditionally so videos render during START_SCREEN too
+  // (moved below) Video manager is updated unconditionally so videos render during START_SCREEN too
 
-    // Update Howler listener position for spatial audio
+  // Update Howler listener position for spatial audio (only if not in blocked game logic section)
+  if (!optionsMenu.isOpen && (!startScreen || !startScreen.isActive)) {
     Howler.pos(camera.position.x, camera.position.y, camera.position.z);
 
     // Update Howler listener orientation (forward and up vectors)
