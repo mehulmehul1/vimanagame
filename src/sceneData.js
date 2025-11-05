@@ -94,7 +94,7 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 // Create module-level logger
-const logger = new Logger("SceneData", true); // Enable logging to debug exteriorZoneColliders
+const logger = new Logger("SceneData", false);
 
 const originPosition = { x: 0, y: 0, z: 0 };
 const originRotation = { x: 0, y: 0, z: 0 };
