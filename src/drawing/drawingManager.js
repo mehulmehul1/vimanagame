@@ -71,6 +71,19 @@ export class DrawingManager {
     this.runeTargetOpacity = 0;
     this.runeCurrentOpacity = 0;
 
+    // Billboard rotation easing
+    this.billboardLerpSpeed = 2.0; // How fast rotation catches up (higher = faster)
+    this.targetQuaternion = new THREE.Quaternion();
+    this.currentQuaternion = new THREE.Quaternion();
+
+    // Shake animation state (for incorrect guesses)
+    this.isShaking = false;
+    this.shakeProgress = 0;
+    this.shakeDuration = 2.5; // 50% faster than before (was 2.0)
+    this.shakeAmplitude = 0.15; // Radians (~8.6 degrees)
+    this.shakeFrequency = 8.0; // Number of oscillations during shake (2x wag)
+    this.shakeBaseQuaternion = new THREE.Quaternion(); // Store base rotation before shake
+
     this.setupUI();
     this.setupKeyboardShortcuts();
     this.bindGameStateListener();
@@ -500,6 +513,12 @@ export class DrawingManager {
     // Clear any existing strokes from previous sessions
     if (this.recognitionManager.drawingCanvas) {
       this.recognitionManager.clearCanvas();
+
+      // Initialize billboard quaternion from current canvas rotation
+      const mesh = this.recognitionManager.drawingCanvas.getMesh();
+      if (mesh) {
+        this.currentQuaternion.copy(mesh.quaternion);
+      }
     }
 
     // Pick new target after canvas and position are set up
@@ -509,6 +528,10 @@ export class DrawingManager {
   stopGame() {
     this.isActive = false;
     this.gameStartTime = 0;
+
+    // Reset shake animation state
+    this.isShaking = false;
+    this.shakeProgress = 0;
 
     // Clear jitter reset timeout
     if (this.jitterResetTimeout) {
@@ -850,6 +873,13 @@ export class DrawingManager {
       // Drawing failed - fade strokes over 2 seconds
       if (this.recognitionManager.drawingCanvas) {
         this.recognitionManager.drawingCanvas.fadeIncorrectGuess();
+
+        // Trigger shake animation
+        this.isShaking = true;
+        this.shakeProgress = 0;
+        if (this.recognitionManager.drawingCanvas.mesh) {
+          this.shakeBaseQuaternion.copy(this.currentQuaternion);
+        }
       }
 
       if (this.gameManager) {
@@ -906,6 +936,80 @@ export class DrawingManager {
 
   update(dt = 0.016) {
     if (!this.isActive) return;
+
+    // Billboard canvas components to camera with smooth easing (or shake on incorrect guess)
+    const camera = window.camera;
+    if (camera && this.recognitionManager.drawingCanvas) {
+      const canvas = this.recognitionManager.drawingCanvas;
+
+      if (canvas.mesh) {
+        if (this.isShaking) {
+          // Update shake progress
+          this.shakeProgress += dt / this.shakeDuration;
+
+          if (this.shakeProgress >= 1.0) {
+            // Shake complete, return to billboard
+            this.isShaking = false;
+            this.shakeProgress = 0;
+            // Reset to billboard target
+            const tempObject = new THREE.Object3D();
+            tempObject.position.copy(canvas.mesh.position);
+            tempObject.lookAt(camera.position);
+            this.currentQuaternion.copy(tempObject.quaternion);
+          } else {
+            // Update base quaternion to follow camera (but slower during shake)
+            const tempObject = new THREE.Object3D();
+            tempObject.position.copy(canvas.mesh.position);
+            tempObject.lookAt(camera.position);
+            this.shakeBaseQuaternion.slerp(
+              tempObject.quaternion,
+              this.billboardLerpSpeed * dt * 0.5 // Slower follow during shake
+            );
+
+            // Calculate shake rotation on world Y axis (decay over time)
+            const shakeAngle =
+              Math.sin(this.shakeProgress * Math.PI * this.shakeFrequency) *
+              this.shakeAmplitude *
+              (1.0 - this.shakeProgress);
+
+            // Rotate around world Y axis (vertical) for "shaking head no" effect
+            const worldYAxis = new THREE.Vector3(0, 1, 0);
+            const shakeQuaternion = new THREE.Quaternion().setFromAxisAngle(
+              worldYAxis,
+              shakeAngle
+            );
+            // Apply shake rotation to base quaternion
+            this.currentQuaternion.multiplyQuaternions(
+              shakeQuaternion,
+              this.shakeBaseQuaternion
+            );
+          }
+        } else {
+          // Normal billboard behavior
+          const tempObject = new THREE.Object3D();
+          tempObject.position.copy(canvas.mesh.position);
+          tempObject.lookAt(camera.position);
+          this.targetQuaternion.copy(tempObject.quaternion);
+
+          // Smoothly interpolate current rotation towards target
+          this.currentQuaternion.slerp(
+            this.targetQuaternion,
+            this.billboardLerpSpeed * dt
+          );
+        }
+
+        // Apply rotation to all components
+        canvas.mesh.quaternion.copy(this.currentQuaternion);
+
+        if (canvas.particleSystem) {
+          canvas.particleSystem.quaternion.copy(this.currentQuaternion);
+        }
+
+        if (canvas.strokeMesh) {
+          canvas.strokeMesh.quaternion.copy(this.currentQuaternion);
+        }
+      }
+    }
 
     // Late registration: if gizmo is enabled but not yet registered, try again
     if (this.canvasGizmo && !this.gizmoRegistered) {

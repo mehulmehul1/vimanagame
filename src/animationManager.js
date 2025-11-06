@@ -199,7 +199,11 @@ class AnimationManager {
         });
         if (matchingAnimationIds.size > 0) {
           this.logger.log(
-            `[Debug] Forcing preload for ${matchingAnimationIds.size} matching animations (state: ${debugState.currentState}): ${Array.from(matchingAnimationIds).join(", ")}`
+            `[Debug] Forcing preload for ${
+              matchingAnimationIds.size
+            } matching animations (state: ${
+              debugState.currentState
+            }): ${Array.from(matchingAnimationIds).join(", ")}`
           );
         }
       }
@@ -220,10 +224,9 @@ class AnimationManager {
     for (const anim of animationsToLoad) {
       // In debug mode, force preload if this animation matches the debug state
       // Otherwise, treat undefined preload as false (deferred) to match documentation
-      const shouldPreload =
-        matchingAnimationIds.has(anim.id)
-          ? true
-          : anim.preload === true;
+      const shouldPreload = matchingAnimationIds.has(anim.id)
+        ? true
+        : anim.preload === true;
       if (shouldPreload) {
         preloadAnimations.push(anim);
       } else {

@@ -189,7 +189,7 @@ class MusicManager {
             if (!this.tracks[track.id]) {
               this._waitForTrackAndPlay(track.id, track.fadeTime || 0);
             } else {
-            this.changeMusic(track.id, track.fadeTime || 0);
+              this.changeMusic(track.id, track.fadeTime || 0);
             }
           }
         });
@@ -202,7 +202,10 @@ class MusicManager {
             `Starting initial music "${initialTrack.id}" (${initialTrack.description})`
           );
           // Wait for track initialization to complete, then play
-          this._waitForTrackAndPlay(initialTrack.id, initialTrack.fadeTime || 0);
+          this._waitForTrackAndPlay(
+            initialTrack.id,
+            initialTrack.fadeTime || 0
+          );
         }
 
         this.logger.log("Event listeners registered");

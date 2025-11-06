@@ -102,6 +102,20 @@ class GameManager {
   }
 
   /**
+   * Get state name from numeric value
+   * @param {number} stateValue - Numeric state value
+   * @returns {string} State name or "UNKNOWN"
+   */
+  getStateName(stateValue) {
+    for (const [name, value] of Object.entries(GAME_STATES)) {
+      if (value === stateValue) {
+        return name;
+      }
+    }
+    return "UNKNOWN";
+  }
+
+  /**
    * Initialize with managers
    * @param {Object} managers - Object containing manager instances
    */
@@ -285,6 +299,12 @@ class GameManager {
       this.logger.log(
         `[GameManager] currentState changed from ${oldState.currentState} to ${newState.currentState}`
       );
+
+      // Fire gtag event for state change
+      if (typeof window !== "undefined" && window.gtag) {
+        const stateName = this.getStateName(newState.currentState);
+        window.gtag("event", newState.currentState);
+      }
     } else if (Object.keys(newState).length > 0) {
       // Throttle this log to once per second
       const now = Date.now();

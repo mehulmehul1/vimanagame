@@ -429,8 +429,18 @@ export const sceneObjects = {
     position: { x: 4.35, y: 0.82, z: 37.29 },
     rotation: { x: 3.1293, y: 1.1503, z: -2.9357 },
     scale: { x: 2.46, y: 2.46, z: 2.46 },
+    gizmo: true,
     options: {
       useContainer: true,
+      contactShadow: {
+        size: { x: 0.5, y: 0.5 },
+        offset: { x: 0, y: 0, z: 0 },
+        shadowScale: { x: 1.15, y: 1.15 },
+        blur: 3.5,
+        darkness: 2.5,
+        opacity: 0.8,
+        cameraHeight: 0.25,
+      },
     },
     priority: 50,
     preload: false,
@@ -821,7 +831,7 @@ export function getSceneObjectsForState(gameState, options = {}) {
     // Filter by preload if requested (unless forcePreloadForState is true)
     // Treat undefined preload as false (deferred)
     const objPreload = obj.preload !== undefined ? obj.preload : false;
-    
+
     // In debug mode with forcePreloadForState, skip preload filtering - include all matching objects
     if (!options.forcePreloadForState) {
       if (options.preloadOnly && objPreload !== true) {

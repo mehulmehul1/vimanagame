@@ -129,7 +129,7 @@ export const desaturationEffects = {
   viewmasterToggleGrayscale: {
     id: "viewmasterToggleGrayscale",
     parameters: {
-      target: 1.0,
+      target: 0.0,
       duration: 1.2,
       mode: "fade",
     },

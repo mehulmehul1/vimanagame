@@ -129,6 +129,8 @@ export const musicTracks = {
     path: "./audio/music/rach 3 - mv 3 - 0-72.mp3",
     description: "Rachmaninoff 3 - Movement 3 (1:00) - Main gameplay",
     preload: false,
+    fadeTime: 1.25,
+    delay: 2.0,
     criteria: {
       currentState: { $gte: GAME_STATES.EDISON, $lt: GAME_STATES.WAKING_UP },
     },
