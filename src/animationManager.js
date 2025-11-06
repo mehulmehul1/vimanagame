@@ -181,6 +181,30 @@ class AnimationManager {
     // Store reference to animation data for playNext resolution
     this.cameraAnimationsData = animationData;
 
+    // In debug mode, check which animations match the debug state and force them to preload
+    let debugState = null;
+    const matchingAnimationIds = new Set();
+    const { isDebugSpawnActive, getDebugSpawnState } = await import(
+      "./utils/debugSpawner.js"
+    );
+
+    if (isDebugSpawnActive()) {
+      debugState = getDebugSpawnState();
+      if (debugState) {
+        // Check which animations match the debug state
+        Object.values(animationData).forEach((anim) => {
+          if (anim.criteria && checkCriteria(debugState, anim.criteria)) {
+            matchingAnimationIds.add(anim.id);
+          }
+        });
+        if (matchingAnimationIds.size > 0) {
+          this.logger.log(
+            `[Debug] Forcing preload for ${matchingAnimationIds.size} matching animations (state: ${debugState.currentState}): ${Array.from(matchingAnimationIds).join(", ")}`
+          );
+        }
+      }
+    }
+
     const animations = Object.values(animationData);
     // Only load JSON animations (jsonAnimation or animation type with path), skip lookats and moveTos
     const animationsToLoad = animations.filter(
@@ -194,10 +218,13 @@ class AnimationManager {
     const deferredAnimations = [];
 
     for (const anim of animationsToLoad) {
-      // Treat undefined preload as false (deferred) to match documentation
-      // Explicitly set preload: true to load during loading screen
-      const preload = anim.preload === true;
-      if (preload) {
+      // In debug mode, force preload if this animation matches the debug state
+      // Otherwise, treat undefined preload as false (deferred) to match documentation
+      const shouldPreload =
+        matchingAnimationIds.has(anim.id)
+          ? true
+          : anim.preload === true;
+      if (shouldPreload) {
         preloadAnimations.push(anim);
       } else {
         deferredAnimations.push(anim);

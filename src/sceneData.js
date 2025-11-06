@@ -134,7 +134,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -152,7 +152,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -170,7 +170,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -188,7 +188,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -206,7 +206,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -224,7 +224,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -242,7 +242,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.LOADING,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -266,7 +266,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.START_SCREEN,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -289,7 +289,7 @@ export const sceneObjects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.START_SCREEN,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
   },
@@ -506,7 +506,7 @@ export const sceneObjects = {
     },
     criteria: {
       currentState: {
-        $lte: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
     priority: 100,
@@ -806,6 +806,7 @@ export const sceneObjects = {
  * @param {Object} options - Options object
  * @param {boolean} options.preloadOnly - If true, only return objects with preload: true
  * @param {boolean} options.deferredOnly - If true, only return objects with preload: false
+ * @param {boolean} options.forcePreloadForState - If true (debug mode), include all matching objects regardless of preload flag
  * @returns {Array<Object>} Array of scene objects that should be loaded
  */
 export function getSceneObjectsForState(gameState, options = {}) {
@@ -817,24 +818,28 @@ export function getSceneObjectsForState(gameState, options = {}) {
   const matchingObjects = [];
 
   for (const obj of sortedObjects) {
-    // Filter by preload if requested
+    // Filter by preload if requested (unless forcePreloadForState is true)
     // Treat undefined preload as false (deferred)
     const objPreload = obj.preload !== undefined ? obj.preload : false;
-    if (options.preloadOnly && objPreload !== true) {
-      if (obj.id === "exteriorZoneColliders") {
-        logger.log(
-          `exteriorZoneColliders skipped: preloadOnly=true but preload=${objPreload}`
-        );
+    
+    // In debug mode with forcePreloadForState, skip preload filtering - include all matching objects
+    if (!options.forcePreloadForState) {
+      if (options.preloadOnly && objPreload !== true) {
+        if (obj.id === "exteriorZoneColliders") {
+          logger.log(
+            `exteriorZoneColliders skipped: preloadOnly=true but preload=${objPreload}`
+          );
+        }
+        continue;
       }
-      continue;
-    }
-    if (options.deferredOnly && objPreload !== false) {
-      if (obj.id === "exteriorZoneColliders") {
-        logger.log(
-          `exteriorZoneColliders skipped: deferredOnly=true but preload=${objPreload}`
-        );
+      if (options.deferredOnly && objPreload !== false) {
+        if (obj.id === "exteriorZoneColliders") {
+          logger.log(
+            `exteriorZoneColliders skipped: deferredOnly=true but preload=${objPreload}`
+          );
+        }
+        continue;
       }
-      continue;
     }
 
     // Always include objects marked as loadByDefault

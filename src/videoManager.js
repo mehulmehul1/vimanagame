@@ -139,7 +139,16 @@ class VideoManager {
    * Supports separate spawnCriteria and playCriteria for advanced control
    * @param {Object} state - Current game state
    */
-  updateVideosForState(state) {
+  async updateVideosForState(state) {
+    // In debug mode, check if we should force preload for matching videos
+    let isDebugMode = false;
+    try {
+      const { isDebugSpawnActive } = await import("./utils/debugSpawner.js");
+      isDebugMode = isDebugSpawnActive();
+    } catch (e) {
+      // Import might fail if module not available, ignore
+    }
+
     // Check all videos defined in videoData
     for (const [videoId, videoConfig] of Object.entries(videos)) {
       // Determine spawn criteria (when video mesh should exist)
@@ -164,12 +173,16 @@ class VideoManager {
 
       // Handle spawn criteria (video existence)
       if (matchesSpawnCriteria) {
-        // Check if this video should be deferred (preload: false and loading screen still active)
-        const shouldPreload = videoConfig.preload !== false; // Default to true
+        // In debug mode, force preload if video matches spawn criteria
+        // Otherwise, check preload flag
+        const shouldPreload =
+          isDebugMode && matchesSpawnCriteria
+            ? true
+            : videoConfig.preload !== false; // Default to true
         const isLoadingComplete =
           !this.loadingScreen || this.loadingScreen.isLoadingComplete();
 
-        // Skip creating video if preload is false and loading screen is still active
+        // Skip creating video if preload is false and loading screen is still active (unless debug mode)
         if (!shouldPreload && !isLoadingComplete) {
           this.deferredVideos.add(videoId);
           this.logger.log(

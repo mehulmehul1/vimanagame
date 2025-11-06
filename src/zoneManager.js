@@ -101,13 +101,26 @@ class ZoneManager {
     if (!newState) return;
 
     const wasActive = this.isActive;
-    this.isActive = newState.currentState < GAME_STATES.OFFICE_INTERIOR;
+    this.isActive = newState.currentState < GAME_STATES.ENTERING_OFFICE;
 
-    // If we transitioned out of exterior, unload all exterior splats
+    // If we transitioned out of exterior (reached ENTERING_OFFICE or later), unload all exterior splats
+    // From ENTERING_OFFICE onwards, scene objects load/unload purely based on criteria
     if (wasActive && !this.isActive) {
-      this.logger.log("Exiting exterior area - unloading all exterior splats");
-      this.unloadAllExteriorSplats();
+      this.logger.log(
+        `Exiting exterior area (state ${newState.currentState} >= ENTERING_OFFICE) - unloading all exterior splats. Scene objects will now load/unload based on criteria.`
+      );
+      // Clear currentZone FIRST so unloadAllExteriorSplats doesn't block on safety check
       this.currentZone = null;
+      // Clear any pending zone changes
+      if (this.zoneChangeTimeout) {
+        clearTimeout(this.zoneChangeTimeout);
+        this.zoneChangeTimeout = null;
+        this.pendingZoneChange = null;
+      }
+      // Clear active zones
+      this.activeZones.clear();
+      // Now unload all splats (safety check won't trigger since currentZone is null)
+      this.unloadAllExteriorSplats();
       return;
     }
 

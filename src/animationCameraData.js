@@ -760,23 +760,23 @@ export const cameraAnimations = {
     criteria: { currentState: GAME_STATES.CURSOR },
     priority: 100,
     playOnce: true,
-    playNext: "shadowTranceLookat",
+    // playNext: "shadowTranceLookat", // shadowTrance video is commented out
   },
 
-  shadowTranceLookat: {
-    id: "shadowTranceLookat",
-    type: "lookat",
-    description: "Look at shadow trance video",
-    position: videos.shadowTrance.position,
-    transitionTime: 1.0,
-    priority: 105,
-    lookAtHoldDuration: 2.0,
-    enableZoom: false,
-    restoreInput: {
-      movement: true,
-      rotation: true,
-    },
-  },
+  // shadowTranceLookat: {
+  //   id: "shadowTranceLookat",
+  //   type: "lookat",
+  //   description: "Look at shadow trance video",
+  //   position: videos.shadowTrance.position, // shadowTrance video is commented out
+  //   transitionTime: 1.0,
+  //   priority: 105,
+  //   lookAtHoldDuration: 2.0,
+  //   enableZoom: false,
+  //   restoreInput: {
+  //     movement: true,
+  //     rotation: true,
+  //   },
+  // },
 
   woozy: {
     id: "woozy",

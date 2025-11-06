@@ -129,9 +129,13 @@ class GameManager {
     }
 
     // Load initial scene objects based on starting state
-    // Only load preload: true objects during initial loading
+    // In debug mode, force preload of all matching assets for the debug state
+    // Otherwise, only load preload: true objects during initial loading
     if (this.sceneManager) {
-      await this.updateSceneForState({ preloadOnly: true });
+      const preloadOptions = this.isDebugMode
+        ? { forcePreloadForState: true } // Debug mode: preload all matching assets
+        : { preloadOnly: true }; // Normal mode: only preload: true
+      await this.updateSceneForState(preloadOptions);
       // Trigger initial animation check after loading
       this.sceneManager.updateAnimationsForState(this.state);
     }
@@ -439,6 +443,24 @@ class GameManager {
       ) {
         this.sceneManager.addObjectToScene(obj.id);
       }
+    }
+
+    // Initialize candlestickPhone if it was just loaded and meets criteria
+    if (
+      !this.candlestickPhone &&
+      this.state.currentState >= GAME_STATES.POST_DRIVE_BY &&
+      this.sceneManager?.hasObject("candlestickPhone")
+    ) {
+      this.logger.log(
+        "Initializing candlestick phone (object loaded in updateSceneForState)"
+      );
+      this.candlestickPhone = new CandlestickPhone({
+        sceneManager: this.sceneManager,
+        physicsManager: this.physicsManager,
+        scene: this.scene,
+        camera: this.camera,
+      });
+      this.candlestickPhone.initialize(this);
     }
   }
 

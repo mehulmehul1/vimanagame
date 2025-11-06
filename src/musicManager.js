@@ -114,15 +114,41 @@ class MusicManager {
    * @private
    */
   async _initializeTracks() {
-    const { musicTracks } = await import("./musicData.js");
+    const { musicTracks, getMusicForState } = await import("./musicData.js");
+    const { isDebugSpawnActive, getDebugSpawnState } = await import(
+      "./utils/debugSpawner.js"
+    );
 
     this.logger.log(
       `Initializing ${Object.keys(musicTracks).length} music tracks`
     );
 
+    // In debug mode, check which track matches the debug state and force it to preload
+    let debugState = null;
+    let matchingTrack = null;
+    if (isDebugSpawnActive()) {
+      debugState = getDebugSpawnState();
+      if (debugState) {
+        matchingTrack = getMusicForState(debugState);
+        if (matchingTrack) {
+          this.logger.log(
+            `[Debug] Forcing preload for matching track "${matchingTrack.id}" (state: ${debugState.currentState})`
+          );
+        }
+      }
+    }
+
     Object.values(musicTracks).forEach((track) => {
+      // In debug mode, force preload if this track matches the debug state
+      const shouldPreload =
+        matchingTrack && matchingTrack.id === track.id
+          ? true
+          : track.preload !== undefined
+          ? track.preload
+          : false;
+
       this.addTrack(track.id, track.path, {
-        preload: track.preload,
+        preload: shouldPreload,
         loop: track.loop !== undefined ? track.loop : true,
       });
     });
@@ -159,22 +185,56 @@ class MusicManager {
             this.logger.log(
               `Changing music to "${track.id}" (${track.description})`
             );
+            // Wait for track if it's not loaded yet (handles initialization timing)
+            if (!this.tracks[track.id]) {
+              this._waitForTrackAndPlay(track.id, track.fadeTime || 0);
+            } else {
             this.changeMusic(track.id, track.fadeTime || 0);
+            }
           }
         });
 
         // Check initial state and start appropriate music
+        // Wait a bit for tracks to finish initializing before playing initial music
         const initialTrack = getMusicForState(this.gameManager.state);
         if (initialTrack) {
           this.logger.log(
             `Starting initial music "${initialTrack.id}" (${initialTrack.description})`
           );
-          this.changeMusic(initialTrack.id, initialTrack.fadeTime || 0);
+          // Wait for track initialization to complete, then play
+          this._waitForTrackAndPlay(initialTrack.id, initialTrack.fadeTime || 0);
         }
 
         this.logger.log("Event listeners registered");
       }
     );
+  }
+
+  /**
+   * Wait for track to be available and then play it
+   * Handles cases where track might not be loaded yet during initialization
+   * @param {string} trackName - Track name to play
+   * @param {number} fadeTime - Fade time in seconds
+   * @private
+   */
+  async _waitForTrackAndPlay(trackName, fadeTime = 0) {
+    // Wait up to 2 seconds for track to be available
+    const maxWait = 2000;
+    const checkInterval = 100;
+    let waited = 0;
+
+    while (!this.tracks[trackName] && waited < maxWait) {
+      await new Promise((resolve) => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+    }
+
+    if (this.tracks[trackName]) {
+      this.changeMusic(trackName, fadeTime);
+    } else {
+      this.logger.warn(
+        `Track "${trackName}" not available after waiting ${maxWait}ms, will retry on next state change`
+      );
+    }
   }
 
   /**

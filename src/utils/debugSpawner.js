@@ -108,9 +108,9 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: {
-      x: 7.16,
-      y: 0.8,
-      z: 77.44,
+      x: 1.94,
+      y: 2.13,
+      z: 79.85,
     },
   },
 
@@ -118,9 +118,9 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: {
-      x: -4.69,
+      x: -2.69,
       y: 1.5,
-      z: 83.05,
+      z: 84.05,
     },
   },
 

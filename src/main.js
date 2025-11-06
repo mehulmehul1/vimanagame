@@ -552,6 +552,7 @@ window.zoneManager = zoneManager; // Make globally accessible for debugging
 // Make zoneManager accessible on gameManager for ColliderManager
 if (gameManager) {
   gameManager.zoneManager = zoneManager;
+  gameManager.colliderManager = colliderManager; // Set colliderManager reference
 }
 
 logger.log("✅ ZoneManager initialized");

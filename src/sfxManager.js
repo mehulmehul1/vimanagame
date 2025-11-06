@@ -73,7 +73,13 @@ class SFXManager {
   updateSoundsForState(state) {
     if (!state || !this._data) return;
 
-    for (const [id] of this.sounds) {
+    // Check both registered sounds and deferred sounds
+    const allSoundIds = new Set([
+      ...this.sounds.keys(),
+      ...this.deferredSounds.keys(),
+    ]);
+
+    for (const id of allSoundIds) {
       const def = this._data[id];
       if (!def || !def.criteria) continue;
 
@@ -81,12 +87,19 @@ class SFXManager {
       const isPlaying = this.isPlaying(id);
       const hasPlayedOnce = this.playedSounds.has(id);
       const isPending = this.pendingSounds.has(id);
+      const isDeferred = this.deferredSounds.has(id);
 
       // If criteria matches and sound is not playing
       if (matchesCriteria && !isPlaying && !isPending) {
         // Check playOnce - skip if already played
         if (def.playOnce && hasPlayedOnce) {
           continue;
+        }
+
+        // If sound is deferred, load it on-demand first
+        if (isDeferred) {
+          this.logger.log(`Loading deferred sound "${id}" on-demand for state ${state.currentState}`);
+          // play() will handle loading deferred sounds
         }
 
         // Check if this sound has a delay
@@ -96,7 +109,7 @@ class SFXManager {
           // Schedule delayed playback
           this.scheduleDelayedSound(id, delay);
         } else {
-          // Play immediately
+          // Play immediately (will load deferred sounds automatically)
           try {
             this.play(id);
             if (def.playOnce) {
@@ -104,6 +117,7 @@ class SFXManager {
             }
           } catch (e) {
             // Ignore autoplay errors, user gesture will trigger later
+            this.logger.warn(`Failed to play sound "${id}":`, e);
           }
         }
       }
@@ -232,23 +246,54 @@ class SFXManager {
    * Bulk-register sounds from a data object (e.g., sfxData.js)
    * @param {Record<string, any>} soundsData - Map of id -> sound descriptor
    */
-  registerSoundsFromData(soundsData) {
+  async registerSoundsFromData(soundsData) {
     if (!soundsData) return;
     // Keep a reference to the raw data definitions for state-driven rules
     this._data = soundsData;
+
+    // In debug mode, check which sounds match the debug state and force them to preload
+    let debugState = null;
+    const matchingSoundIds = new Set();
+    const { isDebugSpawnActive, getDebugSpawnState } = await import(
+      "./utils/debugSpawner.js"
+    );
+    const { checkCriteria } = await import("./utils/criteriaHelper.js");
+
+    if (isDebugSpawnActive()) {
+      debugState = getDebugSpawnState();
+      if (debugState) {
+        // Check which sounds match the debug state
+        Object.values(soundsData).forEach((sound) => {
+          if (sound.criteria && checkCriteria(debugState, sound.criteria)) {
+            matchingSoundIds.add(sound.id);
+          }
+        });
+        if (matchingSoundIds.size > 0) {
+          this.logger.log(
+            `[Debug] Forcing preload for ${matchingSoundIds.size} matching SFX (state: ${debugState.currentState}): ${Array.from(matchingSoundIds).join(", ")}`
+          );
+        }
+      }
+    }
+
     Object.values(soundsData).forEach((sound) => {
-      // Treat undefined preload as true (default preload for backwards compatibility)
-      const preload = sound.preload !== undefined ? sound.preload : true;
+      // In debug mode, force preload if this sound matches the debug state
+      const shouldPreload =
+        matchingSoundIds.has(sound.id)
+          ? true
+          : sound.preload !== undefined
+          ? sound.preload
+          : true; // Default to true for backwards compatibility
 
       // If preload is false, defer loading (file won't be fetched until after loading screen)
-      if (!preload) {
+      if (!shouldPreload) {
         this.deferredSounds.set(sound.id, sound);
         this.logger.log(`Deferred loading for sound "${sound.id}"`);
         return;
       }
 
       // Register with loading screen if available and preloading
-      if (this.loadingScreen && preload) {
+      if (this.loadingScreen && shouldPreload) {
         this.loadingScreen.registerTask(`sfx_${sound.id}`, 1);
       }
 
@@ -260,16 +305,16 @@ class SFXManager {
         loop: hasLoopDelay ? false : sound.loop, // Disable native loop if using loopDelay
         volume: sound.volume,
         ...(sound.rate !== undefined && { rate: sound.rate }),
-        preload: preload,
+        preload: shouldPreload,
         onload: () => {
           this.logger.log(`Loaded sound "${sound.id}"`);
-          if (this.loadingScreen && preload) {
+          if (this.loadingScreen && shouldPreload) {
             this.loadingScreen.completeTask(`sfx_${sound.id}`);
           }
         },
         onloaderror: (id, error) => {
           this.logger.error(`Failed to load sound "${sound.id}":`, error);
-          if (this.loadingScreen && preload) {
+          if (this.loadingScreen && shouldPreload) {
             this.loadingScreen.completeTask(`sfx_${sound.id}`);
           }
         },

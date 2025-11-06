@@ -229,7 +229,7 @@ export const sfxSounds = {
       },
     },
     playOnce: true, // One-shot sound triggered by state
-    rate: 1.05,
+    rate: 1.15,
   },
 
   // Typewriter sounds for dialog choices

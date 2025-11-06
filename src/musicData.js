@@ -114,16 +114,24 @@ export const musicTracks = {
     criteria: {
       currentState: {
         $in: [
-          1,
-          2,
-          3,
-          4,
-          GAME_STATES.EDISON, // State 24
+          GAME_STATES.INTRO,
+          GAME_STATES.TITLE_SEQUENCE,
+          GAME_STATES.TITLE_SEQUENCE_COMPLETE,
+          GAME_STATES.CAT_DIALOG_CHOICE,
         ],
       },
     },
     fadeTime: 0.25,
-    priority: 10,
+    priority: 11,
+  },
+  rach3mv3: {
+    id: "rach3mv3",
+    path: "./audio/music/rach 3 - mv 3 - 0-72.mp3",
+    description: "Rachmaninoff 3 - Movement 3 (1:00) - Main gameplay",
+    preload: false,
+    criteria: {
+      currentState: { $gte: GAME_STATES.EDISON, $lt: GAME_STATES.WAKING_UP },
+    },
   },
 };
 

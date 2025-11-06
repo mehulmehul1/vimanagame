@@ -197,7 +197,6 @@ export const objectAnimations = {
     },
     easing: "easeInOutQuad",
     criteria: { currentState: GAME_STATES.POST_DRIVE_BY },
-    reverseOnCriteria: { currentState: GAME_STATES.ENTERING_OFFICE }, // Close doors when entering office
     priority: 50,
     playOnce: true,
     delay: 6.25,
@@ -217,10 +216,45 @@ export const objectAnimations = {
     },
     easing: "easeInOutQuad",
     criteria: { currentState: GAME_STATES.POST_DRIVE_BY },
-    reverseOnCriteria: { currentState: GAME_STATES.ENTERING_OFFICE }, // Close doors when entering office
     priority: 50,
     playOnce: true,
     delay: 6.25,
+  },
+
+  doorsCloseLeft: {
+    id: "doorsCloseLeft",
+    type: "objectAnimation",
+    description: "Close left door by rotating back to 0 degrees on Y axis",
+    targetObjectId: "doors",
+    childMeshName: "Big_Door_L",
+    duration: 3.0,
+    properties: {
+      rotation: {
+        to: { y: 0 }, // Return to original rotation
+      },
+    },
+    easing: "easeInOutQuad",
+    criteria: { currentState: GAME_STATES.ENTERING_OFFICE },
+    priority: 50,
+    playOnce: true,
+  },
+
+  doorsCloseRight: {
+    id: "doorsCloseRight",
+    type: "objectAnimation",
+    description: "Close right door by rotating back to 0 degrees on Y axis",
+    targetObjectId: "doors",
+    childMeshName: "Big_Door_R",
+    duration: 3.0,
+    properties: {
+      rotation: {
+        to: { y: 0 }, // Return to original rotation
+      },
+    },
+    easing: "easeInOutQuad",
+    criteria: { currentState: GAME_STATES.ENTERING_OFFICE },
+    priority: 50,
+    playOnce: true,
   },
 
   // Example of objectAnimation (simple):

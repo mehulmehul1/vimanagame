@@ -275,22 +275,22 @@ export const videos = {
     },
   },
 
-  shadowTrance: {
-    id: "shadowTrance",
-    videoPath: "/video/shadow-trance.webm",
-    preload: false,
-    position: { x: -10.42, y: 2.2, z: 81.94 },
-    rotation: { x: 0.0, y: 1.4047, z: 0.0 },
-    scale: { x: 1.07, y: 1.52, z: 1.52 },
-    autoPlay: true,
-    loop: true,
-    billboard: true,
-    muted: false,
-    delay: 0.0,
-    criteria: {
-      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
-    },
-  },
+  // shadowTrance: {
+  //   id: "shadowTrance",
+  //   videoPath: "/video/shadow-trance.webm",
+  //   preload: false,
+  //   position: { x: -10.42, y: 2.2, z: 81.94 },
+  //   rotation: { x: 0.0, y: 1.4047, z: 0.0 },
+  //   scale: { x: 1.07, y: 1.52, z: 1.52 },
+  //   autoPlay: true,
+  //   loop: true,
+  //   billboard: true,
+  //   muted: false,
+  //   delay: 0.0,
+  //   criteria: {
+  //     currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+  //   },
+  // },
 };
 
 /**

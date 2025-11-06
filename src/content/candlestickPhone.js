@@ -365,10 +365,43 @@ class CandlestickPhone {
       "candlestickPhone",
       "Collider"
     );
-    if (this.colliderMesh) {
-      this.colliderMesh.visible = false;
-      this.logger.log("Made Collider mesh invisible");
 
+    // Hide collider meshes after SceneManager finishes processing (next frame)
+    // This ensures any visibility changes from envMap or other processing are overridden
+    const hideColliderMeshes = (obj) => {
+      if (!obj) return;
+      obj.traverse((child) => {
+        const nameLower = child.name?.toLowerCase() || "";
+        if (nameLower.includes("collider")) {
+          child.visible = false;
+          child.renderOrder = -9999;
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material)
+              ? child.material
+              : [child.material];
+            materials.forEach((mat) => {
+              mat.visible = false;
+              mat.opacity = 0;
+              mat.transparent = true;
+            });
+          }
+        }
+      });
+    };
+
+    if (this.phoneObject) {
+      // Hide immediately
+      hideColliderMeshes(this.phoneObject);
+      // Also hide on next frame to catch any late visibility changes from SceneManager processing
+      requestAnimationFrame(() => {
+        if (this.phoneObject) {
+          hideColliderMeshes(this.phoneObject);
+          this.logger.log("Made all Collider meshes invisible");
+        }
+      });
+    }
+
+    if (this.colliderMesh) {
       // Create trimesh collider from the Collider mesh
       this.createColliderTrimesh();
 
@@ -382,13 +415,36 @@ class CandlestickPhone {
     }
 
     // Create the phone cord if all components are present
+    // Retry until successful (handles timing issues on debug spawn)
+    this.ensurePhoneCord();
+
+    // Create table collider beneath the phone
+    this.createTableCollider();
+
+    // Ensure pickup collider exists and is enabled
+    this.ensurePickupCollider();
+
+    this.logger.log("Initialized");
+  }
+
+  /**
+   * Ensure the phone cord is created
+   * Retries until successful (handles timing issues when components aren't found initially)
+   */
+  ensurePhoneCord() {
+    if (this.phoneCord) {
+      // Cord already exists
+      return;
+    }
+
     if (this.cordAttach && this.receiver && this.physicsManager) {
+      // All components found - create cord immediately
       this.phoneCord = new PhoneCord({
         scene: this.scene,
         physicsManager: this.physicsManager,
         cordAttach: this.cordAttach,
         receiver: this.receiver,
-        gameManager: this.gameManager, // Pass gameManager (no auto-destroy configured)
+        gameManager: this.gameManager,
         loggerName: "CandlestickPhone.Cord",
         config: this.config.cordConfig,
       });
@@ -396,19 +452,143 @@ class CandlestickPhone {
       const success = this.phoneCord.createCord();
       if (success) {
         this.logger.log("Phone cord created successfully");
+        return;
       } else {
         this.logger.warn("Failed to create phone cord");
+        this.phoneCord = null;
       }
-    } else {
-      this.logger.warn(
-        "Cannot create phone cord - missing CordAttach, Receiver, or PhysicsManager"
-      );
     }
 
-    // Create table collider beneath the phone
-    this.createTableCollider();
+    // Components not found or creation failed - retry after a delay
+    this.logger.warn(
+      "Cannot create phone cord - missing components, will retry"
+    );
+    this.logger.warn(
+      `  cordAttach: ${!!this.cordAttach}, receiver: ${!!this
+        .receiver}, physicsManager: ${!!this.physicsManager}`
+    );
 
-    this.logger.log("Initialized");
+    // Retry with exponential backoff (up to 10 attempts)
+    let retryCount = 0;
+    const maxRetries = 10;
+    const baseDelay = 100; // Start with 100ms
+
+    const tryCreateCord = () => {
+      retryCount++;
+
+      // Re-find components in case they weren't loaded yet
+      if (!this.cordAttach) {
+        this.cordAttach = this.sceneManager.findChildByName(
+          "candlestickPhone",
+          "CordAttach"
+        );
+      }
+      if (!this.receiver) {
+        this.receiver = this.sceneManager.findChildByName(
+          "candlestickPhone",
+          "Receiver"
+        );
+      }
+
+      if (this.cordAttach && this.receiver && this.physicsManager) {
+        // All components found - try to create cord
+        this.phoneCord = new PhoneCord({
+          scene: this.scene,
+          physicsManager: this.physicsManager,
+          cordAttach: this.cordAttach,
+          receiver: this.receiver,
+          gameManager: this.gameManager,
+          loggerName: "CandlestickPhone.Cord",
+          config: this.config.cordConfig,
+        });
+
+        const success = this.phoneCord.createCord();
+        if (success) {
+          this.logger.log(
+            `Phone cord created successfully (retry ${retryCount})`
+          );
+          return; // Success - stop retrying
+        } else {
+          this.logger.warn(`Failed to create phone cord (retry ${retryCount})`);
+          this.phoneCord = null;
+        }
+      }
+
+      // If we haven't succeeded and haven't exceeded max retries, schedule another retry
+      if (!this.phoneCord && retryCount < maxRetries) {
+        const delay = baseDelay * Math.pow(1.5, retryCount - 1); // Exponential backoff
+        setTimeout(tryCreateCord, delay);
+      } else if (!this.phoneCord) {
+        this.logger.error(
+          `Failed to create phone cord after ${retryCount} retries - giving up`
+        );
+      }
+    };
+
+    // Start retry loop after initial delay
+    setTimeout(tryCreateCord, baseDelay);
+  }
+
+  /**
+   * Ensure the pickup collider exists and is enabled
+   * This handles cases where the collider might have been removed during scene updates
+   */
+  ensurePickupCollider() {
+    if (!this.gameManager?.colliderManager || !this.sceneManager) {
+      this.logger.warn(
+        "Cannot ensure pickup collider - missing colliderManager or sceneManager"
+      );
+      return;
+    }
+
+    const colliderManager = this.gameManager.colliderManager;
+    const phoneObject = this.sceneManager.getObject("candlestickPhone");
+    if (!phoneObject) {
+      this.logger.warn(
+        "Cannot ensure pickup collider - phone object not found"
+      );
+      return;
+    }
+
+    // Import collider data dynamically
+    import("../colliderData.js")
+      .then(({ colliders }) => {
+        const pickupColliderData = colliders.find(
+          (c) => c.id === "candlestickPhone-pickup"
+        );
+        if (!pickupColliderData) {
+          this.logger.warn("Pickup collider data not found");
+          return;
+        }
+
+        // Clone the collider data to avoid mutating the original
+        const colliderData = {
+          ...pickupColliderData,
+          position: { ...pickupColliderData.position },
+          rotation: { ...pickupColliderData.rotation },
+          dimensions: { ...pickupColliderData.dimensions },
+        };
+
+        // Update position to match current phone position (in case phone moved)
+        const phonePos = new THREE.Vector3();
+        phoneObject.getWorldPosition(phonePos);
+        colliderData.position = {
+          x: phonePos.x,
+          y: phonePos.y,
+          z: phonePos.z,
+        };
+
+        // Register or re-enable the collider
+        const success = colliderManager.registerCollider(colliderData);
+        if (success) {
+          this.logger.log("Ensured pickup collider exists and is enabled");
+        } else {
+          this.logger.warn("Failed to ensure pickup collider");
+        }
+      })
+      .catch((error) => {
+        this.logger.error("Failed to import collider data:", error);
+      });
   }
 
   /**
@@ -503,6 +683,22 @@ class CandlestickPhone {
 
     // Disable contact shadow while phone is held
     this.disableContactShadow();
+
+    // Explicitly hide collider mesh after reparenting
+    if (this.colliderMesh) {
+      this.colliderMesh.visible = false;
+      this.colliderMesh.renderOrder = -9999;
+      if (this.colliderMesh.isMesh && this.colliderMesh.material) {
+        const materials = Array.isArray(this.colliderMesh.material)
+          ? this.colliderMesh.material
+          : [this.colliderMesh.material];
+        materials.forEach((mat) => {
+          mat.visible = false;
+          mat.opacity = 0;
+          mat.transparent = true;
+        });
+      }
+    }
 
     // Mark as held to camera so we can enforce target pose
     this.isHeldToCamera = true;

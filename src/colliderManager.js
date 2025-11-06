@@ -79,6 +79,40 @@ class ColliderManager {
   }
 
   /**
+   * Register a collider from data (for dynamic registration)
+   * @param {Object} data - Collider data
+   * @returns {boolean} True if successfully registered
+   */
+  registerCollider(data) {
+    // Check if collider already exists
+    const existing = this.colliders.find((c) => c.id === data.id);
+    if (existing) {
+      // Collider exists - just enable it
+      existing.enabled = data.enabled !== false;
+      this.logger.log(
+        `Collider "${data.id}" already exists, enabled=${existing.enabled}`
+      );
+      return true;
+    }
+
+    // Create new collider
+    const collider = this.createCollider(data);
+    if (collider) {
+      this.colliders.push({
+        id: data.id,
+        data: data,
+        collider: collider,
+        handle: collider.handle,
+        enabled: data.enabled !== false,
+      });
+      this.logger.log(`Registered collider "${data.id}"`);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Initialize colliders from data
    * @param {Array} colliderData - Array of collider definitions
    */

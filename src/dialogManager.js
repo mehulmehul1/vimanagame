@@ -347,24 +347,52 @@ class DialogManager {
    * Preload dialog audio files
    * @param {Object} dialogsData - Dialog data object (from dialogData.js)
    */
-  preloadDialogs(dialogsData) {
+  async preloadDialogs(dialogsData) {
     if (!dialogsData) return;
+
+    // In debug mode, check which dialogs match the debug state and force them to preload
+    let debugState = null;
+    const matchingDialogIds = new Set();
+    const { isDebugSpawnActive, getDebugSpawnState } = await import(
+      "./utils/debugSpawner.js"
+    );
+    const { getDialogsForState } = await import("./dialogData.js");
+
+    if (isDebugSpawnActive()) {
+      debugState = getDebugSpawnState();
+      if (debugState) {
+        const matchingDialogs = getDialogsForState(debugState, new Set());
+        matchingDialogs.forEach((dialog) => {
+          matchingDialogIds.add(dialog.id);
+        });
+        if (matchingDialogIds.size > 0) {
+          this.logger.log(
+            `[Debug] Forcing preload for ${matchingDialogIds.size} matching dialogs (state: ${debugState.currentState}): ${Array.from(matchingDialogIds).join(", ")}`
+          );
+        }
+      }
+    }
 
     Object.values(dialogsData).forEach((dialog) => {
       if (!dialog.audio) return; // Skip dialogs without audio
 
-      // Treat undefined preload as true (default preload for backwards compatibility)
-      const preload = dialog.preload !== undefined ? dialog.preload : true;
+      // In debug mode, force preload if this dialog matches the debug state
+      const shouldPreload =
+        matchingDialogIds.has(dialog.id)
+          ? true
+          : dialog.preload !== undefined
+          ? dialog.preload
+          : true; // Default to true for backwards compatibility
 
       // If preload is false, defer loading (file won't be fetched until after loading screen)
-      if (!preload) {
+      if (!shouldPreload) {
         this.deferredDialogs.set(dialog.id, dialog);
         this.logger.log(`Deferred loading for dialog "${dialog.id}"`);
         return;
       }
 
       // Register with loading screen if available and preloading
-      if (this.loadingScreen && preload) {
+      if (this.loadingScreen && shouldPreload) {
         this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
       }
 
@@ -375,13 +403,13 @@ class DialogManager {
         preload: true,
         onload: () => {
           this.logger.log(`Loaded dialog "${dialog.id}"`);
-          if (this.loadingScreen && preload) {
+          if (this.loadingScreen && shouldPreload) {
             this.loadingScreen.completeTask(`dialog_${dialog.id}`);
           }
         },
         onloaderror: (id, error) => {
           this.logger.error(`Failed to load dialog "${dialog.id}":`, error);
-          if (this.loadingScreen && preload) {
+          if (this.loadingScreen && shouldPreload) {
             this.loadingScreen.completeTask(`dialog_${dialog.id}`);
           }
         },

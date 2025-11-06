@@ -137,8 +137,8 @@ export const colliders = [
   {
     id: "entering-office",
     type: "box",
-    position: sceneObjects.officeCollider.position,
-    rotation: { x: 0, y: 0, z: 0 },
+    position: { x: -1.3, y: 1.33, z: 81.18 },
+    rotation: { x: 0.0, y: 0.138, z: 0.0 },
     dimensions: { x: 3, y: 4, z: 3 },
     setStateOnEnter: { currentState: GAME_STATES.ENTERING_OFFICE },
     once: true, // Only trigger once
