@@ -23,11 +23,13 @@ class OptionsMenu {
     this.isOpen = false;
 
     // Settings with defaults
+    // Performance profile will be set early based on isMobile, but default to "max" for desktop
     this.settings = {
       musicVolume: 0.6,
       sfxVolume: 0.5,
       dofEnabled: true,
       captionsEnabled: true,
+      performanceProfile: "max", // "mobile", "laptop", or "max"
       ...this.loadSettings(),
     };
 
@@ -42,37 +44,9 @@ class OptionsMenu {
     // Apply initial settings (includes updateUI)
     this.applySettings();
 
-    // Register with UI manager if available
+    // Register with UI manager if available (will be registered later if not available yet)
     if (this.uiManager) {
-      this.uiManager.registerElement(
-        "options-menu",
-        this.menuElement,
-        "PAUSE_MENU",
-        {
-          blocksInput: true,
-          pausesGame: true,
-        }
-      );
-
-      // Listen for UI manager events to sync isOpen state
-      if (this.uiManager.gameManager) {
-        this.uiManager.gameManager.on("ui:shown", (id) => {
-          if (id === "options-menu") {
-            this.isOpen = true;
-            this.updateUI();
-            // Request pointer lock release
-            if (document.pointerLockElement) {
-              document.exitPointerLock();
-            }
-          }
-        });
-
-        this.uiManager.gameManager.on("ui:hidden", (id) => {
-          if (id === "options-menu") {
-            this.isOpen = false;
-          }
-        });
-      }
+      this.registerWithUIManager(this.uiManager);
     }
   }
 
@@ -125,19 +99,6 @@ class OptionsMenu {
             >
           </div>
 
-          <!-- DoF Enable Checkbox -->
-          <div class="option-group">
-            <label class="option-label checkbox-label" for="dof-enabled">
-              Depth of Field
-              <input 
-                type="checkbox" 
-                id="dof-enabled" 
-                class="option-checkbox"
-                checked
-              >
-            </label>
-          </div>
-
           <!-- Captions Enable Checkbox -->
           <div class="option-group">
             <label class="option-label checkbox-label" for="captions-enabled">
@@ -149,6 +110,54 @@ class OptionsMenu {
                 checked
               >
             </label>
+          </div>
+
+          <!-- Performance Profile -->
+          <div class="option-group">
+            <label class="option-label">Performance Mode</label>
+            <div class="performance-mode-select">
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="performance-profile" 
+                  value="mobile"
+                  class="performance-radio"
+                >
+                <span>Mobile</span>
+              </label>
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="performance-profile" 
+                  value="laptop"
+                  class="performance-radio"
+                >
+                <span>Laptop</span>
+              </label>
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="performance-profile" 
+                  value="max"
+                  class="performance-radio"
+                  checked
+                >
+                <span>Max</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Mode Change Confirmation Modal -->
+      <div class="refresh-confirm-modal hidden" id="refresh-confirm-modal">
+        <div class="refresh-confirm-overlay"></div>
+        <div class="refresh-confirm-container">
+          <h3 class="refresh-confirm-title">Performance Mode Change</h3>
+          <p class="refresh-confirm-message">This action requires a refresh to load the correct assets.</p>
+          <div class="refresh-confirm-buttons">
+            <button class="refresh-confirm-button refresh-confirm-cancel" id="refresh-confirm-cancel">Cancel</button>
+            <button class="refresh-confirm-button refresh-confirm-ok" id="refresh-confirm-ok">Refresh</button>
           </div>
         </div>
       </div>
@@ -182,6 +191,14 @@ class OptionsMenu {
         (!this.startScreen || !this.startScreen.isActive)
       ) {
         e.preventDefault();
+
+        // Check if refresh confirmation modal is open - close it first
+        const refreshModal = document.getElementById("refresh-confirm-modal");
+        if (refreshModal && !refreshModal.classList.contains("hidden")) {
+          this.cancelRefresh();
+          this.escapeKeyDownTime = null;
+          return;
+        }
 
         // Only toggle menu if ESC was pressed for less than 200ms (short press)
         if (this.escapeKeyDownTime !== null) {
@@ -236,15 +253,6 @@ class OptionsMenu {
       this.saveSettings();
     });
 
-    // DoF Enable checkbox
-    const dofEnabledCheckbox = document.getElementById("dof-enabled");
-
-    dofEnabledCheckbox.addEventListener("change", (e) => {
-      this.settings.dofEnabled = e.target.checked;
-      this.applyDepthOfField();
-      this.saveSettings();
-    });
-
     // Captions Enable checkbox
     const captionsEnabledCheckbox = document.getElementById("captions-enabled");
 
@@ -253,6 +261,51 @@ class OptionsMenu {
       this.applyCaptions();
       this.saveSettings();
     });
+
+    // Performance Profile radio buttons
+    const performanceRadios = document.querySelectorAll(
+      'input[name="performance-profile"]'
+    );
+    performanceRadios.forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          const newProfile = e.target.value;
+          const oldProfile = this.settings.performanceProfile;
+          
+          // Only show confirmation if profile actually changed
+          if (newProfile !== oldProfile) {
+            this.showRefreshConfirmation(newProfile, oldProfile);
+          }
+        }
+      });
+    });
+
+    // Refresh confirmation modal buttons
+    const refreshConfirmModal = document.getElementById("refresh-confirm-modal");
+    const refreshConfirmOk = document.getElementById("refresh-confirm-ok");
+    const refreshConfirmCancel = document.getElementById("refresh-confirm-cancel");
+    const refreshConfirmOverlay = refreshConfirmModal?.querySelector(".refresh-confirm-overlay");
+
+    if (refreshConfirmOk) {
+      refreshConfirmOk.addEventListener("click", () => {
+        this.confirmRefresh();
+      });
+    }
+
+    if (refreshConfirmCancel) {
+      refreshConfirmCancel.addEventListener("click", () => {
+        this.cancelRefresh();
+      });
+    }
+
+    if (refreshConfirmOverlay) {
+      refreshConfirmOverlay.addEventListener("click", () => {
+        this.cancelRefresh();
+      });
+    }
+
+    // Store pending profile change
+    this.pendingProfileChange = null;
 
     // Close button
     const closeButton = document.getElementById("close-button");
@@ -340,8 +393,10 @@ class OptionsMenu {
     const musicValue = document.getElementById("music-volume-value");
     const sfxSlider = document.getElementById("sfx-volume");
     const sfxValue = document.getElementById("sfx-volume-value");
-    const dofEnabledCheckbox = document.getElementById("dof-enabled");
     const captionsEnabledCheckbox = document.getElementById("captions-enabled");
+    const performanceRadios = document.querySelectorAll(
+      'input[name="performance-profile"]'
+    );
 
     const musicPercent = Math.round(this.settings.musicVolume * 100);
     const sfxPercent = Math.round(this.settings.sfxVolume * 100);
@@ -354,8 +409,12 @@ class OptionsMenu {
     sfxValue.textContent = `${sfxPercent}%`;
     sfxSlider.style.setProperty("--value", `${sfxPercent}%`);
 
-    dofEnabledCheckbox.checked = this.settings.dofEnabled;
     captionsEnabledCheckbox.checked = this.settings.captionsEnabled;
+
+    // Update performance profile radio buttons
+    performanceRadios.forEach((radio) => {
+      radio.checked = radio.value === this.settings.performanceProfile;
+    });
   }
 
   /**
@@ -400,6 +459,18 @@ class OptionsMenu {
   }
 
   /**
+   * Apply performance profile settings
+   */
+  applyPerformanceProfile() {
+    // Update gameManager state with performance profile
+    if (this.gameManager) {
+      this.gameManager.setState({
+        performanceProfile: this.settings.performanceProfile,
+      });
+    }
+  }
+
+  /**
    * Apply all settings
    */
   applySettings() {
@@ -407,6 +478,7 @@ class OptionsMenu {
     this.applySfxVolume();
     this.applyDepthOfField();
     this.applyCaptions();
+    this.applyPerformanceProfile();
     this.updateUI();
   }
 
@@ -439,6 +511,121 @@ class OptionsMenu {
    */
   getSettings() {
     return { ...this.settings };
+  }
+
+  /**
+   * Set performance profile early (before options menu is fully initialized)
+   * Called from main.js right after platform detection
+   * @param {string} profile - "mobile", "laptop", or "max"
+   */
+  setPerformanceProfile(profile) {
+    if (!["mobile", "laptop", "max"].includes(profile)) {
+      this.logger.warn(`Invalid performance profile: ${profile}, defaulting to "max"`);
+      profile = "max";
+    }
+    this.settings.performanceProfile = profile;
+    // Update gameManager state if available
+    if (this.gameManager) {
+      this.gameManager.setState({
+        performanceProfile: profile,
+      });
+    }
+    // Update UI if menu is already created
+    if (this.menuElement) {
+      const performanceRadios = document.querySelectorAll(
+        'input[name="performance-profile"]'
+      );
+      performanceRadios.forEach((radio) => {
+        radio.checked = radio.value === profile;
+      });
+    }
+  }
+
+  /**
+   * Register with UIManager (called after UIManager is created)
+   * This allows options menu to be initialized early before UIManager exists
+   * @param {UIManager} uiManager - The UIManager instance
+   */
+  registerWithUIManager(uiManager) {
+    this.uiManager = uiManager;
+    
+    // Register the menu element
+    this.uiManager.registerElement(
+      "options-menu",
+      this.menuElement,
+      "PAUSE_MENU",
+      {
+        blocksInput: true,
+        pausesGame: true,
+      }
+    );
+
+    // Listen for UI manager events to sync isOpen state
+    if (this.uiManager.gameManager) {
+      this.uiManager.gameManager.on("ui:shown", (id) => {
+        if (id === "options-menu") {
+          this.isOpen = true;
+          this.updateUI();
+          // Request pointer lock release
+          if (document.pointerLockElement) {
+            document.exitPointerLock();
+          }
+        }
+      });
+
+      this.uiManager.gameManager.on("ui:hidden", (id) => {
+        if (id === "options-menu") {
+          this.isOpen = false;
+        }
+      });
+    }
+  }
+
+  /**
+   * Show refresh confirmation modal
+   * @param {string} newProfile - The new performance profile
+   * @param {string} oldProfile - The current performance profile
+   */
+  showRefreshConfirmation(newProfile, oldProfile) {
+    this.pendingProfileChange = newProfile;
+    const modal = document.getElementById("refresh-confirm-modal");
+    if (modal) {
+      modal.classList.remove("hidden");
+    }
+  }
+
+  /**
+   * Confirm refresh - save settings and reload page
+   */
+  confirmRefresh() {
+    if (this.pendingProfileChange) {
+      // Save the new performance profile
+      this.settings.performanceProfile = this.pendingProfileChange;
+      this.saveSettings();
+      
+      // Reload the page
+      window.location.reload();
+    }
+  }
+
+  /**
+   * Cancel refresh - revert radio button and hide modal
+   */
+  cancelRefresh() {
+    const modal = document.getElementById("refresh-confirm-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    
+    // Revert radio button to current setting
+    const performanceRadios = document.querySelectorAll(
+      'input[name="performance-profile"]'
+    );
+    performanceRadios.forEach((radio) => {
+      radio.checked = radio.value === this.settings.performanceProfile;
+    });
+    
+    this.pendingProfileChange = null;
   }
 
   /**

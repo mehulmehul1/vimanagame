@@ -113,6 +113,54 @@ logger.log(
   `✅ Platform detection complete - Mobile: ${platformInfo?.isMobile}, iOS: ${platformInfo?.isIOS}, Fullscreen supported: ${platformInfo?.isFullscreenSupported}`
 );
 
+// Initialize options menu early to set performance profile before scene loading
+// This must happen before sceneManager initialization so the correct assets load
+const optionsMenu = new OptionsMenu({
+  gameManager: gameManager,
+});
+
+// Set performance profile based on priority:
+// 1. URL parameter (highest priority - for sharing links)
+// 2. Saved localStorage value
+// 3. Auto-detection based on platform (lowest priority)
+
+// Check URL parameter first
+const urlProfile = gameManager.getURLParam("performanceProfile");
+let profileToUse = null;
+let profileSource = null;
+
+if (urlProfile && ["mobile", "laptop", "max"].includes(urlProfile)) {
+  // URL parameter takes highest priority
+  profileToUse = urlProfile;
+  profileSource = "URL parameter";
+  // Save URL parameter to localStorage so it persists
+  optionsMenu.settings.performanceProfile = urlProfile;
+  optionsMenu.saveSettings();
+} else {
+  // Check localStorage for saved setting
+  const savedSettings = optionsMenu.loadSettings();
+  const savedProfile = savedSettings?.performanceProfile;
+
+  if (savedProfile && ["mobile", "laptop", "max"].includes(savedProfile)) {
+    // Use saved profile from localStorage
+    profileToUse = savedProfile;
+    profileSource = "saved settings";
+  } else {
+    // No saved profile - auto-detect based on platform
+    if (platformInfo?.isMobile) {
+      profileToUse = "mobile";
+      profileSource = "platform detection";
+    } else {
+      profileToUse = "max";
+      profileSource = "default";
+    }
+  }
+}
+
+// Apply the determined profile
+optionsMenu.setPerformanceProfile(profileToUse);
+logger.log(`✅ Performance profile set to ${profileToUse} (${profileSource})`);
+
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 // Pass loadingScreen for progress tracking, renderer for contact shadows, gameManager for state updates
 const sceneManager = new SceneManager(scene, {
@@ -402,16 +450,16 @@ const initTimePassesSequence = (newState, oldState) => {
 
 gameManager.on("state:changed", initTimePassesSequence);
 
-// Initialize options menu
-const optionsMenu = new OptionsMenu({
-  musicManager: musicManager,
-  sfxManager: sfxManager,
-  gameManager: gameManager,
-  uiManager: uiManager,
-  sparkRenderer: spark,
-  characterController: characterController,
-  startScreen: startScreen,
-});
+// Options menu was already initialized early (before scene loading) to set performance profile
+// Now update it with all the manager references
+optionsMenu.musicManager = musicManager;
+optionsMenu.sfxManager = sfxManager;
+optionsMenu.sparkRenderer = spark;
+optionsMenu.characterController = characterController;
+optionsMenu.startScreen = startScreen;
+
+// Register options menu with UIManager (must be done after UIManager is created)
+optionsMenu.registerWithUIManager(uiManager);
 
 // Connect physics manager to scene manager BEFORE initializing gameManager
 // This ensures physics colliders can be created when scene objects load

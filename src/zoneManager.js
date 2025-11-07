@@ -102,7 +102,7 @@ class ZoneManager {
   }
 
   /**
-   * Get the appropriate zone mapping based on isMobile state
+   * Get the appropriate zone mapping based on performance profile
    * @returns {Object} Zone to splats mapping
    */
   getZoneMapping() {
@@ -110,25 +110,32 @@ class ZoneManager {
       return this.zoneToSplatsDesktop; // Default to desktop
     }
     const state = this.gameManager.getState();
-    const isMobile = state?.isMobile === true;
-    return isMobile ? this.zoneToSplatsMobile : this.zoneToSplatsDesktop;
+    const performanceProfile = state?.performanceProfile || "max";
+    // Mobile uses mobile mapping, laptop and max use desktop mapping
+    return performanceProfile === "mobile"
+      ? this.zoneToSplatsMobile
+      : this.zoneToSplatsDesktop;
   }
 
   /**
-   * Update zone mapping if isMobile state changed
+   * Update zone mapping if performance profile changed
    * @param {Object} newState - New game state
    * @param {Object} oldState - Previous game state
    */
   updateZoneMappingIfNeeded(newState, oldState) {
     if (!newState || !oldState) return;
 
-    const wasMobile = oldState.isMobile === true;
-    const isMobile = newState.isMobile === true;
+    const oldProfile = oldState.performanceProfile || "max";
+    const newProfile = newState.performanceProfile || "max";
 
-    if (wasMobile !== isMobile) {
+    // Check if mapping should change (mobile vs desktop/laptop/max)
+    const oldIsMobile = oldProfile === "mobile";
+    const newIsMobile = newProfile === "mobile";
+
+    if (oldIsMobile !== newIsMobile) {
       this.zoneToSplats = this.getZoneMapping();
       this.logger.log(
-        `Zone mapping updated for ${isMobile ? "mobile" : "desktop"} platform`
+        `Zone mapping updated for ${newProfile} performance profile`
       );
 
       // If we have a current zone, reload it with the new mapping
@@ -170,12 +177,12 @@ class ZoneManager {
   handleStateChange(newState, oldState) {
     if (!newState) return;
 
-    // Update zone mapping based on current isMobile state (or if it changed)
+    // Update zone mapping based on current performance profile (or if it changed)
     if (!oldState) {
-      // Initial state - set mapping based on current isMobile
+      // Initial state - set mapping based on current performance profile
       this.zoneToSplats = this.getZoneMapping();
     } else {
-      // Update zone mapping if isMobile changed
+      // Update zone mapping if performance profile changed
       this.updateZoneMappingIfNeeded(newState, oldState);
     }
 
@@ -351,7 +358,7 @@ class ZoneManager {
       }
     }
 
-    // Get current zone mapping (may have changed if isMobile state changed)
+    // Get current zone mapping (may have changed if performance profile changed)
     const zoneMapping = this.getZoneMapping();
 
     // Determine which splats should be loaded for this zone
@@ -487,7 +494,7 @@ class ZoneManager {
 
     if (!objectData) {
       this.logger.warn(
-        `Splat "${splatId}" not found in sceneData or doesn't match current criteria (isMobile: ${currentState?.isMobile})`
+        `Splat "${splatId}" not found in sceneData or doesn't match current criteria (performanceProfile: ${currentState?.performanceProfile})`
       );
       return;
     }

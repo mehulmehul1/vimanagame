@@ -136,7 +136,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -155,7 +155,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
@@ -174,7 +174,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -194,7 +194,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
@@ -213,7 +213,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -233,7 +233,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
@@ -252,7 +252,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -272,7 +272,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
@@ -291,7 +291,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false, // Only load on desktop (merged with alleyIntro on mobile)
+      performanceProfile: { $in: ["laptop", "max"] }, // Only load on desktop (merged with alleyIntro on mobile)
     },
   },
 
@@ -310,7 +310,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -330,7 +330,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
@@ -349,7 +349,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: false,
+      performanceProfile: { $in: ["laptop", "max"] },
     },
   },
 
@@ -369,7 +369,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
-      isMobile: true,
+      performanceProfile: "mobile",
     },
   },
 
