@@ -557,6 +557,9 @@ sceneManager.setColliderManager(colliderManager);
 const zoneManager = new ZoneManager(gameManager, sceneManager);
 window.zoneManager = zoneManager; // Make globally accessible for debugging
 
+// Set SparkRenderer on zone manager for updating accumulator origin position when zones change
+zoneManager.setSparkRenderer(spark);
+
 // Make zoneManager accessible on gameManager for ColliderManager
 if (gameManager) {
   gameManager.zoneManager = zoneManager;

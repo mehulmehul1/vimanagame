@@ -23,6 +23,9 @@ class ZoneManager {
     this.sceneManager = sceneManager;
     this.logger = new Logger("ZoneManager", true); // Enable logging
 
+    // SparkRenderer reference for updating accumulator origin position
+    this.sparkRenderer = null; // Will be set by setSparkRenderer()
+
     // Desktop zone to splat mapping
     this.zoneToSplatsDesktop = {
       alleyIntro: ["alleyIntro", "alleyNavigable"],
@@ -87,6 +90,15 @@ class ZoneManager {
     }
 
     this.logger.log("ZoneManager initialized");
+  }
+
+  /**
+   * Set SparkRenderer reference for updating accumulator origin position
+   * @param {SparkRenderer} sparkRenderer - SparkRenderer instance
+   */
+  setSparkRenderer(sparkRenderer) {
+    this.sparkRenderer = sparkRenderer;
+    this.logger.log("SparkRenderer reference set on ZoneManager");
   }
 
   /**
@@ -327,6 +339,17 @@ class ZoneManager {
 
     const oldZone = this.currentZone;
     this.currentZone = zone;
+
+    // Update SparkRenderer position when zone changes (safeguard - also updated by ColliderManager when colliders fire)
+    // This reduces float16 quantization artifacts by keeping accumulator origin near character
+    if (this.sparkRenderer && this.gameManager?.colliderManager) {
+      const colliderManager = this.gameManager.colliderManager;
+      // Try to get position from character body first, then camera
+      if (colliderManager.camera) {
+        // Use camera position (works for both normal gameplay and camera animations)
+        this.sparkRenderer.position.copy(colliderManager.camera.position);
+      }
+    }
 
     // Get current zone mapping (may have changed if isMobile state changed)
     const zoneMapping = this.getZoneMapping();

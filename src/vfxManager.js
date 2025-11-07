@@ -331,8 +331,8 @@ export class VFXSystemManager {
 
     try {
       // Dynamic imports to avoid circular dependency (VFX extends VFXManager)
-      const { DesaturationEffect } = await import(
-        "./vfx/desaturationEffect.js"
+      const { DesaturationAndGlitchEffects } = await import(
+        "./vfx/desaturationAndGlitchEffects.js"
       );
       const { createCloudParticlesShader } = await import(
         "./vfx/cloudParticlesShader.js"
@@ -342,17 +342,11 @@ export class VFXSystemManager {
       );
       const { SplatMorphEffect } = await import("./vfx/splatMorph.js");
       const { DissolveEffect } = await import("./vfx/dissolveEffect.js");
-      const { GlitchEffect } = await import("./vfx/glitchEffect.js");
 
-      // Create desaturation post-processing effect
-      this.logger.log("Creating DesaturationEffect...");
-      this.effects.desaturation = new DesaturationEffect(this.renderer);
-      this.logger.log("✅ DesaturationEffect created");
-
-      // Create glitch post-processing effect
-      this.logger.log("Creating GlitchEffect...");
-      this.effects.glitch = new GlitchEffect(this.renderer);
-      this.logger.log("✅ GlitchEffect created");
+      // Create combined desaturation and glitch post-processing effect
+      this.logger.log("Creating DesaturationAndGlitchEffects...");
+      this.effects.desaturationAndGlitch = new DesaturationAndGlitchEffects(this.renderer);
+      this.logger.log("✅ DesaturationAndGlitchEffects created");
 
       // Create cloud particles shader
       this.logger.log("Creating CloudParticles...");
@@ -415,8 +409,14 @@ export class VFXSystemManager {
     this.gameManager = gameManager;
 
     // Connect each effect to game manager
-    if (this.effects.desaturation) {
-      this.effects.desaturation.setGameManager(gameManager, "desaturation");
+    if (this.effects.desaturationAndGlitch) {
+      // Combined effect handles both desaturation and glitch independently
+      // It overrides updateForState to check both effect types
+      this.effects.desaturationAndGlitch.setGameManager(gameManager, () => {
+        // Return a dummy effect - the combined effect overrides updateForState
+        // to check both desaturation and glitch effects independently
+        return { id: "combined", parameters: {} };
+      });
     }
 
     if (this.effects.cloudParticles) {
@@ -435,20 +435,17 @@ export class VFXSystemManager {
       this.effects.dissolve.setGameManager(gameManager, "dissolve");
     }
 
-    if (this.effects.glitch) {
-      this.effects.glitch.setGameManager(gameManager, "glitch");
-    }
-
     this.logger.log("All VFX effects connected to game manager");
   }
+
 
   /**
    * Update all VFX effects
    * @param {number} deltaTime - Time since last frame in seconds
    */
   update(deltaTime) {
-    if (this.effects.desaturation) {
-      this.effects.desaturation.update(deltaTime);
+    if (this.effects.desaturationAndGlitch) {
+      this.effects.desaturationAndGlitch.update(deltaTime);
     }
 
     if (this.effects.cloudParticles) {
@@ -466,10 +463,6 @@ export class VFXSystemManager {
     if (this.effects.dissolve) {
       this.effects.dissolve.update(deltaTime);
     }
-
-    if (this.effects.glitch) {
-      this.effects.glitch.update(deltaTime);
-    }
   }
 
   /**
@@ -478,30 +471,9 @@ export class VFXSystemManager {
    * @param {THREE.Camera} camera - The camera to use
    */
   render(scene, camera) {
-    // Render pipeline: scene -> desaturation -> glitch -> screen
-
-    // Check if glitch is enabled
-    const glitchEnabled =
-      this.effects.glitch &&
-      this.effects.glitch.enabled &&
-      this.effects.glitch._hasEverBeenEnabled;
-
-    // Step 1: Render scene through desaturation
-    let intermediateTexture = null;
-    if (this.effects.desaturation && glitchEnabled) {
-      // If glitch is enabled, render desaturation to texture
-      intermediateTexture = this.effects.desaturation.renderToTexture(
-        scene,
-        camera
-      );
-    }
-
-    // Step 2: Apply glitch to the result if enabled
-    if (glitchEnabled && intermediateTexture) {
-      this.effects.glitch.render(intermediateTexture);
-    } else if (this.effects.desaturation) {
-      // Glitch not active, use desaturation's normal render path
-      this.effects.desaturation.render(scene, camera);
+    // Combined effect handles both desaturation and glitch in a single pass
+    if (this.effects.desaturationAndGlitch) {
+      this.effects.desaturationAndGlitch.render(scene, camera);
     } else {
       // Fallback to direct rendering if no post-processing
       this.renderer.render(scene, camera);
@@ -514,11 +486,8 @@ export class VFXSystemManager {
    * @param {number} height - New height
    */
   setSize(width, height) {
-    if (this.effects.desaturation) {
-      this.effects.desaturation.setSize(width, height);
-    }
-    if (this.effects.glitch) {
-      this.effects.glitch.setSize(width, height);
+    if (this.effects.desaturationAndGlitch) {
+      this.effects.desaturationAndGlitch.setSize(width, height);
     }
   }
 

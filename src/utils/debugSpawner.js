@@ -112,6 +112,7 @@ const stateOverrides = {
       y: 2.13,
       z: 79.85,
     },
+    playerRotation: { x: 0.0, y: 110, z: 0.0 },
   },
 
   OFFICE_INTERIOR: {

@@ -72,7 +72,7 @@ export const desaturationEffects = {
       },
     },
     priority: 20,
-    delay: 3.0,
+    delay: 4.5,
   },
 
   // Wipe to grayscale synchronized with splatMorph reverse transition
@@ -129,7 +129,7 @@ export const desaturationEffects = {
   viewmasterToggleGrayscale: {
     id: "viewmasterToggleGrayscale",
     parameters: {
-      target: 0.0,
+      target: 1.0,
       duration: 1.2,
       mode: "fade",
     },
