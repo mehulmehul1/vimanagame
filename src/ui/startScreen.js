@@ -449,6 +449,7 @@ export class StartScreen {
     const isMobile =
       this.uiManager?.gameManager?.getState?.()?.isMobile || false;
 
+    //
     // Adjust z positions for mobile (move further from camera)
     const titleZ = isMobile ? -3.5 : -2.25;
     const bylineZ = isMobile ? -3.5 : -2.25;
