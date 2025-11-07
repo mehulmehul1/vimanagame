@@ -23,13 +23,13 @@ class OptionsMenu {
     this.isOpen = false;
 
     // Settings with defaults
-    // Performance profile will be set early based on isMobile, but default to "max" for desktop
+    // Performance profile will be set early based on isMobile, but default to "laptop" for desktop
     this.settings = {
       musicVolume: 0.6,
       sfxVolume: 0.5,
       dofEnabled: true,
       captionsEnabled: true,
-      performanceProfile: "max", // "mobile", "laptop", or "max"
+      performanceProfile: "laptop", // "mobile", "laptop", or "max" (laptop is default)
       ...this.loadSettings(),
     };
 
@@ -131,6 +131,7 @@ class OptionsMenu {
                   name="performance-profile" 
                   value="laptop"
                   class="performance-radio"
+                  checked
                 >
                 <span>Laptop</span>
               </label>
@@ -140,7 +141,6 @@ class OptionsMenu {
                   name="performance-profile" 
                   value="max"
                   class="performance-radio"
-                  checked
                 >
                 <span>Max</span>
               </label>

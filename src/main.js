@@ -151,7 +151,7 @@ if (urlProfile && ["mobile", "laptop", "max"].includes(urlProfile)) {
       profileToUse = "mobile";
       profileSource = "platform detection";
     } else {
-      profileToUse = "max";
+      profileToUse = "laptop";
       profileSource = "default";
     }
   }

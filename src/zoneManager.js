@@ -26,7 +26,7 @@ class ZoneManager {
     // SparkRenderer reference for updating accumulator origin position
     this.sparkRenderer = null; // Will be set by setSparkRenderer()
 
-    // Desktop zone to splat mapping
+    // Desktop/Max zone to splat mapping (includes alleyNavigable)
     this.zoneToSplatsDesktop = {
       alleyIntro: ["alleyIntro", "alleyNavigable"],
       alleyNavigable: [
@@ -36,6 +36,16 @@ class ZoneManager {
         "alleyIntro",
       ],
       fourWay: ["fourWay", "alleyNavigable", "threeWay", "plaza"],
+      threeWay: ["threeWay", "fourWay", "threeWay2"],
+      threeWay2: ["threeWay2", "threeWay", "plaza"],
+      plaza: ["plaza", "threeWay2", "fourWay"],
+    };
+
+    // Laptop zone to splat mapping (no alleyNavigable, uses laptop-optimized assets)
+    this.zoneToSplatsLaptop = {
+      alleyIntro: ["alleyIntro", "fourWay"], // No alleyNavigable on laptop
+      alleyNavigable: ["alleyIntro", "alleyLongView", "fourWay"], // Map to alleyIntro since no alleyNavigable
+      fourWay: ["fourWay", "alleyIntro", "threeWay", "plaza"],
       threeWay: ["threeWay", "fourWay", "threeWay2"],
       threeWay2: ["threeWay2", "threeWay", "plaza"],
       plaza: ["plaza", "threeWay2", "fourWay"],
@@ -51,9 +61,9 @@ class ZoneManager {
       plaza: ["plaza", "threeWay2", "fourWay"],
     };
 
-    // Current zone mapping (will be set based on isMobile)
-    // Initialize with desktop mapping, will be updated on first state change
-    this.zoneToSplats = this.zoneToSplatsDesktop;
+    // Current zone mapping (will be set based on performance profile)
+    // Initialize with laptop mapping (default), will be updated on first state change
+    this.zoneToSplats = this.zoneToSplatsLaptop;
 
     // Track currently loaded splats
     this.loadedSplats = new Set();
@@ -107,14 +117,19 @@ class ZoneManager {
    */
   getZoneMapping() {
     if (!this.gameManager) {
-      return this.zoneToSplatsDesktop; // Default to desktop
+      return this.zoneToSplatsLaptop; // Default to laptop
     }
     const state = this.gameManager.getState();
-    const performanceProfile = state?.performanceProfile || "max";
-    // Mobile uses mobile mapping, laptop and max use desktop mapping
-    return performanceProfile === "mobile"
-      ? this.zoneToSplatsMobile
-      : this.zoneToSplatsDesktop;
+    const performanceProfile = state?.performanceProfile || "laptop";
+    // Each profile has its own mapping
+    if (performanceProfile === "mobile") {
+      return this.zoneToSplatsMobile;
+    } else if (performanceProfile === "laptop") {
+      return this.zoneToSplatsLaptop;
+    } else {
+      // max uses desktop mapping (includes alleyNavigable)
+      return this.zoneToSplatsDesktop;
+    }
   }
 
   /**
@@ -125,14 +140,11 @@ class ZoneManager {
   updateZoneMappingIfNeeded(newState, oldState) {
     if (!newState || !oldState) return;
 
-    const oldProfile = oldState.performanceProfile || "max";
-    const newProfile = newState.performanceProfile || "max";
+    const oldProfile = oldState.performanceProfile || "laptop";
+    const newProfile = newState.performanceProfile || "laptop";
 
-    // Check if mapping should change (mobile vs desktop/laptop/max)
-    const oldIsMobile = oldProfile === "mobile";
-    const newIsMobile = newProfile === "mobile";
-
-    if (oldIsMobile !== newIsMobile) {
+    // Check if mapping should change
+    if (oldProfile !== newProfile) {
       this.zoneToSplats = this.getZoneMapping();
       this.logger.log(
         `Zone mapping updated for ${newProfile} performance profile`
