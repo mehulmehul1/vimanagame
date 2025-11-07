@@ -4,6 +4,7 @@ import topLevelAwait from "vite-plugin-top-level-await";
 import mkcert from "vite-plugin-mkcert";
 
 export default defineConfig({
+  base: "/",
   plugins: [wasm(), topLevelAwait(), mkcert()],
   server: {
     https: true,
@@ -28,5 +29,8 @@ export default defineConfig({
         },
       },
     },
+  },
+  resolve: {
+    dedupe: ["three"],
   },
 });
