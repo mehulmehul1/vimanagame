@@ -36,64 +36,38 @@ export class TitleSequence {
       this.holdDuration;
 
     // Initialize particle animation data for each text
-    this.texts.forEach((text, i) => {
+    for (let i = 0; i < this.texts.length; i++) {
+      const text = this.texts[i];
       text._startTime = i * this.staggerDelay;
       text._textIndex = i;
 
       // Ensure particles start hidden to avoid initial flash
       if (text.particles) {
-        text.particles.forEach((p) => {
+        for (let j = 0; j < text.particles.length; j++) {
+          const p = text.particles[j];
           p.opacity = 0.0;
           p.scale = 0.2;
-        });
+        }
       }
 
       // Pre-calculate random values for each particle
+      // Combine hash calculations to reduce function calls
       if (text.particles) {
-        text.particles.forEach((particle) => {
-          particle._hash1 = this.hash(
-            particle.id * 0.05,
-            particle.id * 0.03,
-            0.0
-          );
-          particle._hash2 = this.hash(
-            particle.id * 0.11,
-            particle.id * 0.22,
-            particle.id * 0.33
-          );
-          particle._hash3 = this.hash(
-            particle.id * 0.44,
-            particle.id * 0.55,
-            particle.id * 0.66
-          );
-          particle._hash4 = this.hash(
-            particle.id * 0.77,
-            particle.id * 0.88,
-            particle.id * 0.99
-          );
-          particle._hash5 = this.hash(
-            particle.id * 0.7,
-            particle.id * 0.8,
-            particle.id * 0.9
-          );
-          particle._turbulence1 = this.hash(
-            particle.id * 0.1,
-            particle.id * 0.2,
-            particle.id * 0.3
-          );
-          particle._turbulence2 = this.hash(
-            particle.id * 0.3,
-            particle.id * 0.4,
-            particle.id * 0.5
-          );
-          particle._turbulence3 = this.hash(
-            particle.id * 0.5,
-            particle.id * 0.6,
-            particle.id * 0.7
-          );
-        });
+        for (let j = 0; j < text.particles.length; j++) {
+          const particle = text.particles[j];
+          const id = particle.id;
+          // Calculate all hashes in one pass
+          particle._hash1 = this.hash(id * 0.05, id * 0.03, 0.0);
+          particle._hash2 = this.hash(id * 0.11, id * 0.22, id * 0.33);
+          particle._hash3 = this.hash(id * 0.44, id * 0.55, id * 0.66);
+          particle._hash4 = this.hash(id * 0.77, id * 0.88, id * 0.99);
+          particle._hash5 = this.hash(id * 0.7, id * 0.8, id * 0.9);
+          particle._turbulence1 = this.hash(id * 0.1, id * 0.2, id * 0.3);
+          particle._turbulence2 = this.hash(id * 0.3, id * 0.4, id * 0.5);
+          particle._turbulence3 = this.hash(id * 0.5, id * 0.6, id * 0.7);
+        }
       }
-    });
+    }
   }
 
   /**
@@ -134,6 +108,11 @@ export class TitleSequence {
 
     if (localTime < 0.0) {
       phase = 0;
+      // Early exit for pre-intro phase - particle is invisible, no need to calculate
+      particle.opacity = 0.0;
+      particle.scale = 0.2;
+      particle.position.copy(particle.originalPosition);
+      return;
     } else if (localTime < this.introDuration) {
       phase = 1;
       t = localTime / this.introDuration;
@@ -147,6 +126,11 @@ export class TitleSequence {
       t = 1.0 - outroTime / this.outroDuration;
     } else {
       phase = 4;
+      // Early exit for post-outro phase - particle is invisible, no need to calculate
+      particle.opacity = 0.0;
+      particle.scale = 0.2;
+      particle.position.copy(particle.originalPosition);
+      return;
     }
 
     // Calculate dispersion - wind-driven effect
@@ -167,15 +151,21 @@ export class TitleSequence {
     );
 
     // ID-based offset
-    this._idOffset.set(
-      particle._hash2 * 2.0 - 1.0,
-      particle._hash3 * 2.0 - 1.0,
-      particle._hash4 * 2.0 - 1.0
-    ).multiplyScalar(0.2);
+    this._idOffset
+      .set(
+        particle._hash2 * 2.0 - 1.0,
+        particle._hash3 * 2.0 - 1.0,
+        particle._hash4 * 2.0 - 1.0
+      )
+      .multiplyScalar(0.2);
 
     // Combine: strong wind + turbulence + ID-based offset
     // Reuse pre-allocated disperseDir vector
-    this._disperseDir.copy(this._windDir).add(this._turbulence).add(this._idOffset).normalize();
+    this._disperseDir
+      .copy(this._windDir)
+      .add(this._turbulence)
+      .add(this._idOffset)
+      .normalize();
 
     // Add random distance variation per particle
     const randomDist = 0.7 + particle._hash5 * 0.6;
@@ -195,9 +185,9 @@ export class TitleSequence {
     }
 
     // Update particle position (reuse pre-allocated offset vector)
-    this._offset.copy(this._disperseDir).multiplyScalar(
-      this.disperseDistance * randomDist * disperseFactor
-    );
+    this._offset
+      .copy(this._disperseDir)
+      .multiplyScalar(this.disperseDistance * randomDist * disperseFactor);
     particle.position.copy(particle.originalPosition).add(this._offset);
 
     // Scale effect
@@ -239,28 +229,32 @@ export class TitleSequence {
     this.time += dt;
 
     // Update all texts
-    this.texts.forEach((text) => {
-      if (!text.particles || !text.mesh) return;
+    for (let i = 0; i < this.texts.length; i++) {
+      const text = this.texts[i];
+      if (!text.particles || !text.mesh) continue;
 
       // Get geometry attributes
       const positions = text.mesh.geometry.attributes.position;
       const sizes = text.mesh.geometry.attributes.size;
       const opacities = text.mesh.geometry.attributes.opacity;
 
+      const pointSize =
+        text.pointSize !== undefined ? text.pointSize : this.basePointSize;
+
       // Animate each particle
-      text.particles.forEach((particle, i) => {
+      for (let j = 0; j < text.particles.length; j++) {
+        const particle = text.particles[j];
         this.animateParticle(particle, text, this.time);
 
         // Update geometry attributes
-        positions.array[i * 3] = particle.position.x;
-        positions.array[i * 3 + 1] = particle.position.y;
-        positions.array[i * 3 + 2] = particle.position.z;
+        const idx = j * 3;
+        positions.array[idx] = particle.position.x;
+        positions.array[idx + 1] = particle.position.y;
+        positions.array[idx + 2] = particle.position.z;
 
-        const pointSize =
-          text.pointSize !== undefined ? text.pointSize : this.basePointSize;
-        sizes.array[i] = pointSize * particle.scale;
-        opacities.array[i] = particle.opacity;
-      });
+        sizes.array[j] = pointSize * particle.scale;
+        opacities.array[j] = particle.opacity;
+      }
 
       // Mark attributes as needing update
       positions.needsUpdate = true;
@@ -271,7 +265,7 @@ export class TitleSequence {
       if (text.update) {
         text.update(this.time * 1000);
       }
-    });
+    }
 
     // Check if sequence just completed
     if (this.isComplete() && !this.completed) {
@@ -295,31 +289,35 @@ export class TitleSequence {
     this.completed = false;
 
     // Reset all particles to their original state
-    this.texts.forEach((text) => {
-      if (!text.particles || !text.mesh) return;
+    for (let i = 0; i < this.texts.length; i++) {
+      const text = this.texts[i];
+      if (!text.particles || !text.mesh) continue;
 
       const positions = text.mesh.geometry.attributes.position;
       const sizes = text.mesh.geometry.attributes.size;
       const opacities = text.mesh.geometry.attributes.opacity;
 
-      text.particles.forEach((particle, i) => {
+      const pointSize =
+        text.pointSize !== undefined ? text.pointSize : this.basePointSize;
+
+      for (let j = 0; j < text.particles.length; j++) {
+        const particle = text.particles[j];
         particle.position.copy(particle.originalPosition);
         particle.scale = 0.2;
         particle.opacity = 0.0;
 
-        positions.array[i * 3] = particle.position.x;
-        positions.array[i * 3 + 1] = particle.position.y;
-        positions.array[i * 3 + 2] = particle.position.z;
+        const idx = j * 3;
+        positions.array[idx] = particle.position.x;
+        positions.array[idx + 1] = particle.position.y;
+        positions.array[idx + 2] = particle.position.z;
 
-        const pointSize =
-          text.pointSize !== undefined ? text.pointSize : this.basePointSize;
-        sizes.array[i] = pointSize * particle.scale;
-        opacities.array[i] = particle.opacity;
-      });
+        sizes.array[j] = pointSize * particle.scale;
+        opacities.array[j] = particle.opacity;
+      }
 
       positions.needsUpdate = true;
       sizes.needsUpdate = true;
       opacities.needsUpdate = true;
-    });
+    }
   }
 }

@@ -1,4 +1,7 @@
 import * as THREE from "three";
+import { Logger } from "../utils/logger.js";
+
+const logger = new Logger("TitleText", true);
 
 /**
  * Creates text as particles using canvas-based texture
@@ -56,9 +59,10 @@ export function createParticleText(scene, options = {}) {
     for (let x = 0; x < canvasWidth; x += step) {
       const i = (y * canvasWidth + x) * 4;
       const brightness = imageData.data[i]; // Red channel (grayscale)
+      const alpha = imageData.data[i + 3] / 255; // Alpha channel
 
-      // Only create particles for bright pixels (text)
-      if (brightness > 128) {
+      // Only create particles for bright pixels with sufficient alpha (text)
+      if (brightness > 128 && alpha > 0.5) {
         // Convert canvas coordinates to 3D space
         const px = ((x / canvasWidth - 0.5) * 10 * scale * canvasWidth) / 100;
         const py =
@@ -78,28 +82,25 @@ export function createParticleText(scene, options = {}) {
     }
   }
 
+  logger.log(`Created ${particles.length} particles`);
+
   // Create geometry and material for particles
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(particles.length * 3);
-  const colors = new Float32Array(particles.length * 3);
   const sizes = new Float32Array(particles.length);
   const opacities = new Float32Array(particles.length);
 
-  particles.forEach((particle, i) => {
+  for (let i = 0; i < particles.length; i++) {
+    const particle = particles[i];
     positions[i * 3] = particle.position.x;
     positions[i * 3 + 1] = particle.position.y;
     positions[i * 3 + 2] = particle.position.z;
 
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
-
-    sizes[i] = 0.3; // Doubled from 0.15 to compensate for reduced density
+    sizes[i] = 0.35; // Increased for better coverage and reduced aliasing
     opacities[i] = 1.0;
-  });
+  }
 
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute("opacity", new THREE.BufferAttribute(opacities, 1));
 
@@ -112,31 +113,27 @@ export function createParticleText(scene, options = {}) {
       attribute float size;
       attribute float opacity;
       varying float vOpacity;
-      varying vec3 vColor;
       
       void main() {
         vOpacity = opacity;
-        vColor = color;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * 100.0 * (1.0 / -mvPosition.z);
+        gl_PointSize = size * 130.0 * (1.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: `
       uniform sampler2D pointTexture;
       varying float vOpacity;
-      varying vec3 vColor;
       
       void main() {
         vec4 texColor = texture2D(pointTexture, gl_PointCoord);
-        gl_FragColor = vec4(vColor, texColor.a * vOpacity);
+        gl_FragColor = vec4(1.0, 1.0, 1.0, texColor.a * vOpacity);
       }
     `,
     transparent: true,
-    vertexColors: true,
     depthWrite: false,
     depthTest: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
   });
 
   const points = new THREE.Points(geometry, material);
@@ -163,7 +160,7 @@ export function createParticleText(scene, options = {}) {
 }
 
 /**
- * Creates particles from an image, sampling RGB and using alpha to include/exclude pixels
+ * Creates particles from an image, using alpha to include/exclude pixels
  * @param {THREE.Scene} scene
  * @param {Object} options
  * @returns {Object} Object with mesh (Points), particles array, and update function
@@ -174,10 +171,9 @@ export function createParticleImage(scene, options = {}) {
     position = { x: 0, y: 0, z: -2.5 },
     scale = 0.03125,
     animate = true,
-    particleDensity = 0.5, // roughly 1/step pixels sampled
+    maxParticles = null, // Target particle count (if specified, overrides particleDensity)
+    particleDensity = 0.5, // Fallback: roughly 1/step pixels sampled
     alphaThreshold = 0.5, // include pixels with alpha > 0.5
-    useImageColor = false,
-    tintColor = new THREE.Color(0xffffff),
   } = options;
 
   // Geometry/material prepared up-front; populated when image loads
@@ -190,40 +186,32 @@ export function createParticleImage(scene, options = {}) {
       attribute float size;
       attribute float opacity;
       varying float vOpacity;
-      varying vec3 vColor;
       
       void main() {
         vOpacity = opacity;
-        vColor = color;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * 100.0 * (1.0 / -mvPosition.z);
+        gl_PointSize = size * 130.0 * (1.0 / -mvPosition.z);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: `
       uniform sampler2D pointTexture;
       varying float vOpacity;
-      varying vec3 vColor;
       
       void main() {
         vec4 texColor = texture2D(pointTexture, gl_PointCoord);
-        gl_FragColor = vec4(vColor, texColor.a * vOpacity);
+        gl_FragColor = vec4(1.0, 1.0, 1.0, texColor.a * vOpacity);
       }
     `,
     transparent: true,
-    vertexColors: true,
     depthWrite: false,
     depthTest: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
   });
 
   // Start with empty attributes (will be replaced when the image loads)
   geometry.setAttribute(
     "position",
-    new THREE.BufferAttribute(new Float32Array(0), 3)
-  );
-  geometry.setAttribute(
-    "color",
     new THREE.BufferAttribute(new Float32Array(0), 3)
   );
   geometry.setAttribute(
@@ -262,16 +250,33 @@ export function createParticleImage(scene, options = {}) {
 
     particles.length = 0;
 
-    // Determine sampling step based on density (same approach as text)
-    const step = Math.max(1, Math.floor(1 / particleDensity));
+    let step;
+    if (maxParticles !== null && maxParticles > 0) {
+      // First pass: count valid pixels to determine step size
+      let validPixelCount = 0;
+      for (let y = 0; y < imgH; y++) {
+        for (let x = 0; x < imgW; x++) {
+          const i = (y * imgW + x) * 4;
+          const a = data[i + 3] / 255;
+          if (a > alphaThreshold) {
+            validPixelCount++;
+          }
+        }
+      }
+
+      // Calculate step to achieve target particle count
+      // step^2 * maxParticles ≈ validPixelCount, so step ≈ sqrt(validPixelCount / maxParticles)
+      const pixelsPerParticle = validPixelCount / maxParticles;
+      step = Math.max(1, Math.floor(Math.sqrt(pixelsPerParticle)));
+    } else {
+      // Fallback to density-based sampling
+      step = Math.max(1, Math.floor(1 / particleDensity));
+    }
 
     // Collect particle data
     for (let y = 0; y < imgH; y += step) {
       for (let x = 0; x < imgW; x += step) {
         const i = (y * imgW + x) * 4;
-        const r = data[i] / 255;
-        const g = data[i + 1] / 255;
-        const b = data[i + 2] / 255;
         const a = data[i + 3] / 255;
 
         if (a > alphaThreshold) {
@@ -285,42 +290,44 @@ export function createParticleImage(scene, options = {}) {
             originalPosition: new THREE.Vector3(px, py, pz),
             velocity: new THREE.Vector3(0, 0, 0),
             scale: 1.0,
-            opacity: 1.0,
+            opacity: a, // Preserve pixel alpha as particle opacity
             id: particles.length,
             normalizedX: x / imgW,
-            color: new THREE.Color(r, g, b),
           });
         }
       }
     }
 
+    const totalPixels = imgW * imgH;
+    const pixelsSampled = Math.floor((imgW / step) * (imgH / step));
+    const targetInfo =
+      maxParticles !== null
+        ? `target ${maxParticles}`
+        : `density ${particleDensity}`;
+    logger.log(
+      `Created ${particles.length} particles from ${imageUrl} (${imgW}x${imgH}, ${totalPixels} total pixels, ~${pixelsSampled} sampled, ${targetInfo}, step ${step})`
+    );
+
     // Allocate buffers
     const positions = new Float32Array(particles.length * 3);
-    const colors = new Float32Array(particles.length * 3);
     const sizes = new Float32Array(particles.length);
     const opacities = new Float32Array(particles.length);
 
-    particles.forEach((p, idx) => {
+    for (let idx = 0; idx < particles.length; idx++) {
+      const p = particles[idx];
       positions[idx * 3] = p.position.x;
       positions[idx * 3 + 1] = p.position.y;
       positions[idx * 3 + 2] = p.position.z;
 
-      const c = useImageColor ? p.color : tintColor;
-      colors[idx * 3] = c.r;
-      colors[idx * 3 + 1] = c.g;
-      colors[idx * 3 + 2] = c.b;
-
       sizes[idx] = 0.3; // Doubled from 0.15 to compensate for reduced density
       opacities[idx] = 0.0;
-    });
+    }
 
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
     geometry.setAttribute("opacity", new THREE.BufferAttribute(opacities, 1));
 
     geometry.attributes.position.needsUpdate = true;
-    geometry.attributes.color.needsUpdate = true;
     geometry.attributes.size.needsUpdate = true;
     geometry.attributes.opacity.needsUpdate = true;
   };
@@ -341,12 +348,13 @@ export function createParticleImage(scene, options = {}) {
  * Create a circular texture for particles
  */
 function createCircleTexture() {
-  const size = 64;
+  const size = 256; // Even larger texture for smoother edges
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
 
   const ctx = canvas.getContext("2d");
+  // Defined center with controlled edge falloff
   const gradient = ctx.createRadialGradient(
     size / 2,
     size / 2,
@@ -356,7 +364,10 @@ function createCircleTexture() {
     size / 2
   );
   gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
-  gradient.addColorStop(0.5, "rgba(255, 255, 255, 0.5)");
+  gradient.addColorStop(0.6, "rgba(255, 255, 255, 1)");
+  gradient.addColorStop(0.75, "rgba(255, 255, 255, 0.7)");
+  gradient.addColorStop(0.88, "rgba(255, 255, 255, 0.3)");
+  gradient.addColorStop(0.96, "rgba(255, 255, 255, 0.05)");
   gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
 
   ctx.fillStyle = gradient;

@@ -1003,6 +1003,19 @@ class SceneManager {
     import("./gameData.js").then(({ GAME_STATES }) => {
       // Register each zone mesh as a trigger collider
       for (const { mesh, zoneName } of zoneMeshes) {
+        // Make zone collider meshes invisible and remove materials (they're just for collision detection)
+        mesh.visible = false;
+        if (mesh.material) {
+          // Dispose of materials to free memory
+          const materials = Array.isArray(mesh.material)
+            ? mesh.material
+            : [mesh.material];
+          materials.forEach((mat) => {
+            if (mat.dispose) mat.dispose();
+          });
+          mesh.material = null;
+        }
+
         const colliderId = `zone-${zoneName}`;
         const colliderData = {
           id: colliderId,

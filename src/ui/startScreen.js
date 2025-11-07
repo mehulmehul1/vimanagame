@@ -32,7 +32,7 @@ export class StartScreen {
     this.title = null;
     this.byline = null;
     this.keystrokeIndex = 0; // Track which keystroke sound to play next (0-3)
-    this.useImageBackup = true; // Enable image backup system instead of particles
+    this.useImageBackup = false; // Enable image backup system instead of particles
 
     // Gamepad navigation helper
     this.gamepadNav = new GamepadMenuNavigation({
@@ -445,6 +445,17 @@ export class StartScreen {
    * Create title text particles for the start screen
    */
   createTitleText() {
+    // Check if mobile device
+    const isMobile =
+      this.uiManager?.gameManager?.getState?.()?.isMobile || false;
+
+    // Adjust z positions for mobile (move further from camera)
+    const titleZ = isMobile ? -3.5 : -2.25;
+    const bylineZ = isMobile ? -3.5 : -2.25;
+    // Reduce particle count on mobile for better performance
+    const titleParticleCount = isMobile ? 3000 : 6000;
+    const bylineParticleCount = isMobile ? 600 : 1200;
+
     // Create a separate scene for title text particles to render on top
     this.textScene = new THREE.Scene();
     // Optimized near/far planes for text particles at z: -10 with disperseDistance: 5
@@ -459,10 +470,10 @@ export class StartScreen {
     // Create first title as image-based particles from PNG with alpha masking
     const imageData1 = createParticleImage(this.textScene, {
       imageUrl: "/images/Czar_MainTitle.png",
-      position: { x: 0, y: 0, z: -4.25 },
+      position: { x: 0, y: 0, z: titleZ },
       scale: 0.03125,
       animate: true,
-      particleDensity: 0.25, // Halved from 0.5 to reduce CPU usage
+      maxParticles: titleParticleCount,
       alphaThreshold: 0.1, // keep semi-opaque pixels, discard near-fully transparent
     });
     this.textScene.remove(imageData1.mesh);
@@ -476,19 +487,17 @@ export class StartScreen {
       mesh: imageData1.mesh,
       particles: imageData1.particles,
       update: imageData1.update,
-      pointSize: 0.3, // Doubled from default to compensate for reduced density
+      pointSize: 0.28, // Balanced for definition without being blown out
     };
 
     // Create byline as image-based particles below title
     const imageData2 = createParticleImage(this.textScene, {
       imageUrl: "/images/JamesCKane.png",
-      position: { x: 0, y: -1.2, z: -3.6 },
-      scale: 0.025,
+      position: { x: 0, y: -0.8, z: bylineZ },
+      scale: 0.0225,
       animate: true,
-      particleDensity: 0.25, // Halved from 0.5 to reduce CPU usage
+      maxParticles: bylineParticleCount,
       alphaThreshold: 0.1,
-      useImageColor: false,
-      tintColor: new THREE.Color(0xffffff),
     });
     this.textScene.remove(imageData2.mesh);
     this.textCamera.add(imageData2.mesh);
@@ -500,7 +509,7 @@ export class StartScreen {
       mesh: imageData2.mesh,
       particles: imageData2.particles,
       update: imageData2.update,
-      pointSize: 0.3, // Doubled from 0.15 to compensate for reduced density
+      pointSize: 0.28, // Balanced for definition without being blown out
     };
 
     return { title, byline };
@@ -1088,10 +1097,10 @@ export class StartScreen {
           this.titleSequence = new ImageTitleSequence(
             [this.title, this.byline],
             {
-              introDuration: 3.0,
-              staggerDelay: 2.0,
-              holdDuration: 3.0,
-              outroDuration: 2.0,
+              introDuration: 1.0,
+              staggerDelay: 3.0,
+              holdDuration: 2.0,
+              outroDuration: 1.0,
               onComplete: () => {
                 this.logger.log("Title sequence complete");
                 // Clean up image elements
