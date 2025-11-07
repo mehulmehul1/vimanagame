@@ -1,5 +1,7 @@
 import { Logger } from "./utils/logger.js";
 import { GAME_STATES } from "./gameData.js";
+import { getSceneObjectsForState } from "./sceneData.js";
+import { isDebugSpawnActive } from "./utils/debugSpawner.js";
 
 /**
  * ZoneManager - Manages loading/unloading of exterior splat zones based on player location
@@ -21,8 +23,8 @@ class ZoneManager {
     this.sceneManager = sceneManager;
     this.logger = new Logger("ZoneManager", true); // Enable logging
 
-    // Zone to splat mapping
-    this.zoneToSplats = {
+    // Desktop zone to splat mapping
+    this.zoneToSplatsDesktop = {
       alleyIntro: ["alleyIntro", "alleyNavigable"],
       alleyNavigable: [
         "alleyNavigable",
@@ -35,6 +37,20 @@ class ZoneManager {
       threeWay2: ["threeWay2", "threeWay", "plaza"],
       plaza: ["plaza", "threeWay2", "fourWay"],
     };
+
+    // Mobile zone to splat mapping (alleyNavigable merged with alleyIntro)
+    this.zoneToSplatsMobile = {
+      alleyIntro: ["alleyIntro", "fourWay"], // alleyNavigable merged into alleyIntro
+      alleyNavigable: ["alleyIntro", "alleyLongView", "fourWay"], // Map to alleyIntro since merged
+      fourWay: ["fourWay", "alleyIntro", "threeWay", "plaza"], // No alleyNavigable
+      threeWay: ["threeWay", "fourWay", "threeWay2"],
+      threeWay2: ["threeWay2", "threeWay", "plaza"],
+      plaza: ["plaza", "threeWay2", "fourWay"],
+    };
+
+    // Current zone mapping (will be set based on isMobile)
+    // Initialize with desktop mapping, will be updated on first state change
+    this.zoneToSplats = this.zoneToSplatsDesktop;
 
     // Track currently loaded splats
     this.loadedSplats = new Set();
@@ -74,6 +90,48 @@ class ZoneManager {
   }
 
   /**
+   * Get the appropriate zone mapping based on isMobile state
+   * @returns {Object} Zone to splats mapping
+   */
+  getZoneMapping() {
+    if (!this.gameManager) {
+      return this.zoneToSplatsDesktop; // Default to desktop
+    }
+    const state = this.gameManager.getState();
+    const isMobile = state?.isMobile === true;
+    return isMobile ? this.zoneToSplatsMobile : this.zoneToSplatsDesktop;
+  }
+
+  /**
+   * Update zone mapping if isMobile state changed
+   * @param {Object} newState - New game state
+   * @param {Object} oldState - Previous game state
+   */
+  updateZoneMappingIfNeeded(newState, oldState) {
+    if (!newState || !oldState) return;
+
+    const wasMobile = oldState.isMobile === true;
+    const isMobile = newState.isMobile === true;
+
+    if (wasMobile !== isMobile) {
+      this.zoneToSplats = this.getZoneMapping();
+      this.logger.log(
+        `Zone mapping updated for ${isMobile ? "mobile" : "desktop"} platform`
+      );
+
+      // If we have a current zone, reload it with the new mapping
+      if (this.currentZone) {
+        this.setZone(this.currentZone).catch((error) => {
+          this.logger.error(
+            "Error reloading zone after mapping change:",
+            error
+          );
+        });
+      }
+    }
+  }
+
+  /**
    * Enable zone detection (called by StartScreen when camera animation is ready)
    * But still wait 10 seconds after plaza is set before actually enabling
    */
@@ -100,6 +158,15 @@ class ZoneManager {
   handleStateChange(newState, oldState) {
     if (!newState) return;
 
+    // Update zone mapping based on current isMobile state (or if it changed)
+    if (!oldState) {
+      // Initial state - set mapping based on current isMobile
+      this.zoneToSplats = this.getZoneMapping();
+    } else {
+      // Update zone mapping if isMobile changed
+      this.updateZoneMappingIfNeeded(newState, oldState);
+    }
+
     const wasActive = this.isActive;
     this.isActive = newState.currentState < GAME_STATES.ENTERING_OFFICE;
 
@@ -124,11 +191,20 @@ class ZoneManager {
       return;
     }
 
+    // If debug spawn is active, enable zone detection immediately and skip default plaza setup
+    // Collision detection will determine the correct zone from the start
+    if (isDebugSpawnActive() && !this.hasMovedFromInitialState) {
+      this.hasMovedFromInitialState = true;
+      this.logger.log(
+        "Zone detection enabled immediately (debug spawn active) - collision detection will determine zones"
+      );
+    }
+
     // If currentZone is set in state but doesn't match our currentZone, sync it
     // This handles hard-coded initial zones and state changes from other sources
     // Do this BEFORE the transition checks so it works even during activation
     // BUT: Don't sync zones from state until zone detection is enabled (prevents false positives during init)
-    // EXCEPT: Allow setting initial "plaza" zone ONCE when activating
+    // EXCEPT: Allow setting initial "plaza" zone ONCE when activating (but NOT during debug spawn)
     // CRITICAL: Once zone detection is enabled via collision detection, ZoneManager is the source of truth
     // and we should NOT sync from state anymore (zone colliders don't set state, they call addActiveZone)
     if (
@@ -139,9 +215,13 @@ class ZoneManager {
       // CRITICAL: Only sync from state BEFORE zone detection is enabled
       // Once zone detection is enabled, collision detection via addActiveZone/removeActiveZone is the source of truth
       if (!this.hasMovedFromInitialState) {
-        // Zone detection not enabled yet - allow initial plaza setup
-        if (newState.currentZone === "plaza" && this.currentZone === null) {
-          // Only allow initial plaza setup before zone detection is enabled
+        // Zone detection not enabled yet - allow initial plaza setup (but NOT during debug spawn)
+        if (
+          newState.currentZone === "plaza" &&
+          this.currentZone === null &&
+          !isDebugSpawnActive()
+        ) {
+          // Only allow initial plaza setup before zone detection is enabled (normal gameplay only)
           if (!this.activeZones.has(newState.currentZone)) {
             this.activeZones.add(newState.currentZone);
           }
@@ -248,15 +328,20 @@ class ZoneManager {
     const oldZone = this.currentZone;
     this.currentZone = zone;
 
-    this.logger.log(`Zone changed: ${oldZone || "none"} -> ${zone}`);
+    // Get current zone mapping (may have changed if isMobile state changed)
+    const zoneMapping = this.getZoneMapping();
 
     // Determine which splats should be loaded for this zone
-    const requiredSplats = this.zoneToSplats[zone] || [];
+    const requiredSplats = zoneMapping[zone] || [];
+
+    this.logger.log(`Zone changed: ${oldZone || "none"} -> ${zone}`);
     this.logger.log(
       `Required splats for zone "${zone}": ${requiredSplats.join(", ")}`
     );
     this.logger.log(
-      `Currently loaded splats: ${Array.from(this.loadedSplats).join(", ")}`
+      `Currently loaded splats: ${
+        Array.from(this.loadedSplats).join(", ") || "none"
+      }`
     );
 
     // First, verify which splats are already loaded and in scene - these should NOT be touched
@@ -267,15 +352,6 @@ class ZoneManager {
         if (object && object.parent === this.sceneManager.scene) {
           // Already loaded and in scene - mark it so we don't touch it
           alreadyLoadedAndInScene.add(splatId);
-          this.logger.log(
-            `Splat "${splatId}" already loaded and in scene - will not touch`
-          );
-        } else {
-          this.logger.log(
-            `Splat "${splatId}" is in loadedSplats but not in scene (object: ${!!object}, parent: ${
-              object?.parent?.constructor?.name || "none"
-            })`
-          );
         }
       }
     }
@@ -305,7 +381,6 @@ class ZoneManager {
           if (!object.parent || object.parent !== this.sceneManager.scene) {
             // Not in scene - add it
             this.sceneManager.addObjectToScene(splatId);
-            this.logger.log(`Restored splat "${splatId}" to scene`);
             continue;
           }
           // Object is in scene but wasn't caught by alreadyLoadedAndInScene check
@@ -342,9 +417,7 @@ class ZoneManager {
 
     // Then load new splats after cleanup is complete
     for (const splatId of splatsToLoad) {
-      this.logger.log(`[Zone "${zone}"] Loading splat: ${splatId}`);
       await this.loadSplat(splatId);
-      this.logger.log(`[Zone "${zone}"] ✓ Loaded splat: ${splatId}`);
     }
 
     // Log what's currently loaded for this zone
@@ -352,9 +425,7 @@ class ZoneManager {
       requiredSplats.includes(splatId)
     );
     this.logger.log(
-      `[Zone "${zone}"] Zone configured - Loaded splats: ${finalLoaded.join(
-        ", "
-      )}`
+      `Zone configured - Loaded splats: ${finalLoaded.join(", ")}`
     );
   }
 
@@ -377,12 +448,24 @@ class ZoneManager {
       }
     }
 
-    // Check if object exists in sceneData
-    const { sceneObjects } = await import("./sceneData.js");
-    const objectData = sceneObjects[splatId];
+    // Get object from sceneData using criteria system to get correct mobile/desktop version
+    if (!this.gameManager) {
+      this.logger.error("Cannot load splat - gameManager not available");
+      return;
+    }
+
+    const currentState = this.gameManager.getState();
+    // Get all matching objects (both preload: true and preload: false)
+    // This ensures we get the correct mobile/desktop version based on criteria
+    const matchingObjects = getSceneObjectsForState(currentState);
+
+    // Find the object with matching ID that also matches criteria
+    const objectData = matchingObjects.find((obj) => obj.id === splatId);
 
     if (!objectData) {
-      this.logger.warn(`Splat "${splatId}" not found in sceneData`);
+      this.logger.warn(
+        `Splat "${splatId}" not found in sceneData or doesn't match current criteria (isMobile: ${currentState?.isMobile})`
+      );
       return;
     }
 
@@ -392,24 +475,20 @@ class ZoneManager {
       if (this.sceneManager.objectsNotInScene.has(splatId)) {
         this.sceneManager.addObjectToScene(splatId);
         this.loadedSplats.add(splatId);
-        this.logger.log(`Added existing splat "${splatId}" to scene`);
         return;
       }
       // Object already in scene but not tracked - add to tracking
       const object = this.sceneManager.getObject(splatId);
       if (object && object.parent === this.sceneManager.scene) {
         this.loadedSplats.add(splatId);
-        this.logger.log(`Tracked existing splat "${splatId}" in scene`);
         return;
       }
     }
 
     // Load the splat
-    this.logger.log(`Loading splat "${splatId}"...`);
     try {
       await this.sceneManager.loadObject(objectData, false); // false = add to scene immediately
       this.loadedSplats.add(splatId);
-      this.logger.log(`✓ Loaded splat "${splatId}"`);
     } catch (error) {
       this.logger.error(`Failed to load splat "${splatId}":`, error);
     }
@@ -431,7 +510,8 @@ class ZoneManager {
 
     // Safety check: Don't unload if it's required for the current zone
     if (this.currentZone) {
-      const requiredSplats = this.zoneToSplats[this.currentZone] || [];
+      const zoneMapping = this.getZoneMapping();
+      const requiredSplats = zoneMapping[this.currentZone] || [];
       if (requiredSplats.includes(splatId)) {
         this.logger.warn(
           `Attempted to unload required splat "${splatId}" for zone "${this.currentZone}" - skipping`
@@ -445,12 +525,8 @@ class ZoneManager {
       // Remove from scene
       this.sceneManager.scene.remove(object);
       this.sceneManager.objectsNotInScene.add(splatId);
-      this.loadedSplats.delete(splatId);
-      this.logger.log(`Unloaded splat "${splatId}" (removed from scene)`);
-    } else {
-      this.loadedSplats.delete(splatId);
-      this.logger.log(`Unloaded splat "${splatId}" (was not in scene)`);
     }
+    this.loadedSplats.delete(splatId);
   }
 
   /**
@@ -488,7 +564,7 @@ class ZoneManager {
 
     this.activeZones.add(zoneName);
     this.logger.log(
-      `[Zone] Added zone "${zoneName}" to active zones. Active zones: ${Array.from(
+      `[Zone] Added zone "${zoneName}" to active zones: ${Array.from(
         this.activeZones
       ).join(", ")}`
     );
@@ -571,7 +647,7 @@ class ZoneManager {
 
     this.activeZones.delete(zoneName);
     this.logger.log(
-      `[Zone] Removed zone "${zoneName}" from active zones. Active zones: ${
+      `[Zone] Removed zone "${zoneName}" from active zones: ${
         Array.from(this.activeZones).join(", ") || "none"
       }`
     );

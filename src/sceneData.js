@@ -106,7 +106,7 @@ export const sceneObjects = {
   // exterior: {
   //   id: "exterior",
   //   type: "splat",
-  //   path: "/exterior-clean-final.sog",
+  //   path: "/splats/refined_splats_35.sog",
   //   description: "Main exterior environment splat mesh",
   //   position: { x: 0.35, y: 1.0, z: 1.9 },
   //   rotation: { x: 0, y: Math.PI, z: Math.PI },
@@ -136,6 +136,26 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  plazaMobile: {
+    id: "plaza",
+    type: "splat",
+    path: "/splats/35/plaza_35.sog",
+    description: "Plaza section of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 100,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -154,6 +174,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  fourWayMobile: {
+    id: "fourWay",
+    type: "splat",
+    path: "/splats/35/fourWay_35.sog",
+    description:
+      "Four-way intersection section of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 100,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -172,6 +213,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  alleyIntroMobile: {
+    id: "alleyIntro",
+    type: "splat",
+    path: "/splats/35/alleyIntro_35.sog",
+    description:
+      "Intro alley section of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 70, // Load first of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -190,6 +252,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  alleyLongViewMobile: {
+    id: "alleyLongView",
+    type: "splat",
+    path: "/splats/35/alleyLongView_35.sog",
+    description:
+      "Long view alley section of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -208,6 +291,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false, // Only load on desktop (merged with alleyIntro on mobile)
     },
   },
 
@@ -226,6 +310,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  threeWayMobile: {
+    id: "threeWay",
+    type: "splat",
+    path: "/splats/35/threeWay_35.sog",
+    description:
+      "Three-way intersection section of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -244,6 +349,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
+      isMobile: false,
+    },
+  },
+
+  threeWay2Mobile: {
+    id: "threeWay2",
+    type: "splat",
+    path: "/splats/35/threeWay2_35.sog",
+    description:
+      "Three-way intersection section 2 of exterior environment (mobile optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 68, // Load third of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      isMobile: true,
     },
   },
 
@@ -427,18 +553,17 @@ export const sceneObjects = {
     path: "/gltf/radio-1.glb",
     description: "Radio GLTF model",
     position: { x: 4.35, y: 0.82, z: 37.29 },
-    rotation: { x: 3.1293, y: 1.1503, z: -2.9357 },
+    rotation: { x: -3.0991, y: 1.1719, z: -3.0852 },
     scale: { x: 2.46, y: 2.46, z: 2.46 },
-    gizmo: true,
     options: {
       useContainer: true,
       contactShadow: {
         size: { x: 0.5, y: 0.5 },
         offset: { x: 0, y: 0, z: 0 },
         shadowScale: { x: 1.15, y: 1.15 },
-        blur: 3.5,
-        darkness: 2.5,
-        opacity: 0.8,
+        blur: 2.5,
+        darkness: 5.5,
+        opacity: 0.9,
         cameraHeight: 0.25,
       },
     },

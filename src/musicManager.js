@@ -180,6 +180,35 @@ class MusicManager {
             return;
           }
 
+          // Special handling: If transitioning from START_SCREEN to INTRO/TITLE_SEQUENCE
+          // and no music is currently playing (first user interaction), skip START_SCREEN track
+          // and go straight to the new track to avoid conflicts
+          const isTransitioningFromStartScreen =
+            oldState &&
+            oldState.currentState === GAME_STATES.START_SCREEN &&
+            (newState.currentState === GAME_STATES.INTRO ||
+              newState.currentState === GAME_STATES.TITLE_SEQUENCE);
+          const currentTrack = this.getCurrentTrack();
+          const noMusicPlaying = !currentTrack || !this.isTrackPlaying(currentTrack);
+
+          if (isTransitioningFromStartScreen && noMusicPlaying) {
+            this.logger.log(
+              `Transitioning from START_SCREEN to ${newState.currentState} with no music playing - skipping START_SCREEN track, playing "${track.id}" directly`
+            );
+            // Stop any pending START_SCREEN track
+            const startScreenTrack = getMusicForState(oldState);
+            if (startScreenTrack && this.tracks[startScreenTrack.id]) {
+              this.tracks[startScreenTrack.id].stop();
+            }
+            // Play the new track directly
+            if (!this.tracks[track.id]) {
+              this._waitForTrackAndPlay(track.id, track.fadeTime || 0);
+            } else {
+              this.changeMusic(track.id, track.fadeTime || 0);
+            }
+            return;
+          }
+
           // Only change music if it's different from current track
           if (this.getCurrentTrack() !== track.id) {
             this.logger.log(

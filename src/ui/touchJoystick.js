@@ -5,6 +5,8 @@
  * Returns normalized values (-1 to 1) for X and Y axes.
  */
 
+import { Howler } from "howler";
+
 export class TouchJoystick {
   constructor(options = {}) {
     this.side = options.side || "left"; // 'left' or 'right'
@@ -23,6 +25,7 @@ export class TouchJoystick {
     this.currentY = 0;
     this.deltaX = 0;
     this.deltaY = 0;
+    this.speedMultiplier = 0; // Speed multiplier based on stick distance (0 to 1)
 
     // Create DOM elements
     this.createElements();
@@ -83,6 +86,11 @@ export class TouchJoystick {
       "touchstart",
       (e) => {
         e.preventDefault();
+
+        // Unlock Howler audio context on first user interaction (required for autoplay policy)
+        if (typeof Howler !== "undefined" && typeof Howler.unlock === "function") {
+          Howler.unlock();
+        }
 
         if (this.active) return; // Already handling a touch
 
@@ -167,17 +175,26 @@ export class TouchJoystick {
     this.deltaX = dx / this.maxDistance;
     this.deltaY = dy / this.maxDistance;
 
-    // Apply deadzone
-    const magnitude = Math.sqrt(
+    // Calculate raw magnitude (before deadzone)
+    const rawMagnitude = Math.sqrt(
       this.deltaX * this.deltaX + this.deltaY * this.deltaY
     );
-    if (magnitude < this.deadzone) {
+    
+    // Calculate speed multiplier based on raw distance (0 to 1)
+    // At center (0) = 0 speed, at max distance (1) = full speed
+    // Smoothly ramp from 0 to 1 as stick moves from center to edge
+    if (rawMagnitude < this.deadzone) {
+      this.speedMultiplier = 0;
       this.deltaX = 0;
       this.deltaY = 0;
     } else {
-      // Remap from [deadzone, 1] to [0, 1]
+      // Speed multiplier: remap from [deadzone, 1] to [0, 1]
+      // This gives smooth speed ramp from deadzone to max distance
+      this.speedMultiplier = (rawMagnitude - this.deadzone) / (1 - this.deadzone);
+      
+      // Direction: remap from [deadzone, 1] to [0, 1] for normalized direction
       const scale =
-        (magnitude - this.deadzone) / (1 - this.deadzone) / magnitude;
+        (rawMagnitude - this.deadzone) / (1 - this.deadzone) / rawMagnitude;
       this.deltaX *= scale;
       this.deltaY *= scale;
     }
@@ -193,6 +210,7 @@ export class TouchJoystick {
     this.currentY = 0;
     this.deltaX = 0;
     this.deltaY = 0;
+    this.speedMultiplier = 0;
 
     // Reset visual
     this.stick.style.transform = "translate(-50%, -50%)";
@@ -209,6 +227,14 @@ export class TouchJoystick {
       x: this.deltaX,
       y: -this.deltaY, // Invert Y for game coordinates (up = positive)
     };
+  }
+
+  /**
+   * Get speed multiplier based on how far the stick is pushed
+   * @returns {number} Speed multiplier (0 to 1), where 1 = maximum speed at full extension
+   */
+  getSpeedMultiplier() {
+    return this.speedMultiplier;
   }
 
   /**
@@ -234,6 +260,26 @@ export class TouchJoystick {
   hide() {
     this.container.style.display = "none";
     this.reset();
+  }
+
+  /**
+   * Fade out the joystick (reduce opacity)
+   */
+  fadeOut() {
+    if (this.container.style.display !== "none") {
+      this.container.style.opacity = "0";
+      this.container.style.pointerEvents = "none";
+    }
+  }
+
+  /**
+   * Fade in the joystick (restore opacity)
+   */
+  fadeIn() {
+    if (this.isTouchDevice && this.container.style.display !== "none") {
+      this.container.style.opacity = "0.6";
+      this.container.style.pointerEvents = "auto";
+    }
   }
 
   /**

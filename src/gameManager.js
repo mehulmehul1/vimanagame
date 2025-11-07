@@ -1,5 +1,6 @@
 import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES } from "./gameData.js";
+import { checkCriteria } from "./utils/criteriaHelper.js";
 import {
   getDebugSpawnState,
   isDebugSpawnActive,
@@ -495,11 +496,20 @@ class GameManager {
     // Import sceneObjects to get all objects directly
     const { sceneObjects } = await import("./sceneData.js");
 
-    // Find all objects with preload: false that aren't already loaded
+    // Get current game state for criteria checking
+    const currentState = this.getState();
+
+    // Find all objects with preload: false that aren't already loaded AND match criteria
     const deferredObjects = [];
     for (const [id, obj] of Object.entries(sceneObjects)) {
       const objPreload = obj.preload !== undefined ? obj.preload : false;
       if (!objPreload && !this.loadedScenes.has(id)) {
+        // Check criteria before prefetching - don't prefetch objects that don't match current state
+        if (obj.criteria) {
+          if (!checkCriteria(currentState, obj.criteria)) {
+            continue; // Skip this object - doesn't match criteria
+          }
+        }
         deferredObjects.push(obj);
       }
     }

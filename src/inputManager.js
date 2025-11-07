@@ -160,6 +160,14 @@ class InputManager {
         }
       }
 
+      // Don't request pointer lock on mobile devices
+      const isMobile =
+        this.gameManager?.getState?.()?.isMobile || false;
+      if (isMobile) {
+        console.log("[InputManager] Mobile device detected, NOT requesting pointer lock");
+        return;
+      }
+
       // Allow pointer lock even if movement/rotation are disabled
       // (user might want to look around even if they can't move)
       // Only block if pointerLockBlocked is true (set by gizmo mode or drawing mode)
@@ -440,9 +448,22 @@ class InputManager {
   }
 
   /**
+   * Get touch joystick speed multiplier (0 to 1)
+   * Returns 0 if touch joystick is not active
+   * @returns {number} Speed multiplier (0 to 1)
+   */
+  getTouchSpeedMultiplier() {
+    if (this.leftJoystick && this.leftJoystick.isActive()) {
+      return this.leftJoystick.getSpeedMultiplier();
+    }
+    return 0;
+  }
+
+  /**
    * Check if sprint is active (Shift key or gamepad trigger/button)
    * @returns {boolean}
    */
+
   isSprinting() {
     // Keyboard input
     if (this.keys.shift) return true;
@@ -589,6 +610,11 @@ class InputManager {
    * Show touch controls (for mobile)
    */
   showTouchControls() {
+    // Don't show if dialog choice UI is visible
+    if (this.isDialogChoiceVisible()) {
+      return;
+    }
+
     if (this.leftJoystick) {
       this.leftJoystick.show();
     }
@@ -607,6 +633,68 @@ class InputManager {
     if (this.rightJoystick) {
       this.rightJoystick.hide();
     }
+  }
+
+  /**
+   * Fade out touch controls (for UI overlays)
+   */
+  fadeOutTouchControls() {
+    if (this.leftJoystick) {
+      this.leftJoystick.fadeOut();
+    }
+    if (this.rightJoystick) {
+      this.rightJoystick.fadeOut();
+    }
+  }
+
+  /**
+   * Fade in touch controls (for UI overlays)
+   */
+  fadeInTouchControls() {
+    // Don't fade in if dialog choice UI is visible
+    if (this.isDialogChoiceVisible()) {
+      return;
+    }
+
+    if (this.leftJoystick) {
+      this.leftJoystick.fadeIn();
+    }
+    if (this.rightJoystick) {
+      this.rightJoystick.fadeIn();
+    }
+  }
+
+  /**
+   * Check if dialog choice UI is currently visible
+   * Uses multiple methods for reliability across different browsers/devices
+   * @returns {boolean}
+   */
+  isDialogChoiceVisible() {
+    const dialogChoiceContainer = document.getElementById("dialog-choices");
+    if (!dialogChoiceContainer) {
+      return false;
+    }
+
+    // Check computed style first (most reliable, catches all hiding methods)
+    const computedStyle = window.getComputedStyle(dialogChoiceContainer);
+    if (computedStyle.display === "none" || computedStyle.visibility === "hidden" || computedStyle.opacity === "0") {
+      return false;
+    }
+
+    // Check inline style as secondary check
+    if (dialogChoiceContainer.style.display === "none") {
+      return false;
+    }
+
+    // For fixed position elements, check if they're actually visible
+    // offsetParent is null for fixed elements that are visible, but also for hidden elements
+    // So we check the bounding rect instead
+    const rect = dialogChoiceContainer.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      return false;
+    }
+
+    return true;
   }
 
   /**

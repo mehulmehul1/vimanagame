@@ -248,9 +248,14 @@ export class StartScreen {
       this.startGame();
 
       // Request pointer lock when game starts (input will be disabled until control is enabled)
-      const canvas = document.querySelector("canvas");
-      if (canvas && canvas.requestPointerLock) {
-        canvas.requestPointerLock();
+      // Don't request on mobile devices
+      const isMobile =
+        this.uiManager?.gameManager?.getState?.()?.isMobile || false;
+      if (!isMobile) {
+        const canvas = document.querySelector("canvas");
+        if (canvas && canvas.requestPointerLock) {
+          canvas.requestPointerLock();
+        }
       }
     });
 

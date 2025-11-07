@@ -159,6 +159,18 @@ class CharacterController {
     this.flightSpeed = 5.0; // Speed for vertical flight
     this.verticalInput = 0; // Q/E input for up/down
 
+    // Reusable Vector3 objects to avoid allocations per frame
+    this._tempForward = new THREE.Vector3();
+    this._tempRight = new THREE.Vector3();
+    this._desired = new THREE.Vector3();
+    this._up = new THREE.Vector3(0, 1, 0); // World up vector (reusable)
+    this._verticalVelocity = new THREE.Vector3(); // For flight mode
+    this._cameraOffset = new THREE.Vector3(); // For camera positioning
+    this._camFollow = new THREE.Vector3(); // For camera follow position
+    this._forward = new THREE.Vector3(); // For getForwardRightVectors
+    this._right = new THREE.Vector3(); // For getForwardRightVectors
+    this._yAxis = new THREE.Vector3(0, 1, 0); // Y axis for rotations
+
     // Initialize FOV from camera
     this.baseFov = this.camera.fov;
     this.currentFov = this.baseFov;
@@ -998,15 +1010,14 @@ class CharacterController {
   }
 
   getForwardRightVectors() {
-    const forward = new THREE.Vector3(0, 0, -1)
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw)
+    // Reuse vectors instead of creating new ones
+    this._forward
+      .set(0, 0, -1)
+      .applyAxisAngle(this._yAxis, this.yaw)
       .setY(0)
       .normalize();
-    const right = new THREE.Vector3().crossVectors(
-      forward,
-      new THREE.Vector3(0, 1, 0)
-    );
-    return { forward, right };
+    this._right.crossVectors(this._forward, this._yAxis);
+    return { forward: this._forward, right: this._right };
   }
 
   /**
@@ -1657,9 +1668,9 @@ class CharacterController {
 
   calculateIdleHeadbob() {
     // Base gentle breathing/idle animation
-    const baseVerticalAmp = 0.002; // Half of walk vertical (0.04)
-    const baseHorizontalAmp = 0.001; // Half of walk horizontal (0.03)
-    const idleFrequency = 0.15; // Normal breathing rate (Hz)
+    const baseVerticalAmp = 0.006; // Increased from 0.002 for more noticeable breathing
+    const baseHorizontalAmp = 0.003; // Increased from 0.001 for more noticeable breathing
+    const idleFrequency = 0.75; // Normal breathing rate (Hz)
 
     const verticalBob =
       Math.sin(this.idleHeadbobTime * idleFrequency * Math.PI * 2) *
@@ -2253,29 +2264,66 @@ class CharacterController {
     if (!this.inputDisabled) {
       const { forward, right } = this.getForwardRightVectors();
       const movementInput = this.inputManager.getMovementInput();
-      isSprinting = this.inputManager.isSprinting();
-      const moveSpeed = isSprinting
-        ? this.baseSpeed * this.sprintMultiplier
-        : this.baseSpeed;
-      const desired = new THREE.Vector3();
 
-      // Apply movement input (y is forward/back, x is left/right)
-      desired.add(forward.clone().multiplyScalar(movementInput.y));
-      desired.add(right.clone().multiplyScalar(movementInput.x));
+      // Check if touch joystick is active - if so, use speed multiplier for smooth speed control
+      const touchSpeedMultiplier = this.inputManager.getTouchSpeedMultiplier();
+      const isTouchActive = touchSpeedMultiplier > 0;
 
-      isMoving = desired.lengthSq() > 1e-6;
-      if (isMoving) {
-        desired.normalize().multiplyScalar(moveSpeed);
+      const desired = this._desired;
 
-        // When moving, body gradually aligns with camera for smooth turning
-        const angleDiff = this.yaw - this.bodyYaw;
-        const normalizedDiff = Math.atan2(
-          Math.sin(angleDiff),
-          Math.cos(angleDiff)
+      if (isTouchActive) {
+        // Touch controls: speed ramps from 0 to sprint speed based on stick distance
+        // At center (0) = 0 speed, at max distance (1) = sprint speed
+        isSprinting = touchSpeedMultiplier >= 0.95; // Consider it sprinting when near max
+        const maxSpeed = this.baseSpeed * this.sprintMultiplier;
+        const moveSpeed = maxSpeed * touchSpeedMultiplier;
+
+        // Apply movement input (y is forward/back, x is left/right)
+        // Reuse temp vectors instead of cloning
+        desired.copy(
+          this._tempForward.copy(forward).multiplyScalar(movementInput.y)
         );
-        // Smoother rotation while moving (0.15)
-        this.bodyYaw += normalizedDiff * 0.15;
+        desired.add(
+          this._tempRight.copy(right).multiplyScalar(movementInput.x)
+        );
+
+        isMoving = desired.lengthSq() > 1e-6;
+        if (isMoving) {
+          desired.normalize().multiplyScalar(moveSpeed);
+        } else {
+          // No movement input but touch is active - don't move
+          desired.set(0, 0, 0);
+        }
+      } else {
+        // Normal keyboard/gamepad controls
+        isSprinting = this.inputManager.isSprinting();
+        const moveSpeed = isSprinting
+          ? this.baseSpeed * this.sprintMultiplier
+          : this.baseSpeed;
+
+        // Apply movement input (y is forward/back, x is left/right)
+        // Reuse temp vectors instead of cloning
+        desired.copy(
+          this._tempForward.copy(forward).multiplyScalar(movementInput.y)
+        );
+        desired.add(
+          this._tempRight.copy(right).multiplyScalar(movementInput.x)
+        );
+
+        isMoving = desired.lengthSq() > 1e-6;
+        if (isMoving) {
+          desired.normalize().multiplyScalar(moveSpeed);
+        }
       }
+
+      // When moving, body gradually aligns with camera for smooth turning
+      const angleDiff = this.yaw - this.bodyYaw;
+      const normalizedDiff = Math.atan2(
+        Math.sin(angleDiff),
+        Math.cos(angleDiff)
+      );
+      // Smoother rotation while moving (0.15)
+      this.bodyYaw += normalizedDiff * 0.15;
 
       // Always check neck limit (whether moving or not)
       let cameraBodyDiff = this.yaw - this.bodyYaw;
@@ -2295,19 +2343,22 @@ class CharacterController {
 
       if (this.flightMode) {
         // Flight mode: full 3D movement with Q/E for vertical
-        const up = new THREE.Vector3(0, 1, 0); // World up vector
-        const verticalVelocity = up
-          .clone()
+        // Reuse vector instead of creating new one
+        this._verticalVelocity
+          .copy(this._up)
           .multiplyScalar(this.verticalInput * this.flightSpeed);
 
         // If not moving (or movement disabled), only apply vertical velocity
         if (!isMoving || !this.inputManager.isMovementEnabled()) {
-          this.character.setLinvel({ x: 0, y: verticalVelocity.y, z: 0 }, true);
+          this.character.setLinvel(
+            { x: 0, y: this._verticalVelocity.y, z: 0 },
+            true
+          );
         } else {
           this.character.setLinvel(
             {
               x: desired.x,
-              y: verticalVelocity.y,
+              y: this._verticalVelocity.y,
               z: desired.z,
             },
             true
@@ -2440,18 +2491,19 @@ class CharacterController {
       const { forward: fwd, right: rgt } = this.getForwardRightVectors();
 
       // Camera follow: position slightly behind and above the character with headbob
-      const cameraOffset = new THREE.Vector3(0, this.cameraHeight, 0);
-      const camFollow = new THREE.Vector3(p.x, p.y, p.z).add(cameraOffset);
+      // Reuse vectors instead of creating new ones
+      this._cameraOffset.set(0, this.cameraHeight, 0);
+      this._camFollow.set(p.x, p.y, p.z).add(this._cameraOffset);
 
       // Apply combined headbob: vertical (Y) and horizontal (side-to-side relative to view direction)
-      camFollow.y += movementHeadbob.vertical + idleHeadbob.vertical;
-      camFollow.add(
-        rgt
-          .clone()
+      this._camFollow.y += movementHeadbob.vertical + idleHeadbob.vertical;
+      this._camFollow.add(
+        this._tempRight
+          .copy(rgt)
           .multiplyScalar(movementHeadbob.horizontal + idleHeadbob.horizontal)
       );
 
-      this.camera.position.copy(camFollow);
+      this.camera.position.copy(this._camFollow);
     } else {
       // Camera sync is disabled (frozen state), but still apply idle breathing
       if (this.headbobEnabled) {
@@ -2462,7 +2514,7 @@ class CharacterController {
         this.camera.position.copy(this.frozenCameraBasePosition);
         this.camera.position.y += idleHeadbob.vertical * 3.0;
         this.camera.position.add(
-          rgt.clone().multiplyScalar(idleHeadbob.horizontal * 3.0)
+          this._tempRight.copy(rgt).multiplyScalar(idleHeadbob.horizontal * 3.0)
         );
       }
     }

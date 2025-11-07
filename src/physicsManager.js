@@ -9,6 +9,12 @@ class PhysicsManager {
     this.world = new RAPIER.World(this.gravity);
     this.trimeshColliders = new Map(); // Map of id -> { collider, body }
     this.logger = new Logger("PhysicsManager", false);
+    
+    // Fixed timestep physics (60Hz = 1/60 seconds)
+    this.fixedTimeStep = 1.0 / 60.0; // 0.0167 seconds
+    this.accumulatedTime = 0.0; // Accumulated time since last step
+    this.maxTimeStep = 0.1; // Cap max step size to prevent spiral of death
+    
     //this.createFloor();
   }
 
@@ -397,8 +403,33 @@ class PhysicsManager {
     return null;
   }
 
-  step() {
-    this.world.step();
+  /**
+   * Step physics with fixed timestep
+   * Accumulates time and steps multiple times per frame if needed
+   * This ensures physics runs at consistent speed regardless of framerate
+   * @param {number} dt - Delta time in seconds (from frame timing)
+   */
+  step(dt = null) {
+    // If no dt provided, use default behavior (backwards compatibility)
+    if (dt === null) {
+      this.world.step();
+      return;
+    }
+
+    // Clamp dt to prevent spiral of death on very slow frames
+    const clampedDt = Math.min(dt, this.maxTimeStep);
+    
+    // Accumulate time
+    this.accumulatedTime += clampedDt;
+
+    // Step physics in fixed increments
+    // world.step() doesn't take a parameter - it uses the world's internal timestep
+    // Each call steps by the fixed timestep, so we call it multiple times
+    // This ensures physics runs at 60Hz regardless of framerate
+    while (this.accumulatedTime >= this.fixedTimeStep) {
+      this.world.step();
+      this.accumulatedTime -= this.fixedTimeStep;
+    }
   }
 }
 

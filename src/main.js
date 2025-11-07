@@ -94,7 +94,7 @@ const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
-  maxStdDev: Math.sqrt(3),
+  maxStdDev: Math.sqrt(5),
   minAlpha: 0.8 * (1.0 / 255.0),
 });
 spark.renderOrder = 9998;
@@ -636,8 +636,9 @@ renderer.setAnimationLoop(function animate(time) {
 
   // Physics step - needed for zone detection even during START_SCREEN
   // Must happen AFTER camera probe position update so collision detection uses current position
+  // Pass dt for fixed timestep physics (ensures consistent movement speed regardless of framerate)
   if (!optionsMenu.isOpen) {
-    physicsManager.step();
+    physicsManager.step(dt);
   }
 
   // Update collider manager for collision detection (always update, even during START_SCREEN)

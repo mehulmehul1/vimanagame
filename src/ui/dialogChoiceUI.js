@@ -148,7 +148,7 @@ class DialogChoiceUI {
           0 8px 16px rgba(0, 0, 0, 0.7),
           inset 0 0 0 2px rgba(255, 255, 255, 0.6),
           inset 0 0 0 6px black;
-        padding: 8px;
+        padding: 4px;
         animation: slideUpFadeIn 0.4s ease-out;
       }
 
@@ -157,10 +157,10 @@ class DialogChoiceUI {
         font-size: 32px;
         color: rgba(0, 0, 0, 0.8);
         text-align: left;
-        padding: 12px 16px;
+        padding: 8px 12px;
         text-transform: uppercase;
         letter-spacing: 2px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
       }
 
       .dialog-choices-list {
@@ -172,7 +172,7 @@ class DialogChoiceUI {
       .dialog-choice-button {
         font-family: 'PXCountryTypewriter', Arial, sans-serif;
         font-size: 24px;
-        padding: 14px 20px;
+        padding: 10px 16px;
         background: transparent;
         color: rgba(0, 0, 0, 0.5);
         border: none;
@@ -200,29 +200,55 @@ class DialogChoiceUI {
 
       @media (max-width: 768px) {
         .dialog-choices-container {
-          right: 50%;
-          max-width: 90%;
+          left: 50%;
+          right: auto;
+          transform: translateX(-50%);
+          max-width: 90vw;
+          min-width: 280px;
+          width: auto;
         }
         
         @keyframes slideUpFadeInMobile {
           from {
-            transform: translateX(50%) translateY(100%);
+            transform: translateX(-50%) translateY(100%);
             opacity: 0;
           }
           to {
-            transform: translateX(50%) translateY(0);
+            transform: translateX(-50%) translateY(0);
             opacity: 1;
           }
         }
         
         .dialog-choices-container {
           animation: slideUpFadeInMobile 0.4s ease-out;
-          transform: translateX(50%);
         }
         
         .dialog-choice-button {
-          font-size: 16px;
-          padding: 12px 16px;
+          font-size: 22px;
+          padding: 10px 14px;
+        }
+        
+        .dialog-choices-prompt {
+          font-size: 28px;
+          padding: 8px 10px;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .dialog-choices-container {
+          max-width: 95vw;
+          min-width: 260px;
+          bottom: 10%;
+        }
+        
+        .dialog-choice-button {
+          font-size: 20px;
+          padding: 10px 14px;
+        }
+        
+        .dialog-choices-prompt {
+          font-size: 26px;
+          padding: 8px 10px;
         }
       }
     `;
@@ -413,6 +439,11 @@ class DialogChoiceUI {
     // Show container
     this.container.style.display = "block";
 
+    // Fade out touch joysticks on mobile
+    if (this.inputManager) {
+      this.inputManager.fadeOutTouchControls();
+    }
+
     this.logger.log("Showing choices", choiceData);
   }
 
@@ -496,6 +527,15 @@ class DialogChoiceUI {
     // Reset gamepad navigation state
     if (this.gamepadNav) {
       this.gamepadNav.reset();
+    }
+
+    // Fade in touch joysticks on mobile (use requestAnimationFrame to ensure DOM update completes)
+    if (this.inputManager) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.inputManager.fadeInTouchControls();
+        });
+      });
     }
   }
 

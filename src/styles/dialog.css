@@ -32,5 +32,6 @@
     top: 6.5%;
     bottom: auto;
     padding: 15px 0px;
+    font-size: clamp(24px, 5vw, 36px);
   }
 }
