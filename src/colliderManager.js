@@ -42,6 +42,9 @@ class ColliderManager {
     this.cameraProbeCollider = null;
     this.camera = null; // Will be set by setCamera()
 
+    // SparkRenderer reference for updating accumulator origin position
+    this.sparkRenderer = null; // Will be set by setSparkRenderer()
+
     // Check for gizmo-enabled colliders and set global flag
     this.checkForGizmoColliders(colliderData);
 
@@ -318,6 +321,15 @@ class ColliderManager {
   }
 
   /**
+   * Set SparkRenderer reference for updating accumulator origin position
+   * @param {SparkRenderer} sparkRenderer - SparkRenderer instance
+   */
+  setSparkRenderer(sparkRenderer) {
+    this.sparkRenderer = sparkRenderer;
+    this.logger.log("SparkRenderer reference set on ColliderManager");
+  }
+
+  /**
    * Create a camera probe body for zone detection during camera animations
    * @private
    */
@@ -478,6 +490,19 @@ class ColliderManager {
           );
           if (this.gameManager && this.gameManager.zoneManager) {
             this.gameManager.zoneManager.addActiveZone(zoneName);
+          }
+        }
+
+        // Update SparkRenderer position to character/camera position when trigger fires
+        // This reduces float16 quantization artifacts by keeping accumulator origin near character
+        if (this.sparkRenderer) {
+          if (characterBody) {
+            // Use character position during normal gameplay
+            const charPos = characterBody.translation();
+            this.sparkRenderer.position.set(charPos.x, charPos.y, charPos.z);
+          } else if (this.camera && useCamera) {
+            // Use camera position during START_SCREEN or camera animations
+            this.sparkRenderer.position.copy(this.camera.position);
           }
         }
 

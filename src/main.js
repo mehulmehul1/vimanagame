@@ -542,6 +542,14 @@ window.colliderManager = colliderManager;
 // Set camera on collider manager for camera-based zone detection during START_SCREEN and animations
 colliderManager.setCamera(camera);
 
+// Set SparkRenderer on collider manager for updating accumulator origin position when triggers fire
+colliderManager.setSparkRenderer(spark);
+
+// Initialize SparkRenderer position to character position
+// This prevents float16 quantization artifacts at startup
+const charPos = character.translation();
+spark.position.set(charPos.x, charPos.y, charPos.z);
+
 // Set collider manager reference on scene manager (for trigger colliders from GLTF meshes)
 sceneManager.setColliderManager(colliderManager);
 

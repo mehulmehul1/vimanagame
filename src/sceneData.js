@@ -407,7 +407,7 @@ export const sceneObjects = {
     scale: { x: 1, y: 1, z: 1 },
     options: {
       useContainer: true,
-      visible: false, // Hidden by default
+      visible: true, // Hidden by default
       triggerColliders: true, // Flag to create trigger colliders from child meshes
     },
     priority: 90,
@@ -633,9 +633,9 @@ export const sceneObjects = {
     description: "Doors GLTF model",
     preload: false,
 
-    position: { x: 6.34, y: 1.95, z: 78.1 },
-    rotation: { x: -3.1416, y: 1.1453, z: -3.1416 },
-    scale: { x: 0.28, y: 0.29, z: 0.38 },
+    position: { x: 5.68, y: 1.95, z: 78.7 },
+    rotation: { x: 3.1416, y: 1.0817, z: 3.1416 },
+    scale: { x: 0.32, y: 0.29, z: 0.38 },
     options: {
       useContainer: true,
     },
