@@ -103,28 +103,10 @@ const interiorPosition = { x: 5.36, y: 0.83, z: 78.39 };
 const interiorRotation = { x: -3.1416, y: 1.0358, z: -3.1416 };
 
 export const sceneObjects = {
-  // exterior: {
-  //   id: "exterior",
-  //   type: "splat",
-  //   path: "/splats/refined_splats_35.sog",
-  //   description: "Main exterior environment splat mesh",
-  //   position: { x: 0.35, y: 1.0, z: 1.9 },
-  //   rotation: { x: 0, y: Math.PI, z: Math.PI },
-  //   scale: { x: 1, y: 1, z: 1 },
-  //   priority: 100, // Load first
-  //   preload: true,
-  //   criteria: {
-  //     currentState: {
-  //       $gte: GAME_STATES.LOADING,
-  //       $lt: GAME_STATES.OFFICE_INTERIOR,
-  //     },
-  //   },
-  // },
-
   plaza: {
     id: "plaza",
     type: "splat",
-    path: "/splats/Plaza.sog",
+    path: "/splats/plaza_16m.sog",
     description: "Plaza section of exterior environment (max quality)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
     rotation: { x: 0, y: Math.PI, z: Math.PI },
@@ -143,7 +125,7 @@ export const sceneObjects = {
   plazaLaptop: {
     id: "plaza",
     type: "splat",
-    path: "/splats/8m/plaza_8m.sog",
+    path: "/splats/5m/plaza_5m.sog",
     description: "Plaza section of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
     rotation: { x: 0, y: Math.PI, z: Math.PI },
@@ -156,6 +138,25 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  plazaDesktop: {
+    id: "plaza",
+    type: "splat",
+    path: "/splats/8m/plaza_8m.sog",
+    description: "Plaza section of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 100,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 
@@ -201,7 +202,7 @@ export const sceneObjects = {
   fourWayLaptop: {
     id: "fourWay",
     type: "splat",
-    path: "/splats/8m/fourWay_8m.sog",
+    path: "/splats/5m/fourWay_5m.sog",
     description:
       "Four-way intersection section of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -215,6 +216,26 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  fourWayDesktop: {
+    id: "fourWay",
+    type: "splat",
+    path: "/splats/8m/fourWay_8m.sog",
+    description:
+      "Four-way intersection section of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 100,
+    preload: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 
@@ -260,7 +281,7 @@ export const sceneObjects = {
   alleyIntroLaptop: {
     id: "alleyIntro",
     type: "splat",
-    path: "/splats/8m/alleyIntro_8m.sog",
+    path: "/splats/5m/alleyIntro_5m.sog",
     description:
       "Intro alley section of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -274,6 +295,26 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  alleyIntroDesktop: {
+    id: "alleyIntro",
+    type: "splat",
+    path: "/splats/8m/alleyIntro_8m.sog",
+    description:
+      "Intro alley section of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 70, // Load first of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 
@@ -320,7 +361,7 @@ export const sceneObjects = {
   alleyLongViewLaptop: {
     id: "alleyLongView",
     type: "splat",
-    path: "/splats/8m/alleyLongView_8m.sog",
+    path: "/splats/5m/alleyLongView_5m.sog",
     description:
       "Long view alley section of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -334,6 +375,26 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  alleyLongViewDesktop: {
+    id: "alleyLongView",
+    type: "splat",
+    path: "/splats/8m/alleyLongView_8m.sog",
+    description:
+      "Long view alley section of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 
@@ -400,7 +461,7 @@ export const sceneObjects = {
   threeWayLaptop: {
     id: "threeWay",
     type: "splat",
-    path: "/splats/8m/threeWay_8m.sog",
+    path: "/splats/5m/threeWay_5m.sog",
     description:
       "Three-way intersection section of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -414,6 +475,26 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  threeWayDesktop: {
+    id: "threeWay",
+    type: "splat",
+    path: "/splats/8m/threeWay_8m.sog",
+    description:
+      "Three-way intersection section of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 69, // Load second of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 
@@ -460,7 +541,7 @@ export const sceneObjects = {
   threeWay2Laptop: {
     id: "threeWay2",
     type: "splat",
-    path: "/splats/8m/threeWay2_8m.sog",
+    path: "/splats/5m/threeWay2_5m.sog",
     description:
       "Three-way intersection section 2 of exterior environment (laptop optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -474,6 +555,26 @@ export const sceneObjects = {
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
       performanceProfile: "laptop",
+    },
+  },
+
+  threeWay2Desktop: {
+    id: "threeWay2",
+    type: "splat",
+    path: "/splats/8m/threeWay2_8m.sog",
+    description:
+      "Three-way intersection section 2 of exterior environment (desktop optimized)",
+    position: { x: 0.35, y: 1.0, z: 1.9 },
+    rotation: { x: 0, y: Math.PI, z: Math.PI },
+    scale: { x: 1, y: 1, z: 1 },
+    priority: 68, // Load third of deferred exterior pieces
+    preload: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.ENTERING_OFFICE,
+      },
+      performanceProfile: "desktop",
     },
   },
 

@@ -139,6 +139,8 @@
 .radio-label span {
   color: #ccc;
   font-size: 14px;
+  font-family: "LePorsche", Arial, sans-serif;
+  text-transform: uppercase;
   user-select: none;
 }
 

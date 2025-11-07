@@ -28,7 +28,7 @@ class ColliderManager {
     this.scene = scene;
     this.sceneManager = sceneManager;
     this.gizmoManager = gizmoManager; // For registering debug meshes
-    this.logger = new Logger("ColliderManager", true); // Enable logging for debugging
+    this.logger = new Logger("ColliderManager", false); // Enable logging for debugging
     this.colliders = [];
     this.debugMeshes = new Map(); // Map of collider id -> debug mesh
     this.activeColliders = new Set(); // Track which colliders the character is currently inside

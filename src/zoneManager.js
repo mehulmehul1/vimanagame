@@ -26,8 +26,8 @@ class ZoneManager {
     // SparkRenderer reference for updating accumulator origin position
     this.sparkRenderer = null; // Will be set by setSparkRenderer()
 
-    // Desktop/Max zone to splat mapping (includes alleyNavigable)
-    this.zoneToSplatsDesktop = {
+    // Max zone to splat mapping (includes alleyNavigable, uses original high-quality assets)
+    this.zoneToSplatsMax = {
       alleyIntro: ["alleyIntro", "alleyNavigable"],
       alleyNavigable: [
         "alleyNavigable",
@@ -41,9 +41,19 @@ class ZoneManager {
       plaza: ["plaza", "threeWay2", "fourWay"],
     };
 
-    // Laptop zone to splat mapping (no alleyNavigable, uses laptop-optimized assets)
+    // Laptop zone to splat mapping (no alleyNavigable, uses 5m laptop-optimized assets)
     this.zoneToSplatsLaptop = {
       alleyIntro: ["alleyIntro", "fourWay"], // No alleyNavigable on laptop
+      alleyNavigable: ["alleyIntro", "alleyLongView", "fourWay"], // Map to alleyIntro since no alleyNavigable
+      fourWay: ["fourWay", "alleyIntro", "threeWay", "plaza"],
+      threeWay: ["threeWay", "fourWay", "threeWay2"],
+      threeWay2: ["threeWay2", "threeWay", "plaza"],
+      plaza: ["plaza", "threeWay2", "fourWay"],
+    };
+
+    // Desktop zone to splat mapping (no alleyNavigable, uses 8m desktop-optimized assets)
+    this.zoneToSplatsDesktop = {
+      alleyIntro: ["alleyIntro", "fourWay"], // No alleyNavigable on desktop
       alleyNavigable: ["alleyIntro", "alleyLongView", "fourWay"], // Map to alleyIntro since no alleyNavigable
       fourWay: ["fourWay", "alleyIntro", "threeWay", "plaza"],
       threeWay: ["threeWay", "fourWay", "threeWay2"],
@@ -126,9 +136,11 @@ class ZoneManager {
       return this.zoneToSplatsMobile;
     } else if (performanceProfile === "laptop") {
       return this.zoneToSplatsLaptop;
-    } else {
-      // max uses desktop mapping (includes alleyNavigable)
+    } else if (performanceProfile === "desktop") {
       return this.zoneToSplatsDesktop;
+    } else {
+      // max uses max mapping (includes alleyNavigable)
+      return this.zoneToSplatsMax;
     }
   }
 
@@ -389,11 +401,19 @@ class ZoneManager {
     // First, verify which splats are already loaded and in scene - these should NOT be touched
     const alreadyLoadedAndInScene = new Set();
     for (const splatId of requiredSplats) {
-      if (this.loadedSplats.has(splatId)) {
+      // Check both loadedSplats tracking AND sceneManager to catch all cases
+      if (
+        this.loadedSplats.has(splatId) ||
+        this.sceneManager.hasObject(splatId)
+      ) {
         const object = this.sceneManager.getObject(splatId);
         if (object && object.parent === this.sceneManager.scene) {
           // Already loaded and in scene - mark it so we don't touch it
           alreadyLoadedAndInScene.add(splatId);
+          // Ensure it's tracked in loadedSplats
+          if (!this.loadedSplats.has(splatId)) {
+            this.loadedSplats.add(splatId);
+          }
         }
       }
     }
@@ -415,24 +435,42 @@ class ZoneManager {
       if (alreadyLoadedAndInScene.has(splatId)) {
         continue;
       }
-      // Check if already loaded but not in scene - restore it immediately
-      if (this.loadedSplats.has(splatId)) {
+      // Check if already loaded in sceneManager (regardless of tracking)
+      if (this.sceneManager.hasObject(splatId)) {
         const object = this.sceneManager.getObject(splatId);
         if (object) {
           // Object exists but might not be in scene - ensure it's in scene
           if (!object.parent || object.parent !== this.sceneManager.scene) {
             // Not in scene - add it
-            this.sceneManager.addObjectToScene(splatId);
-            continue;
+            if (this.sceneManager.objectsNotInScene.has(splatId)) {
+              this.sceneManager.addObjectToScene(splatId);
+            } else {
+              this.sceneManager.scene.add(object);
+            }
           }
-          // Object is in scene but wasn't caught by alreadyLoadedAndInScene check
-          // (maybe parent changed between checks) - just track it
-          this.loadedSplats.add(splatId); // Ensure it's tracked
+          // Ensure it's tracked in loadedSplats
+          if (!this.loadedSplats.has(splatId)) {
+            this.loadedSplats.add(splatId);
+          }
+          // Already loaded (or now added to scene) - skip loading
           continue;
         }
-        // Object doesn't exist even though it's in loadedSplats - remove from tracking and load fresh
+      }
+
+      // Check if currently being loaded (to prevent duplicate loads)
+      if (
+        this.sceneManager.loadingPromises &&
+        this.sceneManager.loadingPromises.has(splatId)
+      ) {
+        // Already loading - skip adding to splatsToLoad, it will be handled when loading completes
+        continue;
+      }
+
+      // Check if tracked but object doesn't exist - clean up tracking
+      if (this.loadedSplats.has(splatId)) {
         this.loadedSplats.delete(splatId);
       }
+
       // Not loaded - need to load it
       splatsToLoad.push(splatId);
     }
@@ -458,7 +496,54 @@ class ZoneManager {
     }
 
     // Then load new splats after cleanup is complete
+    // But first, wait for any that are already loading
+    const loadingSplats = [];
+    const newSplatsToLoad = [];
     for (const splatId of splatsToLoad) {
+      if (
+        this.sceneManager.loadingPromises &&
+        this.sceneManager.loadingPromises.has(splatId)
+      ) {
+        loadingSplats.push(splatId);
+      } else {
+        newSplatsToLoad.push(splatId);
+      }
+    }
+
+    // Wait for already-loading splats to complete
+    if (loadingSplats.length > 0) {
+      this.logger.log(
+        `Waiting for ${
+          loadingSplats.length
+        } already-loading splat(s): ${loadingSplats.join(", ")}`
+      );
+      await Promise.all(
+        loadingSplats.map(async (splatId) => {
+          try {
+            const object = await this.sceneManager.loadingPromises.get(splatId);
+            if (object) {
+              // Ensure it's in scene
+              if (!object.parent || object.parent !== this.sceneManager.scene) {
+                if (this.sceneManager.objectsNotInScene.has(splatId)) {
+                  this.sceneManager.addObjectToScene(splatId);
+                } else {
+                  this.sceneManager.scene.add(object);
+                }
+              }
+              // Ensure it's tracked
+              if (!this.loadedSplats.has(splatId)) {
+                this.loadedSplats.add(splatId);
+              }
+            }
+          } catch (error) {
+            this.logger.error(`Error waiting for splat "${splatId}":`, error);
+          }
+        })
+      );
+    }
+
+    // Now load the new ones
+    for (const splatId of newSplatsToLoad) {
       await this.loadSplat(splatId);
     }
 
@@ -481,13 +566,36 @@ class ZoneManager {
       return;
     }
 
-    // First check if object is already loaded AND in scene - if so, nothing to do
+    // First check if object is already loaded in sceneManager - if so, handle it without loading
+    if (this.sceneManager.hasObject(splatId)) {
+      const object = this.sceneManager.getObject(splatId);
+      if (object) {
+        // Object exists - ensure it's in scene if needed
+        if (!object.parent || object.parent !== this.sceneManager.scene) {
+          if (this.sceneManager.objectsNotInScene.has(splatId)) {
+            this.sceneManager.addObjectToScene(splatId);
+          } else {
+            this.sceneManager.scene.add(object);
+          }
+        }
+        // Ensure it's tracked
+        if (!this.loadedSplats.has(splatId)) {
+          this.loadedSplats.add(splatId);
+        }
+        // Already loaded - nothing to do
+        return;
+      }
+    }
+
+    // Also check loadedSplats tracking (in case object was removed from sceneManager but still tracked)
     if (this.loadedSplats.has(splatId)) {
       const object = this.sceneManager.getObject(splatId);
       if (object && object.parent === this.sceneManager.scene) {
         // Already loaded and in scene - nothing to do
         return;
       }
+      // Tracked but object doesn't exist - clean up
+      this.loadedSplats.delete(splatId);
     }
 
     // Get object from sceneData using criteria system to get correct mobile/desktop version
@@ -511,23 +619,39 @@ class ZoneManager {
       return;
     }
 
-    // Check if already loaded in sceneManager but not in scene
-    if (this.sceneManager.hasObject(splatId)) {
-      // Object is loaded but not in scene - add it
-      if (this.sceneManager.objectsNotInScene.has(splatId)) {
-        this.sceneManager.addObjectToScene(splatId);
-        this.loadedSplats.add(splatId);
+    // Check if object is currently being loaded (to prevent duplicate loads)
+    if (
+      this.sceneManager.loadingPromises &&
+      this.sceneManager.loadingPromises.has(splatId)
+    ) {
+      // Object is already being loaded - wait for it
+      try {
+        const object = await this.sceneManager.loadingPromises.get(splatId);
+        if (object) {
+          // Ensure it's in scene
+          if (!object.parent || object.parent !== this.sceneManager.scene) {
+            if (this.sceneManager.objectsNotInScene.has(splatId)) {
+              this.sceneManager.addObjectToScene(splatId);
+            } else {
+              this.sceneManager.scene.add(object);
+            }
+          }
+          // Ensure it's tracked
+          if (!this.loadedSplats.has(splatId)) {
+            this.loadedSplats.add(splatId);
+          }
+        }
         return;
-      }
-      // Object already in scene but not tracked - add to tracking
-      const object = this.sceneManager.getObject(splatId);
-      if (object && object.parent === this.sceneManager.scene) {
-        this.loadedSplats.add(splatId);
-        return;
+      } catch (error) {
+        this.logger.error(
+          `Error waiting for splat "${splatId}" to load:`,
+          error
+        );
+        // Fall through to try loading again
       }
     }
 
-    // Load the splat
+    // Load the splat (we've already checked if it's loaded or loading above)
     try {
       await this.sceneManager.loadObject(objectData, false); // false = add to scene immediately
       this.loadedSplats.add(splatId);

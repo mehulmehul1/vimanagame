@@ -139,6 +139,15 @@ class OptionsMenu {
                 <input 
                   type="radio" 
                   name="performance-profile" 
+                  value="desktop"
+                  class="performance-radio"
+                >
+                <span>Desktop</span>
+              </label>
+              <label class="radio-label">
+                <input 
+                  type="radio" 
+                  name="performance-profile" 
                   value="max"
                   class="performance-radio"
                 >

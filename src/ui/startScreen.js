@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createParticleText, createParticleImage } from "../vfx/titleText.js";
 import { TitleSequence } from "../vfx/titleSequence.js";
-import { ImageTitleSequence } from "../vfx/imageTitleSequence.js";
+import { ImageTitleSequence } from "./imageTitleSequence.js";
 import { GAME_STATES } from "../gameData.js";
 import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
 import { Logger } from "../utils/logger.js";

@@ -80,7 +80,7 @@ class SceneManager {
     this.assetProgress = new Map(); // Map of asset id -> { loaded, total }
 
     // Logger for debug messages
-    this.logger = new Logger("SceneManager", true); // Enable logging for debugging
+    this.logger = new Logger("SceneManager", false); // Enable logging for debugging
 
     // Listen for state changes if gameManager provided
     if (this.gameManager) {

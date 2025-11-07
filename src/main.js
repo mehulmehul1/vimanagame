@@ -129,7 +129,7 @@ const urlProfile = gameManager.getURLParam("performanceProfile");
 let profileToUse = null;
 let profileSource = null;
 
-if (urlProfile && ["mobile", "laptop", "max"].includes(urlProfile)) {
+if (urlProfile && ["mobile", "laptop", "desktop", "max"].includes(urlProfile)) {
   // URL parameter takes highest priority
   profileToUse = urlProfile;
   profileSource = "URL parameter";
@@ -141,7 +141,10 @@ if (urlProfile && ["mobile", "laptop", "max"].includes(urlProfile)) {
   const savedSettings = optionsMenu.loadSettings();
   const savedProfile = savedSettings?.performanceProfile;
 
-  if (savedProfile && ["mobile", "laptop", "max"].includes(savedProfile)) {
+  if (
+    savedProfile &&
+    ["mobile", "laptop", "desktop", "max"].includes(savedProfile)
+  ) {
     // Use saved profile from localStorage
     profileToUse = savedProfile;
     profileSource = "saved settings";

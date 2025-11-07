@@ -539,13 +539,21 @@ class GameManager {
     });
 
     // Prefetch splat files after a delay (larger, not needed immediately)
-    setTimeout(() => {
-      splatObjects.forEach((obj) => {
-        // Prefetch splat files - browser will cache them
-        fetch(obj.path).catch(() => {
-          // Ignore errors
+    // Actually load them (but not add to scene) so they're tracked and won't be re-fetched
+    setTimeout(async () => {
+      for (const obj of splatObjects) {
+        // Check if already loaded or loading
+        if (this.sceneManager.hasObject(obj.id) || 
+            (this.sceneManager.loadingPromises && this.sceneManager.loadingPromises.has(obj.id))) {
+          continue; // Already loaded or loading
+        }
+        // Load the object but don't add to scene (skipAddToScene = true)
+        // This creates the SplatMesh and fetches the file, but doesn't add it to the scene
+        // When ZoneManager needs it, it will already be loaded
+        this.sceneManager.loadObject(obj, true).catch(() => {
+          // Ignore errors - object might not be needed
         });
-      });
+      }
     }, 2000); // Wait 2 seconds before prefetching splats
 
     this.logger.log(
