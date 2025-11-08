@@ -39,6 +39,7 @@ import { getSceneObjectsForState } from "../sceneData.js";
 export class DissolveEffect extends VFXManager {
   constructor(scene, sceneManager, renderer) {
     super("DissolveEffect", true); // Enable debug logging
+    this.logger = new Logger("DissolveEffect", false);
 
     this.scene = scene;
     this.sceneManager = sceneManager;

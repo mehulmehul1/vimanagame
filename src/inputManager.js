@@ -6,7 +6,7 @@ import { Logger } from "./utils/logger.js";
  * InputManager - Unified input handling for keyboard, mouse, gamepad, and touch
  *
  * Features:
- * - Keyboard input (WASD + Shift for sprint)
+ * - Keyboard input (WASD/Arrow keys + Shift for sprint)
  * - Mouse input (for camera rotation via pointer lock)
  * - Gamepad API support (left stick = movement, right stick = camera, triggers/buttons = sprint)
  * - Touch joysticks for mobile (left = movement, right = camera)
@@ -22,7 +22,17 @@ class InputManager {
     this.logger = new Logger("InputManager", false);
 
     // Input state
-    this.keys = { w: false, a: false, s: false, d: false, shift: false };
+    this.keys = {
+      w: false,
+      a: false,
+      s: false,
+      d: false,
+      shift: false,
+      arrowUp: false,
+      arrowDown: false,
+      arrowLeft: false,
+      arrowRight: false,
+    };
     this.mouseDelta = { x: 0, y: 0 };
     this.gamepadIndex = null;
     this.enabled = true;
@@ -119,6 +129,10 @@ class InputManager {
       const k = event.key.toLowerCase();
       if (k in this.keys) this.keys[k] = true;
       if (event.key === "Shift") this.keys.shift = true;
+      if (event.key === "ArrowUp") this.keys.arrowUp = true;
+      if (event.key === "ArrowDown") this.keys.arrowDown = true;
+      if (event.key === "ArrowLeft") this.keys.arrowLeft = true;
+      if (event.key === "ArrowRight") this.keys.arrowRight = true;
     });
 
     window.addEventListener("keyup", (event) => {
@@ -126,6 +140,10 @@ class InputManager {
       const k = event.key.toLowerCase();
       if (k in this.keys) this.keys[k] = false;
       if (event.key === "Shift") this.keys.shift = false;
+      if (event.key === "ArrowUp") this.keys.arrowUp = false;
+      if (event.key === "ArrowDown") this.keys.arrowDown = false;
+      if (event.key === "ArrowLeft") this.keys.arrowLeft = false;
+      if (event.key === "ArrowRight") this.keys.arrowRight = false;
     });
 
     // Pointer lock + mouse look
@@ -161,10 +179,11 @@ class InputManager {
       }
 
       // Don't request pointer lock on mobile devices
-      const isMobile =
-        this.gameManager?.getState?.()?.isMobile || false;
+      const isMobile = this.gameManager?.getState?.()?.isMobile || false;
       if (isMobile) {
-        console.log("[InputManager] Mobile device detected, NOT requesting pointer lock");
+        console.log(
+          "[InputManager] Mobile device detected, NOT requesting pointer lock"
+        );
         return;
       }
 
@@ -335,14 +354,21 @@ class InputManager {
       return { x: 0, y: 0 };
     }
 
+    // Block vertical movement keys (W, S, Up, Down) when dialog choice UI is visible
+    const dialogChoiceVisible = this.isDialogChoiceVisible();
+
     let x = 0;
     let y = 0;
 
-    // Keyboard input (WASD)
-    if (this.keys.w) y += 1;
-    if (this.keys.s) y -= 1;
-    if (this.keys.a) x -= 1;
-    if (this.keys.d) x += 1;
+    // Keyboard input (WASD/Arrow keys)
+    // Skip W, S, Up, Down if dialog choice is visible (they control selection instead)
+    if (!dialogChoiceVisible) {
+      if (this.keys.w || this.keys.arrowUp) y += 1;
+      if (this.keys.s || this.keys.arrowDown) y -= 1;
+    }
+    // Horizontal movement (A, D, Left, Right) still works even with dialog choice
+    if (this.keys.a || this.keys.arrowLeft) x -= 1;
+    if (this.keys.d || this.keys.arrowRight) x += 1;
 
     // Gamepad input (left stick)
     const gamepad = this.getGamepad();
@@ -535,7 +561,17 @@ class InputManager {
     this.movementEnabled = false;
     this.rotationEnabled = false;
     this.hasSelectiveDisable = false; // Full disable clears selective flag
-    this.keys = { w: false, a: false, s: false, d: false, shift: false };
+    this.keys = {
+      w: false,
+      a: false,
+      s: false,
+      d: false,
+      shift: false,
+      arrowUp: false,
+      arrowDown: false,
+      arrowLeft: false,
+      arrowRight: false,
+    };
     this.mouseDelta = { x: 0, y: 0 };
     this.hideTouchControls();
     this.logger.log("Input disabled");
@@ -569,6 +605,10 @@ class InputManager {
     this.keys.s = false;
     this.keys.d = false;
     this.keys.shift = false;
+    this.keys.arrowUp = false;
+    this.keys.arrowDown = false;
+    this.keys.arrowLeft = false;
+    this.keys.arrowRight = false;
     // Hide left joystick
     if (this.leftJoystick) {
       this.leftJoystick.hide();
@@ -680,7 +720,11 @@ class InputManager {
 
     // Check computed style first (most reliable, catches all hiding methods)
     const computedStyle = window.getComputedStyle(dialogChoiceContainer);
-    if (computedStyle.display === "none" || computedStyle.visibility === "hidden" || computedStyle.opacity === "0") {
+    if (
+      computedStyle.display === "none" ||
+      computedStyle.visibility === "hidden" ||
+      computedStyle.opacity === "0"
+    ) {
       return false;
     }
 

@@ -32,7 +32,7 @@ export class StartScreen {
     this.title = null;
     this.byline = null;
     this.keystrokeIndex = 0; // Track which keystroke sound to play next (0-3)
-    this.useImageBackup = false; // Enable image backup system instead of particles
+    this.useImageBackup = true; // Enable image backup system instead of particles
 
     // Gamepad navigation helper
     this.gamepadNav = new GamepadMenuNavigation({

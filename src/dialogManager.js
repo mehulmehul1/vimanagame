@@ -600,6 +600,19 @@ class DialogManager {
   }
 
   /**
+   * Extract audio format from source URL
+   * @param {string} audioSrc - Audio source URL
+   * @returns {string|null} Format string (e.g., 'mp3', 'wav') or null
+   * @private
+   */
+  _extractFormat(audioSrc) {
+    if (!audioSrc) return null;
+    
+    const match = audioSrc.match(/\.([a-z0-9]+)(?:\?|$)/i);
+    return match ? match[1].toLowerCase() : null;
+  }
+
+  /**
    * Create Howl instance from prefetched blob
    * @param {string} dialogId - Dialog ID
    * @param {Object} prefetched - Prefetched data { blob, blobUrl, dialogData, size }
@@ -607,13 +620,17 @@ class DialogManager {
    * @private
    */
   _createHowlFromPrefetched(dialogId, prefetched) {
-    const { blobUrl } = prefetched;
+    const { blobUrl, dialogData } = prefetched;
+    
+    // Extract format from original source to help Howler identify codec
+    const format = this._extractFormat(dialogData?.audio);
 
     return new Promise((resolve, reject) => {
-      const howl = new Howl({
+      const howlConfig = {
         src: [blobUrl], // Use blob URL instead of original src
         volume: this.audioVolume,
         preload: true,
+        ...(format && { format: [format] }), // Add format for blob URLs
         onload: () => {
           this.logger.log(`Howl loaded from prefetched blob for dialog "${dialogId}"`);
 
@@ -645,7 +662,9 @@ class DialogManager {
           this._processPrefetchQueue();
           reject(error);
         },
-      });
+      };
+      
+      const howl = new Howl(howlConfig);
     });
   }
 

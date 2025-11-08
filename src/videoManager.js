@@ -766,8 +766,10 @@ class VideoManager {
   async loadDeferredVideos() {
     // Get current game state to check if criteria have passed
     const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
-    
+    const { couldCriteriaStillMatch } = await import(
+      "./utils/criteriaHelper.js"
+    );
+
     // Find all videos with preload: false
     const deferredVideoIds = [];
     for (const [videoId, videoConfig] of Object.entries(videos)) {
@@ -781,7 +783,10 @@ class VideoManager {
         // Check if criteria have already passed (e.g., in debug spawn mode)
         // Check both spawnCriteria and criteria
         const spawnCriteria = videoConfig.spawnCriteria || videoConfig.criteria;
-        if (spawnCriteria && !couldCriteriaStillMatch(currentState, spawnCriteria)) {
+        if (
+          spawnCriteria &&
+          !couldCriteriaStillMatch(currentState, spawnCriteria)
+        ) {
           this.logger.log(
             `Skipping deferred video "${videoId}" - criteria have already passed (currentState: ${currentState.currentState})`
           );

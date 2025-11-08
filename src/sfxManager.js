@@ -453,7 +453,9 @@ class SFXManager {
 
     // Get current game state to check if criteria have passed
     const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+    const { couldCriteriaStillMatch } = await import(
+      "./utils/criteriaHelper.js"
+    );
 
     while (this.prefetchQueue.length > 0) {
       // Check if we have budget available
@@ -481,7 +483,10 @@ class SFXManager {
       }
 
       // Skip if criteria have already passed (e.g., in debug spawn mode)
-      if (sound.criteria && !couldCriteriaStillMatch(currentState, sound.criteria)) {
+      if (
+        sound.criteria &&
+        !couldCriteriaStillMatch(currentState, sound.criteria)
+      ) {
         this.logger.log(
           `Skipping prefetch for sound "${sound.id}" - criteria have already passed (currentState: ${currentState.currentState})`
         );
@@ -579,6 +584,20 @@ class SFXManager {
   }
 
   /**
+   * Extract audio format from source URL
+   * @param {string|Array<string>} src - Source URL(s)
+   * @returns {string|null} Format string (e.g., 'mp3', 'wav') or null
+   * @private
+   */
+  _extractFormat(src) {
+    const srcStr = Array.isArray(src) ? src[0] : src;
+    if (!srcStr) return null;
+
+    const match = srcStr.match(/\.([a-z0-9]+)(?:\?|$)/i);
+    return match ? match[1].toLowerCase() : null;
+  }
+
+  /**
    * Create Howl instance from prefetched blob
    * @param {string} id - Sound ID
    * @param {Object} prefetched - Prefetched data { blob, blobUrl, soundData }
@@ -589,13 +608,17 @@ class SFXManager {
     const { blobUrl, soundData } = prefetched;
     const hasLoopDelay = soundData.loop && soundData.loopDelay > 0;
 
+    // Extract format from original source to help Howler identify codec
+    const format = this._extractFormat(soundData.src);
+
     return new Promise((resolve, reject) => {
-      const howl = new Howl({
+      const howlConfig = {
         src: [blobUrl], // Use blob URL instead of original src
         loop: hasLoopDelay ? false : soundData.loop,
         volume: soundData.volume,
         ...(soundData.rate !== undefined && { rate: soundData.rate }),
         preload: true,
+        ...(format && { format: [format] }), // Add format for blob URLs
         onload: () => {
           this.logger.log(`Howl loaded from prefetched blob for sound "${id}"`);
 
@@ -679,7 +702,9 @@ class SFXManager {
         onend: hasLoopDelay
           ? () => this._handleLoopEnd(soundData.id)
           : undefined,
-      });
+      };
+
+      const howl = new Howl(howlConfig);
     });
   }
 
@@ -689,8 +714,10 @@ class SFXManager {
   async loadDeferredSounds() {
     const isIOS = this.gameManager?.getState()?.isIOS || false;
     const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
-    
+    const { couldCriteriaStillMatch } = await import(
+      "./utils/criteriaHelper.js"
+    );
+
     this.logger.log(
       `Loading ${this.deferredSounds.size} deferred sounds${
         isIOS ? " (iOS: sequential loading)" : ""
@@ -704,7 +731,10 @@ class SFXManager {
       );
       for (const [id, prefetched] of this.prefetchedAudio) {
         // Skip if criteria have already passed
-        if (prefetched.soundData?.criteria && !couldCriteriaStillMatch(currentState, prefetched.soundData.criteria)) {
+        if (
+          prefetched.soundData?.criteria &&
+          !couldCriteriaStillMatch(currentState, prefetched.soundData.criteria)
+        ) {
           this.logger.log(
             `Skipping prefetched sound "${id}" - criteria have already passed (currentState: ${currentState.currentState})`
           );
@@ -716,7 +746,7 @@ class SFXManager {
           this.prefetchedAudio.delete(id);
           continue;
         }
-        
+
         try {
           await this._createHowlFromPrefetched(id, prefetched);
           // Budget is freed in onload callback
@@ -748,7 +778,10 @@ class SFXManager {
     // Filter deferred sounds to skip those whose criteria have passed
     const soundsToLoad = [];
     for (const [id, sound] of this.deferredSounds) {
-      if (sound.criteria && !couldCriteriaStillMatch(currentState, sound.criteria)) {
+      if (
+        sound.criteria &&
+        !couldCriteriaStillMatch(currentState, sound.criteria)
+      ) {
         this.logger.log(
           `Skipping deferred sound "${id}" - criteria have already passed (currentState: ${currentState.currentState})`
         );

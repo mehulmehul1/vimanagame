@@ -649,7 +649,8 @@ export const sceneObjects = {
     id: "interior",
     type: "splat",
     path: "/green-room-clean.sog",
-    description: "Main interior office environment splat mesh",
+    description:
+      "Main interior office environment splat mesh (desktop/max quality)",
     position: interiorPosition,
     rotation: { x: 0.0, y: -1.283, z: -3.1416 },
     scale: { x: 1.0, y: 1.0, z: 1.0 },
@@ -660,6 +661,49 @@ export const sceneObjects = {
         $gte: GAME_STATES.POST_DRIVE_BY,
         $lt: GAME_STATES.LIGHTS_OUT,
       },
+      performanceProfile: { $in: ["desktop", "max"] },
+    },
+    preload: false,
+  },
+
+  interiorLaptop: {
+    id: "interior",
+    type: "splat",
+    path: "/green_room_1m.sog",
+    description:
+      "Main interior office environment splat mesh (laptop optimized)",
+    position: interiorPosition,
+    rotation: { x: 0.0, y: -1.283, z: -3.1416 },
+    scale: { x: 1.0, y: 1.0, z: 1.0 },
+    priority: 67, // Load fourth (after threeWay2)
+    envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.LIGHTS_OUT,
+      },
+      performanceProfile: "laptop",
+    },
+    preload: false,
+  },
+
+  interiorMobile: {
+    id: "interior",
+    type: "splat",
+    path: "/green_room_1m.sog",
+    description:
+      "Main interior office environment splat mesh (mobile optimized)",
+    position: interiorPosition,
+    rotation: { x: 0.0, y: -1.283, z: -3.1416 },
+    scale: { x: 1.0, y: 1.0, z: 1.0 },
+    priority: 67, // Load fourth (after threeWay2)
+    envMapWorldCenter: { x: -5.32, y: 2.5, z: 87.95 }, // Position to render environment map from
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_DRIVE_BY,
+        $lt: GAME_STATES.LIGHTS_OUT,
+      },
+      performanceProfile: "mobile",
     },
     preload: false,
   },

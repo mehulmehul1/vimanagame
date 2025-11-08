@@ -177,3 +177,13 @@
   transition: opacity 0.1s linear;
   filter: drop-shadow(2px 2px 8px rgba(0, 0, 0, 0.9));
 }
+
+@media (max-width: 768px) {
+  .title-image {
+    width: 90% !important;
+  }
+
+  .byline-image {
+    width: 60% !important;
+  }
+}

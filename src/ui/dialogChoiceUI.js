@@ -256,7 +256,7 @@ class DialogChoiceUI {
   }
 
   /**
-   * Setup keyboard listeners for arrow keys and enter
+   * Setup keyboard listeners for arrow keys, W/S keys, and enter
    */
   setupKeyboardListeners() {
     this.keyboardHandler = (event) => {
@@ -264,10 +264,14 @@ class DialogChoiceUI {
 
       switch (event.key) {
         case "ArrowUp":
+        case "w":
+        case "W":
           event.preventDefault();
           this.moveSelection(-1);
           break;
         case "ArrowDown":
+        case "s":
+        case "S":
           event.preventDefault();
           this.moveSelection(1);
           break;

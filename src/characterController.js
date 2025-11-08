@@ -571,7 +571,7 @@ class CharacterController {
   loadFootstepAudio() {
     // Load footstep audio using Howler.js
     this.footstepSound = new Howl({
-      src: ["./audio/sfx/gravel-steps.ogg"],
+      src: ["./audio/sfx/pavement-steps.mp3"],
       loop: true,
       volume: 0.2,
       preload: true,
