@@ -236,6 +236,10 @@ class GameManager {
   setupEventHandlers() {
     // Listen for character controller enable/disable to manage input
     this.on("character-controller:enabled", () => {
+      // Sync character controller yaw/pitch from camera quaternion to prevent snapping
+      if (this.characterController) {
+        this.characterController.enableInput(true); // true = sync from camera
+      }
       if (this.inputManager) {
         this.inputManager.enable();
         this.inputManager.showTouchControls();

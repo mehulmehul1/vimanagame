@@ -3,9 +3,21 @@ const HEIGHT = 500;
 const CROP_PADDING = 2;
 const REPOS_PADDING = 2;
 
+function isMacOS() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform;
+  // Detect macOS (but not iOS/iPad)
+  return (
+    (platform === "MacIntel" && navigator.maxTouchPoints <= 1) ||
+    userAgent.includes("mac os x") ||
+    userAgent.includes("macintosh")
+  );
+}
+
 export class ImagePreprocessor {
   constructor() {
     // No longer need persistent canvas - created per preprocessing call
+    this.isMacOS = isMacOS();
   }
 
   getMinimumCoordinates(imageStrokes) {
@@ -94,7 +106,11 @@ export class ImagePreprocessor {
     const tempSize = 280; // 10x target size for better quality
     tempCanvas.width = tempSize;
     tempCanvas.height = tempSize;
-    const tempCtx = tempCanvas.getContext("2d");
+    const tempCtx = tempCanvas.getContext("2d", {
+      // macOS-specific: use different context settings
+      alpha: false,
+      willReadFrequently: false,
+    });
 
     // Calculate scale to fit in tempCanvas
     const maxDimension = Math.max(cropWidth, cropHeight);
@@ -111,7 +127,9 @@ export class ImagePreprocessor {
 
     // Black stroke (QuickDraw model expects black strokes on white)
     tempCtx.strokeStyle = "black";
-    tempCtx.lineWidth = 6; // Thin strokes like PIL (3px on 500px → ~0.17px on 28px)
+
+    // Use thin strokes for all platforms (model needs very light strokes)
+    tempCtx.lineWidth = 3;
     tempCtx.lineCap = "round";
     tempCtx.lineJoin = "round";
 
@@ -130,18 +148,60 @@ export class ImagePreprocessor {
       tempCtx.stroke();
     }
 
-    // Resize to 28x28 using canvas drawImage (like PIL resize)
+    // Resize to 28x28
     const finalCanvas = document.createElement("canvas");
     finalCanvas.width = 28;
     finalCanvas.height = 28;
-    const finalCtx = finalCanvas.getContext("2d");
+    const finalCtx = finalCanvas.getContext("2d", {
+      alpha: false,
+      desynchronized: false,
+      willReadFrequently: false,
+    });
 
-    // Disable smoothing for sharper edges (more like PIL)
-    finalCtx.imageSmoothingEnabled = true;
-    finalCtx.imageSmoothingQuality = "high";
+    if (this.isMacOS) {
+      // macOS: Use manual pixel sampling for consistent results
+      // This avoids browser-specific drawImage rendering differences
+      const sourceData = tempCtx.getImageData(0, 0, tempSize, tempSize);
+      const targetData = finalCtx.createImageData(28, 28);
 
-    // Draw the large canvas onto the 28x28 canvas
-    finalCtx.drawImage(tempCanvas, 0, 0, 28, 28);
+      const scaleX = tempSize / 28;
+      const scaleY = tempSize / 28;
+
+      for (let y = 0; y < 28; y++) {
+        for (let x = 0; x < 28; x++) {
+          // Average pixels in the source area (box filter) to reduce artifacts
+          const startX = Math.floor(x * scaleX);
+          const startY = Math.floor(y * scaleY);
+          const endX = Math.floor((x + 1) * scaleX);
+          const endY = Math.floor((y + 1) * scaleY);
+
+          let sum = 0;
+          let count = 0;
+
+          for (let sy = startY; sy < endY && sy < tempSize; sy++) {
+            for (let sx = startX; sx < endX && sx < tempSize; sx++) {
+              const idx = (sy * tempSize + sx) * 4;
+              sum += sourceData.data[idx]; // Use red channel (grayscale)
+              count++;
+            }
+          }
+
+          const avg = count > 0 ? Math.round(sum / count) : 255;
+          const targetIdx = (y * 28 + x) * 4;
+          targetData.data[targetIdx] = avg; // R
+          targetData.data[targetIdx + 1] = avg; // G
+          targetData.data[targetIdx + 2] = avg; // B
+          targetData.data[targetIdx + 3] = 255; // A
+        }
+      }
+
+      finalCtx.putImageData(targetData, 0, 0);
+    } else {
+      // Windows/Other: Use standard resize
+      finalCtx.imageSmoothingEnabled = true;
+      finalCtx.imageSmoothingQuality = "high";
+      finalCtx.drawImage(tempCanvas, 0, 0, 28, 28);
+    }
 
     // Return the 28x28 canvas
     return finalCanvas;

@@ -27,7 +27,7 @@ export class DrawingManager {
     this.scene = scene;
     this.recognitionManager = drawingRecognitionManager;
     this.gameManager = gameManager;
-    this.logger = new Logger("DrawingManager", false);
+    this.logger = new Logger("DrawingManager", true);
 
     this.targetLabel = null;
     this.targetEmojiElement = null;

@@ -310,12 +310,54 @@ class AnimationManager {
    * Load deferred animations (called after loading screen)
    */
   async loadDeferredAnimations() {
+    // Get current game state to check if criteria have passed
+    const currentState = this.gameManager?.getState() || {};
+    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+    
+    // Filter deferred animations to skip those whose criteria have passed
+    // BUT: Always load animations with fireOnEvent (can trigger regardless of criteria)
+    // AND: Be conservative with simple equality - still load them (state could change back)
+    const animationsToLoad = [];
+    for (const [id, anim] of this.deferredAnimations) {
+      // Always load if it has fireOnEvent (can be triggered by events)
+      if (anim.fireOnEvent) {
+        animationsToLoad.push([id, anim]);
+        continue;
+      }
+      
+      // For simple equality criteria, be conservative - still load it
+      // (state could theoretically change back, or animation might be manually triggered)
+      if (anim.criteria) {
+        const criteriaValue = anim.criteria.currentState;
+        // If it's simple equality (not an object with operators), still load it
+        if (typeof criteriaValue === "number") {
+          animationsToLoad.push([id, anim]);
+          continue;
+        }
+        
+        // For operator-based criteria, check if it could still match
+        if (!couldCriteriaStillMatch(currentState, anim.criteria)) {
+          this.logger.log(
+            `Skipping deferred animation "${id}" - criteria have already passed (currentState: ${currentState.currentState})`
+          );
+          continue;
+        }
+      }
+      
+      animationsToLoad.push([id, anim]);
+    }
+
+    if (animationsToLoad.length === 0) {
+      this.deferredAnimations.clear();
+      return;
+    }
+
     if (this.debug)
       this.logger.log(
-        `Loading ${this.deferredAnimations.size} deferred animations`
+        `Loading ${animationsToLoad.length} deferred animations`
       );
     const loadPromises = [];
-    for (const [id, anim] of this.deferredAnimations) {
+    for (const [id, anim] of animationsToLoad) {
       loadPromises.push(this.loadAnimation(id, anim.path, false));
     }
     await Promise.all(loadPromises);

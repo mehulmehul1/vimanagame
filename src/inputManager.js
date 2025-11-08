@@ -394,8 +394,11 @@ class InputManager {
     const mouseY = isFinite(this.mouseDelta.y) ? this.mouseDelta.y : 0;
 
     // Mouse input (accumulated during frame)
-    deltaX += mouseX * this.mouseSensitivity;
-    deltaY += mouseY * this.mouseSensitivity;
+    // Scale by dt for frame-rate independence (normalize to 60fps reference)
+    // At 60fps, dt = 0.0167, so we scale by dt/0.0167 to maintain same feel
+    const dtScale = dt / 0.0167; // Normalize to 60fps
+    deltaX += mouseX * this.mouseSensitivity * dtScale;
+    deltaY += mouseY * this.mouseSensitivity * dtScale;
 
     // Gamepad input (right stick)
     const gamepad = this.getGamepad();

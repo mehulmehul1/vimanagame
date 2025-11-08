@@ -65,7 +65,7 @@
  * // or reference directly: videos.driveBy.position
  */
 
-import { GAME_STATES } from "./gameData.js";
+import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
@@ -88,6 +88,25 @@ export const videos = {
     autoPlay: true,
     once: true,
     priority: 0,
+    platform: "!safari", // Don't load on Safari (use shadowGlimpseSafari instead)
+  },
+  shadowGlimpseSafari: {
+    id: "shadowGlimpseSafari",
+    videoPath: "/video/mov/shadow-glimpse.mov",
+    preload: false, // Load after loading screen
+    position: { x: -17.95, y: 1.22, z: 39.24 },
+    rotation: { x: 0.0, y: 1.4075, z: 0.0 },
+    scale: { x: 0.95, y: 0.88, z: 1.0 },
+    loop: false,
+    muted: true,
+    billboard: true,
+    criteria: {
+      shadowGlimpse: true,
+    },
+    autoPlay: true,
+    once: true,
+    priority: 0,
+    platform: "safari", // Only load on Safari
   },
   cat: {
     id: "cat",
@@ -105,6 +124,28 @@ export const videos = {
     autoPlay: true,
     once: true,
     priority: 0,
+    platform: "!safari", // Don't load on Safari (use catSafari instead)
+  },
+  catSafari: {
+    id: "catSafari",
+    videoPath: "/video/mov/cat-1-hvec.mov",
+    preload: false, // Load after loading screen
+    position: { x: -24.13, y: -1.48, z: 21.46 },
+    rotation: { x: 0.0, y: 1.5708, z: 0.0 },
+    scale: { x: 1, y: 1, z: 1 },
+    loop: false,
+    muted: false,
+    billboard: true,
+    criteria: {
+      heardCat: true,
+      currentState: {
+        $gte: GAME_STATES.INTRO,
+      },
+    },
+    autoPlay: true,
+    once: true,
+    priority: 0,
+    platform: "safari", // Only load on Safari (all Safari users, not just iOS)
   },
   cat2: {
     id: "cat2",
@@ -127,28 +168,31 @@ export const videos = {
     once: true,
     priority: 0,
     delay: 3.5,
+    platform: "!safari", // Don't load on Safari (use cat2Safari instead)
   },
-
-  // ciotat: {
-  //   id: "ciotat",
-  //   videoPath: "/video/ciotat.mp4",
-  //   preload: false, // Load after loading screen
-  //   position: { x: -5.11, y: 9.9, z: 101.1 },
-  //   rotation: { x: 3.1416, y: 0.1051, z: 3.1416 },
-  //   scale: { x: 3.23, y: 2.0, z: 1.0 },
-  //   loop: true,
-  //   muted: false,
-  //   billboard: false,
-  //   criteria: {
-  //     currentState: {
-  //       $gte: GAME_STATES.WAKING_UP,
-  //     },
-  //   },
-  //   autoPlay: true,
-  //   once: true,
-  //   priority: 0,
-  //   delay: 3.5,
-  // },
+  cat2Safari: {
+    id: "cat2Safari",
+    videoPath: "/video/mov/cat-2-paws.mov",
+    gizmo: false,
+    preload: false, // Load after loading screen
+    position: { x: -1.39, y: 1.91, z: 81.48 },
+    rotation: { x: 0.0, y: -0.8856, z: 0.0 },
+    scale: { x: 0.12, y: 0.21, z: 1.31 },
+    loop: false,
+    muted: false,
+    billboard: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.POST_VIEWMASTER,
+        $lte: GAME_STATES.EDISON,
+      },
+    },
+    autoPlay: true,
+    once: true,
+    priority: 0,
+    delay: 3.5,
+    platform: "safari", // Only load on Safari
+  },
 
   punch: {
     id: "punch",
@@ -181,6 +225,40 @@ export const videos = {
     },
     autoPlay: true,
     delay: 0.2,
+    platform: "!safari", // Don't load on Safari (use punchSafari instead)
+  },
+  punchSafari: {
+    id: "punchSafari",
+    videoPath: "/video/mov/shadow-punch.mov",
+    preload: false, // Load after loading screen
+    position: (gameManager) => {
+      if (!gameManager?.characterController) {
+        logger.warn("Cannot get player position, using origin");
+        return { x: 0, y: 1.8, z: 0 };
+      }
+
+      return gameManager.characterController.getPosition({
+        x: 0,
+        y: 1.5,
+        z: 1.35,
+      });
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 0.79, y: 0.79, z: 0.79 },
+    loop: false,
+    muted: true,
+    billboard: true,
+    once: true,
+    priority: 0,
+    spawnCriteria: {
+      currentState: {
+        $gte: GAME_STATES.SHOULDER_TAP,
+        $lt: GAME_STATES.LIGHTS_OUT,
+      },
+    },
+    autoPlay: true,
+    delay: 0.2,
+    platform: "safari", // Only load on Safari
   },
 
   hesTiedUsUp: {
@@ -201,6 +279,27 @@ export const videos = {
         $gte: GAME_STATES.WAKING_UP,
       },
     },
+    platform: "!safari", // Don't load on Safari (use hesTiedUsUpSafari instead)
+  },
+  hesTiedUsUpSafari: {
+    id: "hesTiedUsUpSafari",
+    videoPath: "/video/mov/leclaire-hes-tied-us-up.mov",
+    preload: false, // Load after loading screen
+    position: { x: -4.28, y: 5.94, z: 75.77 },
+    rotation: { x: 0.0, y: 0.0, z: 0.0 },
+    scale: { x: 0.39, y: 0.67, z: 0.81 },
+    autoPlay: true,
+    loop: false,
+    billboard: true,
+    muted: false,
+    delay: 6.0,
+    once: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.WAKING_UP,
+      },
+    },
+    platform: "safari", // Only load on Safari
   },
 
   soUnkind: {
@@ -219,6 +318,10 @@ export const videos = {
       currentState: {
         $eq: GAME_STATES.WAKING_UP,
       },
+      // Only play if player did NOT choose empathetic response to dialog choice 2
+      dialogChoice2: {
+        $ne: DIALOG_RESPONSE_TYPES.EMPATH,
+      },
     },
     spatial: true,
     audioPositionOffset: { x: 0, y: 0, z: 0 },
@@ -230,6 +333,40 @@ export const videos = {
       maxDistance: 100,
     },
     playNext: "shadowAmplifications",
+    platform: "!safari", // Don't load on Safari (use soUnkindSafari instead)
+  },
+  soUnkindSafari: {
+    id: "soUnkindSafari",
+    videoPath: "/video/mov/shadow-so-unkind.mov",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 6.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+      // Only play if player did NOT choose empathetic response to dialog choice 2
+      dialogChoice2: {
+        $ne: DIALOG_RESPONSE_TYPES.EMPATH,
+      },
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplificationsSafari",
+    platform: "safari", // Only load on Safari
   },
 
   shadowAmplifications: {
@@ -253,6 +390,30 @@ export const videos = {
         viewmasterOverheatDialogIndex: null,
       });
     },
+    platform: "!safari", // Don't load on Safari (use shadowAmplificationsSafari instead)
+  },
+  shadowAmplificationsSafari: {
+    id: "shadowAmplificationsSafari",
+    videoPath: "/video/mov/shadow-amplifications.mov",
+    preload: false, // Load after loading screen
+    position: { x: -8.47, y: 1.96, z: 75.51 },
+    rotation: { x: 0.0, y: -0.2291, z: 0.0 },
+    scale: { x: 0.94, y: 0.91, z: 3.04 },
+    autoPlay: false,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 1.0,
+    onComplete: (gameManager) => {
+      console.log("shadowAmplifications complete");
+      gameManager.setState({
+        currentState: GAME_STATES.SHADOW_AMPLIFICATIONS,
+        isViewmasterEquipped: true,
+        viewmasterManuallyRemoved: false,
+        viewmasterOverheatDialogIndex: null,
+      });
+    },
+    platform: "safari", // Only load on Safari
   },
 
   catChew: {
@@ -273,6 +434,27 @@ export const videos = {
         $gte: GAME_STATES.CAT_SAVE,
       },
     },
+    platform: "!safari", // Don't load on Safari (use catChewSafari instead)
+  },
+  catChewSafari: {
+    id: "catChewSafari",
+    videoPath: "/video/mov/cat-3-wire.mov",
+    preload: false,
+    position: { x: -2.1, y: 1.26, z: 80.85 },
+    rotation: { x: 0.0, y: -0.5905, z: 0.0 },
+    scale: { x: 0.18, y: 0.28, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: true,
+    muted: false,
+    delay: 0.0,
+    once: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.CAT_SAVE,
+      },
+    },
+    platform: "safari", // Only load on Safari
   },
 
   shadowTrance: {
@@ -290,6 +472,87 @@ export const videos = {
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
     },
+    platform: "!safari", // Don't load on Safari (use shadowTranceSafari instead)
+  },
+  shadowTranceSafari: {
+    id: "shadowTranceSafari",
+    videoPath: "/video/mov/shadow-trance.mov",
+    preload: false,
+    position: { x: -10.42, y: 2.2, z: 81.94 },
+    rotation: { x: 0.0, y: 1.4047, z: 0.0 },
+    scale: { x: 1.07, y: 1.52, z: 1.52 },
+    autoPlay: true,
+    loop: true,
+    billboard: true,
+    muted: false,
+    delay: 0.0,
+    criteria: {
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+    },
+    platform: "safari", // Only load on Safari
+  },
+
+  shadowQuietTheGirl: {
+    id: "shadowQuietTheGirl",
+    videoPath: "/video/shadow-quiet-the-girl.webm",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 6.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+      // Only play if player chose empathetic response to dialog choice 2
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplifications",
+    platform: "!safari", // Don't load on Safari (use shadowQuietTheGirlSafari instead)
+  },
+  shadowQuietTheGirlSafari: {
+    id: "shadowQuietTheGirlSafari",
+    videoPath: "/video/mov/shadow-quiet-the-girl.mov",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 6.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+      // Only play if player chose empathetic response to dialog choice 2
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplificationsSafari",
+    platform: "safari", // Only load on Safari
   },
 };
 

@@ -316,9 +316,33 @@ class MusicManager {
   /**
    * Load deferred tracks (called after loading screen)
    */
-  loadDeferredTracks() {
-    this.logger.log(`Loading ${this.deferredTracks.size} deferred tracks`);
+  async loadDeferredTracks() {
+    // Get current game state to check if criteria have passed
+    const currentState = this.gameManager?.getState() || {};
+    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+    const { musicTracks } = await import("./musicData.js");
+    
+    // Filter deferred tracks to skip those whose criteria have passed
+    const tracksToLoad = [];
     for (const [name, { src, options }] of this.deferredTracks) {
+      // Get track data to check criteria
+      const trackData = musicTracks[name];
+      if (trackData?.criteria && !couldCriteriaStillMatch(currentState, trackData.criteria)) {
+        this.logger.log(
+          `Skipping deferred track "${name}" - criteria have already passed (currentState: ${currentState.currentState})`
+        );
+        continue;
+      }
+      tracksToLoad.push([name, { src, options }]);
+    }
+
+    if (tracksToLoad.length === 0) {
+      this.deferredTracks.clear();
+      return;
+    }
+
+    this.logger.log(`Loading ${tracksToLoad.length} deferred tracks`);
+    for (const [name, { src, options }] of tracksToLoad) {
       this.tracks[name] = new Howl({
         src: Array.isArray(src) ? src : [src],
         loop: options.loop !== undefined ? options.loop : true,

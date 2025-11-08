@@ -64,6 +64,13 @@ class DialogManager {
     // Preloading support
     this.preloadedAudio = new Map(); // Map of dialogId -> Howl instance
     this.deferredDialogs = new Map(); // Map of dialogId -> dialog data for later loading
+    this.prefetchedAudio = new Map(); // Map of dialogId -> { blob, blobUrl, dialogData, size } for iOS
+    
+    // Prefetch budget system (iOS) - separate from SFXManager
+    // Note: DialogManager has its own budget pool separate from SFXManager
+    this.prefetchBudgetMax = 25 * 1024 * 1024; // 25MB in bytes
+    this.prefetchBudgetUsed = 0; // Current budget usage in bytes
+    this.prefetchQueue = []; // Queue of dialogs waiting to be prefetched (sorted by priority)
 
     // Cache getDialogsForState import for continuous evaluation
     this._getDialogsForState = null;
@@ -373,16 +380,38 @@ class DialogManager {
       }
     }
 
+    // Check if we're on iOS - iOS has strict audio pool limits
+    // gameManager might not be set yet, so check window.gameManager or state directly
+    const isIOS =
+      this.gameManager?.getState()?.isIOS ||
+      (typeof window !== "undefined" && window.gameManager?.getState()?.isIOS) ||
+      false;
+
     Object.values(dialogsData).forEach((dialog) => {
       if (!dialog.audio) return; // Skip dialogs without audio
 
       // In debug mode, force preload if this dialog matches the debug state
-      const shouldPreload =
+      let shouldPreload =
         matchingDialogIds.has(dialog.id)
           ? true
           : dialog.preload !== undefined
           ? dialog.preload
           : true; // Default to true for backwards compatibility
+
+      // On iOS, add to prefetch queue instead of immediately prefetching
+      if (isIOS && shouldPreload) {
+        // Calculate priority based on earliest game state where criteria matches
+        const priority = this._calculateDialogPriority(dialog);
+        this.prefetchQueue.push({ dialog, priority });
+        // Sort queue by priority (lower priority number = earlier in game = higher priority)
+        this.prefetchQueue.sort((a, b) => a.priority - b.priority);
+        this.logger.log(
+          `iOS: Added dialog "${dialog.id}" to prefetch queue (priority: ${priority})`
+        );
+        // Process queue asynchronously (don't block)
+        this._processPrefetchQueue();
+        return; // Don't create Howl instance yet
+      }
 
       // If preload is false, defer loading (file won't be fetched until after loading screen)
       if (!shouldPreload) {
@@ -421,29 +450,322 @@ class DialogManager {
   }
 
   /**
+   * Calculate priority for a dialog based on earliest game state where criteria matches
+   * Lower number = earlier in game = higher priority
+   * @param {Object} dialog - Dialog data
+   * @returns {number} Priority value (lower = higher priority)
+   * @private
+   */
+  _calculateDialogPriority(dialog) {
+    if (!dialog.criteria) {
+      // No criteria = always available, low priority
+      return 9999;
+    }
+
+    const criteria = dialog.criteria;
+
+    // If criteria has currentState, use that value as priority
+    if (criteria.currentState !== undefined) {
+      if (typeof criteria.currentState === 'number') {
+        return criteria.currentState;
+      } else if (criteria.currentState.$gte !== undefined) {
+        return criteria.currentState.$gte;
+      } else if (criteria.currentState.$in !== undefined && Array.isArray(criteria.currentState.$in)) {
+        return Math.min(...criteria.currentState.$in);
+      } else if (criteria.currentState.$eq !== undefined) {
+        return criteria.currentState.$eq;
+      }
+    }
+
+    // Default: medium priority
+    return 50;
+  }
+
+  /**
+   * Process prefetch queue, prefetching dialogs when budget allows
+   * @private
+   */
+  async _processPrefetchQueue() {
+    // Don't process if already processing or no queue items
+    if (this._processingPrefetchQueue || this.prefetchQueue.length === 0) {
+      return;
+    }
+
+    this._processingPrefetchQueue = true;
+
+    // Get current game state to check if criteria have passed
+    const currentState = this.gameManager?.getState() || {};
+    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+
+    while (this.prefetchQueue.length > 0) {
+      // Check if we have budget available
+      const availableBudget = this.prefetchBudgetMax - this.prefetchBudgetUsed;
+      if (availableBudget <= 0) {
+        this.logger.log(
+          `Dialog prefetch budget exhausted (${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB), waiting for assets to clear`
+        );
+        break;
+      }
+
+      // Get next item from queue
+      const { dialog } = this.prefetchQueue.shift();
+
+      // Skip if already prefetched or registered
+      if (this.prefetchedAudio.has(dialog.id) || this.preloadedAudio.has(dialog.id)) {
+        continue;
+      }
+
+      // Skip if criteria have already passed (e.g., in debug spawn mode)
+      if (dialog.criteria && !couldCriteriaStillMatch(currentState, dialog.criteria)) {
+        this.logger.log(
+          `Skipping prefetch for dialog "${dialog.id}" - criteria have already passed (currentState: ${currentState.currentState})`
+        );
+        continue;
+      }
+
+      // Prefetch the dialog
+      await this._prefetchDialog(dialog);
+    }
+
+    this._processingPrefetchQueue = false;
+  }
+
+  /**
+   * Prefetch a dialog audio file using fetch() (doesn't use Howl audio pool)
+   * @param {Object} dialog - Dialog data
+   * @private
+   */
+  async _prefetchDialog(dialog) {
+    if (!dialog.audio) return;
+
+    // Register with loading screen if available
+    if (this.loadingScreen) {
+      this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
+    }
+
+    try {
+      const response = await fetch(dialog.audio);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const actualSize = blob.size;
+
+      // Check if we have budget for this file
+      const availableBudget = this.prefetchBudgetMax - this.prefetchBudgetUsed;
+      if (actualSize > availableBudget) {
+        this.logger.warn(
+          `Dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(2)}MB) exceeds available budget (${(availableBudget / 1024 / 1024).toFixed(2)}MB), deferring`
+        );
+        // Fall back to deferred loading
+        this.deferredDialogs.set(dialog.id, dialog);
+        if (this.loadingScreen) {
+          this.loadingScreen.completeTask(`dialog_${dialog.id}`);
+        }
+        return;
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Store prefetched data with size
+      this.prefetchedAudio.set(dialog.id, {
+        blob,
+        blobUrl,
+        dialogData: dialog,
+        size: actualSize,
+      });
+
+      // Update budget
+      this.prefetchBudgetUsed += actualSize;
+
+      this.logger.log(
+        `Prefetched dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(2)}MB, budget: ${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB)`
+      );
+
+      if (this.loadingScreen) {
+        this.loadingScreen.completeTask(`dialog_${dialog.id}`);
+      }
+
+      // Process more items from queue if budget allows
+      this._processPrefetchQueue();
+    } catch (error) {
+      this.logger.error(`Failed to prefetch dialog "${dialog.id}":`, error);
+      if (this.loadingScreen) {
+        this.loadingScreen.completeTask(`dialog_${dialog.id}`);
+      }
+      // Fall back to deferred loading
+      this.deferredDialogs.set(dialog.id, dialog);
+    }
+  }
+
+  /**
+   * Create Howl instance from prefetched blob
+   * @param {string} dialogId - Dialog ID
+   * @param {Object} prefetched - Prefetched data { blob, blobUrl, dialogData, size }
+   * @returns {Promise<Howl>} Promise that resolves when Howl is loaded
+   * @private
+   */
+  _createHowlFromPrefetched(dialogId, prefetched) {
+    const { blobUrl } = prefetched;
+
+    return new Promise((resolve, reject) => {
+      const howl = new Howl({
+        src: [blobUrl], // Use blob URL instead of original src
+        volume: this.audioVolume,
+        preload: true,
+        onload: () => {
+          this.logger.log(`Howl loaded from prefetched blob for dialog "${dialogId}"`);
+
+          // Free budget when converting blob to Howl
+          if (prefetched && prefetched.size) {
+            this.prefetchBudgetUsed -= prefetched.size;
+            this.logger.log(
+              `Freed ${(prefetched.size / 1024 / 1024).toFixed(2)}MB from dialog budget (now: ${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB)`
+            );
+            // Revoke blob URL to free memory
+            URL.revokeObjectURL(prefetched.blobUrl);
+          }
+          this.prefetchedAudio.delete(dialogId);
+
+          // Process more items from queue now that budget is available
+          this._processPrefetchQueue();
+
+          this.preloadedAudio.set(dialogId, howl);
+          resolve(howl);
+        },
+        onloaderror: (loadId, error) => {
+          this.logger.error(`Failed to load Howl from prefetched blob for dialog "${dialogId}":`, error);
+          // Free budget on error
+          if (prefetched && prefetched.size) {
+            this.prefetchBudgetUsed -= prefetched.size;
+            URL.revokeObjectURL(prefetched.blobUrl);
+          }
+          this.prefetchedAudio.delete(dialogId);
+          this._processPrefetchQueue();
+          reject(error);
+        },
+      });
+    });
+  }
+
+  /**
    * Load deferred dialogs (called after loading screen)
    */
-  loadDeferredDialogs() {
+  async loadDeferredDialogs() {
+    const isIOS = this.gameManager?.getState()?.isIOS || false;
+    const currentState = this.gameManager?.getState() || {};
+    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+
+    // First, create Howl instances from prefetched audio (iOS)
+    if (this.prefetchedAudio.size > 0) {
+      this.logger.log(
+        `Creating Howl instances from ${this.prefetchedAudio.size} prefetched dialogs`
+      );
+      for (const [dialogId, prefetched] of this.prefetchedAudio) {
+        // Skip if criteria have already passed
+        if (prefetched.dialogData?.criteria && !couldCriteriaStillMatch(currentState, prefetched.dialogData.criteria)) {
+          this.logger.log(
+            `Skipping prefetched dialog "${dialogId}" - criteria have already passed (currentState: ${currentState.currentState})`
+          );
+          // Free budget
+          if (prefetched && prefetched.size) {
+            this.prefetchBudgetUsed -= prefetched.size;
+            URL.revokeObjectURL(prefetched.blobUrl);
+          }
+          this.prefetchedAudio.delete(dialogId);
+          continue;
+        }
+        
+        try {
+          await this._createHowlFromPrefetched(dialogId, prefetched);
+          // Budget is freed in onload callback
+          // Small delay between Howl creations on iOS
+          if (isIOS) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        } catch (error) {
+          this.logger.error(`Failed to create Howl from prefetched dialog "${dialogId}":`, error);
+          // Free budget on error
+          if (prefetched && prefetched.size) {
+            this.prefetchBudgetUsed -= prefetched.size;
+            URL.revokeObjectURL(prefetched.blobUrl);
+          }
+          // Fall back to deferred loading
+          this.deferredDialogs.set(dialogId, prefetched.dialogData);
+        }
+      }
+      // Clear prefetched map (budget already freed in onload callbacks)
+      this.prefetchedAudio.clear();
+      
+      // Process queue now that budget is available
+      this._processPrefetchQueue();
+    }
+
     if (this.deferredDialogs.size === 0) {
       return;
     }
 
-    this.logger.log(`Loading ${this.deferredDialogs.size} deferred dialogs`);
+    // Filter deferred dialogs to skip those whose criteria have passed
+    const dialogsToLoad = [];
+    for (const [dialogId, dialog] of this.deferredDialogs) {
+      if (!dialog.audio) continue; // Skip dialogs without audio
+      if (dialog.criteria && !couldCriteriaStillMatch(currentState, dialog.criteria)) {
+        this.logger.log(
+          `Skipping deferred dialog "${dialogId}" - criteria have already passed (currentState: ${currentState.currentState})`
+        );
+        continue;
+      }
+      dialogsToLoad.push([dialogId, dialog]);
+    }
 
-    this.deferredDialogs.forEach((dialog, dialogId) => {
-      if (!dialog.audio) return; // Skip dialogs without audio
+    if (dialogsToLoad.length === 0) {
+      this.deferredDialogs.clear();
+      return;
+    }
 
-      const howl = new Howl({
-        src: [dialog.audio],
-        volume: this.audioVolume,
-        preload: true,
-      });
+    this.logger.log(
+      `Loading ${dialogsToLoad.length} deferred dialogs${isIOS ? " (iOS: sequential loading)" : ""}`
+    );
 
-      this.preloadedAudio.set(dialogId, howl);
+    // On iOS, load dialogs sequentially with delays to avoid exhausting audio pool
+    if (isIOS) {
+      for (const [dialogId, dialog] of dialogsToLoad) {
+        await this._loadDeferredDialog(dialogId, dialog);
+        // Small delay between loads to prevent audio pool exhaustion
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    } else {
+      // On other platforms, load in parallel (faster)
+      for (const [dialogId, dialog] of dialogsToLoad) {
+        this._loadDeferredDialog(dialogId, dialog);
+      }
+    }
+    this.deferredDialogs.clear();
+  }
+
+  /**
+   * Load a single deferred dialog
+   * @param {string} dialogId - Dialog ID
+   * @param {Object} dialog - Dialog data
+   * @private
+   */
+  _loadDeferredDialog(dialogId, dialog) {
+    if (!dialog.audio) return; // Skip dialogs without audio
+
+    const howl = new Howl({
+      src: [dialog.audio],
+      volume: this.audioVolume,
+      preload: true,
+      onload: () => {
+        this.logger.log(`Loaded deferred dialog "${dialogId}"`);
+      },
+      onloaderror: (id, error) => {
+        this.logger.error(`Failed to load deferred dialog "${dialogId}":`, error);
+      },
     });
 
-    this.deferredDialogs.clear();
-    this.logger.log("Loaded deferred dialogs");
+    this.preloadedAudio.set(dialogId, howl);
   }
 
   /**
@@ -738,7 +1060,7 @@ class DialogManager {
    * @param {Object} dialogData - Dialog data object
    * @param {Function} onComplete - Optional callback when dialog completes
    */
-  playDialog(dialogData, onComplete = null) {
+  async playDialog(dialogData, onComplete = null) {
     if (!dialogData) {
       this.logger.warn("playDialog called with null/undefined dialogData");
       return;
@@ -890,7 +1212,29 @@ class DialogManager {
     // Load and play audio (only if not video-synced)
     else if (dialogData.audio) {
       // Check if audio was preloaded or loaded from deferred
-      if (this.preloadedAudio.has(dialogId)) {
+      // Check if dialog is prefetched (iOS) - create Howl from blob
+      if (this.prefetchedAudio.has(dialogId)) {
+        this.logger.log(`Creating Howl from prefetched blob for dialog "${dialogId}"`);
+        const prefetched = this.prefetchedAudio.get(dialogId);
+        try {
+          audio = await this._createHowlFromPrefetched(dialogId, prefetched);
+          // Budget is freed in onload callback of _createHowlFromPrefetched
+        } catch (error) {
+          this.logger.error(`Failed to create Howl from prefetched dialog "${dialogId}":`, error);
+          // Free budget even on error
+          if (prefetched && prefetched.size) {
+            this.prefetchBudgetUsed -= prefetched.size;
+            URL.revokeObjectURL(prefetched.blobUrl);
+          }
+          this.prefetchedAudio.delete(dialogId);
+          // Process queue now that budget is available
+          this._processPrefetchQueue();
+          // Fall back to deferred loading
+          this.deferredDialogs.set(dialogId, prefetched.dialogData);
+        }
+      }
+      
+      if (!audio && this.preloadedAudio.has(dialogId)) {
         this.logger.log(`Using preloaded audio for "${dialogId}"`);
         audio = this.preloadedAudio.get(dialogId);
 

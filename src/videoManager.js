@@ -134,6 +134,34 @@ class VideoManager {
   }
 
   /**
+   * Check if a video should be loaded on the current platform
+   * @param {Object} videoConfig - Video configuration
+   * @returns {boolean} True if video should be loaded on current platform
+   * @private
+   */
+  _shouldLoadOnPlatform(videoConfig) {
+    if (!videoConfig.platform) {
+      return true; // No platform restriction, load on all platforms
+    }
+
+    const state = this.gameManager?.getState() || {};
+    const isIOS = state.isIOS || false;
+    const isSafari = state.isSafari || false;
+
+    // Support both old "ios" and new "safari" platform values for backwards compatibility
+    if (videoConfig.platform === "ios" || videoConfig.platform === "safari") {
+      return videoConfig.platform === "ios" ? isIOS : isSafari;
+    } else if (
+      videoConfig.platform === "!ios" ||
+      videoConfig.platform === "!safari"
+    ) {
+      return videoConfig.platform === "!ios" ? !isIOS : !isSafari;
+    }
+
+    return true; // Unknown platform value, default to loading
+  }
+
+  /**
    * Update all videos based on current game state
    * Checks criteria for each video and plays/stops accordingly
    * Supports separate spawnCriteria and playCriteria for advanced control
@@ -151,6 +179,19 @@ class VideoManager {
 
     // Check all videos defined in videoData
     for (const [videoId, videoConfig] of Object.entries(videos)) {
+      // Skip videos that shouldn't load on current platform
+      if (!this._shouldLoadOnPlatform(videoConfig)) {
+        // If video exists but shouldn't be on this platform, remove it
+        const player = this.videoPlayers.get(videoId);
+        if (player) {
+          player.destroy();
+          this.videoPlayers.delete(videoId);
+          this.logger.log(
+            `Removed video "${videoId}" (not supported on current platform)`
+          );
+        }
+        continue;
+      }
       // Determine spawn criteria (when video mesh should exist)
       const spawnCriteria = videoConfig.spawnCriteria || videoConfig.criteria;
       const matchesSpawnCriteria = spawnCriteria
@@ -510,6 +551,14 @@ class VideoManager {
       return;
     }
 
+    // Skip videos that shouldn't load on current platform
+    if (!this._shouldLoadOnPlatform(videoConfig)) {
+      this.logger.warn(
+        `Video "${videoId}" is not supported on current platform`
+      );
+      return;
+    }
+
     // Check if video should be deferred (preload: false and loading screen still active)
     const shouldPreload = videoConfig.preload !== false; // Default to true
     const isLoadingComplete =
@@ -714,12 +763,30 @@ class VideoManager {
    * Load deferred videos (preload: false) - fetch all of them regardless of state
    * Called after loading screen completes
    */
-  loadDeferredVideos() {
+  async loadDeferredVideos() {
+    // Get current game state to check if criteria have passed
+    const currentState = this.gameManager?.getState() || {};
+    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+    
     // Find all videos with preload: false
     const deferredVideoIds = [];
     for (const [videoId, videoConfig] of Object.entries(videos)) {
+      // Skip videos that shouldn't load on current platform
+      if (!this._shouldLoadOnPlatform(videoConfig)) {
+        continue;
+      }
+
       const shouldPreload = videoConfig.preload !== false; // Default to true
       if (!shouldPreload) {
+        // Check if criteria have already passed (e.g., in debug spawn mode)
+        // Check both spawnCriteria and criteria
+        const spawnCriteria = videoConfig.spawnCriteria || videoConfig.criteria;
+        if (spawnCriteria && !couldCriteriaStillMatch(currentState, spawnCriteria)) {
+          this.logger.log(
+            `Skipping deferred video "${videoId}" - criteria have already passed (currentState: ${currentState.currentState})`
+          );
+          continue;
+        }
         deferredVideoIds.push(videoId);
       }
     }

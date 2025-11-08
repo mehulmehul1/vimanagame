@@ -126,7 +126,80 @@ export function checkCriteria(gameState, criteria) {
   return true;
 }
 
+/**
+ * Check if criteria could still be met in the future given current game state
+ * Used to skip prefetching assets whose criteria have already passed (e.g., in debug spawn mode)
+ *
+ * This is a simplified check: if criteria has $lt/$lte and we're past it, or $eq and we're not at it,
+ * or $in with no future states, then it can never match again.
+ *
+ * @param {Object} currentState - Current game state
+ * @param {Object} criteria - Criteria object with key-value pairs
+ * @returns {boolean} True if criteria could still be met, false if it's impossible
+ */
+export function couldCriteriaStillMatch(currentState, criteria) {
+  if (!criteria || typeof criteria !== "object") {
+    return true; // No criteria means always could match
+  }
+
+  // Only check currentState - other criteria (flags, choices) could change
+  if (!criteria.currentState) {
+    return true; // No currentState criteria, assume could match
+  }
+
+  const currentStateValue = currentState.currentState;
+  const value = criteria.currentState;
+
+  // Simple equality - can match if we're at that state or haven't reached it yet
+  // (states only increase, so if we're past it, it can never match)
+  if (typeof value === "number") {
+    return currentStateValue <= value;
+  }
+
+  // Operator-based checks
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    // Check if any operator prevents future matching
+    for (const [operator, compareValue] of Object.entries(value)) {
+      switch (operator) {
+        case "$eq":
+          // Can only match if we're at that exact state
+          if (currentStateValue !== compareValue) return false;
+          break;
+
+        case "$lt":
+          // Can only match if currentState < compareValue
+          if (currentStateValue >= compareValue) return false;
+          break;
+
+        case "$lte":
+          // Can only match if currentState <= compareValue
+          if (currentStateValue > compareValue) return false;
+          break;
+
+        case "$in":
+          // Can match if currentState is in array or any future state is in array
+          if (Array.isArray(compareValue)) {
+            if (!compareValue.includes(currentStateValue)) {
+              // Check if any future state (>= current) is in array
+              const hasFutureState = compareValue.some(
+                (s) => s >= currentStateValue
+              );
+              if (!hasFutureState) return false;
+            }
+          }
+          break;
+
+        // $gt, $gte, $ne, $nin - could always match in future (states only increase)
+        // No need to check these
+      }
+    }
+  }
+
+  return true; // Could still match
+}
+
 export default {
   matchesCriteria,
   checkCriteria,
+  couldCriteriaStillMatch,
 };

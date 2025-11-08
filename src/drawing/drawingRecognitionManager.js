@@ -13,9 +13,8 @@ export class DrawingRecognitionManager {
     this.drawingCanvas = null;
     this.raycaster = new THREE.Raycaster();
     this.expectedDrawing = null;
-    this.recognitionThreshold = 0.4;
     this.isDrawingMode = false;
-    this.logger = new Logger("DrawingRecognitionManager", false);
+    this.logger = new Logger("DrawingRecognitionManager", true);
     this.showEmojiUI = false;
     this.isPointerOverCanvas = false;
     this.onStrokeEndCallback = null;
@@ -35,10 +34,10 @@ export class DrawingRecognitionManager {
           resolve();
         };
         const onError = reject;
-        
+
         existing.addEventListener("load", onLoad, { once: true });
         existing.addEventListener("error", onError, { once: true });
-        
+
         // Also check if already loaded (in case event fired before listener)
         if (existing.dataset.loaded === "true") {
           resolve();
@@ -336,7 +335,10 @@ export class DrawingRecognitionManager {
 
     const tensor = window.tf.tidy(() => {
       const imgTensor = window.tf.browser.fromPixels(canvas, 1);
-      return window.tf.expandDims(imgTensor, 0);
+      // Explicitly cast to float32 (keeps 0-255 pixel values)
+      // This fixes macOS/iOS issue where fromPixels returns int32
+      const floatTensor = imgTensor.toFloat();
+      return window.tf.expandDims(floatTensor, 0);
     });
 
     this.logger.log("Tensor:", tensor);

@@ -1032,10 +1032,25 @@ class CharacterController {
   /**
    * Enable all character input (movement + rotation)
    * Convenience method for other systems
+   * @param {boolean} syncFromCamera - If true, sync yaw/pitch from camera quaternion (default: true)
    */
-  enableInput() {
+  enableInput(syncFromCamera = true) {
     this.inputDisabled = false;
     this.cameraSyncDisabled = false; // Re-enable camera sync when input is enabled
+
+    // Sync yaw/pitch from camera quaternion to prevent snapping when taking control
+    if (syncFromCamera) {
+      const euler = new THREE.Euler().setFromQuaternion(
+        this.camera.quaternion,
+        "YXZ"
+      );
+      this.yaw = euler.y;
+      this.pitch = euler.x;
+      this.targetYaw = this.yaw;
+      this.targetPitch = this.pitch;
+      this.bodyYaw = this.yaw; // Sync body yaw too
+    }
+
     this.inputManager.enable();
   }
 

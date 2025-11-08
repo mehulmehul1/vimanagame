@@ -658,7 +658,9 @@ if (typeof inputManager.setGizmoProbe === "function") {
 let lastTime;
 renderer.setAnimationLoop(function animate(time) {
   const t = time * 0.001;
-  const dt = Math.min(0.033, t - (lastTime ?? t));
+  // Cap dt at 0.1s (10fps) to prevent spiral of death on very slow frames
+  // But allow larger values than 0.033s so animations complete in real time on slower machines
+  const dt = Math.min(0.1, t - (lastTime ?? t));
   lastTime = t;
 
   // Update start screen (camera animation and transition)
