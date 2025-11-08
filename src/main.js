@@ -38,6 +38,7 @@ import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.j
 import { DrawingManager } from "./drawing/drawingManager.js";
 import { RuneManager } from "./content/runeManager.js";
 import { detectPlatform } from "./utils/platformDetection.js";
+import { unlockAllAudioContexts } from "./vfx/proceduralAudio.js";
 import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
@@ -647,6 +648,34 @@ gizmoManager.applyGlobalBlocksFromDefinitions({
 });
 
 // Standardize: let gizmo manager own global side-effects from now on
+
+// Global user interaction handler to unlock all audio contexts (Safari autoplay policy)
+// This ensures procedural audio works reliably after any user interaction
+let audioUnlocked = false;
+const unlockAudioOnInteraction = () => {
+  if (!audioUnlocked) {
+    unlockAllAudioContexts();
+    // Also unlock Howler for SFX/Music
+    if (typeof Howler !== "undefined" && typeof Howler.unlock === "function") {
+      Howler.unlock();
+    }
+    audioUnlocked = true;
+    logger.log("✅ Audio contexts unlocked via user interaction");
+    // Keep listener active in case new audio contexts are created
+  } else {
+    // Still unlock on subsequent interactions (new contexts might be created)
+    unlockAllAudioContexts();
+  }
+};
+
+// Listen for any user interaction to unlock audio
+window.addEventListener("click", unlockAudioOnInteraction, { once: false });
+window.addEventListener("touchstart", unlockAudioOnInteraction, {
+  once: false,
+});
+window.addEventListener("keydown", unlockAudioOnInteraction, { once: false });
+window.addEventListener("mousedown", unlockAudioOnInteraction, { once: false });
+
 // IMPORTANT: Set integration BEFORE applyGlobalBlocksFromDefinitions so inputManager is available
 gizmoManager.setIntegration(uiManager?.components?.idleHelper, inputManager);
 

@@ -2,6 +2,7 @@ import { dyno } from "@sparkjsdev/spark";
 import { VFXManager } from "../vfxManager.js";
 import { Logger } from "../utils/logger.js";
 import { ProceduralAudio } from "./proceduralAudio.js";
+import { getSceneObjectsForState } from "../sceneData.js";
 
 /**
  * Convert number of octaves to audio pitch multiplier
@@ -126,7 +127,7 @@ export class SplatFractalEffect extends VFXManager {
       if (!needsMeshes) {
         // No target mesh IDs specified - nothing to do
         this.logger.log("No target mesh IDs specified - skipping mesh loading");
-        this.applyEffect(effect, state);
+        // Don't call applyEffect here - let updateForState handle it to prevent double-call
         return;
       }
 
@@ -172,15 +173,15 @@ export class SplatFractalEffect extends VFXManager {
         );
         // Store target IDs for potential future use (create new array to avoid reference issues)
         this.targetMeshIds = Array.isArray(targetIds) ? [...targetIds] : [];
-        // Still apply effect (will be a no-op but sets up state correctly)
-        this.applyEffect(effect, state);
+        // Don't call applyEffect here - let updateForState handle it to prevent double-call
+        // The meshes will be loaded later and applyEffect will be called then
         return;
       }
 
-      // Apply the effect
-      this.applyEffect(effect, state);
-
-      // Start audio when effect starts
+      // Don't call applyEffect here - let updateForState handle it to prevent double-call
+      // Meshes are now loaded and ready for when applyEffect is called
+      
+      // Start audio when effect starts (will be called again in applyEffect, but that's ok)
       if (this.audio && this.audio.audioContext && !this.audio.isPlaying) {
         this.audio.start();
       }
@@ -191,6 +192,7 @@ export class SplatFractalEffect extends VFXManager {
 
   /**
    * Wait for a mesh to be loaded by sceneManager
+   * Handles race condition where updateSceneForState hasn't started loading yet
    * @private
    */
   async _waitForMesh(meshId) {
@@ -203,13 +205,24 @@ export class SplatFractalEffect extends VFXManager {
       return mesh;
     }
 
+    // Check if mesh should be loaded for current state
+    // This helps handle race conditions where updateSceneForState hasn't started yet
+    let shouldBeLoaded = false;
+    if (this.gameManager) {
+      const currentState = this.gameManager.getState();
+      const objectsForState = getSceneObjectsForState(currentState);
+      shouldBeLoaded = objectsForState.some((obj) => obj.id === meshId);
+    }
+
     // Wait for it to load
     const maxWaitTime = 10000; // 10 seconds timeout
     const startTime = Date.now();
+    let hasCheckedLoading = false;
 
     while (!mesh && Date.now() - startTime < maxWaitTime) {
       // Check if it's loading
       if (this.sceneManager.isLoading(meshId)) {
+        hasCheckedLoading = true;
         this.logger.log(`  ${meshId} is loading...`);
         try {
           await this.sceneManager.loadingPromises.get(meshId);
@@ -218,6 +231,24 @@ export class SplatFractalEffect extends VFXManager {
         } catch (error) {
           this.logger.error(`Error waiting for ${meshId} to load:`, error);
           return null;
+        }
+      }
+
+      // If mesh should be loaded but isn't loading yet, wait a bit for updateSceneForState to start
+      // This handles the race condition where state changed but scene loading hasn't started
+      if (shouldBeLoaded && !hasCheckedLoading) {
+        const elapsed = Date.now() - startTime;
+        // Give updateSceneForState up to 500ms to start loading
+        if (elapsed < 500) {
+          this.logger.log(
+            `  ${meshId} should be loaded for current state, waiting for scene manager to start loading...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          continue;
+        } else {
+          hasCheckedLoading = true;
+          // After 500ms, if it's still not loading, it might not be loaded for this state
+          // or there's an issue - continue waiting anyway in case it starts
         }
       }
 
@@ -411,6 +442,7 @@ export class SplatFractalEffect extends VFXManager {
 
   /**
    * Try to load meshes if they're not already loaded but are needed
+   * Handles race conditions where meshes should be loaded but updateSceneForState hasn't started yet
    * @private
    */
   async _tryLoadMeshes(targetIds) {
@@ -443,8 +475,8 @@ export class SplatFractalEffect extends VFXManager {
       // Try to get mesh (might be available now)
       let mesh = this.sceneManager.getObject(meshId);
 
-      if (!mesh && this.sceneManager.isLoading(meshId)) {
-        // Mesh is loading, wait for it
+      if (!mesh) {
+        // Mesh not found - wait for it (handles race condition where updateSceneForState hasn't started)
         mesh = await this._waitForMesh(meshId);
       }
 
@@ -455,6 +487,10 @@ export class SplatFractalEffect extends VFXManager {
           this.targetMeshIds.push(meshId);
         }
         this.logger.log(`Loaded mesh: ${meshId}`);
+      } else {
+        this.logger.warn(
+          `Failed to load mesh: ${meshId} (may not be loaded for current state)`
+        );
       }
     }
   }

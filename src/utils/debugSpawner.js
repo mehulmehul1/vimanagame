@@ -152,6 +152,11 @@ const stateOverrides = {
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
   },
+  VIEWMASTER_DISSOLVE: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
 
   VIEWMASTER_HELL: {
     isPlaying: true,

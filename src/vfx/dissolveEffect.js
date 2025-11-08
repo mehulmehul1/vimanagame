@@ -34,10 +34,11 @@ import { setupUniforms, setupShaderSnippets } from "../utils/shaderHelper.js";
 import { DissolveParticleSystem } from "./dissolveParticleSystem.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ProceduralAudio } from "./proceduralAudio.js";
+import { getSceneObjectsForState } from "../sceneData.js";
 
 export class DissolveEffect extends VFXManager {
   constructor(scene, sceneManager, renderer) {
-    super("DissolveEffect", false);
+    super("DissolveEffect", true); // Enable debug logging
 
     this.scene = scene;
     this.sceneManager = sceneManager;
@@ -100,8 +101,9 @@ export class DissolveEffect extends VFXManager {
    * @param {Object} state - Current game state
    */
   async onFirstEnable(effect, state) {
-    this.logger.log("Enabling dissolve effect for first time");
-    this.applyEffect(effect, state);
+    this.logger.log("[DissolveEffect] Enabling dissolve effect for first time");
+    // Don't call applyEffect here - let the normal updateForState flow handle it
+    // This prevents double-calling applyEffect which can cause Safari issues
   }
 
   /**
@@ -113,172 +115,343 @@ export class DissolveEffect extends VFXManager {
     const params = effect.parameters || {};
 
     this.logger.log(
-      `🔥 Applying effect: ${effect.id} (state: ${state?.currentState})`,
+      `🔥 [DissolveEffect] Applying effect: ${effect.id} (state: ${state?.currentState})`,
       params
     );
 
-    // Enable/disable audio based on effect parameters and initialize if needed
-    if (params.enableAudio !== undefined) {
-      const wasEnabled = this.enableAudio;
-      this.enableAudio = params.enableAudio;
-
-      // Initialize audio if it's being enabled and context doesn't exist
-      if (this.enableAudio && !this.audio.audioContext) {
-        await this.audio.initialize();
-        this.logger.log("Audio initialized for dissolve effect");
-      }
-
-      // If audio context exists but is suspended, resume it
-      if (
-        this.enableAudio &&
-        this.audio.audioContext &&
-        this.audio.audioContext.state === "suspended"
-      ) {
-        await this.audio.audioContext.resume();
-        this.logger.log("Audio context resumed");
-      }
+    // Safari detection for debugging
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    if (isSafari) {
+      this.logger.log(`[Safari] applyEffect called for ${effect.id}`);
     }
 
-    // Handle suppressAudio parameter (for reverse transitions)
-    if (params.suppressAudio !== undefined) {
-      this.suppressAudio = params.suppressAudio;
-      // If suppressing audio and it's currently playing, stop it
-      if (
-        this.suppressAudio &&
-        this.audio.audioContext &&
-        this.audio.isPlaying
-      ) {
-        this.audio.stop();
+    try {
+      // Enable/disable audio based on effect parameters and initialize if needed
+      // Safari autoplay fix: Don't block effect application if audio can't initialize
+      if (params.enableAudio !== undefined) {
+        const wasEnabled = this.enableAudio;
+        this.enableAudio = params.enableAudio;
+
+        // Initialize audio if it's being enabled and context doesn't exist
+        // Use non-blocking approach - don't await, let it happen in background
+        if (this.enableAudio && !this.audio.audioContext) {
+          this.audio.initialize().catch((error) => {
+            // Safari autoplay policy: Audio context may fail to initialize without user gesture
+            // This is OK - visual effect should still work
+            this.logger.warn(
+              `[DissolveEffect] Audio initialization failed (may need user gesture):`,
+              error
+            );
+          });
+          this.logger.log("Audio initialization started (non-blocking)");
+        }
+
+        // If audio context exists but is suspended, try to resume it (non-blocking)
+        if (
+          this.enableAudio &&
+          this.audio.audioContext &&
+          this.audio.audioContext.state === "suspended"
+        ) {
+          this.audio.audioContext.resume().catch((error) => {
+            // Safari autoplay policy: Resume may fail without user gesture
+            // This is OK - visual effect should still work
+            this.logger.warn(
+              `[DissolveEffect] Audio context resume failed (may need user gesture):`,
+              error
+            );
+          });
+          this.logger.log("Audio context resume attempted (non-blocking)");
+        }
       }
-    }
 
-    // Extract parameters
-    const targetObjectIds = params.targetObjectIds || [];
-    const progress = params.progress !== undefined ? params.progress : 0;
-    const targetProgress =
-      params.targetProgress !== undefined ? params.targetProgress : 14.0;
-    const autoAnimate = params.autoAnimate || false;
-    const transitionDuration =
-      params.transitionDuration !== undefined ? params.transitionDuration : 0;
-    const mode = params.mode || "noise"; // "noise" or "wipe"
-    const wipeDirection = params.wipeDirection || "bottom-to-top";
-    const wipeSoftness =
-      params.wipeSoftness !== undefined ? params.wipeSoftness : 0.15;
-    const edgeColor1 = params.edgeColor1 || "#4d9bff";
-    const edgeColor2 = params.edgeColor2 || "#0733ff";
-    const particleColor = params.particleColor || "#4d9bff";
-    const frequency = params.frequency !== undefined ? params.frequency : 0.45;
-    const edgeWidth = params.edgeWidth !== undefined ? params.edgeWidth : 0.8;
-    const particleIntensity =
-      params.particleIntensity !== undefined ? params.particleIntensity : 1.0;
+      // Handle suppressAudio parameter (for reverse transitions)
+      if (params.suppressAudio !== undefined) {
+        this.suppressAudio = params.suppressAudio;
+        // If suppressing audio and it's currently playing, stop it
+        if (
+          this.suppressAudio &&
+          this.audio.audioContext &&
+          this.audio.isPlaying
+        ) {
+          this.audio.stop();
+        }
+      }
 
-    // Particle system parameters
-    const particleSize =
-      params.particleSize !== undefined ? params.particleSize : 35.0;
-    const particleDecimation =
-      params.particleDecimation !== undefined ? params.particleDecimation : 10;
-    const particleDispersion =
-      params.particleDispersion !== undefined ? params.particleDispersion : 8.0;
-    const particleVelocitySpread =
-      params.particleVelocitySpread !== undefined
-        ? params.particleVelocitySpread
-        : 0.15;
+      // Extract parameters
+      const targetObjectIds = params.targetObjectIds || [];
+      const progress = params.progress !== undefined ? params.progress : 0;
+      const targetProgress =
+        params.targetProgress !== undefined ? params.targetProgress : 14.0;
+      const autoAnimate = params.autoAnimate || false;
+      const transitionDuration =
+        params.transitionDuration !== undefined ? params.transitionDuration : 0;
+      const mode = params.mode || "noise"; // "noise" or "wipe"
+      const wipeDirection = params.wipeDirection || "bottom-to-top";
+      const wipeSoftness =
+        params.wipeSoftness !== undefined ? params.wipeSoftness : 0.15;
+      const edgeColor1 = params.edgeColor1 || "#4d9bff";
+      const edgeColor2 = params.edgeColor2 || "#0733ff";
+      const particleColor = params.particleColor || "#4d9bff";
+      const frequency =
+        params.frequency !== undefined ? params.frequency : 0.45;
+      const edgeWidth = params.edgeWidth !== undefined ? params.edgeWidth : 0.8;
+      const particleIntensity =
+        params.particleIntensity !== undefined ? params.particleIntensity : 1.0;
 
-    // Store animation settings
-    this.autoAnimate = autoAnimate;
-    this.targetProgress = targetProgress;
-    this.transitionDuration = transitionDuration;
+      // Particle system parameters
+      const particleSize =
+        params.particleSize !== undefined ? params.particleSize : 35.0;
+      const particleDecimation =
+        params.particleDecimation !== undefined
+          ? params.particleDecimation
+          : 10;
+      const particleDispersion =
+        params.particleDispersion !== undefined
+          ? params.particleDispersion
+          : 8.0;
+      const particleVelocitySpread =
+        params.particleVelocitySpread !== undefined
+          ? params.particleVelocitySpread
+          : 0.15;
 
-    // Setup dissolve for each target object
-    targetObjectIds.forEach((objectId) => {
-      const existingDissolve = this.activeDissolves.get(objectId);
+      // Store animation settings
+      this.autoAnimate = autoAnimate;
+      this.targetProgress = targetProgress;
+      this.transitionDuration = transitionDuration;
 
-      // Check if mode changed - if so, need to recreate
-      const modeChanged = existingDissolve && existingDissolve.mode !== mode;
+      // Setup dissolve for each target object
+      // Use async iteration to wait for objects that might be loading
+      // Safari-compatible: use traditional for loop instead of for...of with continue
+      this.logger.log(
+        `[DissolveEffect] Processing ${
+          targetObjectIds.length
+        } target objects: [${targetObjectIds.join(", ")}]`
+      );
 
-      // Check if object still exists in scene manager
-      const sceneObject = this.sceneManager.getObject(objectId);
-      if (!sceneObject) {
-        // Object no longer exists - remove any existing dissolve
-        if (existingDissolve) {
+      for (let i = 0; i < targetObjectIds.length; i++) {
+        const objectId = targetObjectIds[i];
+        this.logger.log(
+          `[DissolveEffect] Processing object: ${objectId} (${i + 1}/${
+            targetObjectIds.length
+          })`
+        );
+        const existingDissolve = this.activeDissolves.get(objectId);
+
+        // Check if mode changed - if so, need to recreate
+        const modeChanged = existingDissolve && existingDissolve.mode !== mode;
+        this.logger.log(
+          `[DissolveEffect] ${objectId}: existingDissolve=${!!existingDissolve}, modeChanged=${modeChanged}`
+        );
+
+        // Check if object still exists in scene manager
+        let sceneObject = this.sceneManager.getObject(objectId);
+        this.logger.log(
+          `[DissolveEffect] ${objectId}: sceneObject found=${!!sceneObject}`
+        );
+
+        // If not found, wait for it (handles race condition where updateSceneForState hasn't started)
+        if (!sceneObject) {
           this.logger.log(
-            `Object ${objectId} no longer exists, removing dissolve`
+            `[DissolveEffect] ${objectId}: Object not found, waiting for it...`
+          );
+          try {
+            sceneObject = await this._waitForObject(objectId);
+            this.logger.log(
+              `[DissolveEffect] ${objectId}: _waitForObject returned: ${!!sceneObject}`
+            );
+          } catch (error) {
+            this.logger.error(
+              `[DissolveEffect] Error waiting for object ${objectId}:`,
+              error
+            );
+            this.logger.error(`[DissolveEffect] Error stack:`, error?.stack);
+            sceneObject = null;
+          }
+          if (!sceneObject) {
+            // Object not found and not loading - remove any existing dissolve
+            this.logger.warn(
+              `[DissolveEffect] ${objectId}: Object still not found after waiting, skipping`
+            );
+            if (existingDissolve) {
+              this.logger.log(
+                `[DissolveEffect] ${objectId}: Object not found and not loading, removing dissolve`
+              );
+              this.removeDissolve(objectId);
+            }
+            // Skip this object - use if/else instead of continue for Safari compatibility
+          } else {
+            // Object found, proceed with setup
+            this._setupDissolveForObject(
+              objectId,
+              sceneObject,
+              existingDissolve,
+              modeChanged,
+              mode,
+              progress,
+              targetProgress,
+              transitionDuration,
+              wipeDirection,
+              wipeSoftness,
+              edgeColor1,
+              edgeColor2,
+              particleColor,
+              frequency,
+              edgeWidth,
+              particleIntensity,
+              particleSize,
+              particleDecimation,
+              particleDispersion,
+              particleVelocitySpread
+            );
+          }
+        } else {
+          // Object found immediately, proceed with setup
+          this._setupDissolveForObject(
+            objectId,
+            sceneObject,
+            existingDissolve,
+            modeChanged,
+            mode,
+            progress,
+            targetProgress,
+            transitionDuration,
+            wipeDirection,
+            wipeSoftness,
+            edgeColor1,
+            edgeColor2,
+            particleColor,
+            frequency,
+            edgeWidth,
+            particleIntensity,
+            particleSize,
+            particleDecimation,
+            particleDispersion,
+            particleVelocitySpread
+          );
+        }
+      }
+
+      // Remove dissolves for objects no longer in target list
+      const activeIds = Array.from(this.activeDissolves.keys());
+      activeIds.forEach((objectId) => {
+        if (!targetObjectIds.includes(objectId)) {
+          this.logger.log(
+            `[DissolveEffect] Removing dissolve for ${objectId} (no longer in target list)`
           );
           this.removeDissolve(objectId);
         }
-        return; // Skip this object
+      });
+
+      this.logger.log(
+        `[DissolveEffect] applyEffect completed for ${effect.id}`
+      );
+    } catch (error) {
+      this.logger.error(
+        `[DissolveEffect] Fatal error in applyEffect for ${effect.id}:`,
+        error
+      );
+      this.logger.error(`[DissolveEffect] Error stack:`, error?.stack);
+      throw error; // Re-throw so VFXManager can catch it
+    }
+  }
+
+  /**
+   * Helper method to setup dissolve for a single object (Safari-compatible refactor)
+   * @private
+   */
+  _setupDissolveForObject(
+    objectId,
+    sceneObject,
+    existingDissolve,
+    modeChanged,
+    mode,
+    progress,
+    targetProgress,
+    transitionDuration,
+    wipeDirection,
+    wipeSoftness,
+    edgeColor1,
+    edgeColor2,
+    particleColor,
+    frequency,
+    edgeWidth,
+    particleIntensity,
+    particleSize,
+    particleDecimation,
+    particleDispersion,
+    particleVelocitySpread
+  ) {
+    if (!existingDissolve || modeChanged) {
+      // Update existing dissolve in place if mode changed
+      if (modeChanged) {
+        this.logger.log(
+          `Mode changed for ${objectId}, updating in place (${existingDissolve.mode} -> ${mode})`
+        );
+        this.logger.log(
+          `New progress: ${progress} -> ${targetProgress}, duration: ${transitionDuration}`
+        );
+
+        // Update uniforms and state in place without recreating materials
+        if (existingDissolve && existingDissolve.dissolveUniforms) {
+          if (sceneObject) {
+            const bbox = new THREE.Box3().setFromObject(sceneObject);
+            const color1 = new THREE.Color(edgeColor1);
+            const color2 = new THREE.Color(edgeColor2);
+
+            // Update all uniforms in place
+            existingDissolve.dissolveUniforms.uProgress.value = progress;
+            existingDissolve.dissolveUniforms.uDissolveMode.value =
+              mode === "wipe" ? 1.0 : 0.0;
+            existingDissolve.dissolveUniforms.uWipeDirection.value =
+              wipeDirection === "bottom-to-top" ? 0.0 : 1.0;
+            existingDissolve.dissolveUniforms.uWipeSoftness.value =
+              wipeSoftness;
+            existingDissolve.dissolveUniforms.uWipeBounds.value.set(
+              bbox.min.y,
+              bbox.max.y
+            );
+            existingDissolve.dissolveUniforms.uEdgeColor1.value.set(
+              color1.r,
+              color1.g,
+              color1.b
+            );
+            existingDissolve.dissolveUniforms.uEdgeColor2.value.set(
+              color2.r,
+              color2.g,
+              color2.b
+            );
+            existingDissolve.dissolveUniforms.uFreq.value = frequency;
+            existingDissolve.dissolveUniforms.uEdge.value = edgeWidth;
+
+            // Update state
+            existingDissolve.progress = progress;
+            existingDissolve.targetProgress = targetProgress;
+            existingDissolve.initialProgress = progress;
+            existingDissolve.transitionStartTime = Date.now();
+            existingDissolve.transitionDuration = transitionDuration;
+            existingDissolve.mode = mode;
+
+            // Remove old particles (wipe mode doesn't need them)
+            if (existingDissolve.particleMesh) {
+              this.scene.remove(existingDissolve.particleMesh);
+              existingDissolve.particleMesh.geometry.dispose();
+              existingDissolve.particleMesh.material.dispose();
+              existingDissolve.particleMesh = null;
+              existingDissolve.particleSystem = null;
+            }
+
+            this.logger.log(
+              `✓ Updated in place: progress=${progress}, bounds=${bbox.min.y.toFixed(
+                2
+              )}-${bbox.max.y.toFixed(2)}`
+            );
+          }
+        }
+        return; // Don't recreate
       }
 
-      if (!existingDissolve || modeChanged) {
-        // Update existing dissolve in place if mode changed
-        if (modeChanged) {
-          this.logger.log(
-            `Mode changed for ${objectId}, updating in place (${existingDissolve.mode} -> ${mode})`
-          );
-          this.logger.log(
-            `New progress: ${progress} -> ${targetProgress}, duration: ${transitionDuration}`
-          );
-
-          // Update uniforms and state in place without recreating materials
-          if (existingDissolve && existingDissolve.dissolveUniforms) {
-            const sceneObject = this.sceneManager.getObject(objectId);
-            if (sceneObject) {
-              const bbox = new THREE.Box3().setFromObject(sceneObject);
-              const color1 = new THREE.Color(edgeColor1);
-              const color2 = new THREE.Color(edgeColor2);
-
-              // Update all uniforms in place
-              existingDissolve.dissolveUniforms.uProgress.value = progress;
-              existingDissolve.dissolveUniforms.uDissolveMode.value =
-                mode === "wipe" ? 1.0 : 0.0;
-              existingDissolve.dissolveUniforms.uWipeDirection.value =
-                wipeDirection === "bottom-to-top" ? 0.0 : 1.0;
-              existingDissolve.dissolveUniforms.uWipeSoftness.value =
-                wipeSoftness;
-              existingDissolve.dissolveUniforms.uWipeBounds.value.set(
-                bbox.min.y,
-                bbox.max.y
-              );
-              existingDissolve.dissolveUniforms.uEdgeColor1.value.set(
-                color1.r,
-                color1.g,
-                color1.b
-              );
-              existingDissolve.dissolveUniforms.uEdgeColor2.value.set(
-                color2.r,
-                color2.g,
-                color2.b
-              );
-              existingDissolve.dissolveUniforms.uFreq.value = frequency;
-              existingDissolve.dissolveUniforms.uEdge.value = edgeWidth;
-
-              // Update state
-              existingDissolve.progress = progress;
-              existingDissolve.targetProgress = targetProgress;
-              existingDissolve.initialProgress = progress;
-              existingDissolve.transitionStartTime = Date.now();
-              existingDissolve.transitionDuration = transitionDuration;
-              existingDissolve.mode = mode;
-
-              // Remove old particles (wipe mode doesn't need them)
-              if (existingDissolve.particleMesh) {
-                this.scene.remove(existingDissolve.particleMesh);
-                existingDissolve.particleMesh.geometry.dispose();
-                existingDissolve.particleMesh.material.dispose();
-                existingDissolve.particleMesh = null;
-                existingDissolve.particleSystem = null;
-              }
-
-              this.logger.log(
-                `✓ Updated in place: progress=${progress}, bounds=${bbox.min.y.toFixed(
-                  2
-                )}-${bbox.max.y.toFixed(2)}`
-              );
-            }
-          }
-          return; // Don't recreate
-        }
-
+      this.logger.log(`[DissolveEffect] ${objectId}: Calling setupDissolve`);
+      try {
         this.setupDissolve(
           objectId,
           progress,
@@ -297,8 +470,25 @@ export class DissolveEffect extends VFXManager {
           particleDispersion,
           particleVelocitySpread
         );
-      } else {
-        // Update existing dissolve parameters (same mode)
+        this.logger.log(
+          `[DissolveEffect] ${objectId}: setupDissolve completed`
+        );
+      } catch (error) {
+        this.logger.error(
+          `[DissolveEffect] ${objectId}: Error in setupDissolve:`,
+          error
+        );
+        this.logger.error(
+          `[DissolveEffect] ${objectId}: Error stack:`,
+          error?.stack
+        );
+      }
+    } else {
+      // Update existing dissolve parameters (same mode)
+      this.logger.log(
+        `[DissolveEffect] ${objectId}: Updating existing dissolve parameters`
+      );
+      try {
         this.updateDissolveParams(
           existingDissolve,
           targetProgress,
@@ -308,16 +498,20 @@ export class DissolveEffect extends VFXManager {
           frequency,
           edgeWidth
         );
+        this.logger.log(
+          `[DissolveEffect] ${objectId}: updateDissolveParams completed`
+        );
+      } catch (error) {
+        this.logger.error(
+          `[DissolveEffect] ${objectId}: Error in updateDissolveParams:`,
+          error
+        );
+        this.logger.error(
+          `[DissolveEffect] ${objectId}: Error stack:`,
+          error?.stack
+        );
       }
-    });
-
-    // Remove dissolves for objects no longer in target list
-    const activeIds = Array.from(this.activeDissolves.keys());
-    activeIds.forEach((objectId) => {
-      if (!targetObjectIds.includes(objectId)) {
-        this.removeDissolve(objectId);
-      }
-    });
+    }
   }
 
   /**
@@ -944,9 +1138,12 @@ export class DissolveEffect extends VFXManager {
         this.audio.audioContext.state === "running" &&
         anyTransitioning
       ) {
-        if (!this.audio.isPlaying) {
-          this.audio.start();
-          this.logger.log("Audio started in update loop");
+        if (!this.audio.isPlaying && !this.audio.pendingStart) {
+          // start() is now async - handle it non-blocking
+          this.audio.start().catch((error) => {
+            this.logger.warn("Failed to start audio in update loop:", error);
+          });
+          this.logger.log("Audio start attempted in update loop");
         }
         this._updateAudio(maxAbsProgress, deltaTime);
       } else if (this.audio.isPlaying && !anyTransitioning) {
@@ -1005,6 +1202,122 @@ export class DissolveEffect extends VFXManager {
     });
 
     this.lastProgress = normalizedProgress;
+  }
+
+  /**
+   * Wait for an object to be loaded by sceneManager
+   * Handles race condition where updateSceneForState hasn't started loading yet
+   * @private
+   */
+  async _waitForObject(objectId) {
+    this.logger.log(
+      `[DissolveEffect] _waitForObject: Waiting for object: ${objectId}`
+    );
+
+    // Check if already loaded
+    let object = this.sceneManager.getObject(objectId);
+    if (object) {
+      this.logger.log(
+        `[DissolveEffect] _waitForObject: Object ${objectId} already loaded`
+      );
+      return object;
+    }
+
+    // Check if object should be loaded for current state
+    // This helps handle race conditions where updateSceneForState hasn't started yet
+    let shouldBeLoaded = false;
+    if (this.gameManager) {
+      const currentState = this.gameManager.getState();
+      const objectsForState = getSceneObjectsForState(currentState);
+      shouldBeLoaded = objectsForState.some((obj) => obj.id === objectId);
+      this.logger.log(
+        `[DissolveEffect] _waitForObject: ${objectId} shouldBeLoaded=${shouldBeLoaded} (state: ${currentState?.currentState})`
+      );
+    } else {
+      this.logger.warn(
+        `[DissolveEffect] _waitForObject: gameManager not available`
+      );
+    }
+
+    // Wait for it to load
+    const maxWaitTime = 10000; // 10 seconds timeout
+    const startTime = Date.now();
+    let hasCheckedLoading = false;
+
+    while (!object && Date.now() - startTime < maxWaitTime) {
+      // Check if it's loading
+      if (this.sceneManager.isLoading(objectId)) {
+        hasCheckedLoading = true;
+        this.logger.log(
+          `[DissolveEffect] _waitForObject: ${objectId} is loading...`
+        );
+        try {
+          const loadingPromise =
+            this.sceneManager.loadingPromises.get(objectId);
+          if (loadingPromise) {
+            this.logger.log(
+              `[DissolveEffect] _waitForObject: ${objectId} Found loading promise, awaiting...`
+            );
+            await loadingPromise;
+            object = this.sceneManager.getObject(objectId);
+            this.logger.log(
+              `[DissolveEffect] _waitForObject: ${objectId} Loading promise resolved, object=${!!object}`
+            );
+            break;
+          } else {
+            // Promise not found in map (shouldn't happen if isLoading is true, but handle it)
+            this.logger.warn(
+              `[DissolveEffect] _waitForObject: Loading promise not found for ${objectId} despite isLoading=true`
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `[DissolveEffect] _waitForObject: Error waiting for ${objectId} to load:`,
+            error
+          );
+          this.logger.error(
+            `[DissolveEffect] _waitForObject: Error stack:`,
+            error?.stack
+          );
+          return null;
+        }
+      }
+
+      // If object should be loaded but isn't loading yet, wait a bit for updateSceneForState to start
+      // This handles the race condition where state changed but scene loading hasn't started
+      if (shouldBeLoaded && !hasCheckedLoading) {
+        const elapsed = Date.now() - startTime;
+        // Give updateSceneForState up to 500ms to start loading
+        if (elapsed < 500) {
+          this.logger.log(
+            `  ${objectId} should be loaded for current state, waiting for scene manager to start loading...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          continue;
+        } else {
+          hasCheckedLoading = true;
+          // After 500ms, if it's still not loading, it might not be loaded for this state
+          // or there's an issue - continue waiting anyway in case it starts
+        }
+      }
+
+      // Check again if it's now available
+      object = this.sceneManager.getObject(objectId);
+      if (object) {
+        break;
+      }
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (!object) {
+      this.logger.error(`Timeout waiting for ${objectId} to load`);
+      return null;
+    }
+
+    this.logger.log(`Object ${objectId} loaded successfully`);
+    return object;
   }
 
   /**

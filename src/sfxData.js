@@ -161,7 +161,7 @@ export const sfxSounds = {
 
   "footsteps-gravel": {
     id: "footsteps-gravel",
-    src: ["/audio/sfx/gravel-steps.ogg"],
+    src: ["/audio/sfx/pavement-steps.mp3"],
     volume: 0.7,
     loop: true,
     spatial: false,

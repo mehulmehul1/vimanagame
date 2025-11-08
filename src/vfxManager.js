@@ -178,13 +178,19 @@ export class VFXManager {
         this.currentEffectId = effect.id;
         this._pendingEffect = null;
         this._delayTimeout = null;
-        this.applyEffect(effect, state);
+        // Wrap in promise to handle async applyEffect and catch errors (Safari compatibility)
+        Promise.resolve(this.applyEffect(effect, state)).catch((error) => {
+          this.logger.error(`Error applying delayed effect ${effect.id}:`, error);
+        });
       }, delay * 1000);
     } else {
       // No delay, apply immediately
       this.logger.log(`Applying effect: ${effect.id}`, effect);
       this.currentEffectId = effect.id;
-      this.applyEffect(effect, state);
+      // Wrap in promise to handle async applyEffect and catch errors (Safari compatibility)
+      Promise.resolve(this.applyEffect(effect, state)).catch((error) => {
+        this.logger.error(`Error applying effect ${effect.id}:`, error);
+      });
     }
   }
 
@@ -210,8 +216,9 @@ export class VFXManager {
    * @param {Object} state - Current game state
    */
   onFirstEnable(effect, state) {
-    // Default: just apply the effect
-    this.applyEffect(effect, state);
+    // Default: do nothing - let the normal updateForState flow handle applying the effect
+    // This prevents double-calling applyEffect (once from onFirstEnable, once from updateForState)
+    // Subclasses can override this if they need special initialization
   }
 
   /**

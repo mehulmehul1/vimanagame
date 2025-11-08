@@ -1,5 +1,117 @@
 import { Logger } from "../utils/logger.js";
 
+// Global registry of all ProceduralAudio instances for unlocking on user interaction
+const audioInstances = new Set();
+
+// Safari visibility change handler - proactively suspend contexts when tab goes to background
+// This prevents Safari from force-killing contexts that appear "running but silent"
+let visibilityHandlerSetup = false;
+
+function setupVisibilityHandler() {
+  if (visibilityHandlerSetup) return;
+  visibilityHandlerSetup = true;
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      // Tab went to background - proactively suspend contexts that aren't truly playing
+      audioInstances.forEach((audio) => {
+        if (
+          audio.audioContext &&
+          audio.audioContext.state === "running" &&
+          !audio.isPlaying
+        ) {
+          audio.audioContext
+            .suspend()
+            .then(() => {
+              audio.logger.log("Audio context proactively suspended (tab backgrounded)");
+            })
+            .catch((error) => {
+              audio.logger.warn("Failed to suspend audio context:", error);
+            });
+        }
+      });
+    } else if (document.visibilityState === "visible") {
+      // Tab returned to foreground - check for interrupted/suspended contexts and resync
+      audioInstances.forEach((audio) => {
+        if (audio.audioContext) {
+          const state = audio.audioContext.state;
+          if (
+            (state === "interrupted" || state === "suspended") &&
+            audio.isPlaying
+          ) {
+            // Player thought it was playing but context is suspended - resync
+            audio.logger.log(
+              `Audio context state mismatch: isPlaying=${audio.isPlaying}, state=${state} - resyncing`
+            );
+            // Stop the "playing" state since context isn't actually running
+            audio.isPlaying = false;
+            // Clear any pending start flag
+            audio.pendingStart = false;
+            // Try to resume if we should be playing
+            audio.audioContext
+              .resume()
+              .then(() => {
+                audio.logger.log("Audio context resumed after visibility change");
+                // Retry start if we were supposed to be playing
+                if (audio.pendingStart || audio.config.volume >= audio.config.volumeThreshold) {
+                  audio.start().catch((error) => {
+                    audio.logger.warn("Failed to restart audio after visibility change:", error);
+                  });
+                }
+              })
+              .catch((error) => {
+                audio.logger.warn("Failed to resume audio context after visibility change:", error);
+              });
+          }
+        }
+      });
+    }
+  });
+}
+
+/**
+ * Unlock all audio contexts on user interaction (Safari autoplay policy)
+ * Creates contexts if needed, resumes them, then immediately suspends to "unlock" them
+ * Call this from a user gesture handler
+ */
+export function unlockAllAudioContexts() {
+  audioInstances.forEach(async (audio) => {
+    // If context doesn't exist, create and initialize it
+    if (!audio.audioContext) {
+      try {
+        await audio.initialize();
+        audio.logger.log("Audio context created on user interaction");
+      } catch (error) {
+        audio.logger.warn("Failed to create audio context on user interaction:", error);
+        return;
+      }
+    }
+
+    // Now resume the context (within user gesture) to unlock it
+    if (audio.audioContext.state === "suspended") {
+      try {
+        await audio.audioContext.resume();
+        audio.logger.log("Audio context resumed via user interaction (unlocking)");
+        
+        // Immediately suspend it - this "unlocks" it for future use in Safari
+        // The context can now be resumed later without needing another user gesture
+        await audio.audioContext.suspend();
+        audio.logger.log("Audio context suspended after unlock (ready for future use)");
+      } catch (error) {
+        audio.logger.warn("Failed to unlock audio context:", error);
+      }
+    } else if (audio.audioContext.state === "running") {
+      // Context is already running - if we had a pending start, try now
+      if (audio.pendingStart && !audio.isPlaying) {
+        audio.logger.log("Retrying audio start (context already running)");
+        audio.start().catch((error) => {
+          audio.logger.warn("Failed to start audio:", error);
+        });
+      }
+    }
+  });
+}
+
 /**
  * ProceduralAudio - Modular Web Audio API synthesizer for VFX
  *
@@ -10,6 +122,12 @@ export class ProceduralAudio {
   constructor(config = {}) {
     this.name = config.name || "ProceduralAudio";
     this.logger = new Logger(this.name, false);
+    
+    // Register this instance globally
+    audioInstances.add(this);
+    
+    // Setup visibility handler on first instance creation
+    setupVisibilityHandler();
 
     // Audio context and nodes
     this.audioContext = null;
@@ -40,6 +158,7 @@ export class ProceduralAudio {
     this.targetVolume = 0; // Track target volume for ramping
     this.isFadingOut = false;
     this.sweepGain = null; // Gain node for sweep oscillator (if enabled)
+    this.pendingStart = false; // Track if we're waiting to start after user interaction
 
     // Configuration (can be overridden)
     this.config = {
@@ -75,10 +194,21 @@ export class ProceduralAudio {
 
   /**
    * Initialize the Web Audio API context and nodes
+   * Safari autoplay fix: Creates context but doesn't resume - resume happens on user interaction
    */
   async initialize() {
     if (this.audioContext) {
       this.logger.log("Already initialized");
+      // If context exists but is suspended, try to resume (might work if in user gesture)
+      if (this.audioContext.state === "suspended") {
+        try {
+          await this.audioContext.resume();
+          this.logger.log("Audio context resumed during initialize");
+        } catch (error) {
+          // This is expected in Safari without user gesture - will be unlocked on interaction
+          this.logger.log("Audio context suspended (will unlock on user interaction)");
+        }
+      }
       return;
     }
 
@@ -87,18 +217,20 @@ export class ProceduralAudio {
       this.audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
 
-      // Resume context if suspended (browser autoplay policy)
-      if (this.audioContext.state === "suspended") {
-        await this.audioContext.resume();
-      }
-
-      // Create the audio graph
+      // Don't try to resume here - Safari requires user gesture
+      // The global unlock handler will resume it on user interaction
+      // Create the audio graph anyway (it will work once context is resumed)
       this._createAudioGraph();
 
       this.logger.log("Audio initialized", {
         sampleRate: this.audioContext.sampleRate,
         state: this.audioContext.state,
       });
+      
+      // If context is suspended (Safari), log it - will be unlocked on user interaction
+      if (this.audioContext.state === "suspended") {
+        this.logger.log("Audio context created in suspended state (Safari autoplay policy)");
+      }
     } catch (error) {
       this.logger.error("Failed to initialize audio:", error);
     }
@@ -188,11 +320,40 @@ export class ProceduralAudio {
   /**
    * Start the sound
    */
-  start() {
+  async start() {
     if (!this.audioContext) {
       this.logger.warn("Cannot start - audio not initialized");
+      // Mark as pending - will create and start on next user interaction
+      this.pendingStart = true;
       return;
     }
+
+    // Safari autoplay fix: Ensure context is resumed before starting
+    // If context was "unlocked" via user interaction, it should resume successfully
+    if (this.audioContext.state === "suspended") {
+      try {
+        await this.audioContext.resume();
+        this.logger.log("Audio context resumed before start");
+      } catch (error) {
+        this.logger.warn("Failed to resume audio context before start:", error);
+        // Mark as pending - will retry on next user interaction
+        this.pendingStart = true;
+        return; // Don't start if context can't be resumed
+      }
+    } else if (this.audioContext.state === "interrupted") {
+      // Context was interrupted - try to resume
+      try {
+        await this.audioContext.resume();
+        this.logger.log("Audio context resumed from interrupted state");
+      } catch (error) {
+        this.logger.warn("Failed to resume interrupted audio context:", error);
+        this.pendingStart = true;
+        return;
+      }
+    }
+    
+    // Clear pending flag if we successfully resumed
+    this.pendingStart = false;
 
     // Don't start if volume is below threshold
     if (this.config.volume < this.config.volumeThreshold) {
@@ -551,6 +712,9 @@ export class ProceduralAudio {
     this.compressor = null;
     this.panner = null;
     this.lfoGain = null;
+    
+    // Unregister from global registry
+    audioInstances.delete(this);
   }
 }
 

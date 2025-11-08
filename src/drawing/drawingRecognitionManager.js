@@ -14,7 +14,7 @@ export class DrawingRecognitionManager {
     this.raycaster = new THREE.Raycaster();
     this.expectedDrawing = null;
     this.isDrawingMode = false;
-    this.logger = new Logger("DrawingRecognitionManager", true);
+    this.logger = new Logger("DrawingRecognitionManager", false);
     this.showEmojiUI = false;
     this.isPointerOverCanvas = false;
     this.onStrokeEndCallback = null;

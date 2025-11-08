@@ -72,7 +72,7 @@ export const desaturationEffects = {
       },
     },
     priority: 20,
-    delay: 4.5,
+    delay: 3.5,
   },
 
   // Wipe to grayscale synchronized with splatMorph reverse transition
@@ -179,7 +179,7 @@ export const splatFractalEffects = {
       effectType: "waves",
       intensity: 0.8,
       enableAudio: false,
-      rampDuration: 4.0, // Ramp up over 4 seconds before morph
+      rampDuration: 3.0, // Ramp up over 4 seconds before morph
       rampOutDuration: 1.0, // Ramp down over 1 second when leaving state
       targetMeshIds: ["interior", "officeHell"], // Apply to both splats
     },
