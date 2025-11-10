@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { Howler } from "howler";
+import { unlockAllAudioContexts } from "../vfx/proceduralAudio.js";
 import { createParticleText, createParticleImage } from "../vfx/titleText.js";
 import { TitleSequence } from "../vfx/titleSequence.js";
 import { ImageTitleSequence } from "./imageTitleSequence.js";
@@ -238,6 +240,36 @@ export class StartScreen {
 
     // Click handler for start button
     this.startButton.addEventListener("click", (e) => {
+      // CRITICAL: Unlock audio/video BEFORE stopPropagation to maintain gesture context
+      // This ensures iOS Safari videos can play when triggered by colliders
+      // The start button calls stopPropagation() which prevents the window-level
+      // unlockAudioOnInteraction handler from firing, so we must unlock here
+      if (
+        typeof Howler !== "undefined" &&
+        typeof Howler.unlock === "function"
+      ) {
+        Howler.unlock();
+      }
+      unlockAllAudioContexts();
+
+      // Pre-create and unlock video playback for iOS Safari (must happen during gesture context)
+      // Pre-create videos that will be needed (like catSafari) so they can be unlocked
+      const state = this.uiManager?.gameManager?.getState() || {};
+      const isSafari = state.isSafari || false;
+      if (isSafari && this.uiManager?.gameManager?.videoManager) {
+        const videoManager = this.uiManager.gameManager.videoManager;
+        // Pre-create catSafari video so it exists and can be unlocked
+        if (!videoManager.getVideoPlayer("catSafari")) {
+          videoManager.createVideoPlayer("catSafari");
+        }
+      }
+
+      // Unlock video playback for iOS Safari (must happen during gesture context)
+      // This "registers" video elements so they can play later without user gesture
+      if (this.uiManager?.gameManager?.videoManager?.unlockVideoPlayback) {
+        this.uiManager.gameManager.videoManager.unlockVideoPlayback();
+      }
+
       e.stopPropagation(); // Prevent click from reaching canvas
 
       // Play typewriter return sound on click

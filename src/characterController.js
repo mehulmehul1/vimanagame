@@ -24,6 +24,7 @@ class CharacterController {
 
     // Camera rotation (use provided initial rotation or default to -180 degrees)
     const defaultYaw = THREE.MathUtils.degToRad(-180);
+    this.logger.log("CharacterController initialRotation:", initialRotation);
     this.yaw = initialRotation
       ? THREE.MathUtils.degToRad(initialRotation.y)
       : defaultYaw;
@@ -32,6 +33,17 @@ class CharacterController {
       : 0;
     this.targetYaw = this.yaw;
     this.targetPitch = this.pitch;
+    this.logger.log(
+      `CharacterController initial yaw: ${THREE.MathUtils.radToDeg(
+        this.yaw
+      )}°, pitch: ${THREE.MathUtils.radToDeg(this.pitch)}°`
+    );
+
+    // Set camera rotation immediately so it's correct from the start
+    if (initialRotation) {
+      const euler = new THREE.Euler(this.pitch, this.yaw, 0, "YXZ");
+      this.camera.quaternion.setFromEuler(euler);
+    }
 
     // Body rotation - separate from camera, only updates during movement
     this.bodyYaw = this.yaw; // Body faces same direction as initial camera

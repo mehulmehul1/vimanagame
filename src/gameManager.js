@@ -1,5 +1,5 @@
 import { getSceneObjectsForState } from "./sceneData.js";
-import { startScreen, GAME_STATES } from "./gameData.js";
+import { startScreen, GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import {
   getDebugSpawnState,
@@ -32,6 +32,10 @@ class GameManager {
 
     if (this.isDebugMode) {
       this.logger.log("Debug mode active", this.state);
+      this.logger.log(
+        "State includes playerRotation:",
+        this.state.playerRotation
+      );
     }
 
     this.eventListeners = {};
@@ -53,6 +57,59 @@ class GameManager {
 
     // Parse URL parameters on construction
     this.urlParams = this.parseURLParams();
+
+    // Apply URL parameter overrides to state
+    this._applyURLParamOverrides();
+  }
+
+  /**
+   * Apply URL parameter overrides to game state
+   * @private
+   */
+  _applyURLParamOverrides() {
+    // Handle dialogChoice2 parameter
+    const dialogChoice2Param = this.getURLParam("dialogChoice2");
+    if (dialogChoice2Param !== null) {
+      let dialogChoice2Value = null;
+
+      // Try to parse as number first
+      const numericValue = parseInt(dialogChoice2Param, 10);
+      if (!isNaN(numericValue)) {
+        // Check if it's a valid DIALOG_RESPONSE_TYPES value
+        const validValues = Object.values(DIALOG_RESPONSE_TYPES);
+        if (validValues.includes(numericValue)) {
+          dialogChoice2Value = numericValue;
+        }
+      } else {
+        // Try to match by name (case-insensitive)
+        const lowerParam = dialogChoice2Param.toLowerCase();
+        if (lowerParam === "empath") {
+          dialogChoice2Value = DIALOG_RESPONSE_TYPES.EMPATH;
+        } else if (lowerParam === "psychologist" || lowerParam === "psych") {
+          dialogChoice2Value = DIALOG_RESPONSE_TYPES.PSYCHOLOGIST;
+        } else if (lowerParam === "lawful") {
+          dialogChoice2Value = DIALOG_RESPONSE_TYPES.LAWFUL;
+        }
+      }
+
+      if (dialogChoice2Value !== null) {
+        const oldState = { ...this.state };
+        this.state.dialogChoice2 = dialogChoice2Value;
+        this.logger.log(
+          `URL parameter set dialogChoice2 to ${dialogChoice2Value} (${dialogChoice2Param}). Current state:`,
+          this.state
+        );
+        // Emit state change event to trigger video/dialog updates
+        // Only emit if videoManager is already set up (it will check state on its own if not ready yet)
+        if (this.videoManager) {
+          this.emit("state:changed", this.state, oldState);
+        }
+      } else {
+        this.logger.warn(
+          `Invalid dialogChoice2 URL parameter value: "${dialogChoice2Param}". Valid values: empath, psychologist, lawful, or 0, 1, 2`
+        );
+      }
+    }
   }
 
   /**
@@ -96,10 +153,26 @@ class GameManager {
    * @returns {Object|null} Rotation {x, y, z} in degrees or null
    */
   getDebugSpawnRotation() {
-    if (!this.isDebugMode || !this.state.playerRotation) {
+    if (!this.isDebugMode) {
+      this.logger.log("getDebugSpawnRotation: not in debug mode");
       return null;
     }
-    return { ...this.state.playerRotation };
+    // Check if playerRotation exists in state (even if it's {x:0, y:0, z:0})
+    if (
+      this.state.playerRotation !== undefined &&
+      this.state.playerRotation !== null
+    ) {
+      this.logger.log(
+        "getDebugSpawnRotation: returning",
+        this.state.playerRotation
+      );
+      return { ...this.state.playerRotation };
+    }
+    this.logger.log(
+      "getDebugSpawnRotation: playerRotation not found in state",
+      this.state
+    );
+    return null;
   }
 
   /**
@@ -223,6 +296,21 @@ class GameManager {
       camera: this.camera,
       loadingScreen: null, // Will be set in main.js after VideoManager is created
     });
+
+    // If URL parameter set dialogChoice2, trigger video update after a short delay
+    // to ensure videoManager is fully initialized and state is correct
+    if (this.urlParams && this.urlParams.dialogChoice2) {
+      setTimeout(() => {
+        const currentState = this.getState();
+        this.logger.log(
+          `Triggering video update after URL param dialogChoice2=${this.urlParams.dialogChoice2}, current state:`,
+          currentState
+        );
+        if (this.videoManager) {
+          this.videoManager.updateVideosForState(currentState);
+        }
+      }, 100);
+    }
 
     // Note: Music, dialogs, SFX, and videos are now handled by their respective managers via state:changed events
     // They handle initial state when their listeners are set up
@@ -547,8 +635,11 @@ class GameManager {
     setTimeout(async () => {
       for (const obj of splatObjects) {
         // Check if already loaded or loading
-        if (this.sceneManager.hasObject(obj.id) || 
-            (this.sceneManager.loadingPromises && this.sceneManager.loadingPromises.has(obj.id))) {
+        if (
+          this.sceneManager.hasObject(obj.id) ||
+          (this.sceneManager.loadingPromises &&
+            this.sceneManager.loadingPromises.has(obj.id))
+        ) {
           continue; // Already loaded or loading
         }
         // Load the object but don't add to scene (skipAddToScene = true)

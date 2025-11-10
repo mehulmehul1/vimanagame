@@ -907,9 +907,10 @@ export const dialogTracks = {
 
   // Video-synced dialog for "soUnkind" video
   // Captions are synced to video playback time using startTime instead of duration
+  // Also fires for soUnkindSafari video
   soUnkind: {
     id: "soUnkind",
-    videoId: "soUnkind", // Reference to video in videoData.js
+    videoId: "soUnkind", // Reference to video in videoData.js (also fires for soUnkindSafari)
     captions: [
       { text: "[Footsteps]", startTime: 3.0, duration: 2.0 },
       { text: "Quiet!", startTime: 6.0, duration: 1.5 },
@@ -921,6 +922,28 @@ export const dialogTracks = {
       {
         text: "But soon you will both see the world just as we do.",
         startTime: 16.0,
+        duration: 7.0,
+      },
+    ],
+    autoPlay: true,
+    once: false, // Allow replay if video loops
+    priority: 100,
+  },
+
+  shadowQuietTheGirl: {
+    id: "shadowQuietTheGirl",
+    videoId: "shadowQuietTheGirl", // Reference to video in videoData.js (also fires for shadowQuietTheGirlSafari)
+    captions: [
+      { text: "[Footsteps]", startTime: 1.0, duration: 2.0 },
+      { text: "Quiet!", startTime: 3.0, duration: 2.0 },
+      {
+        text: "The girl had nothing to do with it, just as you said.",
+        startTime: 6.25,
+        duration: 5.75,
+      },
+      {
+        text: "But soon you will both see the world just as we do.",
+        startTime: 13.0,
         duration: 7.0,
       },
     ],

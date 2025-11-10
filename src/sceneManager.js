@@ -1538,10 +1538,27 @@ class SceneManager {
         this.logger.log(`Removed contact shadow for "${id}"`);
       }
 
+      // Clean up contact shadow criteria
+      if (this.contactShadowCriteria.has(id)) {
+        this.contactShadowCriteria.delete(id);
+      }
+
+      // Clean up contact shadow state tracking
+      if (this.contactShadowState.has(id)) {
+        this.contactShadowState.delete(id);
+      }
+
       // Clean up material render orders if this object has any
       if (this.materialRenderOrders.has(id)) {
         this.materialRenderOrders.delete(id);
         this.logger.log(`Removed material render orders for "${id}"`);
+      }
+
+      // Clean up material render order state tracking (entries are keyed as "objectId:materialName")
+      for (const [stateKey] of this.materialRenderOrderState.entries()) {
+        if (stateKey.startsWith(`${id}:`)) {
+          this.materialRenderOrderState.delete(stateKey);
+        }
       }
 
       // Clean up physics collider if this object has one
@@ -1551,6 +1568,14 @@ class SceneManager {
           this.physicsColliderObjects.delete(id);
           this.logger.log(`Removed physics collider for "${id}"`);
         }
+      }
+
+      // Clean up pending trigger colliders if this object has any
+      if (
+        this.pendingTriggerColliders &&
+        this.pendingTriggerColliders.has(id)
+      ) {
+        this.pendingTriggerColliders.delete(id);
       }
 
       // Force visibility to false and remove from scene

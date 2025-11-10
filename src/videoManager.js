@@ -29,6 +29,9 @@ class VideoManager {
     // Track deferred videos (preload: false) that haven't been loaded yet
     this.deferredVideos = new Set(); // Set of video IDs that should be deferred
 
+    // Track if we should unlock videos when they're created (set during gesture context)
+    this.shouldUnlockOnCreate = false;
+
     // Listen for game state changes
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
@@ -472,6 +475,45 @@ class VideoManager {
       this.logger.log(`Created video "${videoId}" (hidden, autoPlay=false)`);
     }
 
+    // Unlock video for iOS Safari if flag is set (set during START button gesture context)
+    // This ensures videos created after START button click can still be unlocked
+    if (this.shouldUnlockOnCreate && player.video && !player.video.muted) {
+      const state = this.gameManager?.getState() || {};
+      const isIOS = state.isIOS || false;
+      const isSafari = state.isSafari || false;
+
+      if (isIOS || isSafari) {
+        // Try to unlock immediately when created (we're still in gesture context from START)
+        try {
+          const playPromise = player.video.play();
+          if (playPromise && typeof playPromise.then === "function") {
+            playPromise
+              .then(() => {
+                // Let it play for 1 frame to ensure it's actually unlocked
+                requestAnimationFrame(() => {
+                  player.video.pause();
+                  player.video.currentTime = 0;
+                  this.logger.log(`Unlocked video "${videoId}" on creation`);
+                });
+              })
+              .catch((error) => {
+                // Ignore - might not be in gesture context anymore
+                this.logger.warn(
+                  `Failed to unlock video "${videoId}" on creation:`,
+                  error
+                );
+              });
+          }
+        } catch (error) {
+          // Ignore - might not be in gesture context anymore
+          this.logger.warn(
+            `Error unlocking video "${videoId}" on creation:`,
+            error
+          );
+        }
+      }
+    }
+
     // Register with gizmo manager if gizmo flag is set
     if (videoConfig.gizmo) {
       // Disable billboard for gizmo-enabled videos to avoid conflict
@@ -624,6 +666,68 @@ class VideoManager {
   }
 
   /**
+   * Unlock video playback for iOS Safari
+   * Calls play() and pause() on all existing video elements to "unlock" them
+   * This must be called during a user gesture context (e.g., START button click)
+   */
+  unlockVideoPlayback() {
+    const state = this.gameManager?.getState() || {};
+    const isIOS = state.isIOS || false;
+    const isSafari = state.isSafari || false;
+
+    if (!isIOS && !isSafari) {
+      return; // Not needed on other platforms
+    }
+
+    this.logger.log("Unlocking video playback for iOS Safari");
+
+    // Set flag to unlock videos when they're created (for videos created after this call)
+    this.shouldUnlockOnCreate = true;
+
+    // Unlock all existing video elements by calling play() and pause() during gesture context
+    // This "registers" them with iOS Safari so they can play later without user gesture
+    let unlockedCount = 0;
+    this.videoPlayers.forEach((player, videoId) => {
+      if (player.video && !player.video.muted) {
+        try {
+          // Call play() to unlock, then let it play for 1 frame before pausing
+          // iOS Safari may need the video to actually start playing to unlock it
+          const playPromise = player.video.play();
+          if (playPromise && typeof playPromise.then === "function") {
+            playPromise
+              .then(() => {
+                // Let it play for 1 frame to ensure it's actually unlocked
+                requestAnimationFrame(() => {
+                  player.video.pause();
+                  player.video.currentTime = 0; // Reset to beginning
+                  unlockedCount++;
+                  this.logger.log(`Unlocked video "${videoId}" for playback`);
+                });
+              })
+              .catch((error) => {
+                // Ignore errors - video might not be ready yet
+                this.logger.warn(`Failed to unlock video "${videoId}":`, error);
+              });
+          } else {
+            // play() returned undefined/null, try pause anyway
+            player.video.pause();
+            player.video.currentTime = 0;
+          }
+        } catch (error) {
+          // Ignore errors - video might not be ready yet
+          this.logger.warn(`Error unlocking video "${videoId}":`, error);
+        }
+      }
+    });
+
+    if (unlockedCount > 0) {
+      this.logger.log(
+        `Unlocked ${unlockedCount} video(s) for iOS Safari playback`
+      );
+    }
+  }
+
+  /**
    * Retry gizmo registration for videos that need it
    * @private
    */
@@ -763,13 +867,7 @@ class VideoManager {
    * Load deferred videos (preload: false) - fetch all of them regardless of state
    * Called after loading screen completes
    */
-  async loadDeferredVideos() {
-    // Get current game state to check if criteria have passed
-    const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import(
-      "./utils/criteriaHelper.js"
-    );
-
+  loadDeferredVideos() {
     // Find all videos with preload: false
     const deferredVideoIds = [];
     for (const [videoId, videoConfig] of Object.entries(videos)) {
@@ -780,18 +878,6 @@ class VideoManager {
 
       const shouldPreload = videoConfig.preload !== false; // Default to true
       if (!shouldPreload) {
-        // Check if criteria have already passed (e.g., in debug spawn mode)
-        // Check both spawnCriteria and criteria
-        const spawnCriteria = videoConfig.spawnCriteria || videoConfig.criteria;
-        if (
-          spawnCriteria &&
-          !couldCriteriaStillMatch(currentState, spawnCriteria)
-        ) {
-          this.logger.log(
-            `Skipping deferred video "${videoId}" - criteria have already passed (currentState: ${currentState.currentState})`
-          );
-          continue;
-        }
         deferredVideoIds.push(videoId);
       }
     }

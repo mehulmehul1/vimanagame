@@ -76,7 +76,7 @@ export const colliders = [
     rotation: { x: 0, y: 0, z: 0 },
     dimensions: { x: 2.5, y: 1.0, z: 2.5 },
     setStateOnEnter: { heardCat: true },
-    once: false,
+    true: false,
     enabled: true,
   },
 

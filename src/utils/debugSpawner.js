@@ -31,6 +31,7 @@ const stateOverrides = {
   TITLE_SEQUENCE_COMPLETE: {
     controlEnabled: true,
     // No playerPosition - use main.js default
+    playerRotation: { x: 0.0, y: 180, z: 0.0 },
   },
 
   INTRO_COMPLETE: {
@@ -320,7 +321,10 @@ export function getDebugSpawnState() {
   }
 
   logger.log(`Spawning into state "${gameStateParam}"`);
-  return { ...preset };
+  logger.log("Preset includes playerRotation:", preset.playerRotation);
+  const result = { ...preset };
+  logger.log("Returning preset with playerRotation:", result.playerRotation);
+  return result;
 }
 
 /**

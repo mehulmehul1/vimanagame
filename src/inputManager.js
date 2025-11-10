@@ -148,6 +148,14 @@ class InputManager {
 
     // Pointer lock + mouse look
     this.rendererDomElement.addEventListener("click", (event) => {
+      // Check if dialog choice UI is visible - if so, don't process canvas clicks
+      // (dialog choice UI handles its own clicks)
+      if (this.isDialogChoiceVisible()) {
+        // Stop propagation to prevent dialog choice handler from processing canvas clicks
+        event.stopPropagation();
+        return;
+      }
+
       // Check if drawing manager is active - if so, don't request pointer lock (needs cursor)
       const drawingActive = window.drawingManager?.isActive || false;
       if (drawingActive) {
@@ -694,11 +702,25 @@ class InputManager {
    * Fade in touch controls (for UI overlays)
    */
   fadeInTouchControls() {
-    // Don't fade in if dialog choice UI is visible
-    if (this.isDialogChoiceVisible()) {
+    // Check if dialog choice UI is visible - but be more lenient
+    // Sometimes the DOM check can be stale, so we'll also check the actual visibility state
+    const dialogChoiceVisible = this.isDialogChoiceVisible();
+
+    // Also check if the dialog choice UI component itself says it's visible
+    // This is more reliable than DOM checks which can be stale
+    let dialogChoiceComponentVisible = false;
+    if (this.gameManager?.uiManager?.components?.dialogChoiceUI) {
+      dialogChoiceComponentVisible =
+        this.gameManager.uiManager.components.dialogChoiceUI.isShowingChoices();
+    }
+
+    // Only skip if BOTH checks indicate it's visible (be more lenient)
+    // But if neither check says it's visible, definitely fade in
+    if (dialogChoiceVisible && dialogChoiceComponentVisible) {
       return;
     }
 
+    // Force fade in - ensure joysticks are visible and can receive input
     if (this.leftJoystick) {
       this.leftJoystick.fadeIn();
     }

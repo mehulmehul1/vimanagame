@@ -282,6 +282,7 @@ const defaultSpawnRot = {
 
 const spawnPos = gameManager.getDebugSpawnPosition() || defaultSpawnPos;
 const spawnRot = gameManager.getDebugSpawnRotation() || defaultSpawnRot;
+logger.log(`Spawn rotation: ${JSON.stringify(spawnRot)}`);
 const character = physicsManager.createCharacter(spawnPos, spawnRot);
 // Removed visual mesh for character;
 
@@ -666,15 +667,44 @@ const unlockAudioOnInteraction = () => {
     // Still unlock on subsequent interactions (new contexts might be created)
     unlockAllAudioContexts();
   }
+
+  // Retry queued video plays (iOS Safari autoplay restrictions)
+  if (gameManager?.videoManager?.retryQueuedVideoPlays) {
+    gameManager.videoManager.retryQueuedVideoPlays();
+  }
 };
 
+// Expose globally so joysticks and other components can call it directly
+window.unlockAudioOnInteraction = unlockAudioOnInteraction;
+
 // Listen for any user interaction to unlock audio
-window.addEventListener("click", unlockAudioOnInteraction, { once: false });
+// Use capture phase (true) so handlers fire BEFORE element handlers
+// This ensures unlock happens first, even if elements call preventDefault
+window.addEventListener("click", unlockAudioOnInteraction, {
+  once: false,
+  capture: true,
+});
 window.addEventListener("touchstart", unlockAudioOnInteraction, {
   once: false,
+  capture: true, // CRITICAL: Capture phase ensures this fires before joystick handlers
 });
-window.addEventListener("keydown", unlockAudioOnInteraction, { once: false });
-window.addEventListener("mousedown", unlockAudioOnInteraction, { once: false });
+// Also unlock on touchmove and touchend to refresh gesture context during long holds
+window.addEventListener("touchmove", unlockAudioOnInteraction, {
+  once: false,
+  capture: true,
+});
+window.addEventListener("touchend", unlockAudioOnInteraction, {
+  once: false,
+  capture: true,
+});
+window.addEventListener("keydown", unlockAudioOnInteraction, {
+  once: false,
+  capture: true,
+});
+window.addEventListener("mousedown", unlockAudioOnInteraction, {
+  once: false,
+  capture: true,
+});
 
 // IMPORTANT: Set integration BEFORE applyGlobalBlocksFromDefinitions so inputManager is available
 gizmoManager.setIntegration(uiManager?.components?.idleHelper, inputManager);

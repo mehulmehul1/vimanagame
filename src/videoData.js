@@ -369,6 +369,69 @@ export const videos = {
     platform: "safari", // Only load on Safari
   },
 
+  shadowQuietTheGirl: {
+    id: "shadowQuietTheGirl",
+    videoPath: "/video/shadow-quiet-the-girl.webm",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 8.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+      // Only play if player chose empathetic response to dialog choice 2
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplifications",
+    platform: "!safari", // Don't load on Safari (use shadowQuietTheGirlSafari instead)
+  },
+  shadowQuietTheGirlSafari: {
+    id: "shadowQuietTheGirlSafari",
+    videoPath: "/video/mov/shadow-quiet-the-girl.mov",
+    preload: false, // Load after loading screen
+    position: { x: -12.7, y: 1.52, z: 79.28 },
+    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
+    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    autoPlay: true,
+    loop: false,
+    billboard: false,
+    muted: false,
+    delay: 8.0,
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.WAKING_UP,
+      },
+      // Only play if player chose empathetic response to dialog choice 2
+      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
+    },
+    spatial: true,
+    audioPositionOffset: { x: 0, y: 0, z: 0 },
+    pannerAttr: {
+      panningModel: "HRTF",
+      refDistance: 5,
+      rolloffFactor: 1,
+      distanceModel: "inverse",
+      maxDistance: 100,
+    },
+    playNext: "shadowAmplificationsSafari",
+    platform: "safari", // Only load on Safari
+  },
+
   shadowAmplifications: {
     id: "shadowAmplifications",
     videoPath: "/video/shadow-amplifications-2.webm",
@@ -489,69 +552,6 @@ export const videos = {
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
     },
-    platform: "safari", // Only load on Safari
-  },
-
-  shadowQuietTheGirl: {
-    id: "shadowQuietTheGirl",
-    videoPath: "/video/shadow-quiet-the-girl.webm",
-    preload: false, // Load after loading screen
-    position: { x: -12.7, y: 1.52, z: 79.28 },
-    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.22, y: 0.91, z: 3.04 },
-    autoPlay: true,
-    loop: false,
-    billboard: false,
-    muted: false,
-    delay: 6.0,
-    criteria: {
-      currentState: {
-        $eq: GAME_STATES.WAKING_UP,
-      },
-      // Only play if player chose empathetic response to dialog choice 2
-      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
-    },
-    spatial: true,
-    audioPositionOffset: { x: 0, y: 0, z: 0 },
-    pannerAttr: {
-      panningModel: "HRTF",
-      refDistance: 5,
-      rolloffFactor: 1,
-      distanceModel: "inverse",
-      maxDistance: 100,
-    },
-    playNext: "shadowAmplifications",
-    platform: "!safari", // Don't load on Safari (use shadowQuietTheGirlSafari instead)
-  },
-  shadowQuietTheGirlSafari: {
-    id: "shadowQuietTheGirlSafari",
-    videoPath: "/video/mov/shadow-quiet-the-girl.mov",
-    preload: false, // Load after loading screen
-    position: { x: -12.7, y: 1.52, z: 79.28 },
-    rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.22, y: 0.91, z: 3.04 },
-    autoPlay: true,
-    loop: false,
-    billboard: false,
-    muted: false,
-    delay: 6.0,
-    criteria: {
-      currentState: {
-        $eq: GAME_STATES.WAKING_UP,
-      },
-      // Only play if player chose empathetic response to dialog choice 2
-      dialogChoice2: DIALOG_RESPONSE_TYPES.EMPATH,
-    },
-    spatial: true,
-    audioPositionOffset: { x: 0, y: 0, z: 0 },
-    pannerAttr: {
-      panningModel: "HRTF",
-      refDistance: 5,
-      rolloffFactor: 1,
-      distanceModel: "inverse",
-      maxDistance: 100,
-    },
-    playNext: "shadowAmplificationsSafari",
     platform: "safari", // Only load on Safari
   },
 };

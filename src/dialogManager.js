@@ -493,10 +493,6 @@ class DialogManager {
 
     this._processingPrefetchQueue = true;
 
-    // Get current game state to check if criteria have passed
-    const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
-
     while (this.prefetchQueue.length > 0) {
       // Check if we have budget available
       const availableBudget = this.prefetchBudgetMax - this.prefetchBudgetUsed;
@@ -512,14 +508,6 @@ class DialogManager {
 
       // Skip if already prefetched or registered
       if (this.prefetchedAudio.has(dialog.id) || this.preloadedAudio.has(dialog.id)) {
-        continue;
-      }
-
-      // Skip if criteria have already passed (e.g., in debug spawn mode)
-      if (dialog.criteria && !couldCriteriaStillMatch(currentState, dialog.criteria)) {
-        this.logger.log(
-          `Skipping prefetch for dialog "${dialog.id}" - criteria have already passed (currentState: ${currentState.currentState})`
-        );
         continue;
       }
 
@@ -600,19 +588,6 @@ class DialogManager {
   }
 
   /**
-   * Extract audio format from source URL
-   * @param {string} audioSrc - Audio source URL
-   * @returns {string|null} Format string (e.g., 'mp3', 'wav') or null
-   * @private
-   */
-  _extractFormat(audioSrc) {
-    if (!audioSrc) return null;
-    
-    const match = audioSrc.match(/\.([a-z0-9]+)(?:\?|$)/i);
-    return match ? match[1].toLowerCase() : null;
-  }
-
-  /**
    * Create Howl instance from prefetched blob
    * @param {string} dialogId - Dialog ID
    * @param {Object} prefetched - Prefetched data { blob, blobUrl, dialogData, size }
@@ -620,17 +595,13 @@ class DialogManager {
    * @private
    */
   _createHowlFromPrefetched(dialogId, prefetched) {
-    const { blobUrl, dialogData } = prefetched;
-    
-    // Extract format from original source to help Howler identify codec
-    const format = this._extractFormat(dialogData?.audio);
+    const { blobUrl } = prefetched;
 
     return new Promise((resolve, reject) => {
-      const howlConfig = {
+      const howl = new Howl({
         src: [blobUrl], // Use blob URL instead of original src
         volume: this.audioVolume,
         preload: true,
-        ...(format && { format: [format] }), // Add format for blob URLs
         onload: () => {
           this.logger.log(`Howl loaded from prefetched blob for dialog "${dialogId}"`);
 
@@ -662,9 +633,7 @@ class DialogManager {
           this._processPrefetchQueue();
           reject(error);
         },
-      };
-      
-      const howl = new Howl(howlConfig);
+      });
     });
   }
 
@@ -673,8 +642,6 @@ class DialogManager {
    */
   async loadDeferredDialogs() {
     const isIOS = this.gameManager?.getState()?.isIOS || false;
-    const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
 
     // First, create Howl instances from prefetched audio (iOS)
     if (this.prefetchedAudio.size > 0) {
@@ -682,20 +649,6 @@ class DialogManager {
         `Creating Howl instances from ${this.prefetchedAudio.size} prefetched dialogs`
       );
       for (const [dialogId, prefetched] of this.prefetchedAudio) {
-        // Skip if criteria have already passed
-        if (prefetched.dialogData?.criteria && !couldCriteriaStillMatch(currentState, prefetched.dialogData.criteria)) {
-          this.logger.log(
-            `Skipping prefetched dialog "${dialogId}" - criteria have already passed (currentState: ${currentState.currentState})`
-          );
-          // Free budget
-          if (prefetched && prefetched.size) {
-            this.prefetchBudgetUsed -= prefetched.size;
-            URL.revokeObjectURL(prefetched.blobUrl);
-          }
-          this.prefetchedAudio.delete(dialogId);
-          continue;
-        }
-        
         try {
           await this._createHowlFromPrefetched(dialogId, prefetched);
           // Budget is freed in onload callback
@@ -725,40 +678,24 @@ class DialogManager {
       return;
     }
 
-    // Filter deferred dialogs to skip those whose criteria have passed
-    const dialogsToLoad = [];
-    for (const [dialogId, dialog] of this.deferredDialogs) {
-      if (!dialog.audio) continue; // Skip dialogs without audio
-      if (dialog.criteria && !couldCriteriaStillMatch(currentState, dialog.criteria)) {
-        this.logger.log(
-          `Skipping deferred dialog "${dialogId}" - criteria have already passed (currentState: ${currentState.currentState})`
-        );
-        continue;
-      }
-      dialogsToLoad.push([dialogId, dialog]);
-    }
-
-    if (dialogsToLoad.length === 0) {
-      this.deferredDialogs.clear();
-      return;
-    }
-
     this.logger.log(
-      `Loading ${dialogsToLoad.length} deferred dialogs${isIOS ? " (iOS: sequential loading)" : ""}`
+      `Loading ${this.deferredDialogs.size} deferred dialogs${isIOS ? " (iOS: sequential loading)" : ""}`
     );
 
     // On iOS, load dialogs sequentially with delays to avoid exhausting audio pool
     if (isIOS) {
-      for (const [dialogId, dialog] of dialogsToLoad) {
+      for (const [dialogId, dialog] of this.deferredDialogs) {
+        if (!dialog.audio) continue; // Skip dialogs without audio
         await this._loadDeferredDialog(dialogId, dialog);
         // Small delay between loads to prevent audio pool exhaustion
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     } else {
       // On other platforms, load in parallel (faster)
-      for (const [dialogId, dialog] of dialogsToLoad) {
+      this.deferredDialogs.forEach((dialog, dialogId) => {
+        if (!dialog.audio) return; // Skip dialogs without audio
         this._loadDeferredDialog(dialogId, dialog);
-      }
+      });
     }
     this.deferredDialogs.clear();
   }
@@ -825,15 +762,23 @@ class DialogManager {
         this._getDialogsForState = getDialogsForState;
 
         // Register event listeners for each video-synced dialog
+        // Also register for counterpart videos (base <-> Safari)
+        const registeredEvents = new Set();
         for (const dialog of Object.values(dialogTracks)) {
           if (dialog.videoId && dialog.autoPlay) {
-            const eventName = `video:play:${dialog.videoId}`;
-            this.gameManager.on(eventName, () => {
-              this._checkAndTriggerVideoDialog(dialog.videoId);
-            });
-            this.logger.log(
-              `Registered video play listener for dialog "${dialog.id}" on event "${eventName}"`
-            );
+            const videoIdsToRegister = this._getCounterpartVideoIds(dialog.videoId);
+            for (const vidId of videoIdsToRegister) {
+              const eventName = `video:play:${vidId}`;
+              if (!registeredEvents.has(eventName)) {
+                this.gameManager.on(eventName, () => {
+                  this._checkAndTriggerVideoDialog(vidId);
+                });
+                registeredEvents.add(eventName);
+                this.logger.log(
+                  `Registered video play listener for dialog "${dialog.id}" on event "${eventName}"`
+                );
+              }
+            }
           }
         }
 
@@ -1741,6 +1686,26 @@ class DialogManager {
   }
 
   /**
+   * Get counterpart video ID (base <-> Safari)
+   * @param {string} videoId - Video ID
+   * @returns {Array<string>} Array of video IDs to check (original + counterpart)
+   * @private
+   */
+  _getCounterpartVideoIds(videoId) {
+    const videoIds = [videoId];
+    if (videoId.endsWith("Safari")) {
+      // If Safari video, also check base version
+      const baseId = videoId.replace("Safari", "");
+      videoIds.push(baseId);
+    } else {
+      // If base video, also check Safari version
+      const safariId = videoId + "Safari";
+      videoIds.push(safariId);
+    }
+    return videoIds;
+  }
+
+  /**
    * Check and trigger video-synced dialog for a specific video
    * Called immediately when video:play event is emitted
    * @param {string} videoId - Video ID
@@ -1751,31 +1716,13 @@ class DialogManager {
       return;
     }
 
-    // Find dialog that matches this video
-    const dialog = Object.values(this._dialogTracks).find(
-      (d) => d.videoId === videoId && d.autoPlay
+    // Check for dialogs matching this videoId or its counterpart
+    const videoIdsToCheck = this._getCounterpartVideoIds(videoId);
+    const matchingDialogs = Object.values(this._dialogTracks).filter(
+      (d) => d.videoId && videoIdsToCheck.includes(d.videoId) && d.autoPlay
     );
 
-    if (!dialog) return;
-
-    // Skip if already played and marked as "once"
-    if (
-      dialog.once &&
-      this.playedDialogs &&
-      this.playedDialogs.has(dialog.id)
-    ) {
-      return;
-    }
-
-    // Skip if already active
-    if (this.activeDialogs.has(dialog.id)) {
-      return;
-    }
-
-    // Skip if already pending
-    if (this.pendingDialogs.has(dialog.id)) {
-      return;
-    }
+    if (matchingDialogs.length === 0) return;
 
     // Verify video is actually playing (delay may still be pending)
     const videoPlayer = this.videoManager.getVideoPlayer(videoId);
@@ -1796,8 +1743,33 @@ class DialogManager {
       videoPlayer.video.readyState >= 2 &&
       videoPlayer.video.currentTime >= 0;
 
-    if (isVideoPlaying) {
-      const videoCurrentTime = videoPlayer.video.currentTime;
+    if (!isVideoPlaying) {
+      return;
+    }
+
+    const videoCurrentTime = videoPlayer.video.currentTime;
+
+    // Trigger all matching dialogs
+    for (const dialog of matchingDialogs) {
+      // Skip if already played and marked as "once"
+      if (
+        dialog.once &&
+        this.playedDialogs &&
+        this.playedDialogs.has(dialog.id)
+      ) {
+        continue;
+      }
+
+      // Skip if already active
+      if (this.activeDialogs.has(dialog.id)) {
+        continue;
+      }
+
+      // Skip if already pending
+      if (this.pendingDialogs.has(dialog.id)) {
+        continue;
+      }
+
       this.logger.log(
         `Video-synced dialog "${
           dialog.id
@@ -1820,7 +1792,14 @@ class DialogManager {
         this.playedDialogs.add(dialog.id);
       }
 
-      this.playDialog(dialog);
+      // Update dialog's videoId to match the actually playing video for caption syncing
+      const dialogToPlay = { ...dialog };
+      if (dialog.videoId !== videoId) {
+        // Dialog is for counterpart video, but we're playing this one
+        // Update videoId so captions sync to the actual playing video
+        dialogToPlay.videoId = videoId;
+      }
+      this.playDialog(dialogToPlay);
     }
   }
 
@@ -1861,52 +1840,69 @@ class DialogManager {
           continue;
         }
 
-        // Check if the video is actually playing
-        const videoPlayer = this.videoManager.getVideoPlayer(dialog.videoId);
-        if (!videoPlayer) {
+        // Check if the video (or its counterpart) is actually playing
+        const videoIdsToCheck = this._getCounterpartVideoIds(dialog.videoId);
+        let videoPlayer = null;
+        let playingVideoId = null;
+        for (const vidId of videoIdsToCheck) {
+          const player = this.videoManager.getVideoPlayer(vidId);
+          if (player) {
+            const hasPendingDelay =
+              this.videoManager.pendingDelays &&
+              this.videoManager.pendingDelays.has(vidId);
+
+            const isVideoPlaying =
+              !hasPendingDelay &&
+              player.isPlaying &&
+              player.video &&
+              !player.video.paused &&
+              !player.video.ended &&
+              player.video.readyState >= 2 &&
+              player.video.currentTime >= 0;
+
+            if (isVideoPlaying) {
+              videoPlayer = player;
+              playingVideoId = vidId;
+              break;
+            }
+          }
+        }
+        if (!videoPlayer || !playingVideoId) {
           continue;
         }
 
-        const hasPendingDelay =
-          this.videoManager.pendingDelays &&
-          this.videoManager.pendingDelays.has(dialog.videoId);
+        const videoCurrentTime = videoPlayer.video.currentTime;
+        this.logger.log(
+          `Video-synced dialog "${
+            dialog.id
+          }" triggered via update loop (video "${
+            playingVideoId
+          }" at ${videoCurrentTime.toFixed(2)}s)`
+        );
 
-        const isVideoPlaying =
-          !hasPendingDelay &&
-          videoPlayer.isPlaying &&
-          videoPlayer.video &&
-          !videoPlayer.video.paused &&
-          !videoPlayer.video.ended &&
-          videoPlayer.video.readyState >= 2 &&
-          videoPlayer.video.currentTime >= 0;
-
-        if (isVideoPlaying) {
-          const videoCurrentTime = videoPlayer.video.currentTime;
-          this.logger.log(
-            `Video-synced dialog "${
+        if (videoCurrentTime > 1.0) {
+          this.logger.warn(
+            `⚠️ Video "${
+              playingVideoId
+            }" has advanced ${videoCurrentTime.toFixed(2)}s before dialog "${
               dialog.id
-            }" triggered via update loop (video "${
-              dialog.videoId
-            }" at ${videoCurrentTime.toFixed(2)}s)`
+            }" triggered. Early captions may be missed!`
           );
-
-          if (videoCurrentTime > 1.0) {
-            this.logger.warn(
-              `⚠️ Video "${
-                dialog.videoId
-              }" has advanced ${videoCurrentTime.toFixed(2)}s before dialog "${
-                dialog.id
-              }" triggered. Early captions may be missed!`
-            );
-          }
-
-          if (dialog.once && this.playedDialogs) {
-            this.playedDialogs.add(dialog.id);
-          }
-
-          this.playDialog(dialog);
-          break;
         }
+
+        if (dialog.once && this.playedDialogs) {
+          this.playedDialogs.add(dialog.id);
+        }
+
+        // Update dialog's videoId to match the actually playing video for caption syncing
+        const dialogToPlay = { ...dialog };
+        if (dialog.videoId !== playingVideoId) {
+          // Dialog is for counterpart video, but we're playing this one
+          // Update videoId so captions sync to the actual playing video
+          dialogToPlay.videoId = playingVideoId;
+        }
+        this.playDialog(dialogToPlay);
+        break;
       }
     }
 

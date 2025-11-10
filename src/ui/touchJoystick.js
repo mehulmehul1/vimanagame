@@ -6,6 +6,7 @@
  */
 
 import { Howler } from "howler";
+import { unlockAllAudioContexts } from "../vfx/proceduralAudio.js";
 
 export class TouchJoystick {
   constructor(options = {}) {
@@ -26,6 +27,7 @@ export class TouchJoystick {
     this.deltaX = 0;
     this.deltaY = 0;
     this.speedMultiplier = 0; // Speed multiplier based on stick distance (0 to 1)
+    this.hasUnlockedOnFirstTouch = false; // Track if we've done full unlock on first touch
 
     // Create DOM elements
     this.createElements();
@@ -85,12 +87,34 @@ export class TouchJoystick {
     this.container.addEventListener(
       "touchstart",
       (e) => {
-        e.preventDefault();
-
-        // Unlock Howler audio context on first user interaction (required for autoplay policy)
-        if (typeof Howler !== "undefined" && typeof Howler.unlock === "function") {
-          Howler.unlock();
+        // CRITICAL: Unlock audio/video BEFORE preventDefault to maintain gesture context
+        // But keep it minimal to avoid blocking joystick input processing
+        
+        // On first touch only, do comprehensive unlock
+        if (!this.hasUnlockedOnFirstTouch) {
+          // Unlock Howler audio (synchronous, fast)
+          if (typeof Howler !== "undefined" && typeof Howler.unlock === "function") {
+            Howler.unlock();
+          }
+          
+          // Unlock all audio contexts (procedural audio)
+          unlockAllAudioContexts();
+          
+          // Unlock video playback (iOS Safari)
+          if (window.gameManager?.videoManager?.unlockVideoPlayback) {
+            window.gameManager.videoManager.unlockVideoPlayback();
+          }
+          
+          this.hasUnlockedOnFirstTouch = true;
+        } else {
+          // On subsequent touches, just call the global unlock handler (lightweight)
+          // This refreshes gesture context without doing heavy work
+          if (window.unlockAudioOnInteraction) {
+            window.unlockAudioOnInteraction();
+          }
         }
+
+        e.preventDefault();
 
         if (this.active) return; // Already handling a touch
 
@@ -120,6 +144,12 @@ export class TouchJoystick {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
           if (touch.identifier === this.touchId) {
+            // Refresh gesture context during long holds (iOS Safari gesture context can expire)
+            // Call unlock on touchmove to maintain gesture context throughout the hold
+            if (window.unlockAudioOnInteraction) {
+              window.unlockAudioOnInteraction();
+            }
+            
             e.preventDefault();
             this.updatePosition(touch.clientX, touch.clientY);
             break;
@@ -137,6 +167,14 @@ export class TouchJoystick {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         if (touch.identifier === this.touchId) {
+          // CRITICAL: Unlock on touchend for long holds
+          // iOS Safari may not establish gesture context on long holds (touchstart),
+          // but it WILL establish it on touchend after a hold
+          // This ensures audio/video can play after releasing a long hold
+          if (window.unlockAudioOnInteraction) {
+            window.unlockAudioOnInteraction();
+          }
+          
           this.reset();
           break;
         }
@@ -276,7 +314,11 @@ export class TouchJoystick {
    * Fade in the joystick (restore opacity)
    */
   fadeIn() {
-    if (this.isTouchDevice && this.container.style.display !== "none") {
+    if (this.isTouchDevice) {
+      // Ensure joystick is visible and can receive input
+      if (this.container.style.display === "none") {
+        this.container.style.display = "block";
+      }
       this.container.style.opacity = "0.6";
       this.container.style.pointerEvents = "auto";
     }

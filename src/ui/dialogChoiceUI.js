@@ -310,13 +310,41 @@ class DialogChoiceUI {
 
       // Check if pointer is locked
       const isPointerLocked = document.pointerLockElement !== null;
+      const isMobile =
+        this.inputManager?.gameManager?.getState?.()?.isMobile || false;
 
+      // Check if the click target is a dialog choice button or its container
+      const target = event.target;
+      const isOnDialogChoice =
+        target &&
+        ((target.closest && target.closest("#dialog-choices") !== null) ||
+          target.classList?.contains("dialog-choice-button") ||
+          target.id === "dialog-choices" ||
+          target === this.container ||
+          (this.container && this.container.contains(target)));
+
+      // On mobile, only process clicks that are actually on the dialog choice UI
+      // On desktop with pointer lock, clicks anywhere confirm selection
+      if (isMobile && !isPointerLocked) {
+        if (!isOnDialogChoice) {
+          // Ignore clicks outside dialog choice UI on mobile
+          // Stop propagation to prevent other handlers from processing
+          event.stopPropagation();
+          event.preventDefault();
+          return;
+        }
+        // If click is on dialog choice UI, let the button handler process it
+        // Don't process it here to avoid double-firing
+        return;
+      }
+
+      // Desktop with pointer lock: clicking anywhere confirms selection
       if (isPointerLocked) {
         // When pointer locked, clicking confirms the currently selected choice
         event.preventDefault();
         this.confirmSelection();
       }
-      // If pointer is not locked, the individual button click handlers will fire
+      // If pointer is not locked and not mobile, the individual button click handlers will fire
     };
 
     window.addEventListener("wheel", this.wheelHandler, { passive: false });
@@ -390,6 +418,10 @@ class DialogChoiceUI {
     this.choiceButtons = [];
     this.keystrokeIndex = 0; // Reset keystroke cycle when showing new choices
 
+    // Check if we're on mobile
+    const isMobile =
+      this.inputManager?.gameManager?.getState?.()?.isMobile || false;
+
     // Set prompt if provided
     if (choiceData.prompt) {
       this.promptElement.textContent = choiceData.prompt;
@@ -405,6 +437,7 @@ class DialogChoiceUI {
     choiceData.choices.forEach((choice, index) => {
       const button = document.createElement("button");
       button.className = "dialog-choice-button";
+      // Pre-select first option (works for both desktop and mobile)
       if (index === 0) {
         button.classList.add("selected");
       }
@@ -412,16 +445,28 @@ class DialogChoiceUI {
       button.dataset.choiceResponseType = choice.responseType;
       button.dataset.choiceIndex = index;
 
-      button.addEventListener("click", () => {
+      button.addEventListener("click", (e) => {
+        // Stop propagation to prevent window click handler from firing
+        e.stopPropagation();
+
+        // Update selected state when clicked
+        this.choiceButtons.forEach((btn) => btn.classList.remove("selected"));
+        button.classList.add("selected");
+        this.selectedIndex = index;
+
         // Play typewriter return sound on click
         if (this.sfxManager) {
           this.sfxManager.play("typewriter-return");
         }
-        this.selectedIndex = index;
         this.selectChoice(choice, choiceData);
       });
 
       button.addEventListener("mouseenter", () => {
+        // Only handle hover on desktop (mobile doesn't have hover)
+        const isMobile =
+          this.inputManager?.gameManager?.getState?.()?.isMobile || false;
+        if (isMobile) return;
+
         // Update selection when hovering
         this.choiceButtons[this.selectedIndex].classList.remove("selected");
         this.selectedIndex = index;
@@ -534,12 +579,18 @@ class DialogChoiceUI {
     }
 
     // Fade in touch joysticks on mobile (use requestAnimationFrame to ensure DOM update completes)
+    // Force re-enable joysticks after dialog choice is hidden
     if (this.inputManager) {
-      requestAnimationFrame(() => {
+      // Use a small timeout to ensure DOM has fully updated and any state changes have propagated
+      setTimeout(() => {
         requestAnimationFrame(() => {
-          this.inputManager.fadeInTouchControls();
+          // Force fade in - don't rely on isDialogChoiceVisible check which might be stale
+          // The dialog choice is definitely hidden at this point since we just set display: none
+          if (this.inputManager) {
+            this.inputManager.fadeInTouchControls();
+          }
         });
-      });
+      }, 50); // Small delay to ensure state has propagated
     }
   }
 
