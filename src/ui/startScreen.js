@@ -240,23 +240,9 @@ export class StartScreen {
 
     // Click handler for start button
     this.startButton.addEventListener("click", (e) => {
-      // CRITICAL: Unlock audio/video BEFORE stopPropagation to maintain gesture context
-      // This ensures iOS Safari videos can play when triggered by colliders
-      // The start button calls stopPropagation() which prevents the window-level
-      // unlockAudioOnInteraction handler from firing, so we must unlock here
-      if (
-        typeof Howler !== "undefined" &&
-        typeof Howler.unlock === "function"
-      ) {
-        Howler.unlock();
-      }
-      unlockAllAudioContexts();
-
-      // Unlock video playback for iOS Safari (must happen during gesture context)
-      // This "registers" video elements so they can play later without user gesture
-      if (this.uiManager?.gameManager?.videoManager?.unlockVideoPlayback) {
-        this.uiManager.gameManager.videoManager.unlockVideoPlayback();
-      }
+      // Audio/video unlocking is handled by global unlockAudioOnInteraction handler
+      // (in capture phase, so it fires before this handler even if stopPropagation is called)
+      // No need to unlock here - it's already done by the global handler
 
       e.stopPropagation(); // Prevent click from reaching canvas
 

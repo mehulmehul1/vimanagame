@@ -666,7 +666,9 @@ gizmoManager.applyGlobalBlocksFromDefinitions({
 // Global user interaction handler to unlock all audio contexts (Safari autoplay policy)
 // This ensures procedural audio works reliably after any user interaction
 let audioUnlocked = false;
+let videoUnlocked = false;
 const unlockAudioOnInteraction = () => {
+  // Unlock audio (fast, synchronous operations)
   if (!audioUnlocked) {
     unlockAllAudioContexts();
     // Also unlock Howler for SFX/Music
@@ -675,10 +677,18 @@ const unlockAudioOnInteraction = () => {
     }
     audioUnlocked = true;
     logger.log("✅ Audio contexts unlocked via user interaction");
-    // Keep listener active in case new audio contexts are created
   } else {
     // Still unlock on subsequent interactions (new contexts might be created)
     unlockAllAudioContexts();
+  }
+
+  // Unlock videos (defer to next frame to avoid blocking - this is expensive)
+  if (!videoUnlocked && gameManager?.videoManager?.unlockVideoPlayback) {
+    videoUnlocked = true;
+    // Defer video unlocking to avoid blocking the click handler
+    requestAnimationFrame(() => {
+      gameManager.videoManager.unlockVideoPlayback();
+    });
   }
 
   // Retry queued video plays (iOS Safari autoplay restrictions)

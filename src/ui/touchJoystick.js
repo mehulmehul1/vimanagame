@@ -5,9 +5,6 @@
  * Returns normalized values (-1 to 1) for X and Y axes.
  */
 
-import { Howler } from "howler";
-import { unlockAllAudioContexts } from "../vfx/proceduralAudio.js";
-
 export class TouchJoystick {
   constructor(options = {}) {
     this.side = options.side || "left"; // 'left' or 'right'
@@ -27,7 +24,6 @@ export class TouchJoystick {
     this.deltaX = 0;
     this.deltaY = 0;
     this.speedMultiplier = 0; // Speed multiplier based on stick distance (0 to 1)
-    this.hasUnlockedOnFirstTouch = false; // Track if we've done full unlock on first touch
 
     // Create DOM elements
     this.createElements();
@@ -87,34 +83,11 @@ export class TouchJoystick {
     this.container.addEventListener(
       "touchstart",
       (e) => {
-        // CRITICAL: Unlock audio/video BEFORE preventDefault to maintain gesture context
-        // But keep it minimal to avoid blocking joystick input processing
-
-        // On first touch only, do comprehensive unlock
-        if (!this.hasUnlockedOnFirstTouch) {
-          // Unlock Howler audio (synchronous, fast)
-          if (
-            typeof Howler !== "undefined" &&
-            typeof Howler.unlock === "function"
-          ) {
-            Howler.unlock();
-          }
-
-          // Unlock all audio contexts (procedural audio)
-          unlockAllAudioContexts();
-
-          // Unlock video playback (iOS Safari)
-          if (window.gameManager?.videoManager?.unlockVideoPlayback) {
-            window.gameManager.videoManager.unlockVideoPlayback();
-          }
-
-          this.hasUnlockedOnFirstTouch = true;
-        } else {
-          // On subsequent touches, just call the global unlock handler (lightweight)
-          // This refreshes gesture context without doing heavy work
-          if (window.unlockAudioOnInteraction) {
-            window.unlockAudioOnInteraction();
-          }
+        // Audio/video unlocking is handled by global unlockAudioOnInteraction handler
+        // (in capture phase, so it fires before this handler)
+        // Just call it to refresh gesture context if needed
+        if (window.unlockAudioOnInteraction) {
+          window.unlockAudioOnInteraction();
         }
 
         e.preventDefault();

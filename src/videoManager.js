@@ -689,28 +689,55 @@ class VideoManager {
     // This "registers" them with iOS Safari so they can play later without user gesture
     let unlockedCount = 0;
     this.videoPlayers.forEach((player, videoId) => {
-      if (player.video && !player.video.muted) {
+      if (player.video) {
         try {
-          // Call play() to unlock, then let it play for 1 frame before pausing
+          // Store original state
+          const wasMuted = player.video.muted;
+          const wasVisible = player.videoMesh ? player.videoMesh.visible : true;
+
+          // Temporarily mute and hide to prevent audio/captions during unlock
+          player.video.muted = true;
+          if (player.videoMesh) {
+            player.videoMesh.visible = false;
+          }
+
+          // Call play() to unlock, then immediately pause
           // iOS Safari may need the video to actually start playing to unlock it
           const playPromise = player.video.play();
           if (playPromise && typeof playPromise.then === "function") {
             playPromise
               .then(() => {
-                // Let it play for 1 frame to ensure it's actually unlocked
+                // Pause immediately (don't wait for frame) to minimize any playback
+                player.video.pause();
+                player.video.currentTime = 0; // Reset to beginning
+
+                // Restore original mute state
+                player.video.muted = wasMuted;
+
+                // Restore visibility on next frame (after unlock is complete)
                 requestAnimationFrame(() => {
-                  player.video.pause();
-                  player.video.currentTime = 0; // Reset to beginning
+                  if (player.videoMesh) {
+                    player.videoMesh.visible = wasVisible;
+                  }
                   unlockedCount++;
                   this.logger.log(`Unlocked video "${videoId}" for playback`);
                 });
               })
               .catch((error) => {
+                // Restore state even on error
+                player.video.muted = wasMuted;
+                if (player.videoMesh) {
+                  player.videoMesh.visible = wasVisible;
+                }
                 // Ignore errors - video might not be ready yet
                 this.logger.warn(`Failed to unlock video "${videoId}":`, error);
               });
           } else {
-            // play() returned undefined/null, try pause anyway
+            // play() returned undefined/null, restore state and try pause anyway
+            player.video.muted = wasMuted;
+            if (player.videoMesh) {
+              player.videoMesh.visible = wasVisible;
+            }
             player.video.pause();
             player.video.currentTime = 0;
           }
