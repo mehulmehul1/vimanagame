@@ -29,6 +29,9 @@ class VideoManager {
     // Track deferred videos (preload: false) that haven't been loaded yet
     this.deferredVideos = new Set(); // Set of video IDs that should be deferred
 
+    // Track videos that were preloaded early (via loadDeferredVideos) - protect from removal
+    this.earlyPreloadedVideos = new Set(); // Set of video IDs that were preloaded early
+
     // Track if we should unlock videos when they're created (set during gesture context)
     this.shouldUnlockOnCreate = false;
 
@@ -375,6 +378,9 @@ class VideoManager {
         ) {
           // Check once - skip if already played
           if (videoConfig.once && hasPlayedOnce) {
+            this.logger.log(
+              `Skipping video "${videoId}" (already played once)`
+            );
             continue;
           }
 
@@ -395,8 +401,15 @@ class VideoManager {
               );
             } else {
               // Play immediately
+              this.logger.log(
+                `Auto-playing video "${videoId}" (exists, criteria match, autoPlay=true)`
+              );
               this.playVideo(videoId);
             }
+          } else {
+            this.logger.log(
+              `Video "${videoId}" criteria match but autoPlay=false, not playing`
+            );
           }
         }
         // If play criteria don't match, pause the video (only for state-based play)
@@ -414,12 +427,23 @@ class VideoManager {
         }
 
         // Stop and remove video if it exists
+        // BUT: Don't remove videos that were preloaded early (via loadDeferredVideos),
+        // as they were explicitly loaded for future use and should stick around
         if (exists) {
-          player.destroy();
-          this.videoPlayers.delete(videoId);
-          this.logger.log(
-            `Removed video "${videoId}" (spawn criteria no longer met)`
-          );
+          const wasEarlyPreloaded = this.earlyPreloadedVideos.has(videoId);
+          if (wasEarlyPreloaded) {
+            // Keep early preloaded videos around even if criteria don't match
+            // They were explicitly loaded for future states
+            this.logger.log(
+              `Keeping early preloaded video "${videoId}" (criteria not met, but was preloaded early)`
+            );
+          } else {
+            player.destroy();
+            this.videoPlayers.delete(videoId);
+            this.logger.log(
+              `Removed video "${videoId}" (spawn criteria no longer met)`
+            );
+          }
         }
       }
     }
@@ -893,11 +917,18 @@ class VideoManager {
 
   /**
    * Load deferred videos (preload: false) - fetch all of them regardless of state
+   * Also preloads critical Safari videos (like catSafari) that need to be ready early
    * Called after loading screen completes
    */
   loadDeferredVideos() {
     // Find all videos with preload: false
     const deferredVideoIds = [];
+    // Also find critical Safari videos that should be preloaded early even with preload: true
+    const criticalSafariVideoIds = [];
+
+    const state = this.gameManager?.getState() || {};
+    const isSafari = state.isSafari || false;
+
     for (const [videoId, videoConfig] of Object.entries(videos)) {
       // Skip videos that shouldn't load on current platform
       if (!this._shouldLoadOnPlatform(videoConfig)) {
@@ -907,18 +938,25 @@ class VideoManager {
       const shouldPreload = videoConfig.preload !== false; // Default to true
       if (!shouldPreload) {
         deferredVideoIds.push(videoId);
+      } else if (isSafari && videoId === "catSafari") {
+        // Preload catSafari early for Safari even though it has preload: true
+        // This ensures it's created and unlocked before heardCat triggers
+        criticalSafariVideoIds.push(videoId);
       }
     }
 
-    if (deferredVideoIds.length === 0) {
+    const allVideoIds = [...deferredVideoIds, ...criticalSafariVideoIds];
+    if (allVideoIds.length === 0) {
       return;
     }
 
-    this.logger.log(`Loading ${deferredVideoIds.length} deferred videos`);
+    this.logger.log(
+      `Loading ${allVideoIds.length} videos (${deferredVideoIds.length} deferred, ${criticalSafariVideoIds.length} critical Safari)`
+    );
 
-    // Create video players for all deferred videos (even if they were already created)
+    // Create video players for all videos (even if they were already created)
     // Also ensure existing players start fetching if they haven't already
-    for (const videoId of deferredVideoIds) {
+    for (const videoId of allVideoIds) {
       const videoConfig = videos[videoId];
       if (!videoConfig) continue;
 
@@ -930,9 +968,9 @@ class VideoManager {
         if (player) {
           // Hide the video and keep it paused until criteria match
           player.setVisible(false);
-          this.logger.log(
-            `Preloaded deferred video "${videoId}" (hidden, paused)`
-          );
+          // Mark as early preloaded so it's protected from removal
+          this.earlyPreloadedVideos.add(videoId);
+          this.logger.log(`Preloaded video "${videoId}" (hidden, paused)`);
         }
       } else {
         // Player already exists (created by updateVideosForState before loadDeferredVideos ran)
@@ -941,7 +979,7 @@ class VideoManager {
           // Video hasn't started loading yet (readyState 0 = HAVE_NOTHING), trigger it
           player.video.load();
           this.logger.log(
-            `Triggered fetch for already-created deferred video "${videoId}"`
+            `Triggered fetch for already-created video "${videoId}"`
           );
         }
       }

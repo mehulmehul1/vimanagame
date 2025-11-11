@@ -794,24 +794,6 @@ class ColliderManager {
 
     // Set state if defined (for non-zone colliders)
     if (data.setStateOnEnter) {
-      // Safari autoplay fix: Directly play videos with audio on Safari when triggered by collider
-      // Safari requires play() to be called synchronously within user gesture context
-      // Call this BEFORE setState() to ensure it happens first and stays in gesture context
-      const state = this.gameManager?.getState() || {};
-      const isSafari = state.isSafari || false;
-      if (isSafari && id === "cat" && data.setStateOnEnter.heardCat) {
-        const videoManager = this.gameManager?.videoManager;
-        if (videoManager) {
-          // Determine which video ID to use based on platform
-          const videoId = isSafari ? "catSafari" : "cat";
-          this.logger.log(
-            `Safari: Directly playing video "${videoId}" from collider trigger (before setState)`
-          );
-          // Play immediately while still in user gesture context, before state change
-          videoManager.playVideo(videoId);
-        }
-      }
-
       this.gameManager.setState(data.setStateOnEnter);
     }
   }

@@ -3122,7 +3122,7 @@ class CharacterController {
 
       // Adjust playback rate based on sprint
       if (this.isPlayingFootsteps) {
-        const playbackRate = isSprinting ? 1.5 : 1.0;
+        const playbackRate = isSprinting ? 1.25 : 1.0;
         this.footstepSound.rate(playbackRate);
       }
     }

@@ -129,7 +129,7 @@ export const videos = {
   catSafari: {
     id: "catSafari",
     videoPath: "/video/mov/cat-1-hvec.mov",
-    preload: false, // Load after loading screen
+    preload: true, // Preload for Safari to ensure it's ready and unlocked when needed
     position: { x: -24.13, y: -1.48, z: 21.46 },
     rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1, y: 1, z: 1 },

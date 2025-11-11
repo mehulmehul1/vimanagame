@@ -74,7 +74,9 @@ export class StartScreen {
 
     // Procedural path phase timing
     this.phase3StartT = 0.6; // Start of final turn to player view (as fraction of path), default 60%
-    this.smoothedTiltAxis = null; // Smoothed tilt axis for unified path (reduces dramatic roll)
+    this.phase3StartDirection = null; // Camera direction when Phase 3 starts (captured once)
+    this.phase3Started = false; // Track if Phase 3 has started
+    this.initialTiltMultiplier = 1.0; // Tilt multiplier when START is clicked (captured to avoid snap)
 
     // Speed transition tracking (GLB -> unified path)
     this.initialAnimSpeed = 0; // Units per second at START (from GLB anim)
@@ -661,10 +663,27 @@ export class StartScreen {
         );
         this.isFollowingUnifiedPath = true;
 
+        // Reset Phase 3 tracking for new path
+        this.phase3Started = false;
+        this.phase3StartDirection = null;
+
         // Capture current camera look direction
         const currentLook = new THREE.Vector3(0, 0, -1);
         currentLook.applyQuaternion(this.camera.quaternion);
         this.initialLookDirection = currentLook.clone();
+
+        // Capture current tilt multiplier to avoid snapping when transitioning to unified path
+        // Calculate based on current spin state (same logic as pre-start phase)
+        if (this.isSpinning && this.cameraSpinProgress < 1.0) {
+          // Fade in tilt as spin progresses (ease in cubic)
+          this.initialTiltMultiplier =
+            this.cameraSpinProgress *
+            this.cameraSpinProgress *
+            this.cameraSpinProgress;
+        } else {
+          // Full tilt if not spinning
+          this.initialTiltMultiplier = 1.0;
+        }
 
         // Get initial tangent of the unified path
         this.pathInitialTangent = this.unifiedPath.getTangentAt(0).normalize();
@@ -835,76 +854,51 @@ export class StartScreen {
       const blendZoneDuration = 0.5; // 0.5 second blend after Phase 1
 
       if (this.rotationTransitionTime < initialTransitionDuration) {
-        // Smoothly rotate from initial direction to path tangent
+        // Smoothly rotate from initial direction to smoothed tangent (look-ahead behavior)
         const transitionProgress =
           this.rotationTransitionTime / initialTransitionDuration; // 0 to 1
         const eased = 1 - Math.pow(1 - transitionProgress, 3); // Ease out cubic
 
-        // Decompose direction vectors into yaw and pitch for controlled rotation
-        // Initial look direction
-        const initialYaw = Math.atan2(
-          this.initialLookDirection.x,
-          this.initialLookDirection.z
+        // Use spherical interpolation (slerp) for perfectly smooth rotation
+        // smoothedTangent is already smoothly updated, giving natural look-ahead behavior
+        const targetDirection = this.smoothedTangent.clone().normalize();
+        const startDirection = this.initialLookDirection.clone().normalize();
+
+        // Ensure vectors are normalized
+        if (startDirection.lengthSq() < 0.001) {
+          startDirection.set(0, 0, -1);
+        }
+        if (targetDirection.lengthSq() < 0.001) {
+          targetDirection.copy(startDirection);
+        }
+
+        // Use quaternion-based spherical linear interpolation for smooth rotation
+        // Convert direction vectors to quaternions, slerp, then convert back
+        const startQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, -1),
+          startDirection
         );
-        const initialPitch = Math.asin(-this.initialLookDirection.y);
-
-        // Use raw tangent for Phase 1 to avoid smoothing lag
-        const tangentYaw = Math.atan2(rawTangent.x, rawTangent.z);
-        const tangentPitch = Math.asin(-rawTangent.y);
-
-        // Interpolate yaw and pitch separately
-        // Handle yaw wrap-around (shortest rotation path)
-        let yawDiff = tangentYaw - initialYaw;
-        if (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
-        if (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
-
-        const interpolatedYaw = initialYaw + yawDiff * eased;
-        const interpolatedPitch =
-          initialPitch + (tangentPitch - initialPitch) * eased;
-
-        // Reconstruct look direction from interpolated angles
-        lookDirection = new THREE.Vector3(
-          Math.sin(interpolatedYaw) * Math.cos(interpolatedPitch),
-          -Math.sin(interpolatedPitch),
-          Math.cos(interpolatedYaw) * Math.cos(interpolatedPitch)
-        ).normalize();
+        const targetQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, -1),
+          targetDirection
+        );
+        const slerpedQuat = new THREE.Quaternion().slerpQuaternions(
+          startQuat,
+          targetQuat,
+          eased
+        );
+        lookDirection = new THREE.Vector3(0, 0, -1)
+          .applyQuaternion(slerpedQuat)
+          .normalize();
       }
       // Blend zone: Smooth transition from Phase 1 to Phase 2
       else if (
         this.rotationTransitionTime <
         initialTransitionDuration + blendZoneDuration
       ) {
-        const blendProgress =
-          (this.rotationTransitionTime - initialTransitionDuration) /
-          blendZoneDuration;
-        const blendEased = blendProgress * blendProgress; // Ease in quadratic
-
-        // Calculate the Phase 1 final direction (at t=1.0)
-        const initialYaw = Math.atan2(
-          this.initialLookDirection.x,
-          this.initialLookDirection.z
-        );
-        const initialPitch = Math.asin(-this.initialLookDirection.y);
-        const tangentYaw = Math.atan2(tangent.x, tangent.z);
-        const tangentPitch = Math.asin(-tangent.y);
-
-        let yawDiff = tangentYaw - initialYaw;
-        if (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
-        if (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
-
-        const phase1FinalYaw = initialYaw + yawDiff;
-        const phase1FinalPitch = tangentPitch;
-
-        const phase1Final = new THREE.Vector3(
-          Math.sin(phase1FinalYaw) * Math.cos(phase1FinalPitch),
-          -Math.sin(phase1FinalPitch),
-          Math.cos(phase1FinalYaw) * Math.cos(phase1FinalPitch)
-        ).normalize();
-
-        // Blend from Phase 1 final to current tangent
-        lookDirection = new THREE.Vector3()
-          .lerpVectors(phase1Final, tangent, blendEased)
-          .normalize();
+        // Phase 1 now ends at smoothedTangent, which matches tangent
+        // Use tangent directly for seamless continuation
+        lookDirection = tangent.clone();
       }
       // Phase 2: Follow tangent for most of journey
       else if (t < this.phase3StartT) {
@@ -912,38 +906,96 @@ export class StartScreen {
       }
       // Phase 3: Rotate from tangent to final spawn orientation (final portion)
       else {
+        // Capture starting direction when Phase 3 begins (once, for stability)
+        if (!this.phase3Started) {
+          this.phase3StartDirection = tangent.clone().normalize();
+          this.phase3Started = true;
+        }
+
         const remaining = Math.max(0.001, 1.0 - this.phase3StartT);
         const finalRotProgress = (t - this.phase3StartT) / remaining; // 0..1 over last portion
         const eased = 1 - Math.pow(1 - finalRotProgress, 4); // Ease out quartic (slower)
 
-        // Decompose direction vectors into yaw and pitch for controlled rotation
-        // Current tangent direction
-        const tangentYaw = Math.atan2(tangent.x, tangent.z);
-        const tangentPitch = Math.asin(-tangent.y);
+        // Use quaternion-based spherical interpolation for smooth, consistent rotation
+        // This avoids angle wrap-around issues and ensures correct rotation direction
+        const startDirection = this.phase3StartDirection.clone().normalize();
+        const targetDirection = finalLookDirection.clone().normalize();
 
-        // Final spawn direction
-        const finalYaw = Math.atan2(finalLookDirection.x, finalLookDirection.z);
-        const finalPitch = Math.asin(-finalLookDirection.y);
+        // Ensure vectors are normalized
+        if (startDirection.lengthSq() < 0.001) {
+          startDirection.set(0, 0, -1);
+        }
+        if (targetDirection.lengthSq() < 0.001) {
+          targetDirection.set(0, 0, -1);
+        }
 
-        // Interpolate yaw and pitch separately
-        // Handle yaw wrap-around (go the long way around)
-        let yawDiff = finalYaw - tangentYaw;
-        if (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
-        if (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
+        // Use quaternion-based spherical linear interpolation
+        // Ensure rotation always goes toward -X, never through +X
+        const startQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, -1),
+          startDirection
+        );
+        const targetQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 0, -1),
+          targetDirection
+        );
 
-        // Invert to rotate the opposite direction (the long way)
-        yawDiff = yawDiff > 0 ? yawDiff - 2 * Math.PI : yawDiff + 2 * Math.PI;
+        // Check if shortest path would pass through +X by sampling intermediate directions
+        let wouldPassThroughPositiveX = false;
+        for (let i = 0.1; i < 0.9; i += 0.1) {
+          const testQuat = new THREE.Quaternion().slerpQuaternions(
+            startQuat,
+            targetQuat,
+            i
+          );
+          const testDir = new THREE.Vector3(0, 0, -1)
+            .applyQuaternion(testQuat)
+            .normalize();
+          if (testDir.x > 0.05) {
+            // Threshold to detect if rotation would go through +X
+            wouldPassThroughPositiveX = true;
+            break;
+          }
+        }
 
-        const interpolatedYaw = tangentYaw + yawDiff * eased;
-        const interpolatedPitch =
-          tangentPitch + (finalPitch - tangentPitch) * eased;
+        // If shortest path goes through +X, calculate rotation that goes the other way
+        // We'll create a quaternion that represents the same target rotation but via the long path
+        let finalTargetQuat = targetQuat;
+        if (wouldPassThroughPositiveX) {
+          // Calculate relative rotation from start to target: target = start * relative
+          // So relative = start.invert() * target
+          const startQuatInv = startQuat.clone().invert();
+          const relativeQuat = new THREE.Quaternion().multiplyQuaternions(
+            startQuatInv,
+            targetQuat
+          );
 
-        // Reconstruct look direction from interpolated angles
-        lookDirection = new THREE.Vector3(
-          Math.sin(interpolatedYaw) * Math.cos(interpolatedPitch),
-          -Math.sin(interpolatedPitch),
-          Math.cos(interpolatedYaw) * Math.cos(interpolatedPitch)
-        ).normalize();
+          // Get the rotation axis and angle
+          const axis = new THREE.Vector3();
+          relativeQuat.getAxisAngle(axis);
+          // Extract angle from quaternion: angle = 2 * acos(|w|)
+          const angle =
+            2 * Math.acos(Math.min(1, Math.max(-1, Math.abs(relativeQuat.w))));
+
+          // Go the long way: use (2π - angle) instead of angle to avoid passing through +X
+          const longWayQuat = new THREE.Quaternion().setFromAxisAngle(
+            axis,
+            2 * Math.PI - angle
+          );
+          finalTargetQuat = new THREE.Quaternion().multiplyQuaternions(
+            startQuat,
+            longWayQuat
+          );
+        }
+
+        const slerpedQuat = new THREE.Quaternion().slerpQuaternions(
+          startQuat,
+          finalTargetQuat,
+          eased
+        );
+        lookDirection = new THREE.Vector3(0, 0, -1)
+          .applyQuaternion(slerpedQuat)
+          .normalize();
       }
 
       // Look in the calculated direction
@@ -958,10 +1010,24 @@ export class StartScreen {
       const tiltAxisSmoothing = 0.08; // slightly faster than pre-start 0.04 to stay responsive
       this.smoothedTiltAxis.lerp(lookDirection, tiltAxisSmoothing);
       this.smoothedTiltAxis.normalize();
-      // Lerp tilt to 0 during Phase 3 (final rotation to player view)
+      // Smoothly fade tilt in during Phase 1, keep at full during Phase 2, fade out during Phase 3
       let tiltMultiplier = 1.0;
-      if (t >= this.phase3StartT) {
-        // Reduce tilt during final portion
+
+      // Fade in during Phase 1 (smooth transition from initial tilt to full tilt)
+      if (this.rotationTransitionTime < initialTransitionDuration) {
+        const fadeInProgress =
+          this.rotationTransitionTime / initialTransitionDuration; // 0 to 1
+        // Ease in cubic for smooth fade-in, lerp from initial tilt to 1.0
+        const eased = fadeInProgress * fadeInProgress * fadeInProgress;
+        tiltMultiplier = THREE.MathUtils.lerp(
+          this.initialTiltMultiplier,
+          1.0,
+          eased
+        );
+      }
+      // Full tilt during Phase 2 (already 1.0)
+      // Fade out during Phase 3
+      else if (t >= this.phase3StartT) {
         const remaining = Math.max(0.001, 1.0 - this.phase3StartT);
         const fadeProgress = (t - this.phase3StartT) / remaining; // 0..1
         tiltMultiplier = 1.0 - fadeProgress; // 1.0 to 0
@@ -1007,6 +1073,12 @@ export class StartScreen {
 
         // Apply camera spin if reversing (180-degree rotation)
         if (this.animationDirection === -1) {
+          // Increment spin progress
+          if (this.cameraSpinProgress < 1.0) {
+            this.cameraSpinProgress += dt / this.cameraSpinDuration;
+            this.cameraSpinProgress = Math.min(1.0, this.cameraSpinProgress);
+          }
+
           let spinAngle;
 
           if (this.cameraSpinProgress < 1.0) {
@@ -1046,7 +1118,19 @@ export class StartScreen {
         this.camera.lookAt(lookTarget);
 
         // Apply camera tilt/roll for unsteady flight effect
-        const rollAngle = this.calculateCameraTilt();
+        // Smoothly fade tilt in during spin to avoid competing rotations
+        let tiltMultiplier = 1.0;
+        const isSpinning =
+          this.animationDirection === -1 && this.cameraSpinProgress < 1.0;
+        if (isSpinning) {
+          // Fade in tilt as spin progresses (ease in cubic)
+          tiltMultiplier =
+            this.cameraSpinProgress *
+            this.cameraSpinProgress *
+            this.cameraSpinProgress;
+        }
+
+        const rollAngle = this.calculateCameraTilt() * tiltMultiplier;
         const rollQuat = new THREE.Quaternion();
         rollQuat.setFromAxisAngle(this.smoothedForward, rollAngle);
         this.camera.quaternion.multiply(rollQuat);

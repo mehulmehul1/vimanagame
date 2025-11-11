@@ -21,7 +21,7 @@ class ZoneManager {
   constructor(gameManager, sceneManager) {
     this.gameManager = gameManager;
     this.sceneManager = sceneManager;
-    this.logger = new Logger("ZoneManager", true); // Enable logging
+    this.logger = new Logger("ZoneManager", false); // Enable logging
 
     // SparkRenderer reference for updating accumulator origin position
     this.sparkRenderer = null; // Will be set by setSparkRenderer()
