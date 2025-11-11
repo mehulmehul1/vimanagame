@@ -197,9 +197,10 @@ class VideoManager {
       }
       // Determine spawn criteria (when video mesh should exist)
       const spawnCriteria = videoConfig.spawnCriteria || videoConfig.criteria;
+      // Videos without criteria should NOT spawn automatically (only via explicit playVideo/playNext)
       const matchesSpawnCriteria = spawnCriteria
         ? checkCriteria(state, spawnCriteria)
-        : true;
+        : false;
 
       // Determine play criteria (when video should play)
       // If spawnCriteria is provided but playCriteria is not, use time-based delay instead
@@ -413,12 +414,23 @@ class VideoManager {
         }
 
         // Stop and remove video if it exists
+        // BUT: Don't remove videos with preload: false that have been prefetched,
+        // as they were explicitly loaded for future use and should stick around
         if (exists) {
-          player.destroy();
-          this.videoPlayers.delete(videoId);
-          this.logger.log(
-            `Removed video "${videoId}" (spawn criteria no longer met)`
-          );
+          const wasPrefetched = videoConfig.preload === false;
+          if (wasPrefetched) {
+            // Keep prefetched videos around even if criteria don't match
+            // They were explicitly loaded for future states
+            this.logger.log(
+              `Keeping prefetched video "${videoId}" (criteria not met, but preload: false)`
+            );
+          } else {
+            player.destroy();
+            this.videoPlayers.delete(videoId);
+            this.logger.log(
+              `Removed video "${videoId}" (spawn criteria no longer met)`
+            );
+          }
         }
       }
     }
@@ -986,8 +998,9 @@ class VideoPlayer {
     this.isDestroying = false;
     this.playPromise = null;
     this.intendedVisible = true; // Track intended visibility (before viewmaster check)
-    this.viewmasterRevealTimeout = null; // Timeout for delayed visibility when viewmaster is removed
     this.wasViewmasterEquipped = false; // Track previous frame's viewmaster state
+    this.viewmasterEquipTime = null; // Timestamp when viewmaster was equipped (for hide delay)
+    this.viewmasterHideDelay = 0.9; // Delay in seconds before hiding videos after equipping
     this.cachedVisible = true; // Cache visibility state to avoid redundant work
     this.lastBillboardUpdate = 0; // Track last billboard update time
     this.lastCameraPosition = new THREE.Vector3(); // Cache camera position for billboard throttling
@@ -1083,7 +1096,7 @@ class VideoPlayer {
     this.wasViewmasterEquipped = initialState?.isViewmasterEquipped || false;
 
     // Apply initial visibility (respects viewmaster state)
-    this.applyVisibility();
+    this.applyVisibility(0);
     this.videoMesh.name = "video-player";
 
     // Store initial rotation for billboarding offset
@@ -1104,6 +1117,11 @@ class VideoPlayer {
     }
 
     // Video event listeners
+    this.video.addEventListener("loadedmetadata", () => {
+      // Set playbackRate when metadata loads (required for some browsers)
+      this.video.playbackRate = this.config.playbackRate;
+    });
+
     this.video.addEventListener("loadeddata", () => {
       // Resize canvas to match video dimensions
       if (this.video.videoWidth > 0 && this.video.videoHeight > 0) {
@@ -1197,9 +1215,15 @@ class VideoPlayer {
         this.video.currentTime = 0;
       }
 
+      // Set playbackRate before playing (some browsers reset it on play())
+      this.video.playbackRate = this.config.playbackRate;
+
       this.playPromise = this.video.play();
       await this.playPromise;
       this.playPromise = null;
+
+      // Set playbackRate again after play() resolves (some browsers reset it)
+      this.video.playbackRate = this.config.playbackRate;
 
       // Start video frame callback loop if supported
       if (this.useVideoFrameCallback && !this.pendingVideoFrame) {
@@ -1306,14 +1330,15 @@ class VideoPlayer {
   setVisible(visible) {
     this.intendedVisible = visible;
     // Actual visibility will be applied in update() with viewmaster check
-    this.applyVisibility();
+    this.applyVisibility(performance.now() * 0.001);
   }
 
   /**
    * Apply visibility based on intended state and viewmaster equipped state
+   * @param {number} currentTime - Current time in seconds (for delay calculation)
    * @returns {boolean} True if video is visible, false otherwise
    */
-  applyVisibility() {
+  applyVisibility(currentTime = 0) {
     if (!this.videoMesh) {
       this.cachedVisible = false;
       return false;
@@ -1321,53 +1346,49 @@ class VideoPlayer {
     const isViewmasterEquipped =
       this.gameManager?.getState()?.isViewmasterEquipped || false;
 
-    // Check if viewmaster was just removed (transition from equipped to not equipped)
-    if (this.wasViewmasterEquipped && !isViewmasterEquipped) {
-      // Clear any existing timeout
-      if (this.viewmasterRevealTimeout) {
-        clearTimeout(this.viewmasterRevealTimeout);
-      }
+    // Detect transition from not equipped to equipped
+    const justEquipped = !this.wasViewmasterEquipped && isViewmasterEquipped;
+    const justUnequipped = this.wasViewmasterEquipped && !isViewmasterEquipped;
 
-      // Keep video hidden and schedule reveal after 0.5s delay
-      this.videoMesh.visible = false;
-      this.cachedVisible = false;
-      this.viewmasterRevealTimeout = setTimeout(() => {
-        this.viewmasterRevealTimeout = null;
-        // Re-apply visibility now that delay is complete
-        if (this.videoMesh && !this.isDestroying) {
-          const currentState = this.gameManager?.getState();
-          const currentlyEquipped = currentState?.isViewmasterEquipped || false;
-          this.cachedVisible = this.intendedVisible && !currentlyEquipped;
-          this.videoMesh.visible = this.cachedVisible;
-        }
-      }, 500);
-      // Update previous state before returning
+    // When viewmaster is just equipped, record the time for delay
+    if (justEquipped) {
+      this.viewmasterEquipTime = currentTime;
+      // Keep video visible for now (will hide after delay)
+      this.cachedVisible = this.intendedVisible;
+      this.videoMesh.visible = this.cachedVisible;
       this.wasViewmasterEquipped = isViewmasterEquipped;
-      return false;
+      return this.cachedVisible;
     }
 
-    // Viewmaster was just put on - clear any pending reveal timeout
-    if (!this.wasViewmasterEquipped && isViewmasterEquipped) {
-      if (this.viewmasterRevealTimeout) {
-        clearTimeout(this.viewmasterRevealTimeout);
-        this.viewmasterRevealTimeout = null;
-      }
-      this.videoMesh.visible = false;
-      this.cachedVisible = false;
+    // When viewmaster is just removed, show immediately
+    if (justUnequipped) {
+      this.viewmasterEquipTime = null;
+      this.cachedVisible = this.intendedVisible;
+      this.videoMesh.visible = this.cachedVisible;
       this.wasViewmasterEquipped = isViewmasterEquipped;
-      return false;
+      return this.cachedVisible;
     }
 
     // Apply visibility based on current state
     let visible;
     if (isViewmasterEquipped) {
-      // Viewmaster is on - always hide
-      visible = false;
-    } else if (this.viewmasterRevealTimeout) {
-      // Viewmaster is off but reveal delay is still pending - keep hidden
-      visible = false;
+      // Check if delay has passed
+      if (this.viewmasterEquipTime !== null) {
+        const elapsed = currentTime - this.viewmasterEquipTime;
+        if (elapsed >= this.viewmasterHideDelay) {
+          // Delay has passed, hide video
+          visible = false;
+          this.viewmasterEquipTime = null; // Clear timer
+        } else {
+          // Still waiting for delay, keep visible
+          visible = this.intendedVisible;
+        }
+      } else {
+        // Already hidden (delay passed previously)
+        visible = false;
+      }
     } else {
-      // Viewmaster is off and no delay pending - show if intended
+      // Viewmaster is off - show if intended
       visible = this.intendedVisible;
     }
 
@@ -1387,7 +1408,7 @@ class VideoPlayer {
    */
   update(dt, currentTime = performance.now() * 0.001) {
     // Apply visibility (respects viewmaster equipped state)
-    const isVisible = this.applyVisibility();
+    const isVisible = this.applyVisibility(currentTime);
 
     // Early exit if video is not visible - skip all rendering work
     if (!isVisible) {
@@ -1430,13 +1451,35 @@ class VideoPlayer {
         timeSinceLastUpdate >= this.billboardUpdateInterval ||
         cameraMoved >= this.billboardUpdateThreshold
       ) {
-        // Calculate angle to camera in XZ plane only
-        const dx = this.camera.position.x - this.videoMesh.position.x;
-        const dz = this.camera.position.z - this.videoMesh.position.z;
-        const angle = Math.atan2(dx, dz);
+        // Use lookAt on a temporary object to get correct billboard rotation
+        // This ensures the video faces the camera correctly
+        const tempObject = new THREE.Object3D();
+        tempObject.position.copy(this.videoMesh.position);
+        tempObject.lookAt(this.camera.position);
 
-        // Apply only Y rotation, preserve original X and Z rotations
-        this.videoMesh.rotation.y = angle;
+        // Extract Y rotation from the lookAt result
+        // For billboarding, we only want Y-axis rotation (horizontal)
+        // Preserve X and Z rotations from initial config (these handle flips/orientation)
+        const euler = new THREE.Euler().setFromQuaternion(
+          tempObject.quaternion,
+          "YXZ"
+        );
+
+        // If both X and Z are ~180 degrees (plane is flipped), add 180° to Y to compensate
+        const isXFlipped = Math.abs(this.initialRotation.x - Math.PI) < 0.1;
+        const isZFlipped = Math.abs(this.initialRotation.z - Math.PI) < 0.1;
+        const bothFlipped = isXFlipped && isZFlipped;
+
+        // Apply rotations: preserve X and Z, update Y with billboard calculation
+        let yRotation = euler.y;
+        if (bothFlipped) {
+          yRotation += Math.PI; // Compensate for flipped plane
+        }
+        yRotation += this.initialRotation?.y || 0;
+
+        this.videoMesh.rotation.x = this.initialRotation.x;
+        this.videoMesh.rotation.y = yRotation;
+        this.videoMesh.rotation.z = this.initialRotation.z;
 
         // Cache values for next frame
         this.lastBillboardUpdate = currentTime;
@@ -1597,12 +1640,6 @@ class VideoPlayer {
   destroy() {
     this.isDestroying = true;
     this.stop();
-
-    // Clear viewmaster reveal timeout
-    if (this.viewmasterRevealTimeout) {
-      clearTimeout(this.viewmasterRevealTimeout);
-      this.viewmasterRevealTimeout = null;
-    }
 
     // Clean up Web Audio API nodes
     if (this.audioSource) {

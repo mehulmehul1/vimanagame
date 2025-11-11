@@ -227,14 +227,14 @@ export const objectAnimations = {
     description: "Close left door by rotating back to 0 degrees on Y axis",
     targetObjectId: "doors",
     childMeshName: "Big_Door_L",
-    duration: 3.0,
+    duration: 0.25,
     properties: {
       rotation: {
         to: { y: 0 }, // Return to original rotation
       },
     },
     easing: "easeInOutQuad",
-    criteria: { currentState: GAME_STATES.ENTERING_OFFICE },
+    criteria: { currentState: GAME_STATES.DOORS_CLOSE },
     priority: 50,
     playOnce: true,
   },
@@ -245,15 +245,73 @@ export const objectAnimations = {
     description: "Close right door by rotating back to 0 degrees on Y axis",
     targetObjectId: "doors",
     childMeshName: "Big_Door_R",
-    duration: 3.0,
+    duration: 0.25,
     properties: {
       rotation: {
         to: { y: 0 }, // Return to original rotation
       },
     },
     easing: "easeInOutQuad",
-    criteria: { currentState: GAME_STATES.ENTERING_OFFICE },
+    criteria: { currentState: GAME_STATES.DOORS_CLOSE },
     priority: 50,
+    playOnce: true,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.ENTERING_OFFICE });
+    },
+  },
+
+  letterMoveToFace: {
+    id: "letterMoveToFace",
+    type: "objectAnimation",
+    description:
+      "Move letter to 0.3m in front of player's face after GLTF animation ends",
+    targetObjectId: "letter",
+    duration: 1.5,
+    properties: {
+      position: {
+        // Start from slightly further back, animate forward to camera
+        // This ensures smooth animation regardless of where GLTF animation ended
+        // Negative Z is forward in camera-local space (like viewmaster animations)
+        from: { x: 0, y: 0, z: -0.6 }, // Start 0.6m in front of camera (closer, more visible)
+        to: { x: 0, y: 0, z: -0.3 }, // End 0.3m in front of camera
+      },
+      rotation: {
+        // Ensure letter faces forward at camera (180 degrees on Y axis to flip it)
+        to: { x: 0, y: Math.PI, z: 0 },
+      },
+    },
+    reparentToCamera: true, // Reparent to camera so position is relative to camera
+    easing: "easeInOutQuad",
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_LECLAIRE,
+        $lt: GAME_STATES.OUTRO_CAT,
+      },
+    },
+    priority: 100,
+    playOnce: true,
+  },
+
+  letterMoveDown: {
+    id: "letterMoveDown",
+    type: "objectAnimation",
+    description: "Move letter 0.4m down out of sight",
+    targetObjectId: "letter",
+    duration: 1.0,
+    properties: {
+      position: {
+        // Move down (negative Y) and slightly further back to move out of sight
+        to: { x: 0, y: -0.4, z: -0.5 },
+      },
+    },
+    reparentToCamera: true, // Keep reparented to camera
+    easing: "easeInOutQuad",
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_CAT,
+      },
+    },
+    priority: 100,
     playOnce: true,
   },
 

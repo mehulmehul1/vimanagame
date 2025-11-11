@@ -53,6 +53,9 @@
  *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
  * - loadByDefault: If true, load regardless of state (default: false)
  * - priority: Higher priority objects are loaded first (default: 0)
+ * - zone: (Splat) Zone name for automatic zone-based loading/unloading (e.g., "fourWay", "threeWay2")
+ *   - Objects with a zone property are automatically discovered by ZoneManager and loaded/unloaded with their zone
+ *   - This eliminates the need to manually add assets to zone mapping arrays
  * - gizmo: If true, enable debug gizmo for positioning visual objects (G=move, R=rotate, S=scale)
  * - animations: Array of animation definitions (for GLTF objects with animations)
  *   - id: Unique identifier for this animation
@@ -68,6 +71,8 @@
  *   - autoPlay: If true, automatically play when criteria are met
  *   - timeScale: Playback speed (1.0 = normal)
  *   - removeObjectOnFinish: If true, remove parent object from scene when animation finishes
+ *   - onComplete: Optional callback when animation completes. Receives gameManager as parameter.
+ *     Example: onComplete: (gameManager) => { gameManager.setState({...}); }
  *
  * Usage:
  * import { sceneObjects, getSceneObjectsForState } from './sceneData.js';
@@ -611,6 +616,7 @@ export const sceneObjects = {
       visible: false, // Set to true to see debug material
       physicsCollider: true, // Flag to create physics trimesh collider
       debugMaterial: false, // Apply semi-transparent debug material to visualize collider
+      shadowBlocker: true, // Render as depth-only blocker for contact shadows (after splats, before shadows)
     },
     priority: 90,
     preload: true,
@@ -784,8 +790,8 @@ export const sceneObjects = {
       contactShadow: {
         size: { x: 1, y: 1 }, // Capture area size
         offset: { x: 0, y: -0.01, z: 0 }, // Position offset
-        blur: 3.5, // Slightly more blur for larger shadow
-        darkness: 2.5, // Shadow darkness multiplier
+        blur: 2.5, // Slightly more blur for larger shadow
+        darkness: 25.5, // Shadow darkness multiplier
         opacity: 0.9, // Overall shadow opacity
         cameraHeight: 2, // Taller camera for car
         shadowScale: { x: 1.15, y: 1.15 }, // Scale shadow plane display (extends beyond capture area)
@@ -820,7 +826,7 @@ export const sceneObjects = {
     id: "radio",
     type: "gltf",
     path: "/gltf/radio-1.glb",
-    description: "Radio GLTF model",
+    description: "Newsman's radio in the alley",
     position: { x: 4.35, y: 0.82, z: 37.29 },
     rotation: { x: -3.0991, y: 1.1719, z: -3.0852 },
     scale: { x: 2.46, y: 2.46, z: 2.46 },
@@ -831,7 +837,7 @@ export const sceneObjects = {
         offset: { x: 0, y: 0, z: 0 },
         shadowScale: { x: 1.15, y: 1.15 },
         blur: 2.5,
-        darkness: 5.5,
+        darkness: 10.5,
         opacity: 0.9,
         cameraHeight: 0.25,
       },
@@ -850,9 +856,8 @@ export const sceneObjects = {
     id: "car",
     type: "gltf",
     preload: false,
-
     path: "/gltf/Old_Car_01.glb",
-    description: "Car GLTF model",
+    description: "Animated car in drive-by shooting in plaza",
     position: { x: -15.67, y: 0.2, z: 62.5 },
     rotation: { x: 0.0, y: 0.8859, z: 0.0 },
     scale: { x: 0.9, y: 0.9, z: 0.9 },
@@ -899,7 +904,7 @@ export const sceneObjects = {
     id: "doors",
     type: "gltf",
     path: "/gltf/Basement_Door.glb",
-    description: "Doors GLTF model",
+    description: "Doors that lead to scene 2 interior",
     preload: false,
 
     position: { x: 5.68, y: 1.95, z: 78.7 },
@@ -921,8 +926,8 @@ export const sceneObjects = {
     type: "splat",
     path: "/rusted-car-2.sog",
     preload: false,
-
-    description: "Car test splat - positioned at origin for testing",
+    zone: "fourWay",
+    description: "Rusted car blocking the alley in fourWay zone",
     position: { x: 14.06, y: 0.91, z: 35.28 },
     rotation: { x: 0.0937, y: -1.048, z: -3.0978 },
     scale: { x: 3.65, y: 2.13, z: 2.13 },
@@ -932,24 +937,27 @@ export const sceneObjects = {
         $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.OFFICE_INTERIOR,
       },
+      performanceProfile: { $ne: "mobile" },
     },
   },
 
-  // train: {
-  //   id: "train",
-  //   type: "splat",
-  //   path: "/train.sog",
-  //   description: "Train splat",
-  //   position: { x: -38.47, y: -1.22, z: 65.74 },
-  //   rotation: { x: -0.0119, y: 0.6863, z: -3.0486 },
-  //   scale: { x: 7.1, y: 7.1, z: 7.1 },
-  //   criteria: {
-  //     currentState: {
-  //       $gte: GAME_STATES.LOADING,
-  //       $lt: GAME_STATES.OFFICE_INTERIOR,
-  //     },
-  //   },
-  // },
+  train: {
+    id: "train",
+    type: "splat",
+    path: "/train-bw.sog",
+    zone: "threeWay2",
+    description: "Train splat",
+    position: { x: -40.61, y: -0.24, z: 67.04 },
+    rotation: { x: -0.1179, y: 1.0486, z: -2.983 },
+    scale: { x: 7.1, y: 7.1, z: 7.1 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+      performanceProfile: { $ne: "mobile" },
+    },
+  },
 
   coneCurve: {
     id: "coneCurve",
@@ -1166,6 +1174,71 @@ export const sceneObjects = {
     // Note: This object has a companion script (src/content/candlestickPhone.js)
     // The script manages the CordAttach and Receiver children using the PhoneCord module
     // Initialize in main.js or scene manager after the object is loaded
+  },
+
+  paSpeaker: {
+    id: "paSpeaker",
+    type: "gltf",
+    path: "/gltf/pa.glb",
+    description: "Podium for outro sequence",
+    position: { x: -5.35, y: 4.42, z: 74.84 },
+    rotation: { x: -2.8628, y: 0.979, z: -3.0555 },
+    scale: { x: 2.14, y: 2.14, z: 2.14 },
+    options: {
+      useContainer: true,
+    },
+    priority: 100,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LIGHTS_OUT,
+      },
+    },
+  },
+
+  letter: {
+    id: "letter",
+    type: "gltf",
+    path: "/gltf/letter.glb",
+    description: "Animated letter plane for outro sequence",
+    position: { x: -4.28, y: 1.94, z: 75.77 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    options: {
+      useContainer: true,
+    },
+    priority: 500,
+    preload: false,
+    criteria: {
+      currentState: {
+        $in: [
+          GAME_STATES.OUTRO,
+          GAME_STATES.OUTRO_LECLAIRE,
+          GAME_STATES.OUTRO_CAT,
+        ],
+      },
+    },
+    animations: [
+      {
+        id: "letter-anim",
+        clipName: null, // Use first animation clip
+        loop: false,
+        autoPlay: true,
+        timeScale: 0.5,
+        criteria: {
+          currentState: {
+            $in: [
+              GAME_STATES.OUTRO,
+              GAME_STATES.OUTRO_LECLAIRE,
+              GAME_STATES.OUTRO_CAT,
+            ],
+          },
+        },
+        onComplete: (gameManager) => {
+          console.log("letter anim complete");
+          gameManager.setState({ currentState: GAME_STATES.OUTRO_LECLAIRE });
+        },
+      },
+    ],
   },
 
   //  A failed attempt at a first person body model positioned below the camera

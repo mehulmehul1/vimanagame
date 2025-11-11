@@ -15,7 +15,7 @@
 
 .fullscreen-button {
   position: fixed;
-  bottom: var(--fb-bottom, 20px);
+  bottom: var(--fb-bottom, 7%);
   right: var(--fb-right, 20px);
   width: var(--fb-width, 48px);
   height: var(--fb-height, 48px);

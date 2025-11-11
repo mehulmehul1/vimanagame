@@ -56,6 +56,15 @@ class InputManager {
 
     // Mouse settings
     this.mouseSensitivity = 0.0025;
+    this.baseMouseSensitivity = 0.0025; // Base value for adjustment
+    this.minMouseSensitivity = 0.0005; // Minimum mouse sensitivity
+    this.maxMouseSensitivity = 0.01; // Maximum mouse sensitivity
+    this.mouseSensitivityIncrement = 0.0005; // Adjustment increment
+
+    // Rotation sensitivity settings (for gizmo mode adjustment)
+    this.minStickSensitivity = 0.1; // Minimum stick sensitivity
+    this.maxStickSensitivity = 5.0; // Maximum stick sensitivity
+    this.stickSensitivityIncrement = 0.5; // Adjustment increment
 
     // Gamepad mappings (standard gamepad layout)
     this.gamepadMapping = {
@@ -148,11 +157,11 @@ class InputManager {
 
     // Pointer lock + mouse look
     this.rendererDomElement.addEventListener("click", (event) => {
-      // Check if dialog choice UI is visible - if so, don't process canvas clicks
-      // (dialog choice UI handles its own clicks)
+      // Check if dialog choice UI is visible - if so, don't request pointer lock
+      // (dialog choice UI handles its own clicks, and clicks should confirm selection)
       if (this.isDialogChoiceVisible()) {
-        // Stop propagation to prevent dialog choice handler from processing canvas clicks
-        event.stopPropagation();
+        // Don't stop propagation - let clicks bubble to dialog choice handler
+        // The dialog choice handler will confirm the current selection
         return;
       }
 
@@ -430,7 +439,8 @@ class InputManager {
     // Mouse input (accumulated during frame)
     // Scale by dt for frame-rate independence (normalize to 60fps reference)
     // At 60fps, dt = 0.0167, so we scale by dt/0.0167 to maintain same feel
-    const dtScale = dt / 0.0167; // Normalize to 60fps
+    // Clamp dtScale to prevent huge jumps during lag spikes (max 2.0 = 30fps equivalent)
+    const dtScale = Math.min(2.0, dt / 0.0167); // Normalize to 60fps, but cap at 30fps equivalent
     deltaX += mouseX * this.mouseSensitivity * dtScale;
     deltaY += mouseY * this.mouseSensitivity * dtScale;
 
@@ -812,6 +822,77 @@ class InputManager {
    */
   setDeadzone(deadzone) {
     this.deadzone = Math.max(0, Math.min(1, deadzone));
+  }
+
+  /**
+   * Increase rotation sensitivity (for gizmo mode)
+   * Adjusts both mouse and stick sensitivity proportionally
+   * @param {number} increment - Amount to increase by (default: uses increments)
+   */
+  increaseRotationSensitivity(mouseIncrement = null, stickIncrement = null) {
+    const mouseInc =
+      mouseIncrement !== null ? mouseIncrement : this.mouseSensitivityIncrement;
+    const stickInc =
+      stickIncrement !== null ? stickIncrement : this.stickSensitivityIncrement;
+
+    // Increase mouse sensitivity
+    this.mouseSensitivity = Math.min(
+      this.maxMouseSensitivity,
+      this.mouseSensitivity + mouseInc
+    );
+
+    // Increase stick sensitivity
+    this.stickSensitivity = Math.min(
+      this.maxStickSensitivity,
+      this.stickSensitivity + stickInc
+    );
+
+    this.logger.log(
+      `Rotation sensitivity increased - Mouse: ${this.mouseSensitivity.toFixed(
+        5
+      )}, Stick: ${this.stickSensitivity.toFixed(2)}`
+    );
+  }
+
+  /**
+   * Decrease rotation sensitivity (for gizmo mode)
+   * Adjusts both mouse and stick sensitivity proportionally
+   * @param {number} increment - Amount to decrease by (default: uses increments)
+   */
+  decreaseRotationSensitivity(mouseIncrement = null, stickIncrement = null) {
+    const mouseInc =
+      mouseIncrement !== null ? mouseIncrement : this.mouseSensitivityIncrement;
+    const stickInc =
+      stickIncrement !== null ? stickIncrement : this.stickSensitivityIncrement;
+
+    // Decrease mouse sensitivity
+    this.mouseSensitivity = Math.max(
+      this.minMouseSensitivity,
+      this.mouseSensitivity - mouseInc
+    );
+
+    // Decrease stick sensitivity
+    this.stickSensitivity = Math.max(
+      this.minStickSensitivity,
+      this.stickSensitivity - stickInc
+    );
+
+    this.logger.log(
+      `Rotation sensitivity decreased - Mouse: ${this.mouseSensitivity.toFixed(
+        5
+      )}, Stick: ${this.stickSensitivity.toFixed(2)}`
+    );
+  }
+
+  /**
+   * Get current rotation sensitivity values
+   * @returns {{mouse: number, stick: number}} Current sensitivity values
+   */
+  getRotationSensitivity() {
+    return {
+      mouse: this.mouseSensitivity,
+      stick: this.stickSensitivity,
+    };
   }
 
   /**

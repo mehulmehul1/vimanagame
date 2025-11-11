@@ -151,12 +151,15 @@ export class ContactShadow {
     // Main shadow plane (displays the rendered shadow texture)
     const planeMaterial = new THREE.MeshBasicMaterial({
       map: this.renderTarget.texture,
-      opacity: debug ? 1.0 : opacity, // Full opacity in debug to see what's rendered
+      opacity: debug ? 1.0 : opacity,
       transparent: true,
+      depthTest: true,
       depthWrite: false,
     });
     this.plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    this.plane.renderOrder = 10000; // Render after everything, including splats
+    // Render at 0 like GLTFs - shadows will be visible and depth-sorted within the scene
+    // Note: Gaussian splats use custom rendering, so depth occlusion may be limited
+    this.plane.renderOrder = 9999;
     this.plane.scale.y = -1; // Flip Y from texture
     // Apply shadow scale (scale X and Z, keep Y flip)
     this.plane.scale.x = shadowScale.x;
@@ -164,7 +167,7 @@ export class ContactShadow {
     this.shadowGroup.add(this.plane);
 
     logger.log(
-      `Shadow plane created at local position (${offset.x}, ${offset.y}, ${offset.z}), renderOrder: ${this.plane.renderOrder}`
+      `Shadow plane created at local position (${offset.x}, ${offset.y}, ${offset.z}), renderOrder: ${this.plane.renderOrder}, depthTest: ${planeMaterial.depthTest}, depthWrite: ${planeMaterial.depthWrite}`
     );
 
     // Blur plane (used for blur passes)

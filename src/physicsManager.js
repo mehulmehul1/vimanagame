@@ -100,6 +100,65 @@ class PhysicsManager {
   }
 
   /**
+   * Create a blocking box collider (solid, blocks movement)
+   * @param {number} hx - Half-extent X
+   * @param {number} hy - Half-extent Y
+   * @param {number} hz - Half-extent Z
+   * @returns {Object} Collider descriptor
+   */
+  createBlockingBox(hx, hy, hz) {
+    return RAPIER.ColliderDesc.cuboid(hx, hy, hz)
+      .setFriction(0.7)
+      .setRestitution(0.0);
+  }
+
+  /**
+   * Create a blocking sphere collider (solid, blocks movement)
+   * @param {number} radius - Sphere radius
+   * @returns {Object} Collider descriptor
+   */
+  createBlockingSphere(radius) {
+    return RAPIER.ColliderDesc.ball(radius)
+      .setFriction(0.7)
+      .setRestitution(0.0);
+  }
+
+  /**
+   * Create a blocking capsule collider (solid, blocks movement)
+   * @param {number} halfHeight - Half height of the cylindrical part
+   * @param {number} radius - Capsule radius
+   * @returns {Object} Collider descriptor
+   */
+  createBlockingCapsule(halfHeight, radius) {
+    return RAPIER.ColliderDesc.capsule(halfHeight, radius)
+      .setFriction(0.7)
+      .setRestitution(0.0);
+  }
+
+  /**
+   * Create a fixed rigid body with a blocking collider attached
+   * @param {Object} colliderDesc - Collider descriptor (from createBlockingBox/Sphere/Capsule)
+   * @param {Object} position - Position {x, y, z}
+   * @param {Object} rotation - Rotation quaternion {x, y, z, w}
+   * @returns {Object} { collider, body } or null if failed
+   */
+  createBlockingCollider(colliderDesc, position, rotation) {
+    // Create a fixed (static) rigid body
+    const bodyDesc = RAPIER.RigidBodyDesc.fixed()
+      .setTranslation(position.x, position.y, position.z)
+      .setRotation(rotation);
+    const body = this.world.createRigidBody(bodyDesc);
+
+    // Set collision groups (belongs to group 3 (environment), collides with all groups)
+    colliderDesc.setCollisionGroups(0xffff0008);
+
+    // Create the collider and attach to the body
+    const collider = this.world.createCollider(colliderDesc, body);
+
+    return { collider, body };
+  }
+
+  /**
    * Create a collider from a descriptor
    * @param {Object} colliderDesc - Collider descriptor
    * @returns {Object} Collider

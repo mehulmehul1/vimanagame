@@ -77,6 +77,8 @@
  * For type "lookat":
  * SINGLE LOOKAT (simple position):
  * - position: {x, y, z} world position to look at OR function(gameManager) => {x, y, z} for dynamic positioning
+ *   - When using characterController.getPosition({x, y, z}), the object is an OFFSET from player position, not world coordinates
+ *   - Example: getPosition({ x: 0, y: 1.5, z: -1 }) = 1 meter behind player at eye level (z: -1 is behind, z: 1 is in front)
  * - transitionTime: Time for the initial look-at transition in seconds (default: 2.0)
  * - lookAtHoldDuration: How long to hold at target before returning or restoring control (default: 0)
  * - returnToOriginalView: If true, return to original view before restoring control (default: false)
@@ -161,6 +163,7 @@
  */
 
 import { GAME_STATES } from "./gameData.js";
+import * as THREE from "three";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { videos } from "./videoData.js";
 import { sceneObjects } from "./sceneData.js";
@@ -490,19 +493,41 @@ export const cameraAnimations = {
   shoulderTap: {
     id: "shoulderTap",
     type: "lookat",
-    position: (gameManager) => {
-      const basePos =
-        typeof videos.punch.position === "function"
-          ? videos.punch.position(gameManager)
-          : videos.punch.position;
-
-      return {
-        x: basePos.x,
-        y: basePos.y - 0.3,
-        z: basePos.z,
+    position: (() => {
+      let cachedPos = null;
+      return (gameManager) => {
+        if (cachedPos) return cachedPos;
+        if (!gameManager?.characterController) {
+          cachedPos = { x: 0, y: 1.5, z: 0 };
+          return cachedPos;
+        }
+        const playerPos = gameManager.characterController.getPosition({
+          x: 0,
+          y: 0,
+          z: 0,
+        });
+        const backward = new THREE.Vector3(0, 0, 1);
+        const camera = gameManager.characterController.camera;
+        if (camera) {
+          backward.applyQuaternion(camera.quaternion);
+          // Rotate slightly left (around up axis) to guarantee left rotation
+          const leftRotation = new THREE.Quaternion().setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0),
+            -Math.PI * 0.01 // ~18 degrees left
+          );
+          backward.applyQuaternion(leftRotation);
+        }
+        cachedPos = {
+          x: playerPos.x + backward.x * 1.0,
+          y: playerPos.y + 1.4,
+          z: playerPos.z + backward.z * 1.0,
+        };
+        return cachedPos;
       };
-    },
-    transitionTime: 0.75,
+    })(),
+    transitionTime: 1.0,
+    lookAtHoldDuration: 0,
+    returnToOriginalView: false,
     criteria: { currentState: GAME_STATES.SHOULDER_TAP },
     priority: 100,
     playOnce: true,
@@ -546,6 +571,33 @@ export const cameraAnimations = {
     priority: 100,
     playOnce: true,
     delay: 0.05, // Sync with video punch impact
+  },
+
+  postCursorWhiteout: {
+    id: "postCursorWhiteout",
+    type: "fade",
+    description: "Fade to white at POST_CURSOR, hold, then fade back",
+    color: { r: 1, g: 1, b: 1 }, // White
+    fadeInTime: 0.5, // Fade to white over 0.5 seconds
+    holdTime: 1.0, // Hold at white for 0.5 seconds
+    fadeOutTime: 2.0, // Fade back in over 2 seconds
+    maxOpacity: 1.0, // Full white
+    startFrom: "current", // Start from current fade opacity
+    criteria: { currentState: GAME_STATES.POST_CURSOR },
+    priority: 100,
+    playOnce: true,
+    onStart: (gameManager) => {
+      // Hide shadowTrance videos when whiteout starts
+      const videoManager = gameManager?.videoManager;
+      if (videoManager) {
+        const shadowTrance = videoManager.getVideoPlayer("shadowTrance");
+        const shadowTranceSafari =
+          videoManager.getVideoPlayer("shadowTranceSafari");
+        if (shadowTrance) shadowTrance.setVisible(false);
+        if (shadowTranceSafari) shadowTranceSafari.setVisible(false);
+      }
+    },
+    // Note: OUTRO state is now set by postCursorColor desaturation effect onComplete
   },
 
   fallenBlackout: {
@@ -788,7 +840,7 @@ export const cameraAnimations = {
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
       // Allow woozy effect when intensity is high (works whether mask is equipped or just removed)
-      viewmasterInsanityIntensity: { $gte: 0.1 },
+      viewmasterInsanityIntensity: { $gte: 0.85 },
     },
     priority: 95,
     playOnce: false,
@@ -797,6 +849,93 @@ export const cameraAnimations = {
     blendAmount: 0.8,
 
     playbackPercentage: 0.5,
+  },
+
+  runeLookat: {
+    id: "runeLookat",
+    type: "lookat",
+    description: "Look at rune when sighted near screen edge",
+    position: (gameManager) => {
+      // Get rune position from drawing manager
+      const drawingManager = window.drawingManager;
+      if (!drawingManager || !drawingManager.currentGoalRune) {
+        return { x: 0, y: 0, z: 0 }; // Fallback
+      }
+      const rune = drawingManager.currentGoalRune;
+      if (!rune || !rune.mesh) {
+        return { x: 0, y: 0, z: 0 }; // Fallback
+      }
+      const worldPosition = new THREE.Vector3();
+      rune.mesh.getWorldPosition(worldPosition);
+      return { x: worldPosition.x, y: worldPosition.y, z: worldPosition.z };
+    },
+    transitionTime: 1.0,
+    lookAtHoldDuration: 2.0, // Hold on rune for 2 seconds
+    returnToOriginalView: false,
+    enableZoom: true,
+    restoreInput: false, // Don't restore yet - will restore after portal lookat
+    zoomOptions: {
+      zoomFactor: 1.3,
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.0,
+      transitionDuration: 1.0,
+      holdDuration: 3.0, // Hold zoom for 2 seconds (hold on rune longer)
+      disableDoF: true, // Disable DoF effect, only use zoom
+    },
+    playNext: "portalLookat",
+    priority: 100,
+    criteria: {
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      sawRune: true,
+    },
+    playOnce: false, // Allow multiple rune sightings
+    // Note: onComplete is called before playNext, so we reset sawRune after a delay
+    // to allow playNext to trigger without criteria interference
+    onComplete: (gameManager) => {
+      // Reset sawRune flag after a short delay to allow playNext to trigger
+      // The playNext animation doesn't use criteria, so this is safe
+      setTimeout(() => {
+        gameManager.setState({ sawRune: false });
+      }, 100);
+    },
+  },
+
+  portalLookat: {
+    id: "portalLookat",
+    type: "lookat",
+    description: "Look at particle portal after rune lookat",
+    position: (gameManager) => {
+      // Get portal (canvas) position from drawing manager
+      const drawingManager = window.drawingManager;
+      if (!drawingManager) {
+        return { x: 0, y: 1.5, z: -2 }; // Default fallback
+      }
+
+      // Try to get world position from canvas mesh
+      const canvasMesh = drawingManager.canvasMesh;
+      if (canvasMesh) {
+        const worldPos = new THREE.Vector3();
+        canvasMesh.getWorldPosition(worldPos);
+        return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
+      }
+
+      // Fallback to stored canvas position
+      return drawingManager.canvasPosition || { x: 0, y: 1.5, z: -2 };
+    },
+    transitionTime: 1.0,
+    returnToOriginalView: false,
+    enableZoom: false,
+    restoreInput: true, // Restore input after portal lookat
+    delay: 0, // No additional delay - playNextDelay already accounts for hold duration
+    priority: 100,
+    onStart: (gameManager) => {
+      // Unequip viewmaster when portal lookat starts
+      const currentState = gameManager?.getState();
+      if (currentState?.isViewmasterEquipped) {
+        gameManager.setState({ isViewmasterEquipped: false });
+      }
+    },
   },
 
   catChewLookat: {
@@ -820,6 +959,167 @@ export const cameraAnimations = {
       holdDuration: 3.0,
     },
     criteria: { currentState: GAME_STATES.CAT_SAVE },
+    playOnce: true,
+    priority: 100,
+  },
+
+  letterLookat: {
+    id: "letterLookat",
+    type: "lookat",
+    description: "Look at animated letter plane during outro",
+    position: (gameManager) => {
+      // Get letter object from sceneManager
+      const letterObject = gameManager?.sceneManager?.getObject("letter");
+      if (!letterObject) {
+        // Letter not loaded yet - return a position in front of camera as fallback
+        // This will keep the lookat active until the letter loads
+        const camera = gameManager?.characterController?.camera;
+        if (camera) {
+          const forward = new THREE.Vector3(0, 0, -1);
+          forward.applyQuaternion(camera.quaternion);
+          return {
+            x: camera.position.x + forward.x * 4,
+            y: camera.position.y + forward.y * 4,
+            z: camera.position.z + forward.z * 4,
+          };
+        }
+        return { x: 0, y: 0, z: -4 };
+      }
+
+      // Check if letter is reparented to camera - if so, stop tracking (lookat should complete)
+      const camera = gameManager?.characterController?.camera;
+      if (camera && letterObject.parent === camera) {
+        // Letter is reparented to camera - return current camera position to stop tracking
+        // This will cause the lookat to complete since the target is at camera position
+        return {
+          x: camera.position.x,
+          y: camera.position.y,
+          z: camera.position.z,
+        };
+      }
+
+      // Letter is not parented to camera - use normal world position calculation
+      // Force update world matrix of the container first (cascades to all children)
+      // GLTF animations update object matrices, so we need to update world matrix first
+      letterObject.updateMatrixWorld(true);
+
+      // Find the "Plane" mesh - that's what's being animated
+      let planeMesh = null;
+      letterObject.traverse((child) => {
+        if (!planeMesh && child.isMesh && child.name === "Plane") {
+          planeMesh = child;
+        }
+      });
+
+      // Use the Plane mesh if found, otherwise fall back to container
+      const targetObject = planeMesh || letterObject;
+
+      if (!targetObject) {
+        logger.error("No target object found for letter lookat");
+        return { x: 0, y: 0, z: -4 };
+      }
+
+      // Get world position of the target object
+      // World matrix is already updated above
+      const worldPos = new THREE.Vector3();
+      targetObject.getWorldPosition(worldPos);
+
+      // Validate position
+      if (
+        !isFinite(worldPos.x) ||
+        !isFinite(worldPos.y) ||
+        !isFinite(worldPos.z)
+      ) {
+        logger.warn(
+          `Invalid world position for letter: (${worldPos.x}, ${worldPos.y}, ${worldPos.z})`
+        );
+        // Fallback to container position
+        worldPos.copy(letterObject.position);
+      }
+
+      return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
+    },
+    transitionTime: 0.5,
+    returnToOriginalView: false,
+    restoreInput: true, // Restore input when lookat completes
+    criteria: { currentState: GAME_STATES.OUTRO },
+    playOnce: true,
+    priority: 100,
+    delay: 1.0, // Wait for letter to load
+  },
+
+  paSpeakerLookat: {
+    id: "paSpeakerLookat",
+    type: "lookat",
+    description: "Look at PA speaker during outro",
+    position: sceneObjects.paSpeaker.position,
+    transitionTime: 1.0,
+    returnToOriginalView: false,
+    restoreInput: true,
+    enableZoom: true,
+    delay: 2.0,
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.2,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 5.0,
+    },
+    criteria: { currentState: GAME_STATES.OUTRO_CZAR },
+    playOnce: true,
+    priority: 100,
+  },
+
+  catOutroLookat: {
+    id: "catOutroLookat",
+    type: "lookat",
+    description: "Look at cat outro video",
+    position: videos.cat2Loop.position,
+    transitionTime: 1.0,
+    returnToOriginalView: false,
+    enableZoom: true,
+    restoreInput: {
+      movement: false,
+      rotation: true,
+    },
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 3.0,
+    },
+    criteria: { currentState: GAME_STATES.OUTRO_CAT },
+    playOnce: true,
+    priority: 100,
+    onComplete: (gameManager) => {
+      // After lookat completes, wait 2s then transition to OUTRO_CZAR
+      setTimeout(() => {
+        gameManager.setState({ currentState: GAME_STATES.OUTRO_CZAR });
+      }, 2000);
+    },
+  },
+
+  creditsLookat: {
+    id: "creditsLookat",
+    type: "lookat",
+    description: "Look at credits video",
+    position: videos.credits.position,
+    transitionTime: 1.0,
+    returnToOriginalView: false,
+    enableZoom: true,
+    restoreInput: true,
+    zoomOptions: {
+      zoomFactor: 2.0,
+      minAperture: 0.15,
+      maxAperture: 0.35,
+      transitionStart: 0.6,
+      transitionDuration: 1.5,
+      holdDuration: 5.0,
+    },
+    criteria: { currentState: GAME_STATES.OUTRO_CREDITS },
     playOnce: true,
     priority: 100,
   },

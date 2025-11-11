@@ -1,6 +1,6 @@
 import { Logger } from "./utils/logger.js";
 import { GAME_STATES } from "./gameData.js";
-import { getSceneObjectsForState } from "./sceneData.js";
+import { getSceneObjectsForState, sceneObjects } from "./sceneData.js";
 import { isDebugSpawnActive } from "./utils/debugSpawner.js";
 
 /**
@@ -28,16 +28,16 @@ class ZoneManager {
 
     // Max zone to splat mapping (includes alleyNavigable, uses original high-quality assets)
     this.zoneToSplatsMax = {
-      alleyIntro: ["alleyIntro", "alleyNavigable"],
+      alleyIntro: ["alleyIntro", "alleyNavigable", "fourWay"],
       alleyNavigable: [
         "alleyNavigable",
         "alleyLongView",
         "fourWay",
         "alleyIntro",
       ],
-      fourWay: ["fourWay", "alleyNavigable", "threeWay", "plaza"],
+      fourWay: ["fourWay", "alleyNavigable", "threeWay", "plaza", "alleyIntro"],
       threeWay: ["threeWay", "fourWay", "threeWay2"],
-      threeWay2: ["threeWay2", "threeWay", "plaza"],
+      threeWay2: ["threeWay2", "threeWay", "plaza", "fourWay"],
       plaza: ["plaza", "threeWay2", "fourWay"],
     };
 
@@ -122,26 +122,118 @@ class ZoneManager {
   }
 
   /**
+   * Discover zone assignments from sceneObjects
+   * Scans sceneObjects for objects with a 'zone' property and builds a mapping
+   * @returns {Object} Zone to splat IDs mapping
+   */
+  discoverZoneAssignments() {
+    const zoneMap = {};
+
+    for (const [key, obj] of Object.entries(sceneObjects)) {
+      // Only process splat type objects with a zone property
+      if (obj.type === "splat" && obj.zone && obj.id) {
+        const zoneName = obj.zone;
+        const splatId = obj.id;
+
+        // Initialize zone array if it doesn't exist
+        if (!zoneMap[zoneName]) {
+          zoneMap[zoneName] = [];
+        }
+
+        // Add splat ID to zone (avoid duplicates)
+        if (!zoneMap[zoneName].includes(splatId)) {
+          zoneMap[zoneName].push(splatId);
+        }
+      }
+    }
+
+    return zoneMap;
+  }
+
+  /**
+   * Merge discovered zone assignments with hardcoded zone mapping
+   * Recursively includes assets from nested zones (e.g., if plaza loads threeWay2,
+   * it also includes assets assigned to threeWay2)
+   * @param {Object} baseMapping - Base zone mapping (hardcoded)
+   * @param {Object} discoveredAssignments - Discovered zone assignments from sceneObjects
+   * @returns {Object} Merged zone mapping
+   */
+  mergeZoneMappings(baseMapping, discoveredAssignments) {
+    const merged = {};
+
+    // Start with base mapping
+    for (const [zone, splats] of Object.entries(baseMapping)) {
+      merged[zone] = [...splats];
+    }
+
+    // Add discovered assignments directly to their zones
+    for (const [zone, splats] of Object.entries(discoveredAssignments)) {
+      if (!merged[zone]) {
+        merged[zone] = [];
+      }
+
+      // Add discovered splats (avoid duplicates)
+      for (const splat of splats) {
+        if (!merged[zone].includes(splat)) {
+          merged[zone].push(splat);
+        }
+      }
+    }
+
+    // Recursively resolve nested zone dependencies
+    // For each zone, if it includes other zones, also include their discovered assets
+    for (const [zone, splats] of Object.entries(merged)) {
+      const expandedSplats = [...splats];
+
+      // Check each item in the zone's splat list
+      for (const item of splats) {
+        // If this item is a zone name (exists in baseMapping), include its discovered assets
+        if (baseMapping[item] && discoveredAssignments[item]) {
+          for (const discoveredSplat of discoveredAssignments[item]) {
+            if (!expandedSplats.includes(discoveredSplat)) {
+              expandedSplats.push(discoveredSplat);
+            }
+          }
+        }
+      }
+
+      merged[zone] = expandedSplats;
+    }
+
+    return merged;
+  }
+
+  /**
    * Get the appropriate zone mapping based on performance profile
+   * Automatically merges discovered zone assignments from sceneObjects
    * @returns {Object} Zone to splats mapping
    */
   getZoneMapping() {
     if (!this.gameManager) {
-      return this.zoneToSplatsLaptop; // Default to laptop
+      const baseMapping = this.zoneToSplatsLaptop;
+      const discovered = this.discoverZoneAssignments();
+      return this.mergeZoneMappings(baseMapping, discovered);
     }
+
     const state = this.gameManager.getState();
     const performanceProfile = state?.performanceProfile || "laptop";
-    // Each profile has its own mapping
+
+    // Get base mapping for performance profile
+    let baseMapping;
     if (performanceProfile === "mobile") {
-      return this.zoneToSplatsMobile;
+      baseMapping = this.zoneToSplatsMobile;
     } else if (performanceProfile === "laptop") {
-      return this.zoneToSplatsLaptop;
+      baseMapping = this.zoneToSplatsLaptop;
     } else if (performanceProfile === "desktop") {
-      return this.zoneToSplatsDesktop;
+      baseMapping = this.zoneToSplatsDesktop;
     } else {
       // max uses max mapping (includes alleyNavigable)
-      return this.zoneToSplatsMax;
+      baseMapping = this.zoneToSplatsMax;
     }
+
+    // Discover zone assignments from sceneObjects and merge
+    const discovered = this.discoverZoneAssignments();
+    return this.mergeZoneMappings(baseMapping, discovered);
   }
 
   /**

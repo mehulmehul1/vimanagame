@@ -124,6 +124,7 @@ export const desaturationEffects = {
       },
     },
     priority: 80,
+    delay: 0.75,
   },
 
   viewmasterToggleGrayscale: {
@@ -140,6 +141,43 @@ export const desaturationEffects = {
       },
     },
     priority: 70,
+  },
+
+  postCursorColor: {
+    id: "postCursorColor",
+    parameters: {
+      target: 0.0, // Full color
+      duration: 7.0,
+      mode: "bleed",
+      from: 1.0, // Start from grayscale
+    },
+    criteria: {
+      currentState: {
+        $eq: GAME_STATES.POST_CURSOR,
+      },
+    },
+    delay: 2.0,
+    priority: 80,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.OUTRO });
+    },
+  },
+
+  outroColor: {
+    id: "outroColor",
+    parameters: {
+      target: 0.0, // Full color
+      duration: 0.1,
+      mode: "bleed",
+      from: 0.0, // Start from grayscale
+    },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO,
+      },
+    },
+    delay: 0,
+    priority: 80,
   },
 };
 
@@ -159,7 +197,7 @@ export const cloudParticleEffects = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.START_SCREEN,
-        $lt: GAME_STATES.OFFICE_INTERIOR,
+        $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
     priority: 0,

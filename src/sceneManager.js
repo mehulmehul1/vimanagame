@@ -309,9 +309,17 @@ class SceneManager {
       splatMesh.rotation.set(rotation.x, rotation.y, rotation.z);
     }
 
-    // Set position
+    // Set position (support functions for dynamic positioning)
     if (position) {
-      splatMesh.position.set(position.x, position.y, position.z);
+      const resolvedPosition =
+        typeof position === "function"
+          ? position(this.gameManager)
+          : position;
+      splatMesh.position.set(
+        resolvedPosition.x,
+        resolvedPosition.y,
+        resolvedPosition.z
+      );
     }
 
     // Set scale
@@ -435,9 +443,17 @@ class SceneManager {
             finalObject = model;
           }
 
-          // Set position
+          // Set position (support functions for dynamic positioning)
           if (position) {
-            finalObject.position.set(position.x, position.y, position.z);
+            const resolvedPosition =
+              typeof position === "function"
+                ? position(this.gameManager)
+                : position;
+            finalObject.position.set(
+              resolvedPosition.x,
+              resolvedPosition.y,
+              resolvedPosition.z
+            );
           }
 
           // Set rotation
@@ -463,6 +479,11 @@ class SceneManager {
           // Apply debug material if requested
           if (options && options.debugMaterial) {
             this._applyDebugMaterial(id, finalObject);
+          }
+
+          // Apply shadow blocker material if requested (depth-only rendering to block contact shadows)
+          if (options && options.shadowBlocker) {
+            this._applyShadowBlockerMaterial(id, finalObject);
           }
 
           // Create contact shadow if requested
@@ -628,6 +649,49 @@ class SceneManager {
     });
 
     this.logger.log(`Applied debug material to "${id}"`);
+  }
+
+  /**
+   * Apply shadow blocker material (depth-only, no color) to block contact shadows
+   * Renders after splats (9998) but before shadows (9999) to create depth mask
+   * @param {string} id - Object ID
+   * @param {THREE.Object3D} object - The loaded THREE.js object
+   * @private
+   */
+  _applyShadowBlockerMaterial(id, object) {
+    // Create shader material that writes depth but outputs transparent color
+    const shadowBlockerMaterial = new THREE.ShaderMaterial({
+      vertexShader: `
+        void main() {
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        void main() {
+          // Output fully transparent - no color, but depth is written
+          gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
+      `,
+      side: THREE.DoubleSide, // Double-sided as suggested by rendering engine author
+      depthTest: true,
+      depthWrite: true, // Write to depth buffer to block shadows
+      transparent: true,
+      // Shader outputs transparent color, so no color is written to framebuffer
+    });
+
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.material = shadowBlockerMaterial;
+        // Render after splats (9998) but before shadows (9999)
+        // Use 9998.1 to ensure it renders after splats but before shadows
+        child.renderOrder = 9998.1;
+      }
+    });
+
+    // Make object visible so it renders (even though it's transparent)
+    object.visible = true;
+
+    this.logger.log(`Applied shadow blocker material to "${id}"`);
   }
 
   /**
@@ -1182,10 +1246,26 @@ class SceneManager {
       for (const [animId, storedAction] of this.animationActions) {
         if (storedAction === action) {
           this.logger.log(`Animation "${animId}" finished`);
+          
+          // Get the animation config
+          const config = this.animationData.get(animId);
+          
+          // Call onComplete callback if provided
+          if (config && config.onComplete && this.gameManager) {
+            try {
+              config.onComplete(this.gameManager);
+            } catch (error) {
+              this.logger.error(
+                `Error in onComplete callback for animation "${animId}":`,
+                error
+              );
+            }
+          }
+          
+          // Emit animation:finished event
           this.emit("animation:finished", animId);
 
           // Check if we should remove the object after animation finishes
-          const config = this.animationData.get(animId);
           if (config && config.removeObjectOnFinish) {
             const objectId = this.animationToObject.get(animId);
             if (objectId) {
@@ -1578,6 +1658,12 @@ class SceneManager {
         this.pendingTriggerColliders.delete(id);
       }
 
+      // Dispose SplatMesh if this is a splat (frees buffers via packedSplats)
+      if (object instanceof SplatMesh) {
+        object.dispose();
+        this.logger.log(`Disposed SplatMesh buffers for "${id}"`);
+      }
+
       // Force visibility to false and remove from scene
       object.visible = false;
       if (object.parent) {
@@ -1585,7 +1671,8 @@ class SceneManager {
       }
       this.scene.remove(object);
 
-      // Dispose of geometries and materials
+      // Dispose of geometries and materials (for GLTF objects)
+      // Note: SplatMesh disposal is handled above, but traverse is safe to call
       object.traverse((child) => {
         child.visible = false; // Hide all children
         if (child.geometry) {

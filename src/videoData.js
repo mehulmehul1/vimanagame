@@ -77,7 +77,7 @@ export const videos = {
     videoPath: "/video/shadow-glimpse.webm",
     preload: false, // Load after loading screen
     position: { x: -17.95, y: 1.22, z: 39.24 },
-    rotation: { x: 0.0, y: 1.4075, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.95, y: 0.88, z: 1.0 },
     loop: false,
     muted: true,
@@ -95,7 +95,7 @@ export const videos = {
     videoPath: "/video/mov/shadow-glimpse.mov",
     preload: false, // Load after loading screen
     position: { x: -17.95, y: 1.22, z: 39.24 },
-    rotation: { x: 0.0, y: 1.4075, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.95, y: 0.88, z: 1.0 },
     loop: false,
     muted: true,
@@ -113,7 +113,7 @@ export const videos = {
     videoPath: "/video/cat.webm",
     preload: false, // Load after loading screen
     position: { x: -24.13, y: -1.48, z: 21.46 },
-    rotation: { x: 0.0, y: 1.5708, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1, y: 1, z: 1 },
     loop: false,
     muted: false,
@@ -131,29 +131,25 @@ export const videos = {
     videoPath: "/video/mov/cat-1-hvec.mov",
     preload: false, // Load after loading screen
     position: { x: -24.13, y: -1.48, z: 21.46 },
-    rotation: { x: 0.0, y: 1.5708, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1, y: 1, z: 1 },
     loop: false,
     muted: false,
     billboard: true,
     criteria: {
       heardCat: true,
-      currentState: {
-        $gte: GAME_STATES.INTRO,
-      },
     },
     autoPlay: true,
     once: true,
-    priority: 0,
+    priority: 100,
     platform: "safari", // Only load on Safari (all Safari users, not just iOS)
   },
   cat2: {
     id: "cat2",
     videoPath: "/video/cat-2.webm",
-    gizmo: false,
     preload: false, // Load after loading screen
     position: { x: -1.39, y: 1.91, z: 81.48 },
-    rotation: { x: 0.0, y: -0.8856, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.12, y: 0.21, z: 1.31 },
     loop: false,
     muted: false,
@@ -173,10 +169,9 @@ export const videos = {
   cat2Safari: {
     id: "cat2Safari",
     videoPath: "/video/mov/cat-2-paws.mov",
-    gizmo: false,
     preload: false, // Load after loading screen
     position: { x: -1.39, y: 1.91, z: 81.48 },
-    rotation: { x: 0.0, y: -0.8856, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.12, y: 0.21, z: 1.31 },
     loop: false,
     muted: false,
@@ -277,6 +272,7 @@ export const videos = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.WAKING_UP,
+        $lt: GAME_STATES.POST_CURSOR,
       },
     },
     platform: "!safari", // Don't load on Safari (use hesTiedUsUpSafari instead)
@@ -297,6 +293,7 @@ export const videos = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.WAKING_UP,
+        $lt: GAME_STATES.POST_CURSOR,
       },
     },
     platform: "safari", // Only load on Safari
@@ -375,7 +372,7 @@ export const videos = {
     preload: false, // Load after loading screen
     position: { x: -12.7, y: 1.52, z: 79.28 },
     rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    scale: { x: 1.22, y: 0.65, z: 3.04 },
     autoPlay: true,
     loop: false,
     billboard: false,
@@ -406,7 +403,7 @@ export const videos = {
     preload: false, // Load after loading screen
     position: { x: -12.7, y: 1.52, z: 79.28 },
     rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.22, y: 0.91, z: 3.04 },
+    scale: { x: 1.22, y: 0.65, z: 3.04 },
     autoPlay: true,
     loop: false,
     billboard: false,
@@ -444,6 +441,8 @@ export const videos = {
     billboard: false,
     muted: false,
     delay: 1.0,
+    // No criteria - only plays via playNext from soUnkind/shadowQuietTheGirl videos
+    // VideoManager will not spawn/play this video unless explicitly triggered
     onComplete: (gameManager) => {
       console.log("shadowAmplifications complete");
       gameManager.setState({
@@ -484,7 +483,7 @@ export const videos = {
     videoPath: "/video/cat-3-wire.webm",
     preload: false,
     position: { x: -2.1, y: 1.26, z: 80.85 },
-    rotation: { x: 0.0, y: -0.5905, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.18, y: 0.28, z: 3.04 },
     autoPlay: true,
     loop: false,
@@ -495,6 +494,7 @@ export const videos = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.CAT_SAVE,
+        $lt: GAME_STATES.CURSOR,
       },
     },
     platform: "!safari", // Don't load on Safari (use catChewSafari instead)
@@ -504,7 +504,7 @@ export const videos = {
     videoPath: "/video/mov/cat-3-wire.mov",
     preload: false,
     position: { x: -2.1, y: 1.26, z: 80.85 },
-    rotation: { x: 0.0, y: -0.5905, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 0.18, y: 0.28, z: 3.04 },
     autoPlay: true,
     loop: false,
@@ -515,6 +515,7 @@ export const videos = {
     criteria: {
       currentState: {
         $gte: GAME_STATES.CAT_SAVE,
+        $lt: GAME_STATES.CURSOR,
       },
     },
     platform: "safari", // Only load on Safari
@@ -525,15 +526,21 @@ export const videos = {
     videoPath: "/video/shadow-trance.webm",
     preload: false,
     position: { x: -10.42, y: 2.2, z: 81.94 },
-    rotation: { x: 0.0, y: 1.4047, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1.07, y: 1.52, z: 1.52 },
     autoPlay: true,
     loop: true,
     billboard: true,
-    muted: false,
+    muted: true,
     delay: 0.0,
     criteria: {
-      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      currentState: {
+        $in: [
+          GAME_STATES.CURSOR,
+          GAME_STATES.CURSOR_FINAL,
+          GAME_STATES.POST_CURSOR,
+        ],
+      },
     },
     platform: "!safari", // Don't load on Safari (use shadowTranceSafari instead)
   },
@@ -542,17 +549,77 @@ export const videos = {
     videoPath: "/video/mov/shadow-trance.mov",
     preload: false,
     position: { x: -10.42, y: 2.2, z: 81.94 },
-    rotation: { x: 0.0, y: 1.4047, z: 0.0 },
+    rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1.07, y: 1.52, z: 1.52 },
     autoPlay: true,
     loop: true,
     billboard: true,
-    muted: false,
+    muted: true,
     delay: 0.0,
     criteria: {
-      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      currentState: {
+        $in: [
+          GAME_STATES.CURSOR,
+          GAME_STATES.CURSOR_FINAL,
+          GAME_STATES.POST_CURSOR,
+        ],
+      },
     },
     platform: "safari", // Only load on Safari
+  },
+
+  cat2Loop: {
+    id: "cat2Loop",
+    videoPath: "/video/cat-2.webm",
+    preload: false,
+    position: { x: -4.96, y: 1.33, z: 87.93 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 0.16, y: 0.31, z: 1.31 },
+    autoPlay: true,
+    loop: true,
+    billboard: true,
+    muted: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_CAT,
+      },
+    },
+    platform: "!safari", // Don't load on Safari (use cat2LoopSafari instead)
+  },
+  cat2LoopSafari: {
+    id: "cat2LoopSafari",
+    videoPath: "/video/mov/cat-2-paws.mov",
+    position: { x: -4.96, y: 1.33, z: 87.93 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 0.16, y: 0.31, z: 1.31 },
+    autoPlay: true,
+    loop: true,
+    billboard: true,
+    muted: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_CAT,
+      },
+    },
+    platform: "safari", // Only load on Safari
+  },
+
+  credits: {
+    id: "credits",
+    videoPath: "/video/shadow-credits.mp4",
+    preload: false,
+    position: { x: -0.36, y: 4.32, z: 83.33 },
+    rotation: { x: 3.1416, y: -Math.PI / 2, z: 3.1416 },
+    scale: { x: 1.6, y: 0.9, z: 1.0 },
+    billboard: false,
+    loop: true,
+    autoPlay: true, // Note: camelCase, not lowercase
+    playbackRate: 0.5,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_CREDITS,
+      },
+    },
   },
 };
 

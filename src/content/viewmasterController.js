@@ -5,7 +5,7 @@ import { Logger } from "../utils/logger.js";
 
 const TOGGLE_ON_ID = "viewmasterToggleOn";
 const TOGGLE_OFF_ID = "viewmasterToggleOff";
-const FRACTAL_TIMEOUT_SECONDS = 10;
+const FRACTAL_TIMEOUT_SECONDS = 14;
 const FRACTAL_MIN_INTENSITY = 0.02;
 const FRACTAL_MAX_INTENSITY = 10.0; // World completely dissolves at the end
 const VFX_DELAY_RATIO = 0.7;
@@ -58,16 +58,234 @@ export default class ViewmasterController {
     this.handleStateChanged(this.gameManager.getState());
     this.applyInitialAttachmentIfNeeded(this.gameManager.getState());
     this.applyFractalIntensity(0);
+    this.setupProgressBarStyles();
     this.logger.log("Initialized");
+  }
+
+  setupProgressBarStyles() {
+    const styleId = "viewmaster-progress-bar-styles";
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      #space-bar-hint.progress-mode {
+        animation: none !important;
+      }
+
+      #space-bar-hint.progress-mode .progress-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #space-bar-hint.progress-mode .base-image {
+        filter: grayscale(100%) brightness(0.5);
+      }
+
+      #space-bar-hint.progress-mode .progress-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        clip-path: inset(0 var(--progress-percent, 100%) 0 0);
+        transition: clip-path 0.1s linear;
+        pointer-events: none;
+      }
+
+      #space-bar-hint.progress-mode .progress-fill img {
+        width: 100%;
+        height: auto;
+        display: block;
+        filter: brightness(1);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  updateSpectreScopeProgress(progress) {
+    const spaceBarHint = document.getElementById("space-bar-hint");
+    if (!spaceBarHint) return;
+
+    const progressPercent = Math.max(0, Math.min(100, progress * 100));
+    spaceBarHint.style.setProperty("--progress-percent", `${progressPercent}%`);
+
+    const isEquipped = this.isEquipped;
+    const gameState = this.gameManager?.getState?.();
+    const currentState = gameState?.currentState;
+
+    // Only show button between CURSOR and POST_CURSOR states
+    if (
+      currentState === undefined ||
+      currentState < GAME_STATES.CURSOR ||
+      currentState >= GAME_STATES.POST_CURSOR
+    ) {
+      spaceBarHint.style.opacity = "0";
+      spaceBarHint.style.pointerEvents = "none";
+      return;
+    }
+
+    if (isEquipped) {
+      spaceBarHint.classList.add("progress-mode");
+      spaceBarHint.classList.remove("animating");
+
+      // Keep button clickable so user can take it off
+      spaceBarHint.style.pointerEvents = "all";
+
+      let container = spaceBarHint.querySelector(".progress-container");
+      if (!container) {
+        // Only create container and images ONCE, the first time
+        const img = spaceBarHint.querySelector(
+          "img:not(.progress-container img)"
+        );
+        if (img) {
+          // Store reference to original image BEFORE modifying
+          if (!spaceBarHint._originalImage) {
+            spaceBarHint._originalImage = img;
+          }
+
+          const originalSrc = img.src;
+          const originalAlt = img.alt || "Press Space to submit";
+
+          container = document.createElement("div");
+          container.className = "progress-container";
+
+          // Create images ONCE and store references
+          if (!spaceBarHint._baseImage) {
+            spaceBarHint._baseImage = document.createElement("img");
+            spaceBarHint._baseImage.src = originalSrc;
+            spaceBarHint._baseImage.alt = originalAlt;
+            spaceBarHint._baseImage.className = "base-image";
+          }
+
+          if (!spaceBarHint._progressFill) {
+            spaceBarHint._progressFill = document.createElement("div");
+            spaceBarHint._progressFill.className = "progress-fill";
+            if (!spaceBarHint._whiteImage) {
+              spaceBarHint._whiteImage = document.createElement("img");
+              spaceBarHint._whiteImage.src = originalSrc;
+              spaceBarHint._whiteImage.alt = originalAlt;
+            }
+            spaceBarHint._progressFill.appendChild(spaceBarHint._whiteImage);
+          }
+
+          container.appendChild(spaceBarHint._baseImage);
+          container.appendChild(spaceBarHint._progressFill);
+
+          // Hide original image instead of removing it
+          img.style.display = "none";
+          spaceBarHint.appendChild(container);
+        }
+      } else {
+        // Container exists, just show it
+        container.style.display = "";
+        // Hide original image
+        if (spaceBarHint._originalImage) {
+          spaceBarHint._originalImage.style.display = "none";
+        }
+      }
+
+      const progressFill = spaceBarHint.querySelector(".progress-fill");
+      if (progressFill) {
+        progressFill.style.clipPath = `inset(0 ${progressPercent}% 0 0)`;
+      }
+
+      spaceBarHint.style.opacity = "1";
+    } else {
+      // Only restore original image structure if we're actually switching from progress mode
+      if (spaceBarHint.classList.contains("progress-mode")) {
+        spaceBarHint.classList.remove("progress-mode");
+
+        // Re-enable button clicks (mobile)
+        if (spaceBarHint.classList.contains("mobile-button")) {
+          spaceBarHint.style.pointerEvents = "all";
+        }
+
+        const container = spaceBarHint.querySelector(".progress-container");
+        if (container) {
+          // Hide container instead of removing it (preserves image elements)
+          container.style.display = "none";
+
+          // Show the original image again (it was never removed, just hidden)
+          if (spaceBarHint._originalImage) {
+            spaceBarHint._originalImage.style.display = "";
+          }
+        }
+      }
+
+      // When viewmaster is removed and toggle is enabled, start flashing to indicate it can be put on again
+      const isMobile = gameState?.isMobile === true;
+      const isIOS = gameState?.isIOS === true;
+      const isDrawingActive = window.drawingManager?.isActive === true;
+
+      if (this.isToggleEnabled && !isDrawingActive) {
+        // Viewmaster toggle is enabled - show flashing hint to indicate it can be put on again
+        if (isMobile || isIOS) {
+          // Mobile: just show the button
+          spaceBarHint.style.opacity = "1";
+        } else {
+          // Desktop: start flashing animation
+          spaceBarHint.style.opacity = "1";
+          spaceBarHint.style.pointerEvents = "all";
+          spaceBarHint.classList.add("animating");
+
+          // Set up animation loop (remove old listener first)
+          const oldHandler = spaceBarHint._viewmasterFlashHandler;
+          if (oldHandler) {
+            spaceBarHint.removeEventListener("animationend", oldHandler);
+          }
+
+          const handler = () => {
+            if (!this.isEquipped && this.isToggleEnabled && !isDrawingActive) {
+              setTimeout(() => {
+                if (
+                  !this.isEquipped &&
+                  this.isToggleEnabled &&
+                  !isDrawingActive
+                ) {
+                  spaceBarHint.classList.remove("animating");
+                  void spaceBarHint.offsetWidth;
+                  spaceBarHint.classList.add("animating");
+                }
+              }, 2000);
+            }
+          };
+
+          spaceBarHint._viewmasterFlashHandler = handler;
+          spaceBarHint.addEventListener("animationend", handler);
+        }
+      } else if ((isMobile || isIOS) && !isDrawingActive) {
+        // Hide button when toggle not enabled and drawing game not active
+        spaceBarHint.style.opacity = "0";
+      }
+    }
   }
 
   handleStateChanged(newState, oldState) {
     const enabled =
       newState &&
       newState.currentState !== undefined &&
-      newState.currentState >= GAME_STATES.SHADOW_AMPLIFICATIONS;
+      newState.currentState >= GAME_STATES.SHADOW_AMPLIFICATIONS &&
+      newState.currentState < GAME_STATES.POST_CURSOR;
 
     this.isToggleEnabled = enabled;
+
+    // At POST_CURSOR or later, return viewmaster to LIGHTS_OUT position and disable toggle
+    if (
+      newState &&
+      newState.currentState !== undefined &&
+      newState.currentState >= GAME_STATES.POST_CURSOR
+    ) {
+      // Force unequip if equipped
+      if (newState?.isViewmasterEquipped) {
+        this.gameManager.setState({ isViewmasterEquipped: false });
+      }
+
+      // Return viewmaster to LIGHTS_OUT position
+      this.returnToLightsOutPosition();
+    }
 
     if (!enabled && newState?.isViewmasterEquipped) {
       this.gameManager.setState({ isViewmasterEquipped: false });
@@ -87,7 +305,8 @@ export default class ViewmasterController {
       isEnteringShadowAmplifications &&
       !this.isEquipped &&
       !this.isTransitioning &&
-      !this.isAutoEquipping
+      !this.isAutoEquipping &&
+      !newState?.viewmasterManuallyRemoved
     ) {
       this.logger.log(
         `SHADOW_AMPLIFICATIONS state detected (currentState: ${newState?.currentState}), auto-equipping viewmaster`
@@ -126,15 +345,87 @@ export default class ViewmasterController {
     }
 
     if (this.isEquipped !== previousEquipped) {
+      // Don't play toggle animations at POST_CURSOR or later
+      if (
+        newState &&
+        newState.currentState !== undefined &&
+        newState.currentState >= GAME_STATES.POST_CURSOR
+      ) {
+        return;
+      }
+
+      // Play animation when state changes (but don't call toggle() which might set state again)
+      if (!this.isTransitioning && this.isToggleEnabled) {
+        if (!this.sceneManager?.hasObject("viewmaster")) {
+          this.logger.warn("Viewmaster object not loaded yet");
+        } else {
+          const animationId = this.isEquipped ? TOGGLE_ON_ID : TOGGLE_OFF_ID;
+          const animation = objectAnimations[animationId];
+
+          if (animation) {
+            this.isTransitioning = true;
+            this.animationManager.playObjectAnimation(animation);
+            this.ensureMaskPlane();
+            this.updateMaskPlane(true);
+
+            const durationMs = Math.max(animation.duration || 1, 1) * 1000;
+            clearTimeout(this.transitionTimeout);
+            this.transitionTimeout = setTimeout(() => {
+              this.isTransitioning = false;
+              this.updateMaskPlane(this.isEquipped);
+
+              if (!this.isEquipped && this.timeoutTriggered) {
+                this.timeoutTriggered = false;
+              }
+
+              if (!this.isEquipped && this.isToggleEnabled) {
+                this.updateSpectreScopeProgress(0);
+              }
+            }, durationMs + 200);
+
+            if (this.isEquipped) {
+              this.stopFractalRamp();
+              const vfxDelayMs = Math.max(durationMs * VFX_DELAY_RATIO, 0);
+              if (this.pendingVfxTimeout) {
+                clearTimeout(this.pendingVfxTimeout);
+                this.pendingVfxTimeout = null;
+              }
+              this.pendingVfxTimeout = setTimeout(() => {
+                this.startFractalRamp();
+                this.pendingVfxTimeout = null;
+              }, vfxDelayMs);
+            } else {
+              this.stopFractalRamp();
+            }
+          }
+        }
+      }
+
       if (this.isEquipped) {
-        this.startFractalRamp();
         // Reset max intensity flag when equipping
         if (newState?.currentState === GAME_STATES.SHADOW_AMPLIFICATIONS) {
           this.maxIntensityReached = false;
         }
       } else {
-        this.stopFractalRamp();
         this.maxIntensityReached = false;
+      }
+    }
+
+    // Show button on mobile when viewmaster toggle is enabled (even if not equipped yet)
+    const spaceBarHint = document.getElementById("space-bar-hint");
+    if (spaceBarHint && spaceBarHint.classList.contains("mobile-button")) {
+      const isMobile = newState?.isMobile === true;
+      const isIOS = newState?.isIOS === true;
+      const isDrawingActive = window.drawingManager?.isActive === true;
+
+      if (
+        (isMobile || isIOS) &&
+        (this.isToggleEnabled || this.isEquipped || isDrawingActive)
+      ) {
+        if (!this.isEquipped && !isDrawingActive) {
+          // Show button when toggle is enabled but not equipped (for toggling on)
+          spaceBarHint.style.opacity = "1";
+        }
       }
     }
 
@@ -170,7 +461,14 @@ export default class ViewmasterController {
       }
     }
 
-    this.toggle();
+    // Toggle the state - handleStateChanged will call toggle() to play animation
+    const currentState = this.gameManager.getState();
+    const newEquippedState = !currentState.isViewmasterEquipped;
+    // Reset manually removed flag when user presses spacebar to toggle
+    this.gameManager.setState({
+      isViewmasterEquipped: newEquippedState,
+      viewmasterManuallyRemoved: false,
+    });
   }
 
   applyInitialAttachmentIfNeeded(state) {
@@ -219,12 +517,18 @@ export default class ViewmasterController {
   toggle() {
     if (this.isTransitioning) return;
 
+    if (!this.isToggleEnabled) {
+      this.logger.log("Viewmaster toggle not enabled yet");
+      return;
+    }
+
     if (!this.sceneManager?.hasObject("viewmaster")) {
       this.logger.warn("Viewmaster object not loaded yet");
       return;
     }
 
-    const nextEquipped = !this.isEquipped;
+    // Use current isEquipped state (may have been set via state change)
+    const nextEquipped = this.isEquipped;
     const animationId = nextEquipped ? TOGGLE_ON_ID : TOGGLE_OFF_ID;
     const animation = objectAnimations[animationId];
 
@@ -234,7 +538,7 @@ export default class ViewmasterController {
     }
 
     this.isTransitioning = true;
-    this.isEquipped = nextEquipped;
+    // Don't set isEquipped here - it's already set from state
     this.animationManager.playObjectAnimation(animation);
     this.ensureMaskPlane();
     this.updateMaskPlane(true);
@@ -249,6 +553,11 @@ export default class ViewmasterController {
       if (!this.isEquipped && this.timeoutTriggered) {
         this.timeoutTriggered = false;
       }
+
+      // Reset progress bar and start flashing when viewmaster is removed
+      if (!this.isEquipped && this.isToggleEnabled) {
+        this.updateSpectreScopeProgress(0);
+      }
     }, durationMs + 200);
 
     if (this.pendingVfxTimeout) {
@@ -260,32 +569,13 @@ export default class ViewmasterController {
       this.stopFractalRamp();
       const vfxDelayMs = Math.max(durationMs * VFX_DELAY_RATIO, 0);
       this.pendingVfxTimeout = setTimeout(() => {
-        this.gameManager.setState({
-          isViewmasterEquipped: true,
-          viewmasterManuallyRemoved: false, // Reset when putting back on
-          viewmasterOverheatDialogIndex: null, // Reset dialog index when putting back on
-        });
+        // State is already set, just start the fractal ramp
         this.startFractalRamp();
         this.pendingVfxTimeout = null;
       }, vfxDelayMs);
     } else {
       // Manually removed (not a timeout)
-      const currentState = this.gameManager.getState();
-      // Preserve viewmasterOverheatDialogIndex if removed due to timeout/overheating
-      // Only reset it if manually removed (not due to timeout)
-      const shouldPreserveDialogIndex =
-        this.timeoutTriggered &&
-        currentState?.viewmasterOverheatDialogIndex !== null &&
-        currentState?.viewmasterOverheatDialogIndex !== undefined;
-
-      this.gameManager.setState({
-        isViewmasterEquipped: false,
-        viewmasterManuallyRemoved: !this.timeoutTriggered,
-        // Only reset dialog index if manually removed (preserve it for overheating dialogs/animations)
-        viewmasterOverheatDialogIndex: shouldPreserveDialogIndex
-          ? currentState.viewmasterOverheatDialogIndex
-          : null,
-      });
+      // State is already set, just stop the fractal ramp
       this.stopFractalRamp();
     }
   }
@@ -355,6 +645,8 @@ export default class ViewmasterController {
     this.fractalTimer = 0;
     this.timeoutTriggered = false;
     this.applyFractalIntensity(FRACTAL_MIN_INTENSITY);
+    // Reset progress bar to 0 when starting the ramp (headset is now fully on)
+    this.updateSpectreScopeProgress(0);
   }
 
   stopFractalRamp() {
@@ -416,6 +708,32 @@ export default class ViewmasterController {
     }, vfxDelayMs);
   }
 
+  returnToLightsOutPosition() {
+    if (!this.sceneManager?.hasObject("viewmaster")) {
+      this.logger.warn("Viewmaster object not loaded yet, retrying...");
+      setTimeout(() => {
+        this.returnToLightsOutPosition();
+      }, 250);
+      return;
+    }
+
+    const animation = objectAnimations["viewmasterLightsOutPosition"];
+    if (!animation) {
+      this.logger.warn("viewmasterLightsOutPosition animation not found");
+      return;
+    }
+
+    // Stop any ongoing animations
+    this.stopFractalRamp();
+    this.isEquipped = false;
+
+    // Play the animation to return to LIGHTS_OUT position
+    this.animationManager.playObjectAnimation(animation);
+    this.updateMaskPlane(false);
+
+    this.logger.log("Returning viewmaster to LIGHTS_OUT position");
+  }
+
   forceTakeoff() {
     if (this.timeoutTriggered) return;
     this.timeoutTriggered = true;
@@ -428,9 +746,19 @@ export default class ViewmasterController {
       this.pendingVfxTimeout = null;
     }
 
-    // Mark as NOT manually removed (it's a timeout)
-    this.gameManager.setState({ viewmasterManuallyRemoved: false });
-    this.toggle();
+    // Mark as manually removed (it's a timeout, user didn't click)
+    // This prevents auto-equip logic from re-equipping it
+    this.gameManager.setState({
+      isViewmasterEquipped: false,
+      viewmasterManuallyRemoved: true,
+    });
+
+    // Ensure progress bar resets and flashing starts after toggle completes
+    setTimeout(() => {
+      if (!this.isEquipped) {
+        this.updateSpectreScopeProgress(0);
+      }
+    }, 100);
   }
 
   update(dt = 0.016) {
@@ -450,7 +778,16 @@ export default class ViewmasterController {
     if (shouldRampFractal) {
       // Only ramp if VFX effect is available
       if (this.getFractalEffect()) {
-        this.fractalTimer += dt;
+        // Check if rune lookat is active (pause intensity buildup during rune lock-on)
+        const isRuneLookatActive =
+          this.animationManager?.isPlaying &&
+          this.animationManager?.currentAnimationData?.id === "runeLookat";
+
+        // Only start/continue fractal timer and progress bar when transition is complete
+        // and rune lookat is not active
+        if (!this.isTransitioning && !isRuneLookatActive) {
+          this.fractalTimer += dt;
+        }
         const progress = Math.min(
           this.fractalTimer / FRACTAL_TIMEOUT_SECONDS,
           1
@@ -461,6 +798,10 @@ export default class ViewmasterController {
           FRACTAL_MIN_INTENSITY +
           eased * (FRACTAL_MAX_INTENSITY - FRACTAL_MIN_INTENSITY);
         this.applyFractalIntensity(intensity);
+        // Only update progress bar when transition is complete (headset fully on)
+        if (!this.isTransitioning) {
+          this.updateSpectreScopeProgress(progress);
+        }
 
         if (progress >= 1 && this.isEquipped) {
           // Special handling for SHADOW_AMPLIFICATIONS: glitch sequence then transition
@@ -546,6 +887,11 @@ export default class ViewmasterController {
       }
     } else if (this.currentFractalIntensity > 0 && !this.isTransitioning) {
       this.applyFractalIntensity(0);
+    }
+
+    // Update progress bar visibility and flashing state
+    if (!this.isEquipped) {
+      this.updateSpectreScopeProgress(0);
     }
   }
 }

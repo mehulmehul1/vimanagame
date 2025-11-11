@@ -189,7 +189,8 @@ class MusicManager {
             (newState.currentState === GAME_STATES.INTRO ||
               newState.currentState === GAME_STATES.TITLE_SEQUENCE);
           const currentTrack = this.getCurrentTrack();
-          const noMusicPlaying = !currentTrack || !this.isTrackPlaying(currentTrack);
+          const noMusicPlaying =
+            !currentTrack || !this.isTrackPlaying(currentTrack);
 
           if (isTransitioningFromStartScreen && noMusicPlaying) {
             this.logger.log(
@@ -319,15 +320,20 @@ class MusicManager {
   async loadDeferredTracks() {
     // Get current game state to check if criteria have passed
     const currentState = this.gameManager?.getState() || {};
-    const { couldCriteriaStillMatch } = await import("./utils/criteriaHelper.js");
+    const { couldCriteriaStillMatch } = await import(
+      "./utils/criteriaHelper.js"
+    );
     const { musicTracks } = await import("./musicData.js");
-    
+
     // Filter deferred tracks to skip those whose criteria have passed
     const tracksToLoad = [];
     for (const [name, { src, options }] of this.deferredTracks) {
       // Get track data to check criteria
       const trackData = musicTracks[name];
-      if (trackData?.criteria && !couldCriteriaStillMatch(currentState, trackData.criteria)) {
+      if (
+        trackData?.criteria &&
+        !couldCriteriaStillMatch(currentState, trackData.criteria)
+      ) {
         this.logger.log(
           `Skipping deferred track "${name}" - criteria have already passed (currentState: ${currentState.currentState})`
         );

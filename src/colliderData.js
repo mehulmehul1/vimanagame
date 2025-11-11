@@ -15,6 +15,10 @@
  *   - box: {x, y, z} half-extents (full size is 2x these values)
  *   - sphere: {radius}
  *   - capsule: {halfHeight, radius}
+ * - blocking: If true, creates a solid blocking collider (prevents movement) instead of a trigger
+ *   - Blocking colliders are automatically handled by the physics engine
+ *   - They do not trigger setStateOnEnter/Exit events
+ *   - They are created/removed based on criteria like regular colliders
  * - setStateOnEnter: Object with key-value pairs to set when player enters (optional)
  *   - Example: { currentState: GAME_STATES.NEAR_RADIO, nearRadio: true }
  * - setStateOnExit: Object with key-value pairs to set when player exits (optional)
@@ -140,13 +144,13 @@ export const colliders = [
     position: { x: -1.3, y: 1.33, z: 81.18 },
     rotation: { x: 0.0, y: 0.138, z: 0.0 },
     dimensions: { x: 3, y: 4, z: 3 },
-    setStateOnEnter: { currentState: GAME_STATES.ENTERING_OFFICE },
+    setStateOnEnter: { currentState: GAME_STATES.DOORS_CLOSE },
     once: true, // Only trigger once
     enabled: true,
     criteria: {
       currentState: {
         $gte: GAME_STATES.POST_DRIVE_BY,
-        $lt: GAME_STATES.ENTERING_OFFICE,
+        $lt: GAME_STATES.DOORS_CLOSE,
       },
     },
   },
@@ -183,6 +187,23 @@ export const colliders = [
       currentState: {
         $gte: GAME_STATES.OFFICE_INTERIOR,
         $lt: GAME_STATES.OFFICE_PHONE_ANSWERED,
+      },
+    },
+  },
+
+  // Blocking collider to prevent player backtracking after entering office
+  {
+    id: "doors-blocking",
+    type: "box",
+    position: { x: 5.68, y: 1.95, z: 78.7 }, // Same position as doors object
+    rotation: { x: 180, y: 62, z: 180 }, // Converted from radians (3.1416, 1.0817, 3.1416)
+    dimensions: { x: 2, y: 1, z: 0.1 }, // Half-extents: 1m wide, 2m tall, 0.2m thick
+    blocking: true, // Solid blocking collider (prevents movement)
+    enabled: true,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.ENTERING_OFFICE,
+        $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
   },

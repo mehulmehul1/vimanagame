@@ -20,8 +20,9 @@ export class StrokeMesh {
 
     // Viewmaster visibility tracking
     this.intendedVisible = true; // Track intended visibility (before viewmaster check)
-    this.viewmasterRevealTimeout = null; // Timeout for delayed visibility when viewmaster is removed
     this.wasViewmasterEquipped = false; // Track previous frame's viewmaster state
+    this.viewmasterEquipTime = null; // Timestamp when viewmaster was equipped (for delay)
+    this.viewmasterRevealDelay = 0.9; // Delay in seconds before showing runes after equipping
 
     this.createMaterial();
     this.mesh = new THREE.Mesh(this.strokeGeometry, this.material);
@@ -34,7 +35,7 @@ export class StrokeMesh {
     this.wasViewmasterEquipped = initialState?.isViewmasterEquipped || false;
 
     // Apply initial visibility (respects viewmaster state)
-    this.applyVisibility();
+    this.applyVisibility(this.time);
 
     this.scene.add(this.mesh);
   }
@@ -442,31 +443,55 @@ export class StrokeMesh {
 
   /**
    * Apply visibility based on intended state and viewmaster equipped state
-   * Runes are only visible when viewmaster is equipped
+   * Runes are only visible when viewmaster is equipped, with a delay
    */
-  applyVisibility() {
+  applyVisibility(currentTime) {
     if (!this.mesh) return;
     const isViewmasterEquipped =
       this.gameManager?.getState()?.isViewmasterEquipped || false;
 
-    // Clear any pending timeout (not used for runes, but clean up just in case)
-    if (this.viewmasterRevealTimeout) {
-      clearTimeout(this.viewmasterRevealTimeout);
-      this.viewmasterRevealTimeout = null;
-    }
+    // Detect transition from not equipped to equipped
+    const justEquipped = !this.wasViewmasterEquipped && isViewmasterEquipped;
+    const justUnequipped = this.wasViewmasterEquipped && !isViewmasterEquipped;
 
-    // Runes are only visible when viewmaster is equipped
-    this.mesh.visible = this.intendedVisible && isViewmasterEquipped;
+    // When viewmaster is just equipped, record the time for delay
+    if (justEquipped) {
+      this.viewmasterEquipTime = currentTime;
+      this.mesh.visible = false; // Hide immediately
+    } else if (justUnequipped) {
+      // Hide immediately when unequipped and reset timer
+      this.viewmasterEquipTime = null;
+      this.mesh.visible = false;
+    } else if (isViewmasterEquipped) {
+      // Check if delay has passed
+      if (this.viewmasterEquipTime !== null) {
+        const elapsed = currentTime - this.viewmasterEquipTime;
+        if (elapsed >= this.viewmasterRevealDelay) {
+          // Delay has passed, show runes
+          this.mesh.visible = this.intendedVisible;
+          this.viewmasterEquipTime = null; // Clear timer
+        } else {
+          // Still waiting for delay
+          this.mesh.visible = false;
+        }
+      } else {
+        // Already visible (delay passed previously)
+        this.mesh.visible = this.intendedVisible;
+      }
+    } else {
+      // Not equipped, keep hidden
+      this.mesh.visible = false;
+    }
 
     // Update previous state
     this.wasViewmasterEquipped = isViewmasterEquipped;
   }
 
   update(dt = 0.016) {
-    // Apply visibility (respects viewmaster equipped state)
-    this.applyVisibility();
-
     this.time += dt;
+
+    // Apply visibility (respects viewmaster equipped state)
+    this.applyVisibility(this.time);
 
     if (this.material) {
       this.material.uniforms.uTime.value = this.time;
@@ -490,12 +515,6 @@ export class StrokeMesh {
   }
 
   dispose() {
-    // Clear viewmaster reveal timeout
-    if (this.viewmasterRevealTimeout) {
-      clearTimeout(this.viewmasterRevealTimeout);
-      this.viewmasterRevealTimeout = null;
-    }
-
     if (this.mesh) {
       this.scene.remove(this.mesh);
       this.strokeGeometry.dispose();

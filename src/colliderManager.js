@@ -121,12 +121,36 @@ class ColliderManager {
    */
   initializeColliders(colliderData) {
     colliderData.forEach((data) => {
-      const collider = this.createCollider(data);
-      if (collider) {
+      // For blocking colliders, check criteria before creating
+      // If criteria doesn't match, store data but don't create collider yet
+      // updateBlockingColliders() will create it when criteria matches
+      if (data.blocking && data.criteria) {
+        const shouldCreate = this.checkActivationConditions(data);
+        if (!shouldCreate) {
+          // Store data but don't create collider yet
+          this.colliders.push({
+            id: data.id,
+            data: data,
+            collider: null,
+            body: null,
+            handle: null,
+            enabled: data.enabled !== false,
+          });
+          return;
+        }
+      }
+
+      const result = this.createCollider(data);
+      if (result) {
+        // Blocking colliders return { collider, body }, sensor colliders return just collider
+        const collider = result.collider || result;
+        const body = result.body || null;
+
         this.colliders.push({
           id: data.id,
           data: data,
           collider: collider,
+          body: body, // Store body reference for blocking colliders
           handle: collider.handle,
           enabled: data.enabled !== false,
         });
@@ -139,10 +163,10 @@ class ColliderManager {
   /**
    * Create a physics collider from data
    * @param {Object} data - Collider data
-   * @returns {Object} Rapier collider
+   * @returns {Object} Rapier collider or { collider, body } for blocking colliders
    */
   createCollider(data) {
-    const { type, position, rotation, dimensions } = data;
+    const { type, position, rotation, dimensions, blocking } = data;
 
     // Convert rotation from degrees to quaternion
     const euler = new THREE.Euler(
@@ -155,41 +179,81 @@ class ColliderManager {
     let colliderDesc;
 
     // Create appropriate collider shape
-    switch (type) {
-      case "box":
-        colliderDesc = this.physicsManager.createSensorBox(
-          dimensions.x,
-          dimensions.y,
-          dimensions.z
-        );
-        break;
+    if (blocking) {
+      // Blocking colliders (solid, block movement)
+      switch (type) {
+        case "box":
+          colliderDesc = this.physicsManager.createBlockingBox(
+            dimensions.x,
+            dimensions.y,
+            dimensions.z
+          );
+          break;
 
-      case "sphere":
-        colliderDesc = this.physicsManager.createSensorSphere(
-          dimensions.radius
-        );
-        break;
+        case "sphere":
+          colliderDesc = this.physicsManager.createBlockingSphere(
+            dimensions.radius
+          );
+          break;
 
-      case "capsule":
-        colliderDesc = this.physicsManager.createSensorCapsule(
-          dimensions.halfHeight,
-          dimensions.radius
-        );
-        break;
+        case "capsule":
+          colliderDesc = this.physicsManager.createBlockingCapsule(
+            dimensions.halfHeight,
+            dimensions.radius
+          );
+          break;
 
-      default:
-        this.logger.warn(`Unknown collider type "${type}" for ${data.id}`);
-        return null;
+        default:
+          this.logger.warn(`Unknown collider type "${type}" for ${data.id}`);
+          return null;
+      }
+
+      if (!colliderDesc) return null;
+
+      // Create blocking collider with fixed body
+      return this.physicsManager.createBlockingCollider(
+        colliderDesc,
+        position,
+        { x: quat.x, y: quat.y, z: quat.z, w: quat.w }
+      );
+    } else {
+      // Sensor colliders (triggers, no physics interaction)
+      switch (type) {
+        case "box":
+          colliderDesc = this.physicsManager.createSensorBox(
+            dimensions.x,
+            dimensions.y,
+            dimensions.z
+          );
+          break;
+
+        case "sphere":
+          colliderDesc = this.physicsManager.createSensorSphere(
+            dimensions.radius
+          );
+          break;
+
+        case "capsule":
+          colliderDesc = this.physicsManager.createSensorCapsule(
+            dimensions.halfHeight,
+            dimensions.radius
+          );
+          break;
+
+        default:
+          this.logger.warn(`Unknown collider type "${type}" for ${data.id}`);
+          return null;
+      }
+
+      if (!colliderDesc) return null;
+
+      // Set position and rotation on the descriptor
+      colliderDesc.setTranslation(position.x, position.y, position.z);
+      colliderDesc.setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w });
+
+      // Create the actual collider from the descriptor
+      return this.physicsManager.createColliderFromDesc(colliderDesc);
     }
-
-    if (!colliderDesc) return null;
-
-    // Set position and rotation on the descriptor
-    colliderDesc.setTranslation(position.x, position.y, position.z);
-    colliderDesc.setRotation({ x: quat.x, y: quat.y, z: quat.z, w: quat.w });
-
-    // Create the actual collider from the descriptor
-    return this.physicsManager.createColliderFromDesc(colliderDesc);
   }
 
   /**
@@ -391,6 +455,9 @@ class ColliderManager {
     // Update debug mesh visibility based on activation conditions
     this.updateDebugMeshVisibility();
 
+    // Update blocking colliders based on criteria (enable/disable in physics world)
+    this.updateBlockingColliders();
+
     // Determine which collider to use for intersection checks
     // Zone colliders use camera probe when useCamera=true
     // Regular trigger colliders always use character body (if available)
@@ -418,6 +485,9 @@ class ColliderManager {
     this.colliders.forEach(({ id, data, collider, enabled }) => {
       if (!enabled) return;
       if (data.once && this.triggeredOnce.has(id)) return;
+
+      // Skip blocking colliders - they're handled by physics engine automatically
+      if (data.blocking) return;
 
       // Check activation conditions based on game state
       if (!this.checkActivationConditions(data)) return;
@@ -659,6 +729,49 @@ class ColliderManager {
     }
 
     return true;
+  }
+
+  /**
+   * Update blocking colliders based on criteria (enable/disable in physics world)
+   * Blocking colliders need to be added/removed from physics world based on criteria
+   */
+  updateBlockingColliders() {
+    if (!this.physicsManager || !this.physicsManager.world) return;
+
+    this.colliders.forEach((colliderEntry, index) => {
+      const { id, data, collider, body, enabled } = colliderEntry;
+      if (!data.blocking) return; // Only process blocking colliders
+
+      const shouldBeActive = enabled && this.checkActivationConditions(data);
+      const isInWorld = body && body.isValid();
+
+      if (shouldBeActive && !isInWorld) {
+        // Criteria matches but collider not in world - create it
+        const newResult = this.createCollider(data);
+        if (newResult) {
+          const newCollider = newResult.collider || newResult;
+          const newBody = newResult.body || null;
+          // Update the existing entry
+          colliderEntry.collider = newCollider;
+          colliderEntry.body = newBody;
+          colliderEntry.handle = newCollider.handle;
+          this.logger.log(`Created blocking collider "${id}"`);
+        }
+      } else if (!shouldBeActive && isInWorld) {
+        // Criteria doesn't match but collider is in world - remove it
+        if (collider) {
+          this.physicsManager.world.removeCollider(collider, false);
+        }
+        if (body) {
+          this.physicsManager.world.removeRigidBody(body);
+        }
+        // Clear references but keep entry for potential recreation
+        colliderEntry.collider = null;
+        colliderEntry.body = null;
+        colliderEntry.handle = null;
+        this.logger.log(`Removed blocking collider "${id}" from physics world`);
+      }
+    });
   }
 
   /**
@@ -904,11 +1017,16 @@ class ColliderManager {
     const colliderIndex = this.colliders.findIndex((c) => c.id === id);
     if (colliderIndex === -1) return;
 
-    const { collider } = this.colliders[colliderIndex];
+    const { collider, body } = this.colliders[colliderIndex];
 
     // Remove from physics world
     if (collider && this.physicsManager.world) {
-      this.physicsManager.world.removeCollider(collider);
+      this.physicsManager.world.removeCollider(collider, false);
+    }
+
+    // Remove body if it exists (for blocking colliders)
+    if (body && this.physicsManager.world) {
+      this.physicsManager.world.removeRigidBody(body);
     }
 
     // Remove debug mesh from scene

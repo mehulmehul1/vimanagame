@@ -565,7 +565,7 @@ export const dialogTracks = {
     ],
     once: true,
     autoPlay: true,
-    delay: 5.0,
+    delay: 4.25,
     preload: false,
     criteria: { currentState: GAME_STATES.EDISON },
     onComplete: (gameManager) => {
@@ -736,7 +736,7 @@ export const dialogTracks = {
     captions: [
       { text: "Go, you have to interrupt his ritual!", duration: 2.25 },
       { text: "Dark runes manifest throughout the hall!", duration: 2.5 },
-      { text: "Use the View-Master to find them,", duration: 1.75 },
+      { text: "Use the Spectre-Scope to find them,", duration: 1.75 },
       {
         text: "but wear it too long and you'll lose your mind!",
         duration: 2.75,
@@ -748,6 +748,48 @@ export const dialogTracks = {
     preload: false,
     priority: 100,
     delay: 1.5,
+  },
+
+  thereNowGoToThePortal: {
+    id: "thereNowGoToThePortal",
+    audio: "./audio/dialog/leclaire-there-now-go-to-the-portal.mp3",
+    captions: [{ text: "There! Now go to the portal!", duration: 3.0 }],
+    criteria: {
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      sawRune: true,
+      runeSightings: 1,
+    },
+    autoPlay: true,
+    once: true,
+    preload: false,
+    loop: false,
+    priority: 100,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ sawRune: false });
+    },
+  },
+
+  anotherOneDrawThatRune: {
+    id: "anotherOneDrawThatRune",
+    audio: "./audio/dialog/leclaire-another-one-draw-that-rune.mp3",
+    captions: [
+      { text: "Another one!", duration: 1.5 },
+      { text: "Draw that rune in the energy field!", duration: 3.0 },
+    ],
+    criteria: {
+      currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
+      sawRune: true,
+      runeSightings: 2,
+    },
+    autoPlay: true,
+    once: true,
+    preload: false,
+    priority: 100,
+    delay: 0.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ sawRune: false });
+    },
   },
 
   // Drawing game failures (cycle through 3 responses)
@@ -789,7 +831,7 @@ export const dialogTracks = {
     audio: "./audio/dialog/leclaire-drawing-failure-3.mp3",
     captions: [
       { text: "You must look for the symbol!", duration: 1.8 },
-      { text: "Use the View-Master!", duration: 1.8 },
+      { text: "Use the Scope!", duration: 1.8 },
     ],
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
@@ -972,6 +1014,24 @@ export const dialogTracks = {
     once: true,
     autoPlay: true,
     priority: 90,
+    // Video-synced dialogs should only play when video is playing, not based on state
+    // No criteria needed - handled by video-sync logic
+  },
+
+  coleHangOnToYourHat: {
+    id: "coleHangOnToYourHat",
+    audio: "./audio/dialog/cole-hang-on-to-your-hat-cole.mp3",
+    captions: [
+      { text: "Hang on to your hat, Cole!", duration: 4.0 },
+      { text: "Must... resist!", startTime: 6.0, duration: 4.0 },
+      { text: "Ah... what the?", startTime: 10.5, duration: 2.0 },
+      { text: "It stopped!", startTime: 14.0, duration: 2.0 },
+    ],
+    criteria: { currentState: GAME_STATES.SHADOW_AMPLIFICATIONS },
+    autoPlay: true,
+    once: true,
+    delay: 6.0,
+    priority: 100,
   },
 
   coleHeyIKnewYouWereMyPal: {
@@ -987,6 +1047,84 @@ export const dialogTracks = {
     onComplete: (gameManager) => {
       gameManager.setState({ currentState: GAME_STATES.CURSOR });
     },
+  },
+
+  coleWhatDoYouEvenCallThis: {
+    id: "coleWhatDoYouEvenCallThis",
+    audio: "./audio/dialog/cole-wait-i-can-still-see-the.mp3",
+    captions: [
+      { text: "Wait! I can still see the-", duration: 3.0 },
+      { text: "What do you even call this?", duration: 3.0 },
+    ],
+    criteria: { currentState: GAME_STATES.POST_CURSOR },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    delay: 6.0,
+  },
+
+  leclaireGoodEnoughCole: {
+    id: "leclaireGoodEnoughCole",
+    audio: "./audio/dialog/leclaire-good-enough-cole.mp3",
+    captions: [
+      { text: "Good enough, Cole.", duration: 2.5 },
+      { text: "Keep the Scope.", duration: 2.0 },
+      { text: "And the cat.", startTime: 5.0, duration: 2.0 },
+      { text: "You'll need them.", duration: 2.0 },
+      { text: "-LeClaire", duration: 2.0 },
+    ],
+    criteria: { currentState: GAME_STATES.OUTRO_LECLAIRE },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.OUTRO_CAT });
+    },
+  },
+
+  czarYouWonThisRound: {
+    id: "czarYouWonThisRound",
+    audio: "./audio/dialog/czar-you-won-this-round-cole.mp3",
+    captions: [
+      { text: "You won this round, Cole.", duration: 3.0 },
+      { text: "But this ain't over!", startTime: 4.0, duration: 2.5 },
+      { text: "Not by a long shot!", startTime: 7.0, duration: 2.5 },
+    ],
+    criteria: { currentState: GAME_STATES.OUTRO_CZAR },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    delay: 1.5,
+    onComplete: (gameManager) => {
+      gameManager.setState({ currentState: GAME_STATES.OUTRO_CREDITS });
+    },
+  },
+
+  coleComeOnKitty: {
+    id: "coleComeOnKitty",
+    audio: "./audio/dialog/cole-come-on-kitty.mp3",
+    captions: [
+      { text: "Come on, kitty...", duration: 2.0 },
+      { text: "Let's get the hell out of here.", duration: 3.0 },
+    ],
+    criteria: { currentState: GAME_STATES.OUTRO_CREDITS },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+  },
+
+  tilNextTime: {
+    id: "tilNextTime",
+    audio: "./audio/dialog/newsman-cliff-cole-confidential.mp3",
+    captions: [
+      { text: "Til next time, this has been...", duration: 2.0 },
+      { text: "Cliff Cole: Confidential!", duration: 3.0 },
+    ],
+    criteria: { currentState: GAME_STATES.OUTRO_CREDITS },
+    autoPlay: true,
+    once: true,
+    priority: 100,
+    delay: 6.5,
   },
 };
 

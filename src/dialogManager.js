@@ -65,7 +65,7 @@ class DialogManager {
     this.preloadedAudio = new Map(); // Map of dialogId -> Howl instance
     this.deferredDialogs = new Map(); // Map of dialogId -> dialog data for later loading
     this.prefetchedAudio = new Map(); // Map of dialogId -> { blob, blobUrl, dialogData, size } for iOS
-    
+
     // Prefetch budget system (iOS) - separate from SFXManager
     // Note: DialogManager has its own budget pool separate from SFXManager
     this.prefetchBudgetMax = 25 * 1024 * 1024; // 25MB in bytes
@@ -374,7 +374,11 @@ class DialogManager {
         });
         if (matchingDialogIds.size > 0) {
           this.logger.log(
-            `[Debug] Forcing preload for ${matchingDialogIds.size} matching dialogs (state: ${debugState.currentState}): ${Array.from(matchingDialogIds).join(", ")}`
+            `[Debug] Forcing preload for ${
+              matchingDialogIds.size
+            } matching dialogs (state: ${
+              debugState.currentState
+            }): ${Array.from(matchingDialogIds).join(", ")}`
           );
         }
       }
@@ -384,19 +388,19 @@ class DialogManager {
     // gameManager might not be set yet, so check window.gameManager or state directly
     const isIOS =
       this.gameManager?.getState()?.isIOS ||
-      (typeof window !== "undefined" && window.gameManager?.getState()?.isIOS) ||
+      (typeof window !== "undefined" &&
+        window.gameManager?.getState()?.isIOS) ||
       false;
 
     Object.values(dialogsData).forEach((dialog) => {
       if (!dialog.audio) return; // Skip dialogs without audio
 
       // In debug mode, force preload if this dialog matches the debug state
-      let shouldPreload =
-        matchingDialogIds.has(dialog.id)
-          ? true
-          : dialog.preload !== undefined
-          ? dialog.preload
-          : true; // Default to true for backwards compatibility
+      let shouldPreload = matchingDialogIds.has(dialog.id)
+        ? true
+        : dialog.preload !== undefined
+        ? dialog.preload
+        : true; // Default to true for backwards compatibility
 
       // On iOS, add to prefetch queue instead of immediately prefetching
       if (isIOS && shouldPreload) {
@@ -466,11 +470,14 @@ class DialogManager {
 
     // If criteria has currentState, use that value as priority
     if (criteria.currentState !== undefined) {
-      if (typeof criteria.currentState === 'number') {
+      if (typeof criteria.currentState === "number") {
         return criteria.currentState;
       } else if (criteria.currentState.$gte !== undefined) {
         return criteria.currentState.$gte;
-      } else if (criteria.currentState.$in !== undefined && Array.isArray(criteria.currentState.$in)) {
+      } else if (
+        criteria.currentState.$in !== undefined &&
+        Array.isArray(criteria.currentState.$in)
+      ) {
         return Math.min(...criteria.currentState.$in);
       } else if (criteria.currentState.$eq !== undefined) {
         return criteria.currentState.$eq;
@@ -498,7 +505,13 @@ class DialogManager {
       const availableBudget = this.prefetchBudgetMax - this.prefetchBudgetUsed;
       if (availableBudget <= 0) {
         this.logger.log(
-          `Dialog prefetch budget exhausted (${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB), waiting for assets to clear`
+          `Dialog prefetch budget exhausted (${(
+            this.prefetchBudgetUsed /
+            1024 /
+            1024
+          ).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(
+            2
+          )}MB), waiting for assets to clear`
         );
         break;
       }
@@ -507,7 +520,10 @@ class DialogManager {
       const { dialog } = this.prefetchQueue.shift();
 
       // Skip if already prefetched or registered
-      if (this.prefetchedAudio.has(dialog.id) || this.preloadedAudio.has(dialog.id)) {
+      if (
+        this.prefetchedAudio.has(dialog.id) ||
+        this.preloadedAudio.has(dialog.id)
+      ) {
         continue;
       }
 
@@ -544,7 +560,13 @@ class DialogManager {
       const availableBudget = this.prefetchBudgetMax - this.prefetchBudgetUsed;
       if (actualSize > availableBudget) {
         this.logger.warn(
-          `Dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(2)}MB) exceeds available budget (${(availableBudget / 1024 / 1024).toFixed(2)}MB), deferring`
+          `Dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(
+            2
+          )}MB) exceeds available budget (${(
+            availableBudget /
+            1024 /
+            1024
+          ).toFixed(2)}MB), deferring`
         );
         // Fall back to deferred loading
         this.deferredDialogs.set(dialog.id, dialog);
@@ -568,7 +590,11 @@ class DialogManager {
       this.prefetchBudgetUsed += actualSize;
 
       this.logger.log(
-        `Prefetched dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(2)}MB, budget: ${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB)`
+        `Prefetched dialog "${dialog.id}" (${(actualSize / 1024 / 1024).toFixed(
+          2
+        )}MB, budget: ${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(
+          2
+        )}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB)`
       );
 
       if (this.loadingScreen) {
@@ -603,13 +629,25 @@ class DialogManager {
         volume: this.audioVolume,
         preload: true,
         onload: () => {
-          this.logger.log(`Howl loaded from prefetched blob for dialog "${dialogId}"`);
+          this.logger.log(
+            `Howl loaded from prefetched blob for dialog "${dialogId}"`
+          );
 
           // Free budget when converting blob to Howl
           if (prefetched && prefetched.size) {
             this.prefetchBudgetUsed -= prefetched.size;
             this.logger.log(
-              `Freed ${(prefetched.size / 1024 / 1024).toFixed(2)}MB from dialog budget (now: ${(this.prefetchBudgetUsed / 1024 / 1024).toFixed(2)}MB / ${(this.prefetchBudgetMax / 1024 / 1024).toFixed(2)}MB)`
+              `Freed ${(prefetched.size / 1024 / 1024).toFixed(
+                2
+              )}MB from dialog budget (now: ${(
+                this.prefetchBudgetUsed /
+                1024 /
+                1024
+              ).toFixed(2)}MB / ${(
+                this.prefetchBudgetMax /
+                1024 /
+                1024
+              ).toFixed(2)}MB)`
             );
             // Revoke blob URL to free memory
             URL.revokeObjectURL(prefetched.blobUrl);
@@ -623,7 +661,10 @@ class DialogManager {
           resolve(howl);
         },
         onloaderror: (loadId, error) => {
-          this.logger.error(`Failed to load Howl from prefetched blob for dialog "${dialogId}":`, error);
+          this.logger.error(
+            `Failed to load Howl from prefetched blob for dialog "${dialogId}":`,
+            error
+          );
           // Free budget on error
           if (prefetched && prefetched.size) {
             this.prefetchBudgetUsed -= prefetched.size;
@@ -657,7 +698,10 @@ class DialogManager {
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
         } catch (error) {
-          this.logger.error(`Failed to create Howl from prefetched dialog "${dialogId}":`, error);
+          this.logger.error(
+            `Failed to create Howl from prefetched dialog "${dialogId}":`,
+            error
+          );
           // Free budget on error
           if (prefetched && prefetched.size) {
             this.prefetchBudgetUsed -= prefetched.size;
@@ -669,7 +713,7 @@ class DialogManager {
       }
       // Clear prefetched map (budget already freed in onload callbacks)
       this.prefetchedAudio.clear();
-      
+
       // Process queue now that budget is available
       this._processPrefetchQueue();
     }
@@ -679,7 +723,9 @@ class DialogManager {
     }
 
     this.logger.log(
-      `Loading ${this.deferredDialogs.size} deferred dialogs${isIOS ? " (iOS: sequential loading)" : ""}`
+      `Loading ${this.deferredDialogs.size} deferred dialogs${
+        isIOS ? " (iOS: sequential loading)" : ""
+      }`
     );
 
     // On iOS, load dialogs sequentially with delays to avoid exhausting audio pool
@@ -717,7 +763,10 @@ class DialogManager {
         this.logger.log(`Loaded deferred dialog "${dialogId}"`);
       },
       onloaderror: (id, error) => {
-        this.logger.error(`Failed to load deferred dialog "${dialogId}":`, error);
+        this.logger.error(
+          `Failed to load deferred dialog "${dialogId}":`,
+          error
+        );
       },
     });
 
@@ -738,7 +787,9 @@ class DialogManager {
    */
   setupStateListener() {
     if (!this.gameManager) {
-      this.logger.warn("Cannot setup state listener - gameManager not available");
+      this.logger.warn(
+        "Cannot setup state listener - gameManager not available"
+      );
       return;
     }
 
@@ -766,7 +817,9 @@ class DialogManager {
         const registeredEvents = new Set();
         for (const dialog of Object.values(dialogTracks)) {
           if (dialog.videoId && dialog.autoPlay) {
-            const videoIdsToRegister = this._getCounterpartVideoIds(dialog.videoId);
+            const videoIdsToRegister = this._getCounterpartVideoIds(
+              dialog.videoId
+            );
             for (const vidId of videoIdsToRegister) {
               const eventName = `video:play:${vidId}`;
               if (!registeredEvents.has(eventName)) {
@@ -809,7 +862,13 @@ class DialogManager {
           );
 
           this.logger.log(
-            `State changed: ${oldState?.currentState} -> ${newState.currentState}, found ${matchingDialogs.length} matching dialog(s): ${matchingDialogs.map((d) => d.id).join(", ")}`
+            `State changed: ${oldState?.currentState} -> ${
+              newState.currentState
+            }, found ${
+              matchingDialogs.length
+            } matching dialog(s): ${matchingDialogs
+              .map((d) => d.id)
+              .join(", ")}`
           );
 
           // Debug: Check for overheat dialogs specifically
@@ -854,7 +913,8 @@ class DialogManager {
                 continue;
               }
 
-              // Skip video-synced dialogs (handled in update loop)
+              // Skip video-synced dialogs (handled in update loop when video is actually playing)
+              // Video-synced dialogs should ONLY play when their video is playing, not from state changes
               if (dialog.videoId) {
                 continue;
               }
@@ -915,7 +975,11 @@ class DialogManager {
             this.playedDialogs
           );
           this.logger.log(
-            `Initial state check: found ${matchingDialogs.length} matching dialog(s): ${matchingDialogs.map((d) => d.id).join(", ")}`
+            `Initial state check: found ${
+              matchingDialogs.length
+            } matching dialog(s): ${matchingDialogs
+              .map((d) => d.id)
+              .join(", ")}`
           );
 
           // Process matching dialogs for initial state
@@ -975,7 +1039,7 @@ class DialogManager {
               break;
             }
           }
-        };
+        }
 
         // Register the state change handler
         this.gameManager.on("state:changed", stateChangeHandler);
@@ -983,7 +1047,9 @@ class DialogManager {
         // Process any pending state checks that happened before dialog data loaded
         while (this._pendingStateChecks.length > 0) {
           const { newState, oldState } = this._pendingStateChecks.shift();
-          this.logger.log("Processing pending state check that occurred before dialog data loaded");
+          this.logger.log(
+            "Processing pending state check that occurred before dialog data loaded"
+          );
           stateChangeHandler(newState, oldState);
         }
       }
@@ -1093,18 +1159,22 @@ class DialogManager {
     // This allows both the dialog's own onComplete and any external tracking to work together
     const finalOnComplete = (gameManager) => {
       // Call dialogData.onComplete first if it exists
-      if (dialogData.onComplete && typeof dialogData.onComplete === 'function') {
+      if (
+        dialogData.onComplete &&
+        typeof dialogData.onComplete === "function"
+      ) {
         dialogData.onComplete(gameManager);
       }
       // Then call the passed onComplete if provided
-      if (onComplete && typeof onComplete === 'function') {
+      if (onComplete && typeof onComplete === "function") {
         onComplete(dialogData);
       }
     };
-    
+
     // Only set finalOnComplete if at least one callback exists
-    const hasOnComplete = (dialogData.onComplete && typeof dialogData.onComplete === 'function') || 
-                          (onComplete && typeof onComplete === 'function');
+    const hasOnComplete =
+      (dialogData.onComplete && typeof dialogData.onComplete === "function") ||
+      (onComplete && typeof onComplete === "function");
     const finalOnCompleteToUse = hasOnComplete ? finalOnComplete : null;
 
     // Store progress-based state triggers for this dialog
@@ -1178,13 +1248,18 @@ class DialogManager {
       // Check if audio was preloaded or loaded from deferred
       // Check if dialog is prefetched (iOS) - create Howl from blob
       if (this.prefetchedAudio.has(dialogId)) {
-        this.logger.log(`Creating Howl from prefetched blob for dialog "${dialogId}"`);
+        this.logger.log(
+          `Creating Howl from prefetched blob for dialog "${dialogId}"`
+        );
         const prefetched = this.prefetchedAudio.get(dialogId);
         try {
           audio = await this._createHowlFromPrefetched(dialogId, prefetched);
           // Budget is freed in onload callback of _createHowlFromPrefetched
         } catch (error) {
-          this.logger.error(`Failed to create Howl from prefetched dialog "${dialogId}":`, error);
+          this.logger.error(
+            `Failed to create Howl from prefetched dialog "${dialogId}":`,
+            error
+          );
           // Free budget even on error
           if (prefetched && prefetched.size) {
             this.prefetchBudgetUsed -= prefetched.size;
@@ -1197,7 +1272,7 @@ class DialogManager {
           this.deferredDialogs.set(dialogId, prefetched.dialogData);
         }
       }
-      
+
       if (!audio && this.preloadedAudio.has(dialogId)) {
         this.logger.log(`Using preloaded audio for "${dialogId}"`);
         audio = this.preloadedAudio.get(dialogId);
@@ -1496,14 +1571,20 @@ class DialogManager {
           dialogInfo.onComplete(this.gameManager);
           this.logger.log(`onComplete callback for "${dialogId}" finished`);
         } catch (error) {
-          this.logger.error(`Error in onComplete callback for "${dialogId}":`, error);
+          this.logger.error(
+            `Error in onComplete callback for "${dialogId}":`,
+            error
+          );
         }
       } else {
         // Fallback: pass dialogData if gameManager not available
         try {
           dialogInfo.onComplete(dialogInfo.dialogData);
         } catch (error) {
-          this.logger.error(`Error in onComplete callback for "${dialogId}":`, error);
+          this.logger.error(
+            `Error in onComplete callback for "${dialogId}":`,
+            error
+          );
         }
       }
     }
@@ -1875,16 +1956,16 @@ class DialogManager {
         this.logger.log(
           `Video-synced dialog "${
             dialog.id
-          }" triggered via update loop (video "${
-            playingVideoId
-          }" at ${videoCurrentTime.toFixed(2)}s)`
+          }" triggered via update loop (video "${playingVideoId}" at ${videoCurrentTime.toFixed(
+            2
+          )}s)`
         );
 
         if (videoCurrentTime > 1.0) {
           this.logger.warn(
-            `⚠️ Video "${
-              playingVideoId
-            }" has advanced ${videoCurrentTime.toFixed(2)}s before dialog "${
+            `⚠️ Video "${playingVideoId}" has advanced ${videoCurrentTime.toFixed(
+              2
+            )}s before dialog "${
               dialog.id
             }" triggered. Early captions may be missed!`
           );
@@ -1915,6 +1996,7 @@ class DialogManager {
       );
 
       // Filter out video-synced dialogs (already handled above)
+      // Video-synced dialogs should ONLY play when their video is playing, not from state changes
       const nonVideoDialogs = matchingDialogs.filter((d) => !d.videoId);
 
       // Debug: Log when we're checking for these specific dialogs
@@ -2282,9 +2364,14 @@ class DialogManager {
     const dialogInfo = this.activeDialogs.get(dialogId);
     if (dialogInfo && dialogInfo.audio) {
       try {
-        return dialogInfo.audio.duration ? dialogInfo.audio.duration() : null;
+        const duration = dialogInfo.audio.duration
+          ? dialogInfo.audio.duration()
+          : null;
+        if (duration && duration > 0) {
+          return duration;
+        }
       } catch (e) {
-        return null;
+        // Audio might not be loaded yet
       }
     }
 
@@ -2292,9 +2379,49 @@ class DialogManager {
     if (this.preloadedAudio.has(dialogId)) {
       const audio = this.preloadedAudio.get(dialogId);
       try {
-        return audio.duration ? audio.duration() : null;
+        const duration = audio.duration ? audio.duration() : null;
+        if (duration && duration > 0) {
+          return duration;
+        }
       } catch (e) {
-        return null;
+        // Audio might not be loaded yet
+      }
+    }
+
+    // On iOS, audio might be prefetched as blob but not yet converted to Howl
+    // Fall back to caption-based duration calculation as fallback
+    if (
+      this.prefetchedAudio.has(dialogId) ||
+      this.deferredDialogs.has(dialogId)
+    ) {
+      const dialogData = this.prefetchedAudio.has(dialogId)
+        ? this.prefetchedAudio.get(dialogId).dialogData
+        : this.deferredDialogs.get(dialogId);
+
+      if (dialogData) {
+        const captionDuration = this.getTotalDialogDuration(dialogData);
+        if (captionDuration > 0) {
+          this.logger.log(
+            `Using caption-based duration (${captionDuration.toFixed(
+              2
+            )}s) for prefetched/deferred dialog "${dialogId}"`
+          );
+          return captionDuration;
+        }
+      }
+    }
+
+    // Try to get duration from dialog data if available (for iOS prefetched case)
+    if (this._dialogTracks && this._dialogTracks[dialogId]) {
+      const dialogData = this._dialogTracks[dialogId];
+      const captionDuration = this.getTotalDialogDuration(dialogData);
+      if (captionDuration > 0) {
+        this.logger.log(
+          `Using caption-based duration (${captionDuration.toFixed(
+            2
+          )}s) for dialog "${dialogId}" from dialogTracks`
+        );
+        return captionDuration;
       }
     }
 

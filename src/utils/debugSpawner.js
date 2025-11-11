@@ -105,6 +105,17 @@ const stateOverrides = {
     },
   },
 
+  DOORS_CLOSE: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: {
+      x: 1.94,
+      y: 2.13,
+      z: 79.85,
+    },
+    playerRotation: { x: 0.0, y: 110, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
+  },
+
   ENTERING_OFFICE: {
     isPlaying: true,
     controlEnabled: true,
@@ -113,7 +124,7 @@ const stateOverrides = {
       y: 2.13,
       z: 79.85,
     },
-    playerRotation: { x: 0.0, y: 110, z: 0.0 },
+    playerRotation: { x: 0.0, y: 110, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
   },
 
   OFFICE_INTERIOR: {
@@ -199,14 +210,13 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
-    playerRotation: { x: 0.0, y: 0, z: 0.0 },
   },
 
   WAKING_UP: {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
-    playerRotation: { x: 0.0, y: 0, z: 0.0 },
+    playerRotation: { x: 0.0, y: 180, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
   },
 
   CURSOR: {
@@ -228,7 +238,42 @@ const stateOverrides = {
     viewmasterManuallyRemoved: false,
     viewmasterOverheatDialogIndex: null,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
-    playerRotation: { x: 0.0, y: 0, z: 0.0 },
+  },
+
+  POST_CURSOR: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  OUTRO: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  OUTRO_LECLAIRE: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  OUTRO_CZAR: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  OUTRO_CAT: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+  },
+
+  GAME_OVER: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
   },
 };
 

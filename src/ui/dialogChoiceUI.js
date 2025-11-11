@@ -304,47 +304,27 @@ class DialogChoiceUI {
       }
     };
 
-    // Handle clicks when pointer is locked (won't hit button elements)
+    // Handle clicks - any click confirms the current selection
     this.clickHandler = (event) => {
       if (!this.isVisible) return;
 
-      // Check if pointer is locked
-      const isPointerLocked = document.pointerLockElement !== null;
-      const isMobile =
-        this.inputManager?.gameManager?.getState?.()?.isMobile || false;
-
-      // Check if the click target is a dialog choice button or its container
+      // Check if the click target is a dialog choice button
       const target = event.target;
-      const isOnDialogChoice =
+      const isOnButton =
         target &&
-        ((target.closest && target.closest("#dialog-choices") !== null) ||
-          target.classList?.contains("dialog-choice-button") ||
-          target.id === "dialog-choices" ||
-          target === this.container ||
-          (this.container && this.container.contains(target)));
+        (target.classList?.contains("dialog-choice-button") ||
+          (target.closest && target.closest(".dialog-choice-button") !== null));
 
-      // On mobile, only process clicks that are actually on the dialog choice UI
-      // On desktop with pointer lock, clicks anywhere confirm selection
-      if (isMobile && !isPointerLocked) {
-        if (!isOnDialogChoice) {
-          // Ignore clicks outside dialog choice UI on mobile
-          // Stop propagation to prevent other handlers from processing
-          event.stopPropagation();
-          event.preventDefault();
-          return;
-        }
-        // If click is on dialog choice UI, let the button handler process it
-        // Don't process it here to avoid double-firing
+      // If clicking directly on a button, let the button handler process it
+      // (it will stop propagation and handle selection + confirmation)
+      if (isOnButton) {
         return;
       }
 
-      // Desktop with pointer lock: clicking anywhere confirms selection
-      if (isPointerLocked) {
-        // When pointer locked, clicking confirms the currently selected choice
-        event.preventDefault();
-        this.confirmSelection();
-      }
-      // If pointer is not locked and not mobile, the individual button click handlers will fire
+      // For any other click, confirm the currently selected choice
+      event.preventDefault();
+      event.stopPropagation();
+      this.confirmSelection();
     };
 
     window.addEventListener("wheel", this.wheelHandler, { passive: false });

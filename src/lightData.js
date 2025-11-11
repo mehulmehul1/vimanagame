@@ -87,6 +87,23 @@ export const lights = {
     },
   },
 
+  phoneboothLight: {
+    id: "phonebooth-light",
+    type: "PointLight",
+    color: 0xffffff,
+    intensity: 0.5,
+    distance: 6,
+    decay: 2,
+    position: { x: 5.94, y: 2.25, z: 65.76 },
+    castShadow: false,
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LOADING,
+        $lt: GAME_STATES.OFFICE_INTERIOR,
+      },
+    },
+  },
+
   // Office Interior Lights
   officeHemisphere: {
     id: "office-hemisphere",

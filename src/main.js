@@ -95,7 +95,7 @@ const spark = new SparkRenderer({
   renderer,
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
-  maxStdDev: Math.sqrt(5),
+  maxStdDev: Math.sqrt(8),
   minAlpha: 0.8 * (1.0 / 255.0),
 });
 spark.renderOrder = 9998;
@@ -283,6 +283,11 @@ const defaultSpawnRot = {
 const spawnPos = gameManager.getDebugSpawnPosition() || defaultSpawnPos;
 const spawnRot = gameManager.getDebugSpawnRotation() || defaultSpawnRot;
 logger.log(`Spawn rotation: ${JSON.stringify(spawnRot)}`);
+logger.log(
+  `Spawn rotation type check - is object: ${
+    typeof spawnRot === "object"
+  }, has y: ${spawnRot?.y !== undefined}`
+);
 const character = physicsManager.createCharacter(spawnPos, spawnRot);
 // Removed visual mesh for character;
 
@@ -294,8 +299,10 @@ camera.position.set(
 );
 
 // Initialize SFX manager (pass lightManager for audio-reactive lights)
+// Use saved volume from optionsMenu if available, otherwise default to 0.5
+const savedSfxVolume = optionsMenu.getSettings().sfxVolume ?? 0.5;
 const sfxManager = new SFXManager({
-  masterVolume: 0.5,
+  masterVolume: savedSfxVolume,
   lightManager: lightManager,
   loadingScreen: loadingScreen,
 });
@@ -367,8 +374,10 @@ window.viewmasterController = viewmasterController;
 const uiManager = new UIManager(gameManager);
 
 // Initialize music manager (automatically loads tracks from musicData)
+// Use saved volume from optionsMenu if available, otherwise default to 0.6
+const savedMusicVolume = optionsMenu.getSettings().musicVolume ?? 0.6;
 const musicManager = new MusicManager({
-  defaultVolume: 0.6,
+  defaultVolume: savedMusicVolume,
   loadingScreen: loadingScreen,
 });
 
@@ -462,6 +471,10 @@ optionsMenu.sfxManager = sfxManager;
 optionsMenu.sparkRenderer = spark;
 optionsMenu.characterController = characterController;
 optionsMenu.startScreen = startScreen;
+
+// Apply saved volume settings now that managers are available
+// This ensures saved volumes from localStorage are applied to the managers
+optionsMenu.applySettings();
 
 // Register options menu with UIManager (must be done after UIManager is created)
 optionsMenu.registerWithUIManager(uiManager);
@@ -781,6 +794,9 @@ renderer.setAnimationLoop(function animate(time) {
     // Update input manager (gamepad state)
     inputManager.update(dt);
 
+    // Update gizmo manager (handles gamepad speed adjustment in gizmo mode)
+    gizmoManager.update(dt);
+
     // Check if we need to update character controller before animation manager (for blending)
     const isBlendingAnimation =
       cameraAnimationManager.isPlaying &&
@@ -796,10 +812,14 @@ renderer.setAnimationLoop(function animate(time) {
 
     // Update character controller (handles input, physics, camera, headbob)
     // Skip if we already updated it above for blending
+    // Always update if we're doing a dynamic lookat (needs to track moving objects)
+    const needsDynamicLookat =
+      characterController.isLookingAt &&
+      characterController.lookAtPositionFunction;
     if (
       gameManager.isControlEnabled() &&
       !isBlendingAnimation &&
-      !cameraAnimationManager.playing
+      (!cameraAnimationManager.playing || needsDynamicLookat)
     ) {
       characterController.update(dt);
     }

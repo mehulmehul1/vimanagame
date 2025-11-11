@@ -52,9 +52,6 @@ class GameManager {
     this.loadedScenes = new Set();
     this.previousObjectsToLoad = null; // Track previous objects list to avoid spam logging
 
-    // Throttle non-currentState change logs
-    this.lastStateLogTime = 0;
-
     // Parse URL parameters on construction
     this.urlParams = this.parseURLParams();
 
@@ -384,7 +381,7 @@ class GameManager {
     const oldState = { ...this.state };
     this.state = { ...this.state, ...newState };
 
-    // Log state changes with stack trace
+    // Log state changes - only log actual currentState changes
     if (
       newState.currentState !== undefined &&
       newState.currentState !== oldState.currentState
@@ -397,16 +394,6 @@ class GameManager {
       if (typeof window !== "undefined" && window.gtag) {
         const stateName = this.getStateName(newState.currentState);
         window.gtag("event", newState.currentState);
-      }
-    } else if (Object.keys(newState).length > 0) {
-      // Throttle this log to once per second
-      const now = Date.now();
-      if (now - this.lastStateLogTime >= 1000) {
-        this.logger.log(
-          "[GameManager] setState called with (no currentState change):",
-          newState
-        );
-        this.lastStateLogTime = now;
       }
     }
 
@@ -488,9 +475,12 @@ class GameManager {
     }
 
     // Find objects that are loaded but should no longer be
-    const objectsToUnload = Array.from(this.loadedScenes).filter(
-      (id) => !objectIdsToLoad.has(id)
-    );
+    // Only unload if this is NOT a preloadOnly call (to avoid unloading deferred objects that match criteria)
+    const objectsToUnload = options.preloadOnly 
+      ? [] // Don't unload anything when preloadOnly is true - we're just loading preload objects
+      : Array.from(this.loadedScenes).filter(
+          (id) => !objectIdsToLoad.has(id)
+        );
 
     // Unload objects that no longer match criteria
     if (objectsToUnload.length > 0) {

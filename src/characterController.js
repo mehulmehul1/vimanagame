@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Howl } from "howler";
 import { Logger } from "./utils/logger.js";
+import { GAME_STATES } from "./gameData.js";
 
 class CharacterController {
   constructor(
@@ -51,6 +52,7 @@ class CharacterController {
     // Camera look-at system
     this.isLookingAt = false;
     this.lookAtTarget = null;
+    this.lookAtPositionFunction = null; // Function to get dynamic lookat position
     this.lookAtDuration = 0;
     this.lookAtProgress = 0;
     this.lookAtStartQuat = new THREE.Quaternion();
@@ -134,6 +136,7 @@ class CharacterController {
     this.currentRoll = 0; // Current head tilt
     this.isLerpingRollToZero = false; // Flag for smooth roll transition after blended animations
     this.rollLerpSpeed = 2.0; // Speed at which roll lerps back to 0 (radians per second)
+    this.gizmoRollSpeed = 0.1; // Speed for manual roll adjustment in gizmo mode (radians per second)
 
     // Audio
     this.audioListener = new THREE.AudioListener();
@@ -162,6 +165,9 @@ class CharacterController {
 
     // Settings
     this.baseSpeed = 2.5;
+    this.minSpeed = 0.5; // Minimum movement speed
+    this.maxSpeed = 10.0; // Maximum movement speed
+    this.speedIncrement = 0.5; // Speed adjustment increment
     this.sprintMultiplier = 1.75; // Reduced from 2.0 (30% slower sprint)
     this.cameraHeight = 0.9; // Camera offset from capsule center (eye height)
     this.cameraSmoothingFactor = 0.15;
@@ -187,6 +193,19 @@ class CharacterController {
     this.baseFov = this.camera.fov;
     this.currentFov = this.baseFov;
     this.targetFov = this.baseFov;
+
+    // Point frustum checking (only during CURSOR gameplay)
+    this.pointFrustumCheckTimer = 0;
+    this.pointFrustumCheckInterval = 1.0 / 3.0; // Check every 1/3 second
+    this.runeSightings = 0; // Track number of rune sightings (0, 1, 2, etc.)
+    this.lastSightedRuneLabel = null; // Track which rune was last sighted to prevent duplicate triggers
+    this.lastViewmasterEquipped = false; // Track previous viewmaster state to detect when it's just equipped
+    this.lastViewmasterTransitioning = false; // Track previous transitioning state
+    this.lastFractalIntensity = 0; // Track previous fractal intensity to detect when it starts
+    // Cached objects for frustum checks (reuse to avoid allocations)
+    this._frustumCheckFrustum = new THREE.Frustum();
+    this._frustumCheckMatrix = new THREE.Matrix4();
+    this._frustumCheckVector = new THREE.Vector3();
 
     this.loadFootstepAudio();
   }
@@ -464,14 +483,93 @@ class CharacterController {
 
     // Listen for camera:lookat events
     this.gameManager.on("camera:lookat", (data) => {
-      // Check if control is enabled
-      if (!this.gameManager.isControlEnabled()) return;
+      // Log when lookat event is received
+      if (data.id === "runeLookat") {
+        this.logger.warn(
+          `Received camera:lookat event for rune, control enabled: ${this.gameManager.isControlEnabled()}`
+        );
+      }
 
-      const targetPos = new THREE.Vector3(
-        data.position.x,
-        data.position.y,
-        data.position.z
-      );
+      // Check if control is enabled
+      if (!this.gameManager.isControlEnabled()) {
+        if (data.id === "runeLookat") {
+          this.logger.warn("Rune lookat blocked - control not enabled");
+        }
+        return;
+      }
+
+      // Support dynamic position function for tracking moving objects
+      let targetPos;
+      if (typeof data.position === "function") {
+        // Function returns position - evaluate it now and store function for updates
+        const pos = data.position(this.gameManager);
+        targetPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+        this.lookAtPositionFunction = data.position; // Store function for continuous updates
+
+        // If this is the letter lookat, listen for animation finish to complete the lookat
+        if (data.id === "letterLookat" && this.gameManager.sceneManager) {
+          let finishHandler = null;
+          let timeoutId = null;
+
+          // Handler for animation finish event
+          finishHandler = (animId) => {
+            if (animId === "letter-anim") {
+              // Letter animation finished - complete the lookat and restore controls
+              this._completeDynamicLookat();
+              if (finishHandler && this.gameManager.sceneManager) {
+                // Remove listener manually since sceneManager doesn't have off()
+                const listeners =
+                  this.gameManager.sceneManager.eventListeners?.[
+                    "animation:finished"
+                  ];
+                if (listeners) {
+                  const index = listeners.indexOf(finishHandler);
+                  if (index > -1) {
+                    listeners.splice(index, 1);
+                  }
+                }
+              }
+              if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+              }
+            }
+          };
+
+          // Listen for animation finish
+          this.gameManager.sceneManager.on("animation:finished", finishHandler);
+
+          // Fallback timeout: complete lookat after animation duration
+          // Animation is ~5 seconds at 0.5x speed = 10 seconds, add 1 second buffer
+          this._letterLookatTimeout = setTimeout(() => {
+            this._completeDynamicLookat();
+            if (finishHandler && this.gameManager.sceneManager) {
+              // Remove listener manually since sceneManager doesn't have off()
+              const listeners =
+                this.gameManager.sceneManager.eventListeners?.[
+                  "animation:finished"
+                ];
+              if (listeners) {
+                const index = listeners.indexOf(finishHandler);
+                if (index > -1) {
+                  listeners.splice(index, 1);
+                }
+              }
+            }
+            this._letterLookatTimeout = null;
+          }, 11000);
+          timeoutId = this._letterLookatTimeout;
+        }
+      } else {
+        // Static position
+        targetPos = new THREE.Vector3(
+          data.position.x,
+          data.position.y,
+          data.position.z
+        );
+        this.lookAtPositionFunction = null; // Clear any previous function
+      }
+
       const onComplete = data.onComplete || null;
       const enableZoom =
         data.enableZoom !== undefined ? data.enableZoom : false;
@@ -479,6 +577,11 @@ class CharacterController {
       const returnToOriginalView = data.returnToOriginalView || false;
       const returnDuration = data.returnDuration || data.duration;
       const holdDuration = data.holdDuration || 0;
+      const restoreInput =
+        data.restoreInput !== undefined ? data.restoreInput : true; // Default to true
+
+      // Store restoreInput for use when completing dynamic lookat
+      this.lookAtRestoreInput = restoreInput;
 
       this.lookAt(
         targetPos,
@@ -583,9 +686,9 @@ class CharacterController {
   loadFootstepAudio() {
     // Load footstep audio using Howler.js
     this.footstepSound = new Howl({
-      src: ["./audio/sfx/pavement-steps.mp3"],
+      src: ["./audio/sfx/gravel-steps.mp3"],
       loop: true,
-      volume: 0.2,
+      volume: 0.7,
       preload: true,
       onload: () => {
         this.logger.log("Footstep audio loaded successfully");
@@ -644,6 +747,7 @@ class CharacterController {
       transitionStart = 0.8, // When to start DoF transition (0-1)
       transitionDuration = 2.0, // How long the DoF transition takes
       holdDuration: zoomHoldDuration = 2.0, // How long to hold DoF after look-at completes (or before return if returnToOriginal)
+      disableDoF = false, // If true, disable DoF effect (only use zoom)
     } = zoomOptions;
 
     // Use the passed holdDuration parameter, or fallback to zoom holdDuration for backwards compatibility
@@ -663,6 +767,7 @@ class CharacterController {
       transitionStart,
       transitionDuration,
       holdDuration: zoomHoldDuration,
+      disableDoF,
     };
 
     // Only disable input if requested (e.g., if not being managed by moveTo)
@@ -721,7 +826,13 @@ class CharacterController {
     }
 
     // Calculate DoF values based on distance to target (but don't start transition yet)
-    if (enableZoom && this.sparkRenderer && this.dofEnabled) {
+    // Skip DoF if disableDoF is set in zoomOptions
+    if (
+      enableZoom &&
+      this.sparkRenderer &&
+      this.dofEnabled &&
+      !this.currentZoomConfig?.disableDoF
+    ) {
       const distance = this.camera.position.distanceTo(targetPosition);
 
       // Calculate target DoF settings
@@ -764,6 +875,7 @@ class CharacterController {
       this.startFov = this.currentFov; // Capture current FOV as start
       this.targetFov = this.baseFov / this.currentZoomConfig.zoomFactor; // Zoom in by reducing FOV
       this.lookAtZoomActive = true;
+      this.zoomTransitioning = true; // Start zoom transition
       this.zoomTransitionProgress = 0; // Reset zoom progress
 
       this.logger.log(
@@ -774,6 +886,30 @@ class CharacterController {
         )}° [${this.currentZoomConfig.zoomFactor.toFixed(2)}x])`
       );
     } else {
+      // If zoom is not enabled, immediately clear any existing zoom/DoF from previous lookat
+      // This prevents conflicts when transitioning from a zoom lookat to a non-zoom lookat
+      if (this.lookAtZoomActive || this.lookAtDofActive) {
+        // Cancel hold timer and immediately start resetting
+        this.dofHoldTimer = 0;
+
+        // Reset DoF if it was active
+        if (this.lookAtDofActive && this.sparkRenderer) {
+          this.targetFocalDistance = this.baseFocalDistance;
+          this.targetApertureSize = this.baseApertureSize;
+          this.lookAtDofActive = false;
+          this.dofTransitioning = true;
+          this.dofTransitionProgress = 0;
+        }
+
+        // Reset zoom if it was active
+        if (this.lookAtZoomActive) {
+          this.startFov = this.currentFov; // Capture current FOV as start
+          this.targetFov = this.baseFov;
+          this.lookAtZoomActive = false;
+          this.zoomTransitioning = true;
+          this.zoomTransitionProgress = 0;
+        }
+      }
       this.logger.log(`Looking at target over ${duration}s (no zoom)`);
     }
   }
@@ -782,6 +918,49 @@ class CharacterController {
    * Cancel the look-at and restore player control
    * @param {boolean} updateYawPitch - If true, update yaw/pitch to match current camera orientation
    */
+  /**
+   * Complete a dynamic lookat and restore controls
+   * @private
+   */
+  _completeDynamicLookat() {
+    // Clear the position function and complete the lookat
+    this.lookAtPositionFunction = null;
+    this.isLookingAt = false;
+    this.lookAtReturning = false;
+    this.lookAtHolding = false;
+
+    // Restore input based on restoreInput setting
+    const restoreInput = this.lookAtRestoreInput;
+    if (restoreInput !== false) {
+      // Default is true (restore both), or can be object with movement/rotation flags
+      const restoreMovement =
+        restoreInput === true ||
+        (restoreInput && restoreInput.movement !== false);
+      const restoreRotation =
+        restoreInput === true ||
+        (restoreInput && restoreInput.rotation !== false);
+
+      if (this.lookAtDisabledInput && (restoreMovement || restoreRotation)) {
+        this.inputDisabled = false;
+        this.inputManager.enable();
+      }
+    }
+    // Reset glance state
+    this.glanceState = null;
+    this.glanceTimer = 0;
+    this.wasIdleAllowed = false;
+    this.currentRoll = 0;
+    // Update yaw/pitch to match current camera orientation
+    const euler = new THREE.Euler().setFromQuaternion(
+      this.camera.quaternion,
+      "YXZ"
+    );
+    this.yaw = euler.y;
+    this.pitch = euler.x;
+    this.targetYaw = this.yaw;
+    this.targetPitch = this.pitch;
+  }
+
   cancelLookAt(updateYawPitch = true) {
     if (!this.isLookingAt) return;
 
@@ -1109,6 +1288,60 @@ class CharacterController {
    */
   enableRotation() {
     this.inputManager.enableRotation();
+  }
+
+  /**
+   * Increase movement speed (for gizmo mode)
+   * @param {number} increment - Amount to increase by (default: uses speedIncrement)
+   */
+  increaseSpeed(increment = null) {
+    const inc = increment !== null ? increment : this.speedIncrement;
+    this.baseSpeed = Math.min(this.maxSpeed, this.baseSpeed + inc);
+    this.logger.log(`Movement speed increased to ${this.baseSpeed.toFixed(2)}`);
+  }
+
+  /**
+   * Decrease movement speed (for gizmo mode)
+   * @param {number} increment - Amount to decrease by (default: uses speedIncrement)
+   */
+  decreaseSpeed(increment = null) {
+    const inc = increment !== null ? increment : this.speedIncrement;
+    this.baseSpeed = Math.max(this.minSpeed, this.baseSpeed - inc);
+    this.logger.log(`Movement speed decreased to ${this.baseSpeed.toFixed(2)}`);
+  }
+
+  /**
+   * Get current movement speed
+   * @returns {number} Current base speed
+   */
+  getSpeed() {
+    return this.baseSpeed;
+  }
+
+  /**
+   * Adjust camera roll (rotation around forward axis) for gizmo mode
+   * @param {number} delta - Amount to adjust roll by (radians)
+   */
+  adjustRoll(delta) {
+    this.currentRoll += delta;
+    // Clamp roll to reasonable range (-90 to 90 degrees)
+    const maxRoll = Math.PI / 2; // 90 degrees
+    this.currentRoll = Math.max(-maxRoll, Math.min(maxRoll, this.currentRoll));
+    // Prevent auto-lerp to zero when manually adjusting
+    this.isLerpingRollToZero = false;
+    // Also cancel any active glance animations that might interfere
+    if (this.glanceState !== null) {
+      this.glanceState = null;
+      this.glanceTimer = 5.0 + Math.random() * 3.0;
+    }
+  }
+
+  /**
+   * Get current camera roll
+   * @returns {number} Current roll in radians
+   */
+  getRoll() {
+    return this.currentRoll;
   }
 
   /**
@@ -1498,18 +1731,272 @@ class CharacterController {
    * @returns {boolean} True if position is visible in camera frustum
    */
   isPositionInFrustum(position) {
-    // Create frustum from camera's projection and view matrices
-    const frustum = new THREE.Frustum();
+    // Reuse cached frustum and matrix to avoid allocations
     const projectionMatrix = this.camera.projectionMatrix;
     const viewMatrix = this.camera.matrixWorldInverse;
 
-    // Combine matrices to get the frustum
-    const matrix = new THREE.Matrix4();
-    matrix.multiplyMatrices(projectionMatrix, viewMatrix);
-    frustum.setFromProjectionMatrix(matrix);
+    // Combine matrices to get the frustum (reuse cached matrix)
+    this._frustumCheckMatrix.multiplyMatrices(projectionMatrix, viewMatrix);
+    this._frustumCheckFrustum.setFromProjectionMatrix(this._frustumCheckMatrix);
 
     // Check if position is in frustum
-    return frustum.containsPoint(position);
+    return this._frustumCheckFrustum.containsPoint(position);
+  }
+
+  /**
+   * Check if a world position is within 10% margin of screen edges
+   * @param {THREE.Vector3} worldPosition - World position to check
+   * @returns {boolean} True if position is within 10% margin of screen edges
+   */
+  isPositionNearScreenEdge(worldPosition) {
+    // Project world position to normalized device coordinates (-1 to 1)
+    // Reuse cached vector to avoid allocation
+    this._frustumCheckVector.copy(worldPosition);
+    this._frustumCheckVector.project(this.camera);
+
+    // Convert to screen coordinates (0 to width/height)
+    const width = this.renderer.domElement.width;
+    const height = this.renderer.domElement.height;
+    const x = ((this._frustumCheckVector.x + 1) / 2) * width;
+    const y = ((-this._frustumCheckVector.y + 1) / 2) * height;
+
+    // Check if within 10% margin of any edge
+    const margin = 0.1; // 10%
+    const marginX = width * margin;
+    const marginY = height * margin;
+
+    return (
+      x < marginX || x > width - marginX || y < marginY || y > height - marginY
+    );
+  }
+
+  /**
+   * Check if the current goal rune is within camera frustum and near screen edge
+   * Only runs during CURSOR/CURSOR_FINAL gameplay states
+   * Requires viewmaster to be equipped and animation finished (insanity progress bar started)
+   * @param {number} dt - Delta time
+   */
+  checkPointFrustum(dt) {
+    // Only check during CURSOR gameplay
+    if (!this.gameManager) return;
+
+    const gameState = this.gameManager.getState();
+    const currentState = gameState?.currentState;
+    const isCursorGameplay =
+      currentState === GAME_STATES.CURSOR ||
+      currentState === GAME_STATES.CURSOR_FINAL;
+
+    if (!isCursorGameplay) {
+      // Reset timers when not in CURSOR gameplay
+      this.pointFrustumCheckTimer = 0;
+      this.runeSightings = 0;
+      this.lastSightedRuneLabel = null;
+      this.lastViewmasterEquipped = false;
+      this.lastViewmasterTransitioning = false;
+      this.lastFractalIntensity = 0;
+      return;
+    }
+
+    // Check if viewmaster is equipped
+    const isViewmasterEquipped = gameState?.isViewmasterEquipped || false;
+
+    // Update tracking state even when not equipped (to detect transitions)
+    const wasJustEquipped =
+      !this.lastViewmasterEquipped && isViewmasterEquipped;
+    this.lastViewmasterEquipped = isViewmasterEquipped;
+
+    if (!isViewmasterEquipped) {
+      this.lastViewmasterTransitioning = false;
+      return;
+    }
+
+    // Check if viewmaster animation is finished and insanity progress bar has started
+    const viewmasterController = window.viewmasterController;
+    if (!viewmasterController) {
+      return;
+    }
+
+    // Animation must be finished (not transitioning)
+    if (viewmasterController.isTransitioning) {
+      this.lastViewmasterTransitioning = true;
+      return;
+    }
+
+    // Insanity progress bar must have started (fractal intensity > minimum)
+    const FRACTAL_MIN_INTENSITY = 0.02;
+    const fractalIntensity = viewmasterController.currentFractalIntensity || 0;
+
+    // Check if animation just finished (transition from transitioning to not transitioning)
+    // This means all conditions are now met for the first time
+    const animationJustFinished =
+      this.lastViewmasterTransitioning && !viewmasterController.isTransitioning;
+
+    // Check if fractal intensity just started (was below threshold, now above)
+    const fractalJustStarted =
+      (this.lastFractalIntensity || 0) < FRACTAL_MIN_INTENSITY &&
+      fractalIntensity >= FRACTAL_MIN_INTENSITY;
+
+    // Also check if viewmaster was just equipped (in case it was equipped while already in correct state)
+    const shouldCheckImmediately =
+      wasJustEquipped || animationJustFinished || fractalJustStarted;
+
+    // Update fractal intensity tracking
+    this.lastFractalIntensity = fractalIntensity;
+
+    if (fractalIntensity < FRACTAL_MIN_INTENSITY) {
+      return;
+    }
+
+    // Update tracking state
+    this.lastViewmasterTransitioning = viewmasterController.isTransitioning;
+
+    // If we should check immediately, force a check this frame
+    if (shouldCheckImmediately) {
+      this.pointFrustumCheckTimer = this.pointFrustumCheckInterval; // Force check now
+      this.logger.warn(
+        `Immediate frustum check triggered: wasJustEquipped=${wasJustEquipped}, animationJustFinished=${animationJustFinished}, fractalJustStarted=${fractalJustStarted}, fractalIntensity=${fractalIntensity.toFixed(
+          3
+        )}`
+      );
+    }
+
+    // Don't trigger if sickness/woozy animation has started
+    // Check if glitch sequence is active (max intensity reached)
+    if (viewmasterController.glitchSequenceActive) {
+      return;
+    }
+
+    // Check if woozy animation is playing (sickness effect)
+    const animationManager = window.cameraAnimationManager;
+    if (
+      animationManager &&
+      animationManager.isPlaying &&
+      animationManager.currentAnimationData?.id === "woozy"
+    ) {
+      return;
+    }
+
+    // Update check timer (but skip if we need to check immediately)
+    if (!shouldCheckImmediately) {
+      this.pointFrustumCheckTimer += dt;
+    }
+
+    // Check immediately if viewmaster was just equipped or animation just finished
+    // Otherwise, only check every 1/3 second for performance
+    const shouldCheckNow =
+      shouldCheckImmediately ||
+      this.pointFrustumCheckTimer >= this.pointFrustumCheckInterval;
+
+    if (shouldCheckNow) {
+      this.pointFrustumCheckTimer = 0;
+
+      // Get the current goal rune from drawing manager
+      const drawingManager = window.drawingManager;
+      if (!drawingManager || !drawingManager.currentGoalRune) {
+        return;
+      }
+
+      const rune = drawingManager.currentGoalRune;
+
+      // Get the world position of the rune mesh
+      if (!rune || !rune.mesh) {
+        return;
+      }
+
+      // Reuse cached vector to avoid allocation
+      rune.mesh.getWorldPosition(this._frustumCheckVector);
+
+      // Check if point is in frustum and NOT near screen edge (in interior/center)
+      const isInFrustum = this.isPositionInFrustum(this._frustumCheckVector);
+      const isNearEdge = this.isPositionNearScreenEdge(
+        this._frustumCheckVector
+      );
+
+      // Debug logging
+      if (this.pointFrustumCheckTimer === 0) {
+        // Only log once per check interval to avoid spam
+        this.logger.warn(
+          `Frustum check: inFrustum=${isInFrustum}, nearEdge=${isNearEdge}, rune=${drawingManager.targetLabel}`
+        );
+      }
+
+      if (isInFrustum && !isNearEdge) {
+        // Don't trigger if a lookat is already in progress
+        if (this.isLookingAt) {
+          return;
+        }
+
+        // Check if runeLookat animation is already playing (prevent retriggering)
+        const animationManager = window.cameraAnimationManager;
+        if (
+          animationManager &&
+          animationManager.characterController?.isLookingAt
+        ) {
+          // Check if sawRune is already true (animation might be playing)
+          const gameState = this.gameManager?.getState();
+          if (gameState?.sawRune) {
+            this.logger.warn(
+              `Skipping - runeLookat already triggered (sawRune: true, isLookingAt: true)`
+            );
+            return;
+          }
+        }
+
+        // Check if we've already triggered lookat for this rune
+        // Allow multiple sightings (one per rune)
+        const currentRuneLabel = drawingManager.targetLabel;
+        const lastSightedRune = this.lastSightedRuneLabel;
+
+        // Only skip if this exact rune was already sighted
+        if (currentRuneLabel && currentRuneLabel === lastSightedRune) {
+          this.logger.warn(
+            `Skipping - already sighted rune: ${currentRuneLabel}`
+          );
+          return; // Already sighted this rune
+        }
+
+        // Trigger camera lookat animation (will override player input)
+        this.logger.warn(
+          `Rune sighted: ${currentRuneLabel} (sighting #${
+            this.runeSightings + 1
+          }) at position (${this._frustumCheckVector.x.toFixed(
+            2
+          )}, ${this._frustumCheckVector.y.toFixed(
+            2
+          )}, ${this._frustumCheckVector.z.toFixed(2)})`
+        );
+        this.triggerRuneLookat(
+          this._frustumCheckVector.clone(),
+          currentRuneLabel
+        );
+        this.lastSightedRuneLabel = currentRuneLabel; // Track which rune we sighted
+      }
+    }
+  }
+
+  /**
+   * Trigger camera lookat animation to rune position
+   * Sets game state - animation will pick it up automatically
+   * @param {THREE.Vector3} runePosition - World position of the rune
+   * @param {string} runeLabel - Label of the rune being sighted
+   */
+  triggerRuneLookat(runePosition, runeLabel) {
+    if (!this.gameManager) return;
+
+    // Increment rune sightings counter
+    this.runeSightings++;
+
+    // Set gameState flag - animation will listen for this state change
+    this.gameManager.setState({
+      sawRune: true,
+      runeSightings: this.runeSightings,
+    });
+
+    this.logger.warn(
+      `Rune sighted #${this.runeSightings} for rune: ${
+        runeLabel || "unknown"
+      } - setting sawRune: true (animation will trigger automatically)`
+    );
   }
 
   /**
@@ -1553,12 +2040,6 @@ class CharacterController {
           this.zoomTransitioning = true;
           this.zoomTransitionProgress = 0; // Reset for return transition
         }
-
-        this.logger.log(
-          `Hold complete, returning ${wasDofActive ? "DoF" : ""}${
-            wasDofActive && wasZoomActive ? " and " : ""
-          }${wasZoomActive ? "zoom" : ""} to base`
-        );
       }
     }
 
@@ -1622,7 +2103,12 @@ class CharacterController {
       this.returnTransitionDuration ||
       this.currentZoomConfig?.transitionDuration ||
       this.dofTransitionDuration;
-    this.zoomTransitionProgress += dt / transitionDuration;
+
+    if (!transitionDuration || transitionDuration <= 0) {
+      this.zoomTransitionProgress += dt / 1.0;
+    } else {
+      this.zoomTransitionProgress += dt / transitionDuration;
+    }
     const t = Math.min(1.0, this.zoomTransitionProgress);
 
     // Use ease-out for smooth transition (matching DoF)
@@ -1642,6 +2128,30 @@ class CharacterController {
       this.camera.updateProjectionMatrix();
       this.zoomTransitioning = false;
       this.zoomTransitionProgress = 0;
+
+      // If lookat is complete and zoom just finished, restore input if needed
+      if (
+        !this.isLookingAt &&
+        this.lookAtRestoreInput &&
+        this.lookAtDisabledInput
+      ) {
+        const restoreInput = this.lookAtRestoreInput;
+        if (restoreInput !== false) {
+          const restoreMovement =
+            restoreInput === true ||
+            (restoreInput && restoreInput.movement !== false);
+          const restoreRotation =
+            restoreInput === true ||
+            (restoreInput && restoreInput.rotation !== false);
+
+          if (restoreMovement || restoreRotation) {
+            this.inputDisabled = false;
+            this.inputManager.enable();
+            this.lookAtDisabledInput = false;
+            this.logger.warn("Input restored after zoom transition completed");
+          }
+        }
+      }
     }
   }
 
@@ -1771,7 +2281,11 @@ class CharacterController {
     if (!shouldAllowIdle || isMoving || this.inputDisabled) {
       this.glanceState = null;
       this.glanceTimer = 0; // Reset timer for next idle period
-      this.currentRoll = 0; // Reset head tilt
+      // Only reset roll if we're not in gizmo mode (gizmo mode might be manually adjusting roll)
+      // Check if we're in gizmo mode by checking if flight mode is enabled
+      if (!this.flightMode) {
+        this.currentRoll = 0; // Reset head tilt
+      }
       return;
     }
 
@@ -1873,8 +2387,12 @@ class CharacterController {
     // Update zoom (synced with DoF, always active during transitions)
     this.updateZoom(dt);
 
+    // Check point frustum visibility (only during CURSOR gameplay)
+    this.checkPointFrustum(dt);
+
     // Handle camera look-at sequence
     if (this.isLookingAt) {
+      // Debug: log if we have a position function but aren't tracking
       // Handle holding phase (pause before returning to original)
       if (this.lookAtHolding) {
         this.lookAtHoldTimer += dt;
@@ -1931,7 +2449,81 @@ class CharacterController {
           this.lookAtEndQuat.copy(temp);
         }
         // Stay at target orientation while holding (no need to update quaternion)
-        return; // Skip rest of lookat update during hold
+        // But still allow dynamic tracking if we have a position function
+        if (!this.lookAtPositionFunction) {
+          return; // Skip rest of lookat update during hold (unless dynamic tracking)
+        }
+      }
+
+      // Update lookat target if we have a dynamic position function (for tracking moving objects)
+      // During initial transition, use normal interpolation. After transition completes, use direct tracking.
+      if (this.lookAtPositionFunction && !this.lookAtReturning) {
+        const pos = this.lookAtPositionFunction(this.gameManager);
+        this.lookAtTarget.set(pos.x, pos.y, pos.z);
+
+        // Calculate direction to target
+        const direction = new THREE.Vector3().subVectors(
+          this.lookAtTarget,
+          this.camera.position
+        );
+        const dirLen = direction.length();
+
+        // If target is too close to camera (e.g., letter reparented to camera), complete lookat
+        if (dirLen < 0.01) {
+          // Target is at camera position - complete the lookat
+          this._completeDynamicLookat();
+          return;
+        }
+
+        if (dirLen >= 0.0001) {
+          direction.divideScalar(dirLen);
+          const horiz = Math.sqrt(
+            direction.x * direction.x + direction.z * direction.z
+          );
+          const targetYaw = Math.atan2(-direction.x, -direction.z);
+          const targetPitch = Math.atan2(direction.y, horiz);
+
+          if (isFinite(targetYaw) && isFinite(targetPitch)) {
+            // Recalculate end quaternion for current target position (important for moving targets)
+            const newEndQuat = new THREE.Quaternion().setFromEuler(
+              new THREE.Euler(targetPitch, targetYaw, 0, "YXZ")
+            );
+
+            // Only use direct tracking AFTER the initial transition is complete
+            // During transition (progress < 1.0), update end quaternion but use normal interpolation
+            if (this.lookAtProgress >= 1.0) {
+              // For dynamic tracking after transition, directly set camera rotation (smoothly interpolate for smoothness)
+              // Use slerp from current rotation to target for smooth tracking
+              const trackingSpeed = 0.15; // Higher = faster tracking, lower = smoother
+              this.camera.quaternion.slerp(newEndQuat, trackingSpeed);
+              this.camera.quaternion.normalize();
+
+              // Update yaw/pitch for smooth handoff
+              const euler = new THREE.Euler().setFromQuaternion(
+                this.camera.quaternion,
+                "YXZ"
+              );
+              this.yaw = euler.y;
+              this.pitch = euler.x;
+              this.targetYaw = this.yaw;
+              this.targetPitch = this.pitch;
+
+              // Skip the normal interpolation below for dynamic tracking (only after transition)
+              return;
+            } else {
+              // During transition: update end quaternion so interpolation targets current position
+              this.lookAtEndQuat.copy(newEndQuat);
+              // Ensure quaternions are on same hemisphere
+              if (this.lookAtStartQuat.dot(this.lookAtEndQuat) < 0) {
+                this.lookAtEndQuat.x *= -1;
+                this.lookAtEndQuat.y *= -1;
+                this.lookAtEndQuat.z *= -1;
+                this.lookAtEndQuat.w *= -1;
+              }
+              // Fall through to normal interpolation below
+            }
+          }
+        }
       }
 
       // Use appropriate duration based on current phase
@@ -1975,8 +2567,17 @@ class CharacterController {
       if (this.lookAtProgress >= 1.0) {
         this.lookAtProgress = 1.0;
 
-        // Check if we need to return to original view
-        if (this.lookAtReturnToOriginalView && !this.lookAtReturning) {
+        // For dynamic tracking with returnToOriginalView: false, complete the lookat after transition
+        // but continue tracking for smooth camera movement
+        // For returnToOriginalView: true, keep tracking during the hold phase before returning
+        if (
+          this.lookAtPositionFunction &&
+          !this.lookAtReturning &&
+          this.lookAtReturnToOriginalView
+        ) {
+          // Keep tracking - don't complete the lookat yet (will complete after hold/return)
+          // The dynamic tracking code above will continue to update the camera
+        } else if (this.lookAtReturnToOriginalView && !this.lookAtReturning) {
           // Check if we should hold before returning
           if (this.lookAtHoldDuration > 0) {
             // Start holding phase
@@ -2035,8 +2636,12 @@ class CharacterController {
             this.lookAtStartQuat.copy(this.lookAtEndQuat);
             this.lookAtEndQuat.copy(temp);
           }
-        } else {
+        } else if (
+          !this.lookAtPositionFunction ||
+          !this.lookAtReturnToOriginalView
+        ) {
           // Look-at complete (or return complete)
+          // Complete if: no dynamic tracking, OR returnToOriginalView is false (complete after transition even with dynamic tracking)
           this.isLookingAt = false;
           this.lookAtReturning = false;
           this.lookAtHolding = false;
@@ -2057,19 +2662,38 @@ class CharacterController {
             const resetDuration =
               this.currentZoomConfig?.holdDuration || this.dofHoldDuration;
             this.dofHoldTimer = resetDuration;
-            this.logger.log(
-              `Holding ${this.lookAtDofActive ? "DoF" : ""}${
-                this.lookAtDofActive && this.lookAtZoomActive ? "/" : ""
-              }${
-                this.lookAtZoomActive ? "zoom" : ""
-              } for ${resetDuration}s before resetting`
-            );
           }
 
           // Call completion callback if provided (should handle input restoration)
           if (this.lookAtOnComplete) {
             this.lookAtOnComplete();
             this.lookAtOnComplete = null;
+          } else {
+            // If no onComplete callback, restore input directly
+            // This handles cases where zoom is still transitioning but lookat is complete
+            if (this.lookAtRestoreInput && this.lookAtDisabledInput) {
+              const restoreInput = this.lookAtRestoreInput;
+              if (restoreInput !== false) {
+                const restoreMovement =
+                  restoreInput === true ||
+                  (restoreInput && restoreInput.movement !== false);
+                const restoreRotation =
+                  restoreInput === true ||
+                  (restoreInput && restoreInput.rotation !== false);
+
+                if (restoreMovement || restoreRotation) {
+                  // Only restore if zoom/DoF transitions are also complete
+                  if (!this.zoomTransitioning && !this.dofTransitioning) {
+                    this.inputDisabled = false;
+                    this.inputManager.enable();
+                    this.lookAtDisabledInput = false;
+                    this.logger.warn(
+                      "Input restored after lookat completed (no callback)"
+                    );
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2595,15 +3219,13 @@ class CharacterController {
         this.camera.quaternion.normalize();
       }
 
-      const lookDir = new THREE.Vector3(0, 0, -1).applyEuler(
+      // Apply camera rotation with roll
+      // Use setFromEuler directly instead of lookAt to preserve roll
+      this.camera.quaternion.setFromEuler(
         new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
       );
-      const lookTarget = new THREE.Vector3()
-        .copy(this.camera.position)
-        .add(lookDir);
-      this.camera.lookAt(lookTarget);
 
-      // Validate and normalize after lookAt
+      // Validate and normalize after setting quaternion
       const resultQ = this.camera.quaternion;
       if (
         !isFinite(resultQ.x) ||
@@ -2611,7 +3233,7 @@ class CharacterController {
         !isFinite(resultQ.z) ||
         !isFinite(resultQ.w)
       ) {
-        // Reconstruct from yaw/pitch if lookAt produced invalid quaternion
+        // Reconstruct from yaw/pitch/roll if quaternion is invalid
         this.camera.quaternion.setFromEuler(
           new THREE.Euler(this.pitch, this.yaw, this.currentRoll, "YXZ")
         );

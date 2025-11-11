@@ -59,7 +59,10 @@ export const musicTracks = {
     description: "Duke Ac",
     preload: false,
     criteria: {
-      currentState: { $gte: GAME_STATES.CURSOR, $lte: GAME_STATES.POST_CURSOR },
+      currentState: {
+        $gte: GAME_STATES.SHADOW_AMPLIFICATIONS,
+        $lt: GAME_STATES.POST_CURSOR,
+      },
     },
     fadeTime: 0,
     priority: 10,
@@ -72,7 +75,18 @@ export const musicTracks = {
     description: "Duke St Louis",
     preload: false,
     criteria: {
-      currentState: { $in: [GAME_STATES.GAME_OVER, GAME_STATES.WAKING_UP] },
+      currentState: {
+        $in: [
+          GAME_STATES.POST_CURSOR,
+          GAME_STATES.OUTRO,
+          GAME_STATES.OUTRO_LECLAIRE,
+          GAME_STATES.OUTRO_CAT,
+          GAME_STATES.OUTRO_CZAR,
+          GAME_STATES.OUTRO_CREDITS,
+          GAME_STATES.OUTRO_MOVIE,
+          GAME_STATES.GAME_OVER,
+        ],
+      },
     },
     fadeTime: 0,
     priority: 10,
@@ -132,7 +146,10 @@ export const musicTracks = {
     fadeTime: 1.25,
     delay: 2.0,
     criteria: {
-      currentState: { $gte: GAME_STATES.EDISON, $lt: GAME_STATES.WAKING_UP },
+      currentState: {
+        $gte: GAME_STATES.EDISON,
+        $lt: GAME_STATES.SHADOW_AMPLIFICATIONS,
+      },
     },
   },
 };

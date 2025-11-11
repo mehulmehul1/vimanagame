@@ -252,18 +252,6 @@ export class StartScreen {
       }
       unlockAllAudioContexts();
 
-      // Pre-create and unlock video playback for iOS Safari (must happen during gesture context)
-      // Pre-create videos that will be needed (like catSafari) so they can be unlocked
-      const state = this.uiManager?.gameManager?.getState() || {};
-      const isSafari = state.isSafari || false;
-      if (isSafari && this.uiManager?.gameManager?.videoManager) {
-        const videoManager = this.uiManager.gameManager.videoManager;
-        // Pre-create catSafari video so it exists and can be unlocked
-        if (!videoManager.getVideoPlayer("catSafari")) {
-          videoManager.createVideoPlayer("catSafari");
-        }
-      }
-
       // Unlock video playback for iOS Safari (must happen during gesture context)
       // This "registers" video elements so they can play later without user gesture
       if (this.uiManager?.gameManager?.videoManager?.unlockVideoPlayback) {
@@ -656,15 +644,18 @@ export class StartScreen {
         this.unifiedPathProgress = 0;
 
         // Set duration based on intro dialog length
-        let dialogDuration = 8.0; // Default fallback
+        // Default fallback: sum of caption durations (2.0 + 3.5 + 2.5 + 2.5 + 2.0 + 2.0 + 2.5 = 17.0)
+        let dialogDuration = 17.0;
         if (this.dialogManager) {
           const introDuration = this.dialogManager.getDialogDuration("intro");
           if (introDuration > 0) {
             dialogDuration = introDuration;
             this.logger.log(`Using intro dialog duration: ${dialogDuration}s`);
           } else {
+            // getDialogDuration() now handles fallback to caption duration
+            // for iOS prefetched audio, but if it still returns null, use caption-based fallback
             this.logger.warn(
-              `Could not get intro dialog duration, using fallback: ${dialogDuration}s`
+              `Could not get intro dialog duration from audio, using caption-based fallback: ${dialogDuration}s`
             );
           }
         }

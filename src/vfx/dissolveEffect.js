@@ -606,16 +606,6 @@ export class DissolveEffect extends VFXManager {
 
     // Helper to check if mesh is part of contact shadow
     const isContactShadowMesh = (mesh) => {
-      // Contact shadows use renderOrder 10000
-      if (mesh.renderOrder >= 10000) {
-        this.logger.log(
-          `Skipping mesh with renderOrder ${mesh.renderOrder}: ${
-            mesh.name || "unnamed"
-          }`
-        );
-        return true;
-      }
-
       // Check if mesh or any parent is a contact shadow
       let current = mesh;
       let depth = 0;

@@ -46,9 +46,12 @@ class AmplifierCord {
         cordCollisionGroup: 0x00040002,
       },
 
-      // Cord existence criteria - cord should only exist after LIGHTS_OUT
+      // Cord existence criteria - cord should only exist between LIGHTS_OUT and CAT_SAVE
       cordCriteria: {
-        currentState: { $gte: GAME_STATES.LIGHTS_OUT },
+        currentState: {
+          $gte: GAME_STATES.LIGHTS_OUT,
+          $lt: GAME_STATES.CAT_SAVE,
+        },
       },
     };
   }

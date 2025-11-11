@@ -63,6 +63,27 @@ class GizmoManager {
     this.spawnedGizmoCounter = 0; // Counter for spawned gizmos
     this.currentGizmoIndex = 0; // For cycling through gizmos with F key
 
+    // Gamepad button state tracking for speed adjustment
+    this.lastLBState = false;
+    this.lastRBState = false;
+    this.speedAdjustCooldown = 0;
+    this.speedAdjustCooldownDuration = 0.2; // 200ms cooldown between adjustments
+
+    // Gamepad D-pad state tracking for vertical flight movement
+    this.lastDPadUpState = false;
+    this.lastDPadDownState = false;
+
+    // Gamepad trigger state tracking for rotation speed adjustment
+    this.lastLTState = false;
+    this.lastRTState = false;
+    this.rotationAdjustCooldown = 0;
+    this.rotationAdjustCooldownDuration = 0.2; // 200ms cooldown between adjustments
+
+    // Gamepad X/B button state tracking for camera roll adjustment
+    this.lastXState = false;
+    this.lastBState = false;
+    this.lastRollLogTime = 0; // For logging roll adjustments
+
     // Raycaster for object picking
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
@@ -180,6 +201,21 @@ class GizmoManager {
         typeof this.characterController.disableFlightMode === "function"
       ) {
         this.characterController.disableFlightMode();
+      }
+
+      // Disable headbob (including idle headbob) in gizmo mode
+      if (hasGizmo) {
+        this.characterController.headbobEnabled = false;
+      } else {
+        // Restore headbob when exiting gizmo mode (only if not explicitly disabled elsewhere)
+        // Check if gameManager has control enabled to avoid overriding other disables
+        if (
+          window.gameManager &&
+          typeof window.gameManager.isControlEnabled === "function" &&
+          window.gameManager.isControlEnabled()
+        ) {
+          this.characterController.headbobEnabled = true;
+        }
       }
     }
   }
@@ -879,6 +915,222 @@ class GizmoManager {
    */
   update(dt) {
     // TransformControls handles its own updates
+
+    // Handle gamepad speed adjustment in gizmo mode
+    this.updateGamepadSpeedAdjustment(dt);
+
+    // Handle gamepad rotation speed adjustment in gizmo mode
+    this.updateGamepadRotationAdjustment(dt);
+
+    // Handle gamepad camera roll adjustment in gizmo mode
+    this.updateGamepadRollAdjustment(dt);
+
+    // Handle gamepad D-pad vertical flight controls in gizmo mode
+    this.updateGamepadFlightControls(dt);
+  }
+
+  /**
+   * Update gamepad speed adjustment (LB/RB buttons)
+   * @param {number} dt - Delta time
+   */
+  updateGamepadSpeedAdjustment(dt) {
+    // Only work in gizmo mode
+    const hasGizmoRuntime = this.objects && this.objects.length > 0;
+    const hasGizmo =
+      this.hasGizmoInDefinitions || hasGizmoRuntime || this.hasGizmoURLParam;
+    if (!hasGizmo) return;
+
+    // Need character controller and input manager
+    if (!this.characterController || !this.inputManager) return;
+
+    // Update cooldown timer
+    if (this.speedAdjustCooldown > 0) {
+      this.speedAdjustCooldown -= dt;
+    }
+
+    // Get gamepad
+    const gamepad = this.inputManager.getGamepad();
+    if (!gamepad) return;
+
+    // Check shoulder buttons using InputManager's gamepad mapping
+    const buttonLB = this.inputManager.gamepadMapping.BUTTON_LB; // 4
+    const buttonRB = this.inputManager.gamepadMapping.BUTTON_RB; // 5
+    const lbPressed = gamepad.buttons[buttonLB]?.pressed || false;
+    const rbPressed = gamepad.buttons[buttonRB]?.pressed || false;
+
+    // Detect button press (edge trigger, not hold)
+    if (this.speedAdjustCooldown <= 0) {
+      if (rbPressed && !this.lastRBState) {
+        // RB pressed - increase speed
+        this.characterController.increaseSpeed();
+        this.speedAdjustCooldown = this.speedAdjustCooldownDuration;
+        this.logger.log("Speed increased (RB)");
+      } else if (lbPressed && !this.lastLBState) {
+        // LB pressed - decrease speed
+        this.characterController.decreaseSpeed();
+        this.speedAdjustCooldown = this.speedAdjustCooldownDuration;
+        this.logger.log("Speed decreased (LB)");
+      }
+    }
+
+    // Store previous state for edge detection
+    this.lastLBState = lbPressed;
+    this.lastRBState = rbPressed;
+  }
+
+  /**
+   * Update gamepad rotation speed adjustment (LT/RT triggers)
+   * @param {number} dt - Delta time
+   */
+  updateGamepadRotationAdjustment(dt) {
+    // Only work in gizmo mode
+    const hasGizmoRuntime = this.objects && this.objects.length > 0;
+    const hasGizmo =
+      this.hasGizmoInDefinitions || hasGizmoRuntime || this.hasGizmoURLParam;
+    if (!hasGizmo) return;
+
+    // Need input manager
+    if (!this.inputManager) return;
+
+    // Update cooldown timer
+    if (this.rotationAdjustCooldown > 0) {
+      this.rotationAdjustCooldown -= dt;
+    }
+
+    // Get gamepad
+    const gamepad = this.inputManager.getGamepad();
+    if (!gamepad) return;
+
+    // Check trigger buttons using InputManager's gamepad mapping
+    const buttonLT = this.inputManager.gamepadMapping.BUTTON_LT; // 6
+    const buttonRT = this.inputManager.gamepadMapping.BUTTON_RT; // 7
+    const ltButton = gamepad.buttons[buttonLT];
+    const rtButton = gamepad.buttons[buttonRT];
+
+    // Triggers are analog (value 0-1), but we treat them as digital for adjustment
+    // Check if trigger is pressed past threshold
+    const triggerThreshold = this.inputManager.triggerThreshold || 0.5;
+    const ltPressed = ltButton && ltButton.value > triggerThreshold;
+    const rtPressed = rtButton && rtButton.value > triggerThreshold;
+
+    // Detect trigger press (edge trigger, not hold)
+    if (this.rotationAdjustCooldown <= 0) {
+      if (rtPressed && !this.lastRTState) {
+        // RT pressed - increase rotation speed
+        this.inputManager.increaseRotationSensitivity();
+        this.rotationAdjustCooldown = this.rotationAdjustCooldownDuration;
+        this.logger.log("Rotation speed increased (RT)");
+      } else if (ltPressed && !this.lastLTState) {
+        // LT pressed - decrease rotation speed
+        this.inputManager.decreaseRotationSensitivity();
+        this.rotationAdjustCooldown = this.rotationAdjustCooldownDuration;
+        this.logger.log("Rotation speed decreased (LT)");
+      }
+    }
+
+    // Store previous state for edge detection
+    this.lastLTState = ltPressed;
+    this.lastRTState = rtPressed;
+  }
+
+  /**
+   * Update gamepad camera roll adjustment (X/B buttons)
+   * @param {number} dt - Delta time
+   */
+  updateGamepadRollAdjustment(dt) {
+    // Only work in gizmo mode
+    const hasGizmoRuntime = this.objects && this.objects.length > 0;
+    const hasGizmo =
+      this.hasGizmoInDefinitions || hasGizmoRuntime || this.hasGizmoURLParam;
+    if (!hasGizmo) return;
+
+    // Need character controller and input manager
+    if (!this.characterController || !this.inputManager) return;
+
+    // Get gamepad
+    const gamepad = this.inputManager.getGamepad();
+    if (!gamepad) return;
+
+    // Check X and B buttons using InputManager's gamepad mapping
+    const buttonX = this.inputManager.gamepadMapping.BUTTON_X; // 2
+    const buttonB = this.inputManager.gamepadMapping.BUTTON_B; // 1
+    const xPressed = gamepad.buttons[buttonX]?.pressed || false;
+    const bPressed = gamepad.buttons[buttonB]?.pressed || false;
+
+    // Adjust roll based on button state (continuous adjustment while held)
+    // X = roll left (negative), B = roll right (positive)
+    // Use slow speed for fine control
+    const rollSpeed = this.characterController.gizmoRollSpeed || 0.1;
+    let rollDelta = 0;
+
+    if (xPressed && !bPressed) {
+      // X pressed - roll left (negative)
+      rollDelta = -rollSpeed * dt;
+    } else if (bPressed && !xPressed) {
+      // B pressed - roll right (positive)
+      rollDelta = rollSpeed * dt;
+    }
+
+    if (rollDelta !== 0) {
+      this.characterController.adjustRoll(rollDelta);
+      // Log occasionally to verify it's working (every 0.5 seconds)
+      if (!this.lastRollLogTime || Date.now() - this.lastRollLogTime > 500) {
+        const rollDeg = THREE.MathUtils.radToDeg(this.characterController.currentRoll);
+        this.logger.log(`Camera roll: ${rollDeg.toFixed(2)}° (X=${xPressed}, B=${bPressed})`);
+        this.lastRollLogTime = Date.now();
+      }
+    }
+
+    // Store previous state (for potential future edge detection if needed)
+    this.lastXState = xPressed;
+    this.lastBState = bPressed;
+  }
+
+  /**
+   * Update gamepad D-pad vertical flight controls (D-pad up/down)
+   * @param {number} dt - Delta time
+   */
+  updateGamepadFlightControls(dt) {
+    // Only work in gizmo mode (flight mode is enabled when gizmos are present)
+    const hasGizmoRuntime = this.objects && this.objects.length > 0;
+    const hasGizmo =
+      this.hasGizmoInDefinitions || hasGizmoRuntime || this.hasGizmoURLParam;
+    if (!hasGizmo) return;
+
+    // Need character controller and input manager
+    if (!this.characterController || !this.inputManager) return;
+
+    // Only work if flight mode is enabled
+    if (!this.characterController.flightMode) return;
+
+    // Get gamepad
+    const gamepad = this.inputManager.getGamepad();
+    if (!gamepad) return;
+
+    // Check D-pad buttons using InputManager's gamepad mapping
+    const buttonDPadUp = this.inputManager.gamepadMapping.BUTTON_DPAD_UP; // 12
+    const buttonDPadDown = this.inputManager.gamepadMapping.BUTTON_DPAD_DOWN; // 13
+    const dpadUpPressed = gamepad.buttons[buttonDPadUp]?.pressed || false;
+    const dpadDownPressed = gamepad.buttons[buttonDPadDown]?.pressed || false;
+
+    // Update vertical input based on D-pad state
+    // D-pad up = fly up (positive), D-pad down = fly down (negative)
+    if (dpadUpPressed && !dpadDownPressed) {
+      this.characterController.verticalInput = 1; // Up
+    } else if (dpadDownPressed && !dpadUpPressed) {
+      this.characterController.verticalInput = -1; // Down
+    } else if (!dpadUpPressed && !dpadDownPressed) {
+      // Both released - check if we just released (edge detection)
+      // Only reset to 0 if we were previously holding one of them
+      if (this.lastDPadUpState || this.lastDPadDownState) {
+        this.characterController.verticalInput = 0;
+      }
+    }
+    // If both are pressed, don't change (keep current state)
+
+    // Store previous state for edge detection
+    this.lastDPadUpState = dpadUpPressed;
+    this.lastDPadDownState = dpadDownPressed;
   }
 
   /**

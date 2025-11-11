@@ -57,6 +57,7 @@ export class DrawingManager {
     this.pointerLockChangeHandler = null;
 
     this.labelPool = [];
+    this.usedRunes = []; // Track which runes have been used in current game session
     this.refillLabelPool();
 
     this.successCount = 0;
@@ -221,6 +222,96 @@ export class DrawingManager {
       .drawing-game-result.show {
         opacity: 1;
       }
+
+      #space-bar-hint {
+        position: fixed;
+        bottom: 7%;
+        left: 5%;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 1000;
+        transition: opacity 0.3s ease-in;
+      }
+
+      #space-bar-hint:not(.progress-mode):not(.captions-active) {
+        pointer-events: all !important;
+      }
+
+      #space-bar-hint.mobile-button {
+        bottom: auto;
+        top: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        pointer-events: all;
+      }
+
+      #space-bar-hint.pressed {
+        transform: scale(0.95);
+        opacity: 0.8 !important;
+      }
+
+      #space-bar-hint img {
+        width: auto;
+        height: 60px;
+        display: block;
+      }
+
+      #space-bar-hint.mobile-button.pressed {
+        transform: translateX(-50%) scale(0.95);
+        opacity: 0.8;
+      }
+
+      /* Hide mobile button when captions are showing */
+      #space-bar-hint.mobile-button.captions-active {
+        opacity: 0 !important;
+        pointer-events: none;
+      }
+
+      @keyframes space-bar-hint-cycle {
+        0% {
+          opacity: 1;
+        }
+        20% {
+          opacity: 0.4;
+        }
+        30% {
+          opacity: 1;
+        }
+        40% {
+          opacity: 0.4;
+        }
+        50% {
+          opacity: 1;
+        }
+        60% {
+          opacity: 0.4;
+        }
+        70% {
+          opacity: 1;
+        }
+        80% {
+          opacity: 0.4;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      #space-bar-hint.animating {
+        animation: space-bar-hint-cycle 7s ease-in-out infinite;
+      }
+
+      /* Make hint fully white when viewmaster can be toggled on (not in progress mode) */
+      #space-bar-hint:not(.progress-mode) img {
+        filter: none !important;
+      }
+
+      /* Prevent captions from overlapping space bar hint */
+      body.drawing-game-cursor #dialog-caption {
+        left: calc(5% + 200px);
+        right: calc(5% + 200px);
+        max-width: none;
+      }
     `;
     document.head.appendChild(style);
 
@@ -235,6 +326,114 @@ export class DrawingManager {
     this.targetEmojiElement.appendChild(this.resultEmoji);
 
     document.body.appendChild(this.targetEmojiElement);
+
+    // Create space bar hint
+    const currentState = this.gameManager?.getState?.();
+    const isIOS = currentState?.isIOS === true;
+    const isMobile = currentState?.isMobile === true;
+
+    this.spaceBarHintElement = document.createElement("div");
+    this.spaceBarHintElement.id = "space-bar-hint";
+
+    // Make clickable on all platforms
+    this.spaceBarHintElement.style.cursor = "pointer";
+
+    // Click handler for all platforms - prioritize viewmaster toggle like spacebar
+    this.spaceBarHintElement.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Debounce: ignore clicks within 1 second of last click
+      const now = Date.now();
+      if (this._lastButtonClickTime && now - this._lastButtonClickTime < 1000) {
+        return;
+      }
+      this._lastButtonClickTime = now;
+
+      // Check viewmaster toggle first (same as spacebar) - works whether equipped or not
+      if (
+        window.viewmasterController &&
+        window.viewmasterController.isToggleEnabled
+      ) {
+        const currentState = this.gameManager?.getState();
+        if (currentState) {
+          const newEquippedState = !currentState.isViewmasterEquipped;
+          // Reset manually removed flag when user clicks to toggle
+          this.gameManager.setState({
+            isViewmasterEquipped: newEquippedState,
+            viewmasterManuallyRemoved: false,
+          });
+          return;
+        }
+      }
+
+      // Fall back to drawing submission if drawing game is active
+      if (this.isActive) {
+        this.handleSubmit();
+      }
+    });
+
+    if (isMobile || isIOS) {
+      // Mobile: button at top center
+      this.spaceBarHintElement.classList.add("mobile-button");
+
+      // Also handle touch events for better mobile support
+      this.spaceBarHintElement.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Debounce: ignore touches within 1 second of last click/touch
+        const now = Date.now();
+        if (
+          this._lastButtonClickTime &&
+          now - this._lastButtonClickTime < 1000
+        ) {
+          return;
+        }
+        this._lastButtonClickTime = now;
+
+        if (this.isActive) {
+          this.handleSubmit();
+        } else if (this.gameManager) {
+          // Just toggle the state - the viewmaster controller will handle it
+          const currentState = this.gameManager.getState();
+          const newEquippedState = !currentState.isViewmasterEquipped;
+          this.gameManager.setState({ isViewmasterEquipped: newEquippedState });
+        }
+      });
+
+      this.spaceBarHintElement.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        this.spaceBarHintElement.classList.add("pressed");
+      });
+
+      this.spaceBarHintElement.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        this.spaceBarHintElement.classList.remove("pressed");
+      });
+    } else {
+      // Desktop: add click feedback
+      this.spaceBarHintElement.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.spaceBarHintElement.classList.add("pressed");
+      });
+
+      this.spaceBarHintElement.addEventListener("mouseup", (e) => {
+        e.preventDefault();
+        this.spaceBarHintElement.classList.remove("pressed");
+      });
+
+      this.spaceBarHintElement.addEventListener("mouseleave", () => {
+        this.spaceBarHintElement.classList.remove("pressed");
+      });
+    }
+
+    const img = document.createElement("img");
+    img.src = "/images/SpaceBarHint.svg";
+    img.alt = "Press Space to submit";
+
+    this.spaceBarHintElement.appendChild(img);
+    document.body.appendChild(this.spaceBarHintElement);
   }
 
   async startGame(isFinalRound = false) {
@@ -522,12 +721,79 @@ export class DrawingManager {
     }
 
     // Pick new target after canvas and position are set up
+    // Ensure pool is fresh at game start
+    this.refillLabelPool();
     this.pickNewTarget();
+
+    // Start flashing space bar hint on desktop (not mobile)
+    if (this.spaceBarHintElement) {
+      const currentState = this.gameManager?.getState?.();
+      const isMobile = currentState?.isMobile === true;
+      const isIOS = currentState?.isIOS === true;
+
+      if (!isMobile && !isIOS) {
+        this.startSpaceBarHintAnimation();
+      } else {
+        // Mobile: show button only if captions are not active
+        this.updateMobileButtonVisibility();
+      }
+    }
+  }
+
+  updateMobileButtonVisibility() {
+    if (
+      !this.spaceBarHintElement ||
+      !this.spaceBarHintElement.classList.contains("mobile-button")
+    ) {
+      return;
+    }
+
+    // Only show button between CURSOR and POST_CURSOR states
+    const gameState = this.gameManager?.getState?.();
+    const currentState = gameState?.currentState;
+    if (
+      currentState === undefined ||
+      currentState < GAME_STATES.CURSOR ||
+      currentState >= GAME_STATES.POST_CURSOR
+    ) {
+      this.spaceBarHintElement.style.opacity = "0";
+      this.spaceBarHintElement.style.pointerEvents = "none";
+      return;
+    }
+
+    // Check if captions are showing
+    const captionElement = document.getElementById("dialog-caption");
+    const hasCaptions =
+      captionElement && captionElement.textContent.trim().length > 0;
+
+    if (hasCaptions) {
+      this.spaceBarHintElement.classList.add("captions-active");
+    } else {
+      this.spaceBarHintElement.classList.remove("captions-active");
+      // Show button if viewmaster toggle is enabled or drawing game is active
+      const isViewmasterEnabled =
+        window.viewmasterController?.isToggleEnabled === true;
+      const isViewmasterEquipped = gameState?.isViewmasterEquipped === true;
+
+      if (this.isActive || isViewmasterEnabled || isViewmasterEquipped) {
+        this.spaceBarHintElement.style.opacity = "1";
+        this.spaceBarHintElement.style.pointerEvents = "all";
+      } else {
+        this.spaceBarHintElement.style.opacity = "0";
+        this.spaceBarHintElement.style.pointerEvents = "none";
+      }
+    }
   }
 
   stopGame() {
     this.isActive = false;
     this.gameStartTime = 0;
+    this.usedRunes = []; // Reset used runes when game stops
+
+    // Stop space bar hint animation
+    if (this.spaceBarHintElement) {
+      this.stopSpaceBarHintAnimation();
+    }
 
     // Reset shake animation state
     this.isShaking = false;
@@ -658,11 +924,41 @@ export class DrawingManager {
   }
 
   pickNewTarget() {
+    // If pool is empty, refill it
     if (this.labelPool.length === 0) {
       this.refillLabelPool();
     }
 
-    this.targetLabel = this.labelPool.pop();
+    // If all 3 runes have been used in this game session, reset the used list
+    // This ensures we use all 3 runes before any repeats
+    if (this.usedRunes.length >= GAME_LABELS.length) {
+      this.usedRunes = [];
+      this.logger.log("All runes used, resetting used runes list");
+    }
+
+    // Filter out already-used runes from the pool
+    const availableRunes = this.labelPool.filter(
+      (rune) => !this.usedRunes.includes(rune)
+    );
+
+    // If no unused runes available, use any rune from pool (all have been used)
+    const runesToChooseFrom =
+      availableRunes.length > 0 ? availableRunes : this.labelPool;
+
+    // Pick a random rune from available ones
+    const randomIndex = Math.floor(Math.random() * runesToChooseFrom.length);
+    this.targetLabel = runesToChooseFrom[randomIndex];
+
+    // Remove the selected rune from the pool
+    const poolIndex = this.labelPool.indexOf(this.targetLabel);
+    if (poolIndex !== -1) {
+      this.labelPool.splice(poolIndex, 1);
+    }
+
+    // Track that this rune has been used
+    if (!this.usedRunes.includes(this.targetLabel)) {
+      this.usedRunes.push(this.targetLabel);
+    }
 
     // Update game state with new target
     if (this.gameManager) {
@@ -828,11 +1124,23 @@ export class DrawingManager {
               );
               this.stopGame();
 
-              // Transition to POST_CURSOR state
+              // Unequip viewmaster if it's on (including all VFX) and transition to POST_CURSOR
               if (this.gameManager) {
-                this.gameManager.setState({
+                const currentState = this.gameManager.getState();
+                const stateUpdate = {
                   currentState: GAME_STATES.POST_CURSOR,
-                });
+                };
+
+                if (currentState?.isViewmasterEquipped) {
+                  this.logger.log(
+                    "Unequipping viewmaster after puzzle completion"
+                  );
+                  stateUpdate.isViewmasterEquipped = false;
+                  stateUpdate.viewmasterManuallyRemoved = false;
+                  stateUpdate.viewmasterOverheatDialogIndex = null;
+                }
+
+                this.gameManager.setState(stateUpdate);
               }
             } else {
               this.logger.log("Picking new target");
@@ -935,6 +1243,14 @@ export class DrawingManager {
   }
 
   update(dt = 0.016) {
+    // Update mobile button visibility based on captions (even when game not active)
+    if (
+      this.spaceBarHintElement &&
+      this.spaceBarHintElement.classList.contains("mobile-button")
+    ) {
+      this.updateMobileButtonVisibility();
+    }
+
     if (!this.isActive) return;
 
     // Billboard canvas components to camera with smooth easing (or shake on incorrect guess)
@@ -1141,6 +1457,11 @@ export class DrawingManager {
       this.targetEmojiElement.remove();
     }
 
+    if (this.spaceBarHintElement) {
+      this.stopSpaceBarHintAnimation();
+      this.spaceBarHintElement.remove();
+    }
+
     if (this.onKeyDown) {
       window.removeEventListener("keydown", this.onKeyDown);
     }
@@ -1156,5 +1477,89 @@ export class DrawingManager {
     }
     this.canvasParticleSystem = null;
     this.canvasMesh = null;
+  }
+
+  startSpaceBarHintAnimation() {
+    if (!this.spaceBarHintElement) return;
+
+    // Only show between CURSOR and POST_CURSOR states
+    const gameState = this.gameManager?.getState?.();
+    const currentState = gameState?.currentState;
+    if (
+      currentState === undefined ||
+      currentState < GAME_STATES.CURSOR ||
+      currentState >= GAME_STATES.POST_CURSOR
+    ) {
+      return;
+    }
+
+    // Don't animate on mobile (it's a button)
+    const isMobile = gameState?.isMobile === true;
+    const isIOS = gameState?.isIOS === true;
+    if (isMobile || isIOS) {
+      return;
+    }
+
+    // Check if viewmaster is equipped - if so, don't start animation
+    if (gameState?.isViewmasterEquipped) {
+      return;
+    }
+
+    // Remove any existing listener to prevent duplicates
+    if (this.spaceBarHintAnimationHandler) {
+      this.spaceBarHintElement.removeEventListener(
+        "animationend",
+        this.spaceBarHintAnimationHandler
+      );
+    }
+
+    // Create handler for animation end to restart it (loop)
+    this.spaceBarHintAnimationHandler = () => {
+      if (this.isActive && this.spaceBarHintElement) {
+        // Check if viewmaster is equipped - if so, stop animation
+        const currentState = this.gameManager?.getState?.();
+        if (currentState?.isViewmasterEquipped) {
+          this.stopSpaceBarHintAnimation();
+          return;
+        }
+
+        // Restart animation after a brief pause
+        setTimeout(() => {
+          if (this.isActive && this.spaceBarHintElement) {
+            const state = this.gameManager?.getState?.();
+            if (state?.isViewmasterEquipped) {
+              this.stopSpaceBarHintAnimation();
+              return;
+            }
+            this.spaceBarHintElement.classList.remove("animating");
+            // Force reflow to restart animation
+            void this.spaceBarHintElement.offsetWidth;
+            this.spaceBarHintElement.classList.add("animating");
+          }
+        }, 2000);
+      }
+    };
+
+    // Add the animating class to trigger CSS animation
+    this.spaceBarHintElement.classList.add("animating");
+    // Ensure pointer events are enabled when visible
+    this.spaceBarHintElement.style.pointerEvents = "all";
+    this.spaceBarHintElement.addEventListener(
+      "animationend",
+      this.spaceBarHintAnimationHandler
+    );
+  }
+
+  stopSpaceBarHintAnimation() {
+    if (this.spaceBarHintElement) {
+      this.spaceBarHintElement.classList.remove("animating");
+      if (this.spaceBarHintAnimationHandler) {
+        this.spaceBarHintElement.removeEventListener(
+          "animationend",
+          this.spaceBarHintAnimationHandler
+        );
+        this.spaceBarHintAnimationHandler = null;
+      }
+    }
   }
 }

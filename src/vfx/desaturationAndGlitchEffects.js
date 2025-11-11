@@ -22,6 +22,7 @@ export class DesaturationAndGlitchEffects extends VFXManager {
     this._pendingGlitchEffect = null;
     this._desatDelayTimeout = null;
     this._glitchDelayTimeout = null;
+    this._desatOnComplete = null; // Callback when desaturation animation completes
 
     // Desaturation properties
     this.desatEnabled = false;
@@ -319,19 +320,23 @@ export class DesaturationAndGlitchEffects extends VFXManager {
    */
   async onFirstEnable(effect, state) {
     const effectType = this._getEffectType(effect);
-    
+
     if (effectType === "desaturation") {
       this.logger.log("Enabling desaturation effect for first time");
       const params = effect.parameters || {};
       this.desatEnableAudio = params.enableAudio === true;
-      
-      if (!this.desatEnableAudio && this.desatAudio && this.desatAudio.isPlaying) {
+
+      if (
+        !this.desatEnableAudio &&
+        this.desatAudio &&
+        this.desatAudio.isPlaying
+      ) {
         this.desatAudio.stop();
       }
-      
+
       this.desatEnabled = true;
       this.enable(true);
-      
+
       if (this.desatEnableAudio) {
         await this.desatAudio.initialize();
         if (this.desatCurrentState < 0.5 && !this.desatAudio.isPlaying) {
@@ -342,19 +347,23 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       this.logger.log("Enabling glitch effect for first time");
       const params = effect.parameters || {};
       this.glitchEnableAudio = params.enableAudio === true;
-      
-      if (!this.glitchEnableAudio && this.glitchAudio && this.glitchAudio.isPlaying) {
+
+      if (
+        !this.glitchEnableAudio &&
+        this.glitchAudio &&
+        this.glitchAudio.isPlaying
+      ) {
         this.glitchAudio.stop();
       }
-      
+
       this.glitchEnabled = true;
       this.enable(true);
-      
+
       if (this.glitchEnableAudio) {
         await this.glitchAudio.initialize();
       }
     }
-    
+
     this.applyEffect(effect, state);
   }
 
@@ -375,7 +384,7 @@ export class DesaturationAndGlitchEffects extends VFXManager {
     import("../vfxData.js").then((module) => {
       this._vfxDataModule = module;
     });
-    
+
     // Call parent setGameManager
     super.setGameManager(gameManager, vfxTypeOrGetter);
   }
@@ -403,41 +412,56 @@ export class DesaturationAndGlitchEffects extends VFXManager {
    * @private
    */
   _updateBothEffects(state) {
-    const desatEffect = this._vfxDataModule.getVfxEffectForState("desaturation", state);
-    const glitchEffect = this._vfxDataModule.getVfxEffectForState("glitch", state);
+    const desatEffect = this._vfxDataModule.getVfxEffectForState(
+      "desaturation",
+      state
+    );
+    const glitchEffect = this._vfxDataModule.getVfxEffectForState(
+      "glitch",
+      state
+    );
 
     // Handle desaturation effect
     if (desatEffect) {
       const isNewDesatEffect = this._currentDesatEffectId !== desatEffect.id;
-      const isPendingDesatEffect = this._pendingDesatEffect && this._pendingDesatEffect.id === desatEffect.id;
+      const isPendingDesatEffect =
+        this._pendingDesatEffect &&
+        this._pendingDesatEffect.id === desatEffect.id;
       const isFirstDesatEnable = !this.desatEnabled;
-      
+
       // Skip if this is the same effect already applied or pending
       if (!isNewDesatEffect && !isPendingDesatEffect && !isFirstDesatEnable) {
         // Effect already active, do nothing
       } else {
         // Cancel any pending delayed effect if switching to a different effect
-        if (this._pendingDesatEffect && this._pendingDesatEffect.id !== desatEffect.id) {
+        if (
+          this._pendingDesatEffect &&
+          this._pendingDesatEffect.id !== desatEffect.id
+        ) {
           this._cancelDesatDelay();
         }
-        
+
         // Handle first enable
         if (isFirstDesatEnable) {
           this.desatEnabled = true;
           this._hasEverBeenEnabled = true;
           this.onFirstEnable(desatEffect, state);
         }
-        
+
         // Check for delay
         const delay = desatEffect.delay || 0;
-        
+
         if (delay > 0 && !isPendingDesatEffect) {
           // Effect should be delayed
-          this.logger.log(`Desaturation effect ${desatEffect.id} will be applied in ${delay} seconds`);
+          this.logger.log(
+            `Desaturation effect ${desatEffect.id} will be applied in ${delay} seconds`
+          );
           this._pendingDesatEffect = desatEffect;
-          
+
           this._desatDelayTimeout = setTimeout(() => {
-            this.logger.log(`Applying delayed desaturation effect: ${desatEffect.id}`);
+            this.logger.log(
+              `Applying delayed desaturation effect: ${desatEffect.id}`
+            );
             this._currentDesatEffectId = desatEffect.id;
             this._pendingDesatEffect = null;
             this._desatDelayTimeout = null;
@@ -458,7 +482,11 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       if (this.desatEnabled) {
         this.desatEnabled = false;
         this._currentDesatEffectId = null;
-        if (this.desatEnableAudio && this.desatAudio && this.desatAudio.isPlaying) {
+        if (
+          this.desatEnableAudio &&
+          this.desatAudio &&
+          this.desatAudio.isPlaying
+        ) {
           this.desatAudio.stop();
         }
       }
@@ -467,35 +495,48 @@ export class DesaturationAndGlitchEffects extends VFXManager {
     // Handle glitch effect
     if (glitchEffect) {
       const isNewGlitchEffect = this._currentGlitchEffectId !== glitchEffect.id;
-      const isPendingGlitchEffect = this._pendingGlitchEffect && this._pendingGlitchEffect.id === glitchEffect.id;
+      const isPendingGlitchEffect =
+        this._pendingGlitchEffect &&
+        this._pendingGlitchEffect.id === glitchEffect.id;
       const isFirstGlitchEnable = !this.glitchEnabled;
-      
+
       // Skip if this is the same effect already applied or pending
-      if (!isNewGlitchEffect && !isPendingGlitchEffect && !isFirstGlitchEnable) {
+      if (
+        !isNewGlitchEffect &&
+        !isPendingGlitchEffect &&
+        !isFirstGlitchEnable
+      ) {
         // Effect already active, do nothing
       } else {
         // Cancel any pending delayed effect if switching to a different effect
-        if (this._pendingGlitchEffect && this._pendingGlitchEffect.id !== glitchEffect.id) {
+        if (
+          this._pendingGlitchEffect &&
+          this._pendingGlitchEffect.id !== glitchEffect.id
+        ) {
           this._cancelGlitchDelay();
         }
-        
+
         // Handle first enable
         if (isFirstGlitchEnable) {
           this.glitchEnabled = true;
           this._hasEverBeenEnabled = true;
           this.onFirstEnable(glitchEffect, state);
         }
-        
+
         // Check for delay
         const delay = glitchEffect.delay || 0;
-        
+
         if (delay > 0 && !isPendingGlitchEffect) {
           // Effect should be delayed
-          this.logger.log(`Glitch effect ${glitchEffect.id} will be applied in ${delay} seconds`);
+          this.logger.log(
+            `Glitch effect ${glitchEffect.id} will be applied in ${delay} seconds`
+          );
           this._pendingGlitchEffect = glitchEffect;
-          
+
           this._glitchDelayTimeout = setTimeout(() => {
-            this.logger.log(`Applying delayed glitch effect: ${glitchEffect.id}`);
+            this.logger.log(
+              `Applying delayed glitch effect: ${glitchEffect.id}`
+            );
             this._currentGlitchEffectId = glitchEffect.id;
             this._pendingGlitchEffect = null;
             this._glitchDelayTimeout = null;
@@ -517,7 +558,11 @@ export class DesaturationAndGlitchEffects extends VFXManager {
         this.glitchEnabled = false;
         this._currentGlitchEffectId = null;
         this.setGlitchIntensity(0.0);
-        if (this.glitchEnableAudio && this.glitchAudio && this.glitchAudio.isPlaying) {
+        if (
+          this.glitchEnableAudio &&
+          this.glitchAudio &&
+          this.glitchAudio.isPlaying
+        ) {
           this.glitchAudio.stop();
         }
       }
@@ -536,7 +581,9 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       clearTimeout(this._desatDelayTimeout);
       this._desatDelayTimeout = null;
       if (this._pendingDesatEffect) {
-        this.logger.log(`Cancelled delayed desaturation effect: ${this._pendingDesatEffect.id}`);
+        this.logger.log(
+          `Cancelled delayed desaturation effect: ${this._pendingDesatEffect.id}`
+        );
       }
       this._pendingDesatEffect = null;
     }
@@ -551,7 +598,9 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       clearTimeout(this._glitchDelayTimeout);
       this._glitchDelayTimeout = null;
       if (this._pendingGlitchEffect) {
-        this.logger.log(`Cancelled delayed glitch effect: ${this._pendingGlitchEffect.id}`);
+        this.logger.log(
+          `Cancelled delayed glitch effect: ${this._pendingGlitchEffect.id}`
+        );
       }
       this._pendingGlitchEffect = null;
     }
@@ -567,8 +616,12 @@ export class DesaturationAndGlitchEffects extends VFXManager {
 
     if (effectType === "desaturation") {
       this.desatEnableAudio = params.enableAudio === true;
-      
-      if (!this.desatEnableAudio && this.desatAudio && this.desatAudio.isPlaying) {
+
+      if (
+        !this.desatEnableAudio &&
+        this.desatAudio &&
+        this.desatAudio.isPlaying
+      ) {
         this.desatAudio.stop();
       }
       if (this.desatEnableAudio && !this.desatAudio.audioContext) {
@@ -587,18 +640,34 @@ export class DesaturationAndGlitchEffects extends VFXManager {
         this.desatAnimationDuration = params.duration;
       }
 
+      // If "from" parameter is specified, set the starting value before animating
+      // Only set "from" if we're not already animating this effect (to avoid resetting mid-animation)
+      if (params.from !== undefined && !this.desatAnimating) {
+        this.desatProgress = THREE.MathUtils.clamp(params.from, 0, 1);
+        this.desatCurrentState = this.desatProgress;
+        this.desatLastProgress = this.desatProgress;
+      }
+
       const options = {
         mode: params.mode || "bleed",
         direction: params.direction || params.wipeDirection || "bottom-to-top",
-        softness: params.softness !== undefined ? params.softness : params.wipeSoftness,
+        softness:
+          params.softness !== undefined ? params.softness : params.wipeSoftness,
         suppressAudio: params.suppressAudio || false,
       };
+
+      // Store onComplete callback if provided
+      this._desatOnComplete = effect.onComplete || null;
 
       this.desatAnimateTo(params.target, options);
     } else if (effectType === "glitch") {
       this.glitchEnableAudio = params.enableAudio === true;
-      
-      if (!this.glitchEnableAudio && this.glitchAudio && this.glitchAudio.isPlaying) {
+
+      if (
+        !this.glitchEnableAudio &&
+        this.glitchAudio &&
+        this.glitchAudio.isPlaying
+      ) {
         this.glitchAudio.stop();
       }
       if (this.glitchEnableAudio && !this.glitchAudio.audioContext) {
@@ -626,18 +695,25 @@ export class DesaturationAndGlitchEffects extends VFXManager {
     // The effect stays enabled as long as at least one sub-effect is active
   }
 
-
   /**
    * Determine effect type from effect data
    * @private
    */
   _getEffectType(effect) {
     // Check if it's a desaturation effect by looking for desaturation-specific parameters
-    if (effect.parameters && (effect.parameters.target !== undefined || effect.parameters.mode !== undefined)) {
+    if (
+      effect.parameters &&
+      (effect.parameters.target !== undefined ||
+        effect.parameters.mode !== undefined)
+    ) {
       return "desaturation";
     }
     // Check if it's a glitch effect by looking for glitch-specific parameters
-    if (effect.parameters && (effect.parameters.intensity !== undefined || effect.parameters.goWild !== undefined)) {
+    if (
+      effect.parameters &&
+      (effect.parameters.intensity !== undefined ||
+        effect.parameters.goWild !== undefined)
+    ) {
       return "glitch";
     }
     // Default based on effect ID pattern
@@ -679,6 +755,22 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       const mode = options.mode || "bleed";
       this.desatTransitionMode = mode;
       this._updateDesatShaderMode(mode, options);
+
+      // Call onComplete immediately if duration is 0
+      if (this._desatOnComplete && this.gameManager) {
+        try {
+          this._desatOnComplete(this.gameManager);
+          this.logger.log(
+            "Desaturation animation complete (instant), onComplete callback called"
+          );
+        } catch (error) {
+          this.logger.error(
+            "Error in desaturation onComplete callback:",
+            error
+          );
+        }
+        this._desatOnComplete = null; // Clear after calling
+      }
       return;
     }
 
@@ -706,8 +798,12 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       this.postMaterial.uniforms.transitionMode.value = 2.0;
       const direction = options.direction || this.desatWipeDirection;
       this.desatWipeDirection = direction;
-      this.postMaterial.uniforms.wipeDirection.value = direction === "top-to-bottom" ? 1.0 : 0.0;
-      const softness = options.softness !== undefined ? options.softness : this.desatWipeSoftness;
+      this.postMaterial.uniforms.wipeDirection.value =
+        direction === "top-to-bottom" ? 1.0 : 0.0;
+      const softness =
+        options.softness !== undefined
+          ? options.softness
+          : this.desatWipeSoftness;
       this.desatWipeSoftness = softness;
       this.postMaterial.uniforms.wipeSoftness.value = softness;
     } else if (mode === "bleed") {
@@ -745,9 +841,28 @@ export class DesaturationAndGlitchEffects extends VFXManager {
         if (this.desatEnableAudio) {
           if (this.desatAnimationTarget >= 0.5 && this.desatAudio.isPlaying) {
             this.desatAudio.stop();
-          } else if (this.desatAnimationTarget < 0.5 && !this.desatAudio.isPlaying) {
+          } else if (
+            this.desatAnimationTarget < 0.5 &&
+            !this.desatAudio.isPlaying
+          ) {
             this.desatAudio.start();
           }
+        }
+
+        // Call onComplete callback if provided
+        if (this._desatOnComplete && this.gameManager) {
+          try {
+            this._desatOnComplete(this.gameManager);
+            this.logger.log(
+              "Desaturation animation complete, onComplete callback called"
+            );
+          } catch (error) {
+            this.logger.error(
+              "Error in desaturation onComplete callback:",
+              error
+            );
+          }
+          this._desatOnComplete = null; // Clear after calling
         }
       } else {
         this.desatProgress += step;
@@ -775,23 +890,36 @@ export class DesaturationAndGlitchEffects extends VFXManager {
       this.postMaterial.uniforms.glitchAmount.value = 0.0;
       this.postMaterial.uniforms.glitchSeedX.value = 0.0;
       this.postMaterial.uniforms.glitchSeedY.value = 0.0;
-      
-      if (this.glitchEnableAudio && this.glitchAudio && this.glitchAudio.isPlaying) {
+
+      if (
+        this.glitchEnableAudio &&
+        this.glitchAudio &&
+        this.glitchAudio.isPlaying
+      ) {
         this.glitchAudio.stop();
       }
       return;
     }
 
-    if (this.glitchEnableAudio && this.glitchAudio && !this.glitchAudio.isPlaying && this.glitchAudio.audioContext) {
+    if (
+      this.glitchEnableAudio &&
+      this.glitchAudio &&
+      !this.glitchAudio.isPlaying &&
+      this.glitchAudio.audioContext
+    ) {
       this.glitchAudio.start();
     }
 
-    if (this.glitchEnableAudio && this.glitchAudio && this.glitchAudio.isPlaying) {
+    if (
+      this.glitchEnableAudio &&
+      this.glitchAudio &&
+      this.glitchAudio.isPlaying
+    ) {
       const audioVolume = 0.3 * this.glitchIntensity;
       const sweepRate = this.glitchGoWild ? 40.0 : 25.0;
       const lfoFreq = this.glitchGoWild ? 30.0 : 20.0;
       const filterFreq = this.glitchGoWild ? 7000 : 5000;
-      
+
       this.glitchAudio.updateParams({
         volume: audioVolume,
         sweepRate: sweepRate,
@@ -806,20 +934,42 @@ export class DesaturationAndGlitchEffects extends VFXManager {
 
     if (this.glitchCurF % this.glitchRandX === 0 || this.glitchGoWild) {
       this.postMaterial.uniforms.glitchAmount.value = Math.random() / 30;
-      this.postMaterial.uniforms.glitchAngle.value = THREE.MathUtils.randFloat(-Math.PI, Math.PI);
-      this.postMaterial.uniforms.glitchSeedX.value = THREE.MathUtils.randFloat(-1, 1);
-      this.postMaterial.uniforms.glitchSeedY.value = THREE.MathUtils.randFloat(-1, 1);
-      this.postMaterial.uniforms.glitchDistortionX.value = THREE.MathUtils.randFloat(0, 1);
-      this.postMaterial.uniforms.glitchDistortionY.value = THREE.MathUtils.randFloat(0, 1);
+      this.postMaterial.uniforms.glitchAngle.value = THREE.MathUtils.randFloat(
+        -Math.PI,
+        Math.PI
+      );
+      this.postMaterial.uniforms.glitchSeedX.value = THREE.MathUtils.randFloat(
+        -1,
+        1
+      );
+      this.postMaterial.uniforms.glitchSeedY.value = THREE.MathUtils.randFloat(
+        -1,
+        1
+      );
+      this.postMaterial.uniforms.glitchDistortionX.value =
+        THREE.MathUtils.randFloat(0, 1);
+      this.postMaterial.uniforms.glitchDistortionY.value =
+        THREE.MathUtils.randFloat(0, 1);
       this.glitchCurF = 0;
       this._generateGlitchTrigger();
     } else if (this.glitchCurF % this.glitchRandX < this.glitchRandX / 5) {
       this.postMaterial.uniforms.glitchAmount.value = Math.random() / 90;
-      this.postMaterial.uniforms.glitchAngle.value = THREE.MathUtils.randFloat(-Math.PI, Math.PI);
-      this.postMaterial.uniforms.glitchDistortionX.value = THREE.MathUtils.randFloat(0, 1);
-      this.postMaterial.uniforms.glitchDistortionY.value = THREE.MathUtils.randFloat(0, 1);
-      this.postMaterial.uniforms.glitchSeedX.value = THREE.MathUtils.randFloat(-0.3, 0.3);
-      this.postMaterial.uniforms.glitchSeedY.value = THREE.MathUtils.randFloat(-0.3, 0.3);
+      this.postMaterial.uniforms.glitchAngle.value = THREE.MathUtils.randFloat(
+        -Math.PI,
+        Math.PI
+      );
+      this.postMaterial.uniforms.glitchDistortionX.value =
+        THREE.MathUtils.randFloat(0, 1);
+      this.postMaterial.uniforms.glitchDistortionY.value =
+        THREE.MathUtils.randFloat(0, 1);
+      this.postMaterial.uniforms.glitchSeedX.value = THREE.MathUtils.randFloat(
+        -0.3,
+        0.3
+      );
+      this.postMaterial.uniforms.glitchSeedY.value = THREE.MathUtils.randFloat(
+        -0.3,
+        0.3
+      );
     } else if (!this.glitchGoWild) {
       this.postMaterial.uniforms.glitchByp.value = 1;
     }
@@ -840,7 +990,9 @@ export class DesaturationAndGlitchEffects extends VFXManager {
    * @private
    */
   _updateDesatAudio(deltaTime) {
-    const velocity = Math.abs(this.desatProgress - this.desatLastProgress) / Math.max(deltaTime, 0.001);
+    const velocity =
+      Math.abs(this.desatProgress - this.desatLastProgress) /
+      Math.max(deltaTime, 0.001);
     const normalizedVelocity = Math.min(velocity * 2, 1);
 
     const minFreq = 300;
@@ -932,4 +1084,3 @@ export class DesaturationAndGlitchEffects extends VFXManager {
 }
 
 export default DesaturationAndGlitchEffects;
-

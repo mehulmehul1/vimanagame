@@ -26,6 +26,25 @@
   display: none;
 }
 
+/* Dialog Choice Options - Centered */
+@keyframes slideUpFadeInCentered {
+  from {
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.dialog-choices-container {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  right: auto !important;
+  animation: slideUpFadeInCentered 0.4s ease-out !important;
+}
+
 /* Mobile: anchor caption to top instead of bottom */
 @media (max-width: 600px) {
   #dialog-caption {

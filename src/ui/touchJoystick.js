@@ -89,22 +89,25 @@ export class TouchJoystick {
       (e) => {
         // CRITICAL: Unlock audio/video BEFORE preventDefault to maintain gesture context
         // But keep it minimal to avoid blocking joystick input processing
-        
+
         // On first touch only, do comprehensive unlock
         if (!this.hasUnlockedOnFirstTouch) {
           // Unlock Howler audio (synchronous, fast)
-          if (typeof Howler !== "undefined" && typeof Howler.unlock === "function") {
+          if (
+            typeof Howler !== "undefined" &&
+            typeof Howler.unlock === "function"
+          ) {
             Howler.unlock();
           }
-          
+
           // Unlock all audio contexts (procedural audio)
           unlockAllAudioContexts();
-          
+
           // Unlock video playback (iOS Safari)
           if (window.gameManager?.videoManager?.unlockVideoPlayback) {
             window.gameManager.videoManager.unlockVideoPlayback();
           }
-          
+
           this.hasUnlockedOnFirstTouch = true;
         } else {
           // On subsequent touches, just call the global unlock handler (lightweight)
@@ -149,7 +152,7 @@ export class TouchJoystick {
             if (window.unlockAudioOnInteraction) {
               window.unlockAudioOnInteraction();
             }
-            
+
             e.preventDefault();
             this.updatePosition(touch.clientX, touch.clientY);
             break;
@@ -174,7 +177,7 @@ export class TouchJoystick {
           if (window.unlockAudioOnInteraction) {
             window.unlockAudioOnInteraction();
           }
-          
+
           this.reset();
           break;
         }
@@ -217,7 +220,7 @@ export class TouchJoystick {
     const rawMagnitude = Math.sqrt(
       this.deltaX * this.deltaX + this.deltaY * this.deltaY
     );
-    
+
     // Calculate speed multiplier based on raw distance (0 to 1)
     // At center (0) = 0 speed, at max distance (1) = full speed
     // Smoothly ramp from 0 to 1 as stick moves from center to edge
@@ -228,8 +231,9 @@ export class TouchJoystick {
     } else {
       // Speed multiplier: remap from [deadzone, 1] to [0, 1]
       // This gives smooth speed ramp from deadzone to max distance
-      this.speedMultiplier = (rawMagnitude - this.deadzone) / (1 - this.deadzone);
-      
+      this.speedMultiplier =
+        (rawMagnitude - this.deadzone) / (1 - this.deadzone);
+
       // Direction: remap from [deadzone, 1] to [0, 1] for normalized direction
       const scale =
         (rawMagnitude - this.deadzone) / (1 - this.deadzone) / rawMagnitude;
