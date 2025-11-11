@@ -414,23 +414,12 @@ class VideoManager {
         }
 
         // Stop and remove video if it exists
-        // BUT: Don't remove videos with preload: false that have been prefetched,
-        // as they were explicitly loaded for future use and should stick around
         if (exists) {
-          const wasPrefetched = videoConfig.preload === false;
-          if (wasPrefetched) {
-            // Keep prefetched videos around even if criteria don't match
-            // They were explicitly loaded for future states
-            this.logger.log(
-              `Keeping prefetched video "${videoId}" (criteria not met, but preload: false)`
-            );
-          } else {
-            player.destroy();
-            this.videoPlayers.delete(videoId);
-            this.logger.log(
-              `Removed video "${videoId}" (spawn criteria no longer met)`
-            );
-          }
+          player.destroy();
+          this.videoPlayers.delete(videoId);
+          this.logger.log(
+            `Removed video "${videoId}" (spawn criteria no longer met)`
+          );
         }
       }
     }

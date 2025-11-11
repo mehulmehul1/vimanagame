@@ -885,11 +885,10 @@ export const dialogTracks = {
       { text: "[coughing]", duration: 4.0 },
       { text: "Gimme a sec...", duration: 2.0 },
     ],
+    fireOnEvent: "viewmaster:overheat",
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
-      // Allow dialog when intensity is high and dialog index matches (works whether mask is equipped or just removed)
       viewmasterOverheatDialogIndex: 0,
-      viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
     },
     autoPlay: true,
     once: false,
@@ -906,11 +905,10 @@ export const dialogTracks = {
       { text: "It's too much...", duration: 2.0 },
       { text: "Just a quick break.", duration: 2.0 },
     ],
+    fireOnEvent: "viewmaster:overheat",
     criteria: {
       currentState: { $in: [GAME_STATES.CURSOR, GAME_STATES.CURSOR_FINAL] },
-      // Allow dialog when intensity is high and dialog index matches (works whether mask is equipped or just removed)
       viewmasterOverheatDialogIndex: 1,
-      viewmasterInsanityIntensity: { $gte: VIEWMASTER_OVERHEAT_THRESHOLD },
     },
     autoPlay: true,
     once: false,

@@ -889,6 +889,11 @@ renderer.setAnimationLoop(function animate(time) {
         viewmasterOverheatCount: newCount,
         viewmasterOverheatDialogIndex: newCount % 2, // Cycle: 0, 1, 0, 1...
       });
+      // Emit event for event-driven dialogs
+      gameManager.emit("viewmaster:overheat", {
+        dialogIndex: newCount % 2,
+        intensity: intensity,
+      });
     } else if (intensity !== previousIntensity) {
       // Only update if intensity actually changed
       gameManager.setState({ viewmasterInsanityIntensity: intensity });

@@ -1,7 +1,6 @@
 import { Howl } from "howler";
 import { Logger } from "./utils/logger.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
-import { VIEWMASTER_OVERHEAT_THRESHOLD } from "./dialogData.js";
 
 /**
  * DialogManager - Manages dialog audio playback and synchronized captions
@@ -806,7 +805,7 @@ class DialogManager {
     // This ensures dialogs trigger as soon as videos start (e.g., via playNext)
     // rather than waiting for update loop detection
     import("./dialogData.js").then(
-      ({ dialogTracks, getDialogsForState, VIEWMASTER_OVERHEAT_THRESHOLD }) => {
+      ({ dialogTracks, getDialogsForState }) => {
         this.logger.log("Dialog data loaded, registering state listener");
         this._dialogDataLoaded = true;
         // Cache for continuous checking in update()
@@ -833,6 +832,20 @@ class DialogManager {
               }
             }
           }
+
+          // Register event listeners for dialogs with fireOnEvent
+          if (dialog.fireOnEvent && dialog.autoPlay) {
+            const eventName = dialog.fireOnEvent;
+            if (!registeredEvents.has(eventName)) {
+              this.gameManager.on(eventName, (eventData) => {
+                this._checkAndTriggerEventDialog(eventName, eventData);
+              });
+              registeredEvents.add(eventName);
+              this.logger.log(
+                `Registered event listener for dialog "${dialog.id}" on event "${eventName}"`
+              );
+            }
+          }
         }
 
         // Listen for state changes
@@ -844,16 +857,6 @@ class DialogManager {
               `Skipping state change handler - currentState unchanged (${newState?.currentState}), only properties updated`
             );
             return;
-          }
-
-          // Debug: Log when overheat dialog index changes
-          if (
-            newState.viewmasterOverheatDialogIndex !==
-            oldState?.viewmasterOverheatDialogIndex
-          ) {
-            this.logger.log(
-              `Viewmaster overheat dialog index changed: ${oldState?.viewmasterOverheatDialogIndex} -> ${newState.viewmasterOverheatDialogIndex}, intensity: ${newState.viewmasterInsanityIntensity}`
-            );
           }
 
           const matchingDialogs = getDialogsForState(
@@ -870,31 +873,6 @@ class DialogManager {
               .map((d) => d.id)
               .join(", ")}`
           );
-
-          // Debug: Check for overheat dialogs specifically
-          if (
-            newState.viewmasterInsanityIntensity >=
-              VIEWMASTER_OVERHEAT_THRESHOLD &&
-            newState.viewmasterOverheatDialogIndex !== null &&
-            newState.viewmasterOverheatDialogIndex !== undefined
-          ) {
-            const overheatDialogs = matchingDialogs.filter(
-              (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
-            );
-            if (overheatDialogs.length > 0) {
-              this.logger.log(
-                `State change: Found ${
-                  overheatDialogs.length
-                } matching overheat dialog(s): ${overheatDialogs
-                  .map((d) => d.id)
-                  .join(", ")}`
-              );
-            } else {
-              this.logger.log(
-                `State change: Overheat criteria met but no dialogs matched. Index: ${newState.viewmasterOverheatDialogIndex}, Intensity: ${newState.viewmasterInsanityIntensity}, isViewmasterEquipped: ${newState.isViewmasterEquipped}`
-              );
-            }
-          }
 
           // If there are matching dialogs for the new state
           if (matchingDialogs.length > 0) {
@@ -1792,6 +1770,64 @@ class DialogManager {
    * @param {string} videoId - Video ID
    * @private
    */
+  _checkAndTriggerEventDialog(eventName, eventData) {
+    if (!this._dialogTracks || this.isFadingOut) {
+      return;
+    }
+
+    // Check for dialogs matching this event
+    const matchingDialogs = Object.values(this._dialogTracks).filter(
+      (d) => d.fireOnEvent === eventName && d.autoPlay
+    );
+
+    if (matchingDialogs.length === 0) return;
+
+    // Get current state to check criteria
+    const currentState = this.gameManager?.getState();
+    if (!currentState) return;
+
+    // Trigger all matching dialogs that meet their criteria
+    for (const dialog of matchingDialogs) {
+      // Check criteria if present (event can still have state-based criteria)
+      if (dialog.criteria) {
+        if (!checkCriteria(currentState, dialog.criteria)) {
+          continue;
+        }
+      }
+
+      // Skip if already played and marked as "once"
+      if (
+        dialog.once &&
+        this.playedDialogs &&
+        this.playedDialogs.has(dialog.id)
+      ) {
+        continue;
+      }
+
+      // Skip if already active
+      if (this.activeDialogs.has(dialog.id)) {
+        continue;
+      }
+
+      // Skip if already pending
+      if (this.pendingDialogs.has(dialog.id)) {
+        continue;
+      }
+
+      this.logger.log(
+        `Event "${eventName}" fired, playing dialog "${dialog.id}"`
+      );
+
+      // Only track in playedDialogs if marked as "once"
+      if (dialog.once && this.playedDialogs) {
+        this.playedDialogs.add(dialog.id);
+      }
+
+      // Play the dialog
+      this.playDialog(dialog);
+    }
+  }
+
   _checkAndTriggerVideoDialog(videoId) {
     if (!this.videoManager || !this._dialogTracks || this.isFadingOut) {
       return;
@@ -1997,26 +2033,10 @@ class DialogManager {
 
       // Filter out video-synced dialogs (already handled above)
       // Video-synced dialogs should ONLY play when their video is playing, not from state changes
-      const nonVideoDialogs = matchingDialogs.filter((d) => !d.videoId);
-
-      // Debug: Log when we're checking for these specific dialogs
-      if (
-        currentState.viewmasterInsanityIntensity >=
-          VIEWMASTER_OVERHEAT_THRESHOLD &&
-        currentState.viewmasterOverheatDialogIndex !== null &&
-        currentState.viewmasterOverheatDialogIndex !== undefined
-      ) {
-        const targetDialogs = nonVideoDialogs.filter(
-          (d) => d.id === "coleUghGimmeASec" || d.id === "coleUghItsTooMuch"
-        );
-        if (targetDialogs.length > 0 && !this.isPlaying) {
-          this.logger.log(
-            `Found matching overheat dialog(s): ${targetDialogs
-              .map((d) => d.id)
-              .join(", ")}`
-          );
-        }
-      }
+      // Also filter out event-driven dialogs (handled by event listeners)
+      const nonVideoDialogs = matchingDialogs.filter(
+        (d) => !d.videoId && !d.fireOnEvent
+      );
 
       // Play matching dialogs that aren't already active or pending
       for (const dialog of nonVideoDialogs) {
