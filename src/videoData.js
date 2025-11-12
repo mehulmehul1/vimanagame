@@ -621,7 +621,7 @@ export const videos = {
 
   credits: {
     id: "credits",
-    videoPath: "/video/shadow-credits.mp4",
+    videoPath: "/video/shadow-credits-480.mp4",
     preload: false,
     position: { x: -0.36, y: 4.32, z: 83.33 },
     rotation: { x: 3.1416, y: -Math.PI / 2, z: 3.1416 },

@@ -758,7 +758,7 @@ export const sceneObjects = {
     path: "/club-1m.sog",
     gizmo: true,
     description: "Club environment splat mesh (mobile optimized)",
-    position: { x: -3.72, y: 0.55, z: 84.88 },
+    position: { x: -3.72, y: 0.5, z: 84.88 },
 
     rotation: { x: 0.04, y: Math.PI / 2, z: -Math.PI },
     scale: { x: 1.8, y: 1.8, z: 1.8 },

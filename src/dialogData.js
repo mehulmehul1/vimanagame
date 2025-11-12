@@ -1116,7 +1116,7 @@ export const dialogTracks = {
     audio: "./audio/dialog/newsman-cliff-cole-confidential.mp3",
     captions: [
       { text: "Til next time, this has been...", duration: 2.0 },
-      { text: "Cliff Cole: Confidential!", duration: 3.0 },
+      { text: "Cliff Cole: Confidential", duration: 3.0 },
     ],
     criteria: { currentState: GAME_STATES.OUTRO_CREDITS },
     autoPlay: true,
