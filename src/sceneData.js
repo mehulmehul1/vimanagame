@@ -756,12 +756,12 @@ export const sceneObjects = {
     id: "club",
     type: "splat",
     path: "/club-1m.sog",
-    gizmo: true,
+    gizmo: false,
     description: "Club environment splat mesh (mobile optimized)",
-    position: { x: -3.72, y: 0.5, z: 84.88 },
+    position: { x: -3.6, y: 0.5, z: 85.29 },
 
     rotation: { x: 0.04, y: Math.PI / 2, z: -Math.PI },
-    scale: { x: 1.8, y: 1.8, z: 1.8 },
+    scale: { x: 1.9, y: 1.9, z: 1.9 },
     criteria: {
       currentState: {
         $gte: GAME_STATES.LIGHTS_OUT,
@@ -1201,7 +1201,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/pa.glb",
     description: "Podium for outro sequence",
-    position: { x: -5.35, y: 4.42, z: 74.84 },
+    position: { x: -6.12, y: 4.21, z: 75.86 },
     rotation: { x: -2.8628, y: 0.979, z: -3.0555 },
     scale: { x: 2.14, y: 2.14, z: 2.14 },
     options: {

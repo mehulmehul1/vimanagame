@@ -392,13 +392,26 @@ export class DrawingManager {
         }
         this._lastButtonClickTime = now;
 
+        // Check viewmaster toggle first (same as click handler) - works whether equipped or not
+        if (
+          window.viewmasterController &&
+          window.viewmasterController.isToggleEnabled
+        ) {
+          const currentState = this.gameManager?.getState();
+          if (currentState) {
+            const newEquippedState = !currentState.isViewmasterEquipped;
+            // Reset manually removed flag when user touches to toggle
+            this.gameManager.setState({
+              isViewmasterEquipped: newEquippedState,
+              viewmasterManuallyRemoved: false,
+            });
+            return;
+          }
+        }
+
+        // Fall back to drawing submission if drawing game is active
         if (this.isActive) {
           this.handleSubmit();
-        } else if (this.gameManager) {
-          // Just toggle the state - the viewmaster controller will handle it
-          const currentState = this.gameManager.getState();
-          const newEquippedState = !currentState.isViewmasterEquipped;
-          this.gameManager.setState({ isViewmasterEquipped: newEquippedState });
         }
       });
 

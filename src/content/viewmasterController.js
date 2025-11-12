@@ -54,6 +54,7 @@ export default class ViewmasterController {
 
     this.gameManager.on("state:changed", this.handleStateChanged);
     window.addEventListener("keydown", this.handleKeyDown, false);
+    this.setupButtonClickHandler();
 
     this.handleStateChanged(this.gameManager.getState());
     this.applyInitialAttachmentIfNeeded(this.gameManager.getState());
@@ -225,6 +226,7 @@ export default class ViewmasterController {
         if (isMobile || isIOS) {
           // Mobile: just show the button
           spaceBarHint.style.opacity = "1";
+          spaceBarHint.style.pointerEvents = "all";
         } else {
           // Desktop: start flashing animation
           spaceBarHint.style.opacity = "1";
@@ -425,6 +427,7 @@ export default class ViewmasterController {
         if (!this.isEquipped && !isDrawingActive) {
           // Show button when toggle is enabled but not equipped (for toggling on)
           spaceBarHint.style.opacity = "1";
+          spaceBarHint.style.pointerEvents = "all";
         }
       }
     }
@@ -446,6 +449,53 @@ export default class ViewmasterController {
     }
 
     this.applyInitialAttachmentIfNeeded(newState);
+  }
+
+  setupButtonClickHandler() {
+    const spaceBarHint = document.getElementById("space-bar-hint");
+    if (!spaceBarHint) {
+      setTimeout(() => this.setupButtonClickHandler(), 100);
+      return;
+    }
+
+    // Prevent duplicate listeners
+    if (spaceBarHint._viewmasterClickHandler) {
+      return;
+    }
+
+    const handleButtonClick = (e) => {
+      if (!this.isToggleEnabled) return;
+
+      const activeElement = document.activeElement;
+      if (activeElement) {
+        const tag = activeElement.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") {
+          return;
+        }
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const currentState = this.gameManager.getState();
+      const isDrawingActive = window.drawingManager?.isActive === true;
+
+      if (isDrawingActive) {
+        return;
+      }
+
+      const newEquippedState = !currentState.isViewmasterEquipped;
+      this.gameManager.setState({
+        isViewmasterEquipped: newEquippedState,
+        viewmasterManuallyRemoved: false,
+      });
+    };
+
+    spaceBarHint._viewmasterClickHandler = handleButtonClick;
+    spaceBarHint.addEventListener("click", handleButtonClick);
+    spaceBarHint.addEventListener("touchend", (e) => {
+      handleButtonClick(e);
+    });
   }
 
   handleKeyDown(event) {
