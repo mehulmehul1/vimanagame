@@ -22,7 +22,7 @@ class VideoManager {
     this.camera = options.camera;
     this.gizmoManager = options.gizmoManager; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For checking if loading is complete
-    this.logger = new Logger("VideoManager", true);
+    this.logger = new Logger("VideoManager", false);
 
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
