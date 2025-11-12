@@ -102,23 +102,6 @@ renderer.outputColorSpace = THREE.SRGBColorSpace; // Proper color space
 renderer.domElement.style.opacity = "0"; // Hide renderer until loading is complete
 document.body.appendChild(renderer.domElement);
 
-// Create a SparkRenderer with depth of field effect
-const apertureSize = 0.01; // Very small aperture for subtle DoF
-const focalDistance = 6.0;
-const apertureAngle = 2 * Math.atan((0.5 * apertureSize) / focalDistance);
-
-logger.log("Creating SparkRenderer...");
-const spark = new SparkRenderer({
-  renderer,
-  apertureAngle: apertureAngle,
-  focalDistance: focalDistance,
-  maxStdDev: Math.sqrt(8),
-  minAlpha: 0.8 * (1.0 / 255.0),
-});
-spark.renderOrder = 9998;
-scene.add(spark);
-logger.log("✅ SparkRenderer created");
-
 // Initialize game manager early to check for debug spawn
 const gameManager = new GameManager();
 
@@ -181,6 +164,34 @@ if (urlProfile && ["mobile", "laptop", "desktop", "max"].includes(urlProfile)) {
 // Apply the determined profile
 optionsMenu.setPerformanceProfile(profileToUse);
 logger.log(`✅ Performance profile set to ${profileToUse} (${profileSource})`);
+
+// Create a SparkRenderer with depth of field effect
+// maxStdDev is set based on performance profile
+const apertureSize = 0.01; // Very small aperture for subtle DoF
+const focalDistance = 6.0;
+const apertureAngle = 2 * Math.atan((0.5 * apertureSize) / focalDistance);
+
+// Calculate maxStdDev based on performance profile
+let maxStdDev;
+if (profileToUse === "desktop" || profileToUse === "max") {
+  maxStdDev = Math.sqrt(8); // Current value for Desktop/Max
+} else if (profileToUse === "laptop") {
+  maxStdDev = 6;
+} else {
+  maxStdDev = 4; // Mobile
+}
+
+logger.log("Creating SparkRenderer...");
+const spark = new SparkRenderer({
+  renderer,
+  apertureAngle: apertureAngle,
+  focalDistance: focalDistance,
+  maxStdDev: maxStdDev,
+  minAlpha: 0.001,
+});
+spark.renderOrder = 9998;
+scene.add(spark);
+logger.log("✅ SparkRenderer created");
 
 // Initialize scene manager (objects will be loaded by gameManager based on state)
 // Pass loadingScreen for progress tracking, renderer for contact shadows, gameManager for state updates
