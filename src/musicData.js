@@ -76,16 +76,7 @@ export const musicTracks = {
     preload: false,
     criteria: {
       currentState: {
-        $in: [
-          GAME_STATES.POST_CURSOR,
-          GAME_STATES.OUTRO,
-          GAME_STATES.OUTRO_LECLAIRE,
-          GAME_STATES.OUTRO_CAT,
-          GAME_STATES.OUTRO_CZAR,
-          GAME_STATES.OUTRO_CREDITS,
-          GAME_STATES.OUTRO_MOVIE,
-          GAME_STATES.GAME_OVER,
-        ],
+        $gte: GAME_STATES.POST_CURSOR,
       },
     },
     fadeTime: 0,
