@@ -54,9 +54,9 @@
     font-size: clamp(24px, 5vw, 36px);
   }
 
-  /* When mobile button is visible, position captions below it */
-  /* But after CURSOR/CURSOR_FINAL states, return captions to top */
-  body:has(#space-bar-hint.mobile-button):not(.post-cursor-gameplay) #dialog-caption {
+  /* When mobile button is visible during cursor gameplay, position captions below it */
+  /* After CURSOR/CURSOR_FINAL states, captions return to top */
+  body.cursor-gameplay:has(#space-bar-hint.mobile-button) #dialog-caption {
     top: calc(5% + 80px);
     max-width: 90%;
     left: 0;

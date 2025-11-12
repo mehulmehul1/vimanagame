@@ -150,9 +150,17 @@ export class DrawingManager {
           }
 
           // Set initial body class for caption positioning
-          if (currentState.currentState >= GAME_STATES.POST_CURSOR) {
+          const isCursorGameplay =
+            currentState.currentState === GAME_STATES.CURSOR ||
+            currentState.currentState === GAME_STATES.CURSOR_FINAL;
+          if (isCursorGameplay) {
+            document.body.classList.add("cursor-gameplay");
+            document.body.classList.remove("post-cursor-gameplay");
+          } else if (currentState.currentState >= GAME_STATES.POST_CURSOR) {
             document.body.classList.add("post-cursor-gameplay");
+            document.body.classList.remove("cursor-gameplay");
           } else {
+            document.body.classList.remove("cursor-gameplay");
             document.body.classList.remove("post-cursor-gameplay");
           }
         }
@@ -173,10 +181,18 @@ export class DrawingManager {
         // Update rune visibility based on viewmaster equipped state
         this.updateRuneVisibility(newState);
 
-        // Add/remove body class for caption positioning after cursor gameplay
-        if (newState.currentState >= GAME_STATES.POST_CURSOR) {
+        // Add/remove body class for caption positioning
+        const isCursorGameplay =
+          newState.currentState === GAME_STATES.CURSOR ||
+          newState.currentState === GAME_STATES.CURSOR_FINAL;
+        if (isCursorGameplay) {
+          document.body.classList.add("cursor-gameplay");
+          document.body.classList.remove("post-cursor-gameplay");
+        } else if (newState.currentState >= GAME_STATES.POST_CURSOR) {
           document.body.classList.add("post-cursor-gameplay");
+          document.body.classList.remove("cursor-gameplay");
         } else {
+          document.body.classList.remove("cursor-gameplay");
           document.body.classList.remove("post-cursor-gameplay");
         }
       });
