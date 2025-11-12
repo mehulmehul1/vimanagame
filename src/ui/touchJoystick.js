@@ -25,6 +25,12 @@ export class TouchJoystick {
     this.deltaY = 0;
     this.speedMultiplier = 0; // Speed multiplier based on stick distance (0 to 1)
 
+    // Performance optimization state
+    this.unlockedThisSession = false; // Track if we've unlocked during this touch session
+    this.pendingVisualUpdate = false; // Track if RAF is scheduled
+    this.pendingDx = 0; // Pending visual position X
+    this.pendingDy = 0; // Pending visual position Y
+
     // Create DOM elements
     this.createElements();
     this.setupEventListeners();
@@ -66,7 +72,7 @@ export class TouchJoystick {
       border-radius: 50%;
       left: 50%;
       top: 50%;
-      transform: translate(-50%, -50%);
+      transform: translate3d(-50%, -50%, 0);
       pointer-events: none;
       transition: background 0.2s;
     `;
@@ -83,11 +89,12 @@ export class TouchJoystick {
     this.container.addEventListener(
       "touchstart",
       (e) => {
-        // Audio/video unlocking is handled by global unlockAudioOnInteraction handler
-        // (in capture phase, so it fires before this handler)
-        // Just call it to refresh gesture context if needed
-        if (window.unlockAudioOnInteraction) {
+        // Unlock audio/video once per touch session
+        // The global unlockAudioOnInteraction handler also fires in capture phase,
+        // but we call it here explicitly to ensure gesture context is established
+        if (window.unlockAudioOnInteraction && !this.unlockedThisSession) {
           window.unlockAudioOnInteraction();
+          this.unlockedThisSession = true;
         }
 
         e.preventDefault();
@@ -102,6 +109,7 @@ export class TouchJoystick {
         this.centerY = rect.top + rect.height / 2;
 
         this.active = true;
+        this.unlockedThisSession = false; // Reset for new touch session
         this.container.style.opacity = "1";
         this.stick.style.background = "rgba(255, 255, 255, 0.8)";
 
@@ -120,11 +128,8 @@ export class TouchJoystick {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
           if (touch.identifier === this.touchId) {
-            // Refresh gesture context during long holds (iOS Safari gesture context can expire)
-            // Call unlock on touchmove to maintain gesture context throughout the hold
-            if (window.unlockAudioOnInteraction) {
-              window.unlockAudioOnInteraction();
-            }
+            // Unlock only once per touch session (already done on touchstart)
+            // No need to unlock on touchmove - gesture context is established on touchstart
 
             e.preventDefault();
             this.updatePosition(touch.clientX, touch.clientY);
@@ -143,12 +148,16 @@ export class TouchJoystick {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
         if (touch.identifier === this.touchId) {
-          // CRITICAL: Unlock on touchend for long holds
+          // CRITICAL: Unlock on touchend for long holds (only if not already unlocked)
           // iOS Safari may not establish gesture context on long holds (touchstart),
           // but it WILL establish it on touchend after a hold
           // This ensures audio/video can play after releasing a long hold
-          if (window.unlockAudioOnInteraction) {
+          if (
+            window.unlockAudioOnInteraction &&
+            !this.unlockedThisSession
+          ) {
             window.unlockAudioOnInteraction();
+            this.unlockedThisSession = true;
           }
 
           this.reset();
@@ -169,27 +178,27 @@ export class TouchJoystick {
     let dx = touchX - this.centerX;
     let dy = touchY - this.centerY;
 
-    // Calculate distance and constrain to max
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Calculate squared distance first (avoid sqrt if possible)
+    const distanceSq = dx * dx + dy * dy;
+    const maxDistanceSq = this.maxDistance * this.maxDistance;
 
-    if (distance > this.maxDistance) {
+    // Constrain to max distance if needed
+    if (distanceSq > maxDistanceSq) {
+      const distance = Math.sqrt(distanceSq);
       const angle = Math.atan2(dy, dx);
       dx = Math.cos(angle) * this.maxDistance;
       dy = Math.sin(angle) * this.maxDistance;
     }
 
-    // Update stick visual position
-    this.stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-
     // Store current position
     this.currentX = dx;
     this.currentY = dy;
 
-    // Calculate normalized delta (-1 to 1)
+    // Calculate normalized delta (-1 to 1) - immediate for input responsiveness
     this.deltaX = dx / this.maxDistance;
     this.deltaY = dy / this.maxDistance;
 
-    // Calculate raw magnitude (before deadzone)
+    // Calculate raw magnitude (before deadzone) - reuse distance calculation
     const rawMagnitude = Math.sqrt(
       this.deltaX * this.deltaX + this.deltaY * this.deltaY
     );
@@ -213,6 +222,26 @@ export class TouchJoystick {
       this.deltaX *= scale;
       this.deltaY *= scale;
     }
+
+    // Schedule visual update via requestAnimationFrame (debounced to 60fps)
+    this.pendingDx = dx;
+    this.pendingDy = dy;
+    if (!this.pendingVisualUpdate) {
+      this.pendingVisualUpdate = true;
+      requestAnimationFrame(() => {
+        this.updateVisualPosition();
+      });
+    }
+  }
+
+  /**
+   * Update visual stick position (called via requestAnimationFrame)
+   * @private
+   */
+  updateVisualPosition() {
+    this.pendingVisualUpdate = false;
+    // Use transform3d for better performance (GPU acceleration)
+    this.stick.style.transform = `translate3d(calc(-50% + ${this.pendingDx}px), calc(-50% + ${this.pendingDy}px), 0)`;
   }
 
   /**
@@ -226,9 +255,13 @@ export class TouchJoystick {
     this.deltaX = 0;
     this.deltaY = 0;
     this.speedMultiplier = 0;
+    this.pendingDx = 0;
+    this.pendingDy = 0;
+    this.pendingVisualUpdate = false;
+    this.unlockedThisSession = false;
 
     // Reset visual
-    this.stick.style.transform = "translate(-50%, -50%)";
+    this.stick.style.transform = "translate3d(-50%, -50%, 0)";
     this.container.style.opacity = "0.6";
     this.stick.style.background = "rgba(255, 255, 255, 0.5)";
   }
