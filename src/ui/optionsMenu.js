@@ -79,7 +79,7 @@ class OptionsMenu {
               class="option-slider"
               min="0" 
               max="100" 
-              value="60"
+              value="50"
             >
           </div>
 
@@ -95,7 +95,7 @@ class OptionsMenu {
               class="option-slider"
               min="0" 
               max="100" 
-              value="50"
+              value="80"
             >
           </div>
 
@@ -280,7 +280,7 @@ class OptionsMenu {
         if (e.target.checked) {
           const newProfile = e.target.value;
           const oldProfile = this.settings.performanceProfile;
-          
+
           // Only show confirmation if profile actually changed
           if (newProfile !== oldProfile) {
             this.showRefreshConfirmation(newProfile, oldProfile);
@@ -290,10 +290,16 @@ class OptionsMenu {
     });
 
     // Refresh confirmation modal buttons
-    const refreshConfirmModal = document.getElementById("refresh-confirm-modal");
+    const refreshConfirmModal = document.getElementById(
+      "refresh-confirm-modal"
+    );
     const refreshConfirmOk = document.getElementById("refresh-confirm-ok");
-    const refreshConfirmCancel = document.getElementById("refresh-confirm-cancel");
-    const refreshConfirmOverlay = refreshConfirmModal?.querySelector(".refresh-confirm-overlay");
+    const refreshConfirmCancel = document.getElementById(
+      "refresh-confirm-cancel"
+    );
+    const refreshConfirmOverlay = refreshConfirmModal?.querySelector(
+      ".refresh-confirm-overlay"
+    );
 
     if (refreshConfirmOk) {
       refreshConfirmOk.addEventListener("click", () => {
@@ -529,7 +535,9 @@ class OptionsMenu {
    */
   setPerformanceProfile(profile) {
     if (!["mobile", "laptop", "max"].includes(profile)) {
-      this.logger.warn(`Invalid performance profile: ${profile}, defaulting to "max"`);
+      this.logger.warn(
+        `Invalid performance profile: ${profile}, defaulting to "max"`
+      );
       profile = "max";
     }
     this.settings.performanceProfile = profile;
@@ -557,7 +565,7 @@ class OptionsMenu {
    */
   registerWithUIManager(uiManager) {
     this.uiManager = uiManager;
-    
+
     // Register the menu element
     this.uiManager.registerElement(
       "options-menu",
@@ -611,7 +619,7 @@ class OptionsMenu {
       // Save the new performance profile
       this.settings.performanceProfile = this.pendingProfileChange;
       this.saveSettings();
-      
+
       // Reload the page
       window.location.reload();
     }
@@ -625,7 +633,7 @@ class OptionsMenu {
     if (modal) {
       modal.classList.add("hidden");
     }
-    
+
     // Revert radio button to current setting
     const performanceRadios = document.querySelectorAll(
       'input[name="performance-profile"]'
@@ -633,7 +641,7 @@ class OptionsMenu {
     performanceRadios.forEach((radio) => {
       radio.checked = radio.value === this.settings.performanceProfile;
     });
-    
+
     this.pendingProfileChange = null;
   }
 

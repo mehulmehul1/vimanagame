@@ -25,33 +25,17 @@ import { findMatchingEffect } from "./vfxManager.js";
  * Controls color-to-grayscale transitions
  */
 export const desaturationEffects = {
-  // Default: Color for most of the game
-  defaultColor: {
-    id: "defaultColor",
+  // Default: Grayscale from start of game
+  defaultGrayscale: {
+    id: "defaultGrayscale",
     parameters: {
-      target: 0.0, // Full color
-      duration: 2.0,
-      mode: "fade",
-    },
-    criteria: {
-      currentState: {
-        $gte: GAME_STATES.START_SCREEN,
-        $lt: GAME_STATES.POST_DRIVE_BY,
-      },
-    },
-    priority: 0,
-  },
-
-  preOfficeGrayscale: {
-    id: "preOfficeGrayscale",
-    parameters: {
-      target: 1.0, // Grayscale
+      target: 1.0, // Full grayscale
       duration: 0.0,
       mode: "fade",
     },
     criteria: {
       currentState: {
-        $gte: GAME_STATES.POST_DRIVE_BY,
+        $gte: GAME_STATES.START_SCREEN,
         $lt: GAME_STATES.VIEWMASTER, // Stop before VIEWMASTER so officeColor can take over
       },
     },

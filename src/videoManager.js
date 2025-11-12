@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { videos } from "./videoData.js";
-import { checkCriteria } from "./utils/criteriaHelper.js";
+import {
+  checkCriteria,
+  couldCriteriaStillMatch,
+} from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
 
 /**
@@ -86,6 +89,79 @@ class VideoManager {
     }
 
     return null;
+  }
+
+  /**
+   * Check if a video could be needed in the future via playNext or event triggers
+   * @param {string} videoId - Video ID to check
+   * @returns {boolean} True if video could be needed
+   * @private
+   */
+  async _couldVideoBeNeeded(videoId) {
+    try {
+      // Use already-imported videos, or import if needed
+      const videoData = videos || (await import("./videoData.js")).videos;
+      if (!videoData) return true; // Be conservative if can't access video data
+
+      // Check if any other video has this video as a playNext target
+      for (const [otherVideoId, otherVideoConfig] of Object.entries(
+        videoData
+      )) {
+        if (otherVideoId === videoId) continue;
+
+        if (otherVideoConfig.playNext) {
+          const playNextId =
+            typeof otherVideoConfig.playNext === "string"
+              ? otherVideoConfig.playNext
+              : otherVideoConfig.playNext?.id;
+
+          if (playNextId === videoId) {
+            // This video is a playNext target - check if the parent video could still play
+            const parentSpawnCriteria =
+              otherVideoConfig.spawnCriteria || otherVideoConfig.criteria;
+            if (parentSpawnCriteria && this.gameManager) {
+              const state = this.gameManager.getState();
+              const couldStillMatch = couldCriteriaStillMatch(
+                state,
+                parentSpawnCriteria
+              );
+              if (couldStillMatch) {
+                return true; // Parent video could still play, so this video could be needed
+              }
+            } else if (!parentSpawnCriteria) {
+              // Parent has no criteria - could be event-triggered, be conservative
+              return true;
+            }
+          }
+        }
+      }
+
+      // Check if this video is event-triggered (autoPlay: false with spawnCriteria suggests event-based)
+      const videoConfig = videoData[videoId];
+      if (videoConfig) {
+        const hasSpawnCriteria =
+          videoConfig.spawnCriteria || videoConfig.criteria;
+        if (hasSpawnCriteria && videoConfig.autoPlay === false) {
+          // Could be event-triggered (like punch/punchSafari), be conservative
+          // Check if spawn criteria could still match
+          if (this.gameManager) {
+            const state = this.gameManager.getState();
+            const couldStillMatch = couldCriteriaStillMatch(
+              state,
+              hasSpawnCriteria
+            );
+            if (couldStillMatch) {
+              return true; // Spawn criteria could still match, event might fire
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore import errors, be conservative
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -393,6 +469,48 @@ class VideoManager {
         ) {
           // Check once - skip if already played
           if (videoConfig.once && hasPlayedOnce) {
+            // If once: true and already played, dispose if criteria doesn't match current state
+            // (since it will never play again even if criteria matches in future)
+            const spawnCriteria =
+              videoConfig.spawnCriteria || videoConfig.criteria;
+            if (spawnCriteria && exists) {
+              const currentlyMatches = checkCriteria(state, spawnCriteria);
+
+              // For state-based criteria: check if we're past the required state
+              const willNeverMatch = !couldCriteriaStillMatch(
+                state,
+                spawnCriteria
+              );
+
+              // Check if video could be needed via playNext or event triggers
+              const couldBeNeeded = await this._couldVideoBeNeeded(videoId);
+
+              // Dispose if:
+              // 1. Criteria doesn't match now AND won't match again (state-based), OR
+              // 2. Criteria doesn't match now (for boolean flags, assume they won't be set again)
+              // 3. AND video is not needed via playNext or event triggers
+              if (!currentlyMatches && !couldBeNeeded) {
+                const shouldDispose =
+                  willNeverMatch || !spawnCriteria.currentState;
+                if (shouldDispose) {
+                  const wasEarlyPreloaded =
+                    this.earlyPreloadedVideos.has(videoId);
+                  if (!wasEarlyPreloaded) {
+                    player.destroy();
+                    this.videoPlayers.delete(videoId);
+                    this.logger.log(
+                      `Disposed video "${videoId}" (once: true, already played, criteria no longer matches, not needed via playNext/events)`
+                    );
+                    continue;
+                  }
+                }
+              } else if (couldBeNeeded) {
+                this.logger.log(
+                  `Keeping video "${videoId}" (once: true, already played, but could be needed via playNext/events)`
+                );
+              }
+            }
+
             this.logger.log(
               `Skipping video "${videoId}" (already played once)`
             );
@@ -961,15 +1079,16 @@ class VideoManager {
   }
 
   /**
-   * Load deferred videos (preload: false) - fetch all of them regardless of state
-   * Also preloads critical Safari videos (like catSafari) that need to be ready early
+   * Load deferred videos (preload: false) and preload videos (preload: true)
+   * Fetches all of them regardless of state - they'll be hidden until criteria match
    * Called after loading screen completes
    */
   loadDeferredVideos() {
     // Find all videos with preload: false
     const deferredVideoIds = [];
-    // Also find critical Safari videos that should be preloaded early even with preload: true
-    const criticalSafariVideoIds = [];
+    // Also find videos with preload: true that should be loaded during loading screen
+    // (regardless of spawn criteria - they'll be hidden until criteria match)
+    const preloadVideoIds = [];
 
     const state = this.gameManager?.getState() || {};
     const isSafari = state.isSafari || false;
@@ -983,20 +1102,20 @@ class VideoManager {
       const shouldPreload = videoConfig.preload !== false; // Default to true
       if (!shouldPreload) {
         deferredVideoIds.push(videoId);
-      } else if (isSafari && videoId === "catSafari") {
-        // Preload catSafari early for Safari even though it has preload: true
-        // This ensures it's created and unlocked before heardCat triggers
-        criticalSafariVideoIds.push(videoId);
+      } else {
+        // Videos with preload: true should be loaded during loading screen
+        // even if spawn criteria doesn't match yet (they'll be hidden)
+        preloadVideoIds.push(videoId);
       }
     }
 
-    const allVideoIds = [...deferredVideoIds, ...criticalSafariVideoIds];
+    const allVideoIds = [...deferredVideoIds, ...preloadVideoIds];
     if (allVideoIds.length === 0) {
       return;
     }
 
     this.logger.log(
-      `Loading ${allVideoIds.length} videos (${deferredVideoIds.length} deferred, ${criticalSafariVideoIds.length} critical Safari)`
+      `Loading ${allVideoIds.length} videos (${deferredVideoIds.length} deferred, ${preloadVideoIds.length} preload)`
     );
 
     // Create video players for all videos (even if they were already created)
@@ -1059,7 +1178,7 @@ class VideoPlayer {
     this.scene = options.scene;
     this.gameManager = options.gameManager;
     this.camera = options.camera;
-    this.logger = new Logger("VideoPlayer", true);
+    this.logger = new Logger("VideoPlayer", false);
 
     // Video configuration
     this.config = {
