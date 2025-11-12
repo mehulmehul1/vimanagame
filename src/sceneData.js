@@ -675,7 +675,7 @@ export const sceneObjects = {
   interiorLaptop: {
     id: "interior",
     type: "splat",
-    path: "/green_room_1m.sog",
+    path: "/green-room-1m.sog",
     description:
       "Main interior office environment splat mesh (laptop optimized)",
     position: interiorPosition,
@@ -696,7 +696,7 @@ export const sceneObjects = {
   interiorMobile: {
     id: "interior",
     type: "splat",
-    path: "/green_room_1m.sog",
+    path: "/green-room-1m.sog",
     description:
       "Main interior office environment splat mesh (mobile optimized)",
     position: interiorPosition,

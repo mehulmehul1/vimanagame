@@ -44,6 +44,9 @@ class OptionsMenu {
     // Apply initial settings (includes updateUI)
     this.applySettings();
 
+    // Update performance mode options based on platform
+    this.updatePerformanceModeOptions();
+
     // Register with UI manager if available (will be registered later if not available yet)
     if (this.uiManager) {
       this.registerWithUIManager(this.uiManager);
@@ -114,46 +117,16 @@ class OptionsMenu {
 
           <!-- Performance Profile -->
           <div class="option-group">
-            <label class="option-label">Performance Mode</label>
-            <div class="performance-mode-select">
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="performance-profile" 
-                  value="mobile"
-                  class="performance-radio"
-                >
-                <span>Mobile</span>
-              </label>
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="performance-profile" 
-                  value="laptop"
-                  class="performance-radio"
-                  checked
-                >
-                <span>Laptop</span>
-              </label>
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="performance-profile" 
-                  value="desktop"
-                  class="performance-radio"
-                >
-                <span>Desktop</span>
-              </label>
-              <label class="radio-label">
-                <input 
-                  type="radio" 
-                  name="performance-profile" 
-                  value="max"
-                  class="performance-radio"
-                >
-                <span>Max</span>
-              </label>
-            </div>
+            <label class="option-label" for="performance-profile">Performance Mode</label>
+            <select 
+              id="performance-profile" 
+              class="performance-select"
+            >
+              <option value="mobile">Mobile</option>
+              <option value="laptop" selected>Laptop</option>
+              <option value="desktop">Desktop</option>
+              <option value="max">Max</option>
+            </select>
           </div>
         </div>
       </div>
@@ -271,23 +244,19 @@ class OptionsMenu {
       this.saveSettings();
     });
 
-    // Performance Profile radio buttons
-    const performanceRadios = document.querySelectorAll(
-      'input[name="performance-profile"]'
-    );
-    performanceRadios.forEach((radio) => {
-      radio.addEventListener("change", (e) => {
-        if (e.target.checked) {
-          const newProfile = e.target.value;
-          const oldProfile = this.settings.performanceProfile;
+    // Performance Profile dropdown
+    const performanceSelect = document.getElementById("performance-profile");
+    if (performanceSelect) {
+      performanceSelect.addEventListener("change", (e) => {
+        const newProfile = e.target.value;
+        const oldProfile = this.settings.performanceProfile;
 
-          // Only show confirmation if profile actually changed
-          if (newProfile !== oldProfile) {
-            this.showRefreshConfirmation(newProfile, oldProfile);
-          }
+        // Only show confirmation if profile actually changed
+        if (newProfile !== oldProfile) {
+          this.showRefreshConfirmation(newProfile, oldProfile);
         }
       });
-    });
+    }
 
     // Refresh confirmation modal buttons
     const refreshConfirmModal = document.getElementById(
@@ -365,6 +334,9 @@ class OptionsMenu {
       document.exitPointerLock();
     }
 
+    // Update performance mode options (in case platform state changed)
+    this.updatePerformanceModeOptions();
+
     // Update UI to reflect current settings
     this.updateUI();
   }
@@ -409,9 +381,7 @@ class OptionsMenu {
     const sfxSlider = document.getElementById("sfx-volume");
     const sfxValue = document.getElementById("sfx-volume-value");
     const captionsEnabledCheckbox = document.getElementById("captions-enabled");
-    const performanceRadios = document.querySelectorAll(
-      'input[name="performance-profile"]'
-    );
+    const performanceSelect = document.getElementById("performance-profile");
 
     const musicPercent = Math.round(this.settings.musicVolume * 100);
     const sfxPercent = Math.round(this.settings.sfxVolume * 100);
@@ -426,10 +396,10 @@ class OptionsMenu {
 
     captionsEnabledCheckbox.checked = this.settings.captionsEnabled;
 
-    // Update performance profile radio buttons
-    performanceRadios.forEach((radio) => {
-      radio.checked = radio.value === this.settings.performanceProfile;
-    });
+    // Update performance profile dropdown
+    if (performanceSelect) {
+      performanceSelect.value = this.settings.performanceProfile;
+    }
   }
 
   /**
@@ -549,12 +519,10 @@ class OptionsMenu {
     }
     // Update UI if menu is already created
     if (this.menuElement) {
-      const performanceRadios = document.querySelectorAll(
-        'input[name="performance-profile"]'
-      );
-      performanceRadios.forEach((radio) => {
-        radio.checked = radio.value === profile;
-      });
+      const performanceSelect = document.getElementById("performance-profile");
+      if (performanceSelect) {
+        performanceSelect.value = profile;
+      }
     }
   }
 
@@ -634,15 +602,68 @@ class OptionsMenu {
       modal.classList.add("hidden");
     }
 
-    // Revert radio button to current setting
-    const performanceRadios = document.querySelectorAll(
-      'input[name="performance-profile"]'
-    );
-    performanceRadios.forEach((radio) => {
-      radio.checked = radio.value === this.settings.performanceProfile;
-    });
+    // Revert dropdown to current setting
+    const performanceSelect = document.getElementById("performance-profile");
+    if (performanceSelect) {
+      performanceSelect.value = this.settings.performanceProfile;
+    }
 
     this.pendingProfileChange = null;
+  }
+
+  /**
+   * Check if running on localhost or IP address (not a named domain)
+   * @returns {boolean} True if on localhost or IP address
+   */
+  isLocalhostOrIP() {
+    const hostname = window.location.hostname;
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]" ||
+      /^\d+\.\d+\.\d+\.\d+$/.test(hostname) || // IPv4
+      /^\[[0-9a-fA-F:]+\]$/.test(hostname) // IPv6 in brackets
+    );
+  }
+
+  /**
+   * Update performance mode dropdown options based on platform
+   * Disables non-mobile options on mobile devices (unless on localhost/IP)
+   */
+  updatePerformanceModeOptions() {
+    const performanceSelect = document.getElementById("performance-profile");
+    if (!performanceSelect) return;
+
+    // Check if we're on mobile
+    const isMobile =
+      this.gameManager?.getState?.()?.isMobile ||
+      "ontouchstart" in window ||
+      navigator.maxTouchPoints > 0;
+
+    // Check if we're on localhost or IP address
+    const isLocalOrIP = this.isLocalhostOrIP();
+
+    // If on mobile and not on localhost/IP, disable non-mobile options
+    if (isMobile && !isLocalOrIP) {
+      const options = performanceSelect.querySelectorAll("option");
+      options.forEach((option) => {
+        if (option.value !== "mobile") {
+          option.disabled = true;
+        }
+      });
+      // If current selection is not mobile, force it to mobile
+      if (performanceSelect.value !== "mobile") {
+        this.settings.performanceProfile = "mobile";
+        performanceSelect.value = "mobile";
+        this.saveSettings();
+      }
+    } else {
+      // Enable all options
+      const options = performanceSelect.querySelectorAll("option");
+      options.forEach((option) => {
+        option.disabled = false;
+      });
+    }
   }
 
   /**
