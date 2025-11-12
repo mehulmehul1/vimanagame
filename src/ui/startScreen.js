@@ -940,7 +940,20 @@ export class StartScreen {
           targetDirection
         );
 
+        // Safety check: if quaternions are invalid, fall back to simple lerp
+        const startQuatValid = !isNaN(startQuat.w) && isFinite(startQuat.w);
+        const targetQuatValid = !isNaN(targetQuat.w) && isFinite(targetQuat.w);
+
+        if (!startQuatValid || !targetQuatValid) {
+          // Fall back to simple vector lerp if quaternion creation failed
+          lookDirection = new THREE.Vector3()
+            .lerpVectors(startDirection, targetDirection, eased)
+            .normalize();
+          return true;
+        }
+
         // Check if shortest path would pass through +X by sampling intermediate directions
+        // We want to ensure rotation always stays toward -X (x should stay negative or near zero)
         let wouldPassThroughPositiveX = false;
         for (let i = 0.1; i < 0.9; i += 0.1) {
           const testQuat = new THREE.Quaternion().slerpQuaternions(
@@ -951,8 +964,8 @@ export class StartScreen {
           const testDir = new THREE.Vector3(0, 0, -1)
             .applyQuaternion(testQuat)
             .normalize();
-          if (testDir.x > 0.05) {
-            // Threshold to detect if rotation would go through +X
+          // If X becomes positive during rotation, we need to go the other way
+          if (testDir.x > 0.01) {
             wouldPassThroughPositiveX = true;
             break;
           }
@@ -962,30 +975,111 @@ export class StartScreen {
         // We'll create a quaternion that represents the same target rotation but via the long path
         let finalTargetQuat = targetQuat;
         if (wouldPassThroughPositiveX) {
-          // Calculate relative rotation from start to target: target = start * relative
-          // So relative = start.invert() * target
-          const startQuatInv = startQuat.clone().invert();
-          const relativeQuat = new THREE.Quaternion().multiplyQuaternions(
-            startQuatInv,
-            targetQuat
-          );
+          // Check if start and target are too close (near-identity rotation)
+          const dot = startDirection.dot(targetDirection);
+          if (Math.abs(dot) > 0.999) {
+            // Vectors are nearly parallel, skip long path calculation
+            finalTargetQuat = targetQuat;
+          } else {
+            // Calculate relative rotation from start to target: target = start * relative
+            // So relative = start.invert() * target
+            const startQuatInv = startQuat.clone().invert();
+            const relativeQuat = new THREE.Quaternion().multiplyQuaternions(
+              startQuatInv,
+              targetQuat
+            );
 
-          // Get the rotation axis and angle
-          const axis = new THREE.Vector3();
-          relativeQuat.getAxisAngle(axis);
-          // Extract angle from quaternion: angle = 2 * acos(|w|)
-          const angle =
-            2 * Math.acos(Math.min(1, Math.max(-1, Math.abs(relativeQuat.w))));
+            // Extract axis and angle manually from quaternion
+            // For quaternion q = (x, y, z, w): angle = 2*acos(|w|), axis = (x,y,z)/sin(angle/2)
+            // Normalize quaternion first to ensure accuracy
+            const normalizedQuat = relativeQuat.clone().normalize();
+            const w = Math.min(1, Math.max(-1, Math.abs(normalizedQuat.w)));
+            const angle = 2 * Math.acos(w);
 
-          // Go the long way: use (2π - angle) instead of angle to avoid passing through +X
-          const longWayQuat = new THREE.Quaternion().setFromAxisAngle(
-            axis,
-            2 * Math.PI - angle
-          );
-          finalTargetQuat = new THREE.Quaternion().multiplyQuaternions(
-            startQuat,
-            longWayQuat
-          );
+            // Safety check: if angle is invalid or too small, fall back to regular path
+            const isValidAngle =
+              !isNaN(angle) &&
+              isFinite(angle) &&
+              angle > 0.001 &&
+              angle < Math.PI * 1.9;
+
+            if (isValidAngle) {
+              // Calculate axis: (x, y, z) / sin(angle/2)
+              const sinHalfAngle = Math.sin(angle / 2);
+              if (sinHalfAngle > 0.001) {
+                const axis = new THREE.Vector3(
+                  normalizedQuat.x / sinHalfAngle,
+                  normalizedQuat.y / sinHalfAngle,
+                  normalizedQuat.z / sinHalfAngle
+                ).normalize();
+
+                // Validate axis
+                const isValidAxis =
+                  axis.lengthSq() > 0.001 &&
+                  !isNaN(axis.x) &&
+                  !isNaN(axis.y) &&
+                  !isNaN(axis.z) &&
+                  isFinite(axis.x) &&
+                  isFinite(axis.y) &&
+                  isFinite(axis.z);
+
+                if (isValidAxis) {
+                  // Try both rotation directions and pick the one that avoids +X
+                  // Option 1: Shortest path (already tested, goes through +X)
+                  // Option 2: Long way - negate axis and use complementary angle
+                  const reversedAxis = axis.clone().negate();
+                  const longWayAngle = 2 * Math.PI - angle;
+                  const longWayQuat = new THREE.Quaternion().setFromAxisAngle(
+                    reversedAxis,
+                    longWayAngle
+                  );
+                  const longWayTargetQuat =
+                    new THREE.Quaternion().multiplyQuaternions(
+                      startQuat,
+                      longWayQuat
+                    );
+
+                  // Test if long way avoids +X (should always stay toward -X)
+                  let longWayAvoidsPositiveX = true;
+                  for (let i = 0.1; i < 0.9; i += 0.1) {
+                    const testQuat = new THREE.Quaternion().slerpQuaternions(
+                      startQuat,
+                      longWayTargetQuat,
+                      i
+                    );
+                    const testDir = new THREE.Vector3(0, 0, -1)
+                      .applyQuaternion(testQuat)
+                      .normalize();
+                    if (testDir.x > 0.01) {
+                      longWayAvoidsPositiveX = false;
+                      break;
+                    }
+                  }
+
+                  // Use long way if it avoids +X, otherwise fall back to regular (shouldn't happen)
+                  if (longWayAvoidsPositiveX) {
+                    finalTargetQuat = longWayTargetQuat;
+                  }
+                }
+              }
+            }
+            // If invalid, fall back to regular targetQuat (shouldn't happen, but safety net)
+          }
+        }
+
+        // Final safety check: ensure finalTargetQuat is valid before slerping
+        const finalQuatValid =
+          !isNaN(finalTargetQuat.w) &&
+          isFinite(finalTargetQuat.w) &&
+          !isNaN(finalTargetQuat.x) &&
+          !isNaN(finalTargetQuat.y) &&
+          !isNaN(finalTargetQuat.z);
+        if (!finalQuatValid) {
+          // Fall back to simple lerp if quaternion is invalid
+          lookDirection = new THREE.Vector3()
+            .lerpVectors(startDirection, targetDirection, eased)
+            .normalize();
+          return true;
         }
 
         const slerpedQuat = new THREE.Quaternion().slerpQuaternions(
@@ -996,6 +1090,19 @@ export class StartScreen {
         lookDirection = new THREE.Vector3(0, 0, -1)
           .applyQuaternion(slerpedQuat)
           .normalize();
+
+        // Safety check: if lookDirection is invalid, fall back to lerping between start and target
+        if (
+          !lookDirection ||
+          lookDirection.lengthSq() < 0.001 ||
+          isNaN(lookDirection.x) ||
+          isNaN(lookDirection.y) ||
+          isNaN(lookDirection.z)
+        ) {
+          lookDirection = new THREE.Vector3()
+            .lerpVectors(startDirection, targetDirection, eased)
+            .normalize();
+        }
       }
 
       // Look in the calculated direction

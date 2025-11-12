@@ -845,19 +845,49 @@ class AnimationManager {
       this.playedAnimations.add(lookAtData.id);
     }
 
-    // For dynamic positioning, keep the function - don't resolve it here
-    // characterController will handle dynamic position functions
+    // For dynamic positioning, evaluate function once for simple rotations (like 180-degree turns)
+    // but keep function for tracking moving objects (like letterLookat)
     const resolvedData = { ...lookAtData };
-    // Only resolve if it's NOT a function (static position)
-    // If it's a function, pass it through so characterController can store it for continuous updates
-    if (typeof lookAtData.position !== "function") {
-      // Static position - no change needed
-    } else {
-      // Function - keep it as-is, characterController will handle it
-      if (this.debug) {
-        this.logger.log(
-          `Lookat '${lookAtData.id}' has dynamic position function - passing through to characterController`
-        );
+    if (typeof lookAtData.position === "function") {
+      // For shoulderTap (simple 180-degree rotation), evaluate once to avoid feedback loop
+      // For other lookats that need dynamic tracking, keep as function
+      if (lookAtData.id === "shoulderTap") {
+        try {
+          // Evaluate once at start - don't recalculate every frame
+          const pos = lookAtData.position(this.gameManager);
+          if (
+            pos &&
+            typeof pos.x === "number" &&
+            typeof pos.y === "number" &&
+            typeof pos.z === "number"
+          ) {
+            resolvedData.position = { x: pos.x, y: pos.y, z: pos.z };
+            this.logger.log(
+              `Lookat '${
+                lookAtData.id
+              }': Evaluated position function to [${pos.x.toFixed(
+                2
+              )}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}]`
+            );
+          } else {
+            this.logger.warn(
+              `Lookat '${lookAtData.id}': Position function returned invalid result, keeping as function`
+            );
+            // Keep as function if evaluation failed
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Lookat '${lookAtData.id}': Error evaluating position function: ${error.message}, keeping as function`
+          );
+          // Keep as function if evaluation threw error
+        }
+      } else {
+        // Keep function for dynamic tracking (e.g., letterLookat)
+        if (this.debug) {
+          this.logger.log(
+            `Lookat '${lookAtData.id}' has dynamic position function - passing through to characterController`
+          );
+        }
       }
     }
 
@@ -896,8 +926,12 @@ class AnimationManager {
     // Get lookat hold duration (separate from zoom hold duration)
     const lookAtHoldDuration = lookAtData.lookAtHoldDuration || 0;
 
-    // Call onStart callback if provided
-    if (lookAtData.onStart && typeof lookAtData.onStart === "function") {
+    // Call onStart callback if provided (skip if already called for shoulderTap)
+    if (
+      lookAtData.onStart &&
+      typeof lookAtData.onStart === "function" &&
+      lookAtData.id !== "shoulderTap"
+    ) {
       lookAtData.onStart(this.gameManager);
     }
 

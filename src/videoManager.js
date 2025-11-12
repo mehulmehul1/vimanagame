@@ -19,7 +19,7 @@ class VideoManager {
     this.camera = options.camera;
     this.gizmoManager = options.gizmoManager; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For checking if loading is complete
-    this.logger = new Logger("VideoManager", false);
+    this.logger = new Logger("VideoManager", true);
 
     // Track active video players
     this.videoPlayers = new Map(); // id -> VideoPlayer instance
@@ -39,6 +39,21 @@ class VideoManager {
     if (this.gameManager) {
       this.gameManager.on("state:changed", (newState, oldState) => {
         this.updateVideosForState(newState);
+      });
+
+      // Listen for shoulderTap 70% progress event to play punch video
+      this.gameManager.on("shoulderTap:70percent", () => {
+        const state = this.gameManager.getState();
+        const isSafari = state.isSafari || false;
+        const videoId = isSafari ? "punchSafari" : "punch";
+        const player = this.videoPlayers.get(videoId);
+
+        if (player && !player.isPlaying) {
+          this.logger.log(
+            `Playing "${videoId}" triggered by shoulderTap:70percent event`
+          );
+          this.playVideo(videoId);
+        }
       });
 
       // Handle initial state (defer to next tick to allow gizmoManager to be set)
@@ -468,6 +483,7 @@ class VideoManager {
     }
 
     // Resolve position (support functions for dynamic positioning)
+    // Store the function itself if it's a function, so it can be re-evaluated later
     const position =
       typeof videoConfig.position === "function"
         ? videoConfig.position(this.gameManager)
@@ -479,6 +495,10 @@ class VideoManager {
       camera: this.camera,
       videoPath: videoConfig.videoPath,
       position: position,
+      positionFunction:
+        typeof videoConfig.position === "function"
+          ? videoConfig.position
+          : null, // Store function for later re-evaluation
       rotation: videoConfig.rotation,
       scale: videoConfig.scale,
       loop: videoConfig.loop,
@@ -651,6 +671,31 @@ class VideoManager {
       if (!player) {
         return; // Video not found or creation failed
       }
+    }
+
+    // Re-evaluate position if it's a function (for dynamic positioning)
+    // This ensures position is calculated at the moment of playback, not creation
+    // Check both the stored positionFunction and videoConfig.position (for backwards compatibility)
+    const positionFunction =
+      player.config.positionFunction ||
+      (typeof videoConfig.position === "function"
+        ? videoConfig.position
+        : null);
+
+    if (positionFunction) {
+      const currentPosition = positionFunction(this.gameManager);
+      player.setPosition(
+        currentPosition.x,
+        currentPosition.y,
+        currentPosition.z
+      );
+      // Update stored position in config
+      player.config.position = currentPosition;
+      this.logger.log(
+        `Re-evaluated position for "${videoId}": [${currentPosition.x.toFixed(
+          2
+        )}, ${currentPosition.y.toFixed(2)}, ${currentPosition.z.toFixed(2)}]`
+      );
     }
 
     // Make sure video is visible when playing
@@ -1014,12 +1059,13 @@ class VideoPlayer {
     this.scene = options.scene;
     this.gameManager = options.gameManager;
     this.camera = options.camera;
-    this.logger = new Logger("VideoPlayer", false);
+    this.logger = new Logger("VideoPlayer", true);
 
     // Video configuration
     this.config = {
       videoPath: options.videoPath,
       position: options.position || { x: 0, y: 0, z: 0 },
+      positionFunction: options.positionFunction || null, // Store function for dynamic positioning
       rotation: options.rotation || { x: 0, y: 0, z: 0 },
       scale: options.scale || { x: 1, y: 1, z: 1 },
       loop: options.loop !== undefined ? options.loop : false,

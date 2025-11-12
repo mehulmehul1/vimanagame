@@ -493,46 +493,41 @@ export const cameraAnimations = {
   shoulderTap: {
     id: "shoulderTap",
     type: "lookat",
-    position: (() => {
-      let cachedPos = null;
-      return (gameManager) => {
-        if (cachedPos) return cachedPos;
-        if (!gameManager?.characterController) {
-          cachedPos = { x: 0, y: 1.5, z: 0 };
-          return cachedPos;
-        }
-        const playerPos = gameManager.characterController.getPosition({
-          x: 0,
-          y: 0,
-          z: 0,
-        });
-        const backward = new THREE.Vector3(0, 0, 1);
-        const camera = gameManager.characterController.camera;
-        if (camera) {
-          backward.applyQuaternion(camera.quaternion);
-          // Rotate slightly left (around up axis) to guarantee left rotation
-          const leftRotation = new THREE.Quaternion().setFromAxisAngle(
-            new THREE.Vector3(0, 1, 0),
-            -Math.PI * 0.01 // ~18 degrees left
-          );
-          backward.applyQuaternion(leftRotation);
-        }
-        cachedPos = {
-          x: playerPos.x + backward.x * 1.0,
-          y: playerPos.y + 1.4,
-          z: playerPos.z + backward.z * 1.0,
-        };
-        return cachedPos;
+    // Simple 180-degree rotation: look directly behind the camera
+    position: (gameManager) => {
+      const camera = gameManager?.characterController?.camera;
+      if (!camera) {
+        return { x: 0, y: 1.5, z: 0 };
+      }
+
+      // Get current camera forward direction
+      const forward = new THREE.Vector3(0, 0, -1);
+      forward.applyQuaternion(camera.quaternion);
+
+      // Reverse it to get backward direction (180 degrees)
+      forward.negate();
+
+      // Calculate point behind camera at reasonable distance
+      const distance = 2.0;
+      return {
+        x: camera.position.x + forward.x * distance,
+        y: camera.position.y + forward.y * distance,
+        z: camera.position.z + forward.z * distance,
       };
-    })(),
+    },
     transitionTime: 1.0,
     lookAtHoldDuration: 0,
     returnToOriginalView: false,
     criteria: { currentState: GAME_STATES.SHOULDER_TAP },
     priority: 100,
     playOnce: true,
+    delay: 1.0,
     onComplete: (gameManager) => {
-      gameManager.setState({ currentState: GAME_STATES.PUNCH_OUT });
+      // Add small delay before setting PUNCH_OUT to ensure lookAt fully completes
+      // This prevents the punchOut animation from starting while lookAt is still cleaning up
+      setTimeout(() => {
+        gameManager.setState({ currentState: GAME_STATES.PUNCH_OUT });
+      }, 50); // 50ms delay to ensure clean handoff
     },
   },
 

@@ -56,6 +56,8 @@ class CharacterController {
     this.lookAtDuration = 0;
     this.lookAtProgress = 0;
     this.lookAtStartQuat = new THREE.Quaternion();
+    this.lookAtId = null; // Store the lookAt animation ID
+    this.lookAtProgressEventEmitted = false; // Track if 70% event was emitted
     this.lookAtEndQuat = new THREE.Quaternion();
     this.lookAtOnComplete = null;
     this.lookAtDisabledInput = false;
@@ -582,6 +584,10 @@ class CharacterController {
 
       // Store restoreInput for use when completing dynamic lookat
       this.lookAtRestoreInput = restoreInput;
+
+      // Store lookAt ID and reset progress event flag
+      this.lookAtId = data.id || null;
+      this.lookAtProgressEventEmitted = false;
 
       this.lookAt(
         targetPos,
@@ -2531,6 +2537,21 @@ class CharacterController {
         ? this.lookAtReturnDuration
         : this.lookAtDuration;
       this.lookAtProgress += dt / currentDuration;
+
+      // Emit progress event at 55% for shoulderTap (only during initial transition, not return)
+      if (
+        !this.lookAtReturning &&
+        this.lookAtId === "shoulderTap" &&
+        !this.lookAtProgressEventEmitted &&
+        this.lookAtProgress >= 0.55 &&
+        this.gameManager
+      ) {
+        this.lookAtProgressEventEmitted = true;
+        this.gameManager.emit("shoulderTap:70percent", {
+          progress: this.lookAtProgress,
+          id: this.lookAtId,
+        });
+      }
 
       // Start DoF and zoom transitions when we reach the configured threshold (only during initial lookat, not return)
       if (!this.lookAtReturning) {

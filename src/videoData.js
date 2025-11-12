@@ -65,6 +65,7 @@
  * // or reference directly: videos.driveBy.position
  */
 
+import * as THREE from "three";
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
@@ -192,8 +193,15 @@ export const videos = {
   punch: {
     id: "punch",
     videoPath: "/video/punch.webm",
-    preload: false, // Load after loading screen
+    preload: true, // Load after loading screen
     position: (gameManager) => {
+      // Use stored position if available (calculated when SHOULDER_TAP state is set)
+      const state = gameManager?.getState() || {};
+      if (state.shoulderTapTargetPosition) {
+        return state.shoulderTapTargetPosition;
+      }
+
+      // Fallback: calculate if not stored yet
       if (!gameManager?.characterController) {
         logger.warn("Cannot get player position, using origin");
         return { x: 0, y: 1.8, z: 0 };
@@ -201,8 +209,8 @@ export const videos = {
 
       return gameManager.characterController.getPosition({
         x: 0,
-        y: 1.5,
-        z: 1.35,
+        y: 1.25,
+        z: -1.0,
       });
     },
     rotation: { x: 0, y: 0, z: 0 },
@@ -218,8 +226,8 @@ export const videos = {
         $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
-    autoPlay: true,
-    delay: 0.2,
+    autoPlay: false,
+    delay: 0,
     platform: "!safari", // Don't load on Safari (use punchSafari instead)
   },
   punchSafari: {
@@ -227,6 +235,13 @@ export const videos = {
     videoPath: "/video/mov/shadow-punch.mov",
     preload: false, // Load after loading screen
     position: (gameManager) => {
+      // Use stored position if available (calculated when SHOULDER_TAP state is set)
+      const state = gameManager?.getState() || {};
+      if (state.shoulderTapTargetPosition) {
+        return state.shoulderTapTargetPosition;
+      }
+
+      // Fallback: calculate if not stored yet
       if (!gameManager?.characterController) {
         logger.warn("Cannot get player position, using origin");
         return { x: 0, y: 1.8, z: 0 };
@@ -234,8 +249,8 @@ export const videos = {
 
       return gameManager.characterController.getPosition({
         x: 0,
-        y: 1.5,
-        z: 1.35,
+        y: 1.2,
+        z: -1.35,
       });
     },
     rotation: { x: 0, y: 0, z: 0 },
@@ -251,8 +266,8 @@ export const videos = {
         $lt: GAME_STATES.LIGHTS_OUT,
       },
     },
-    autoPlay: true,
-    delay: 0.2,
+    autoPlay: false, // Play on shoulderTap:70percent event instead
+    delay: 0,
     platform: "safari", // Only load on Safari
   },
 
@@ -372,7 +387,7 @@ export const videos = {
     preload: false, // Load after loading screen
     position: { x: -12.7, y: 1.52, z: 79.28 },
     rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.22, y: 0.65, z: 3.04 },
+    scale: { x: 1.22, y: 1.0, z: 3.04 },
     autoPlay: true,
     loop: false,
     billboard: false,

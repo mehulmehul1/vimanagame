@@ -478,7 +478,7 @@ class InputManager {
       const touchY = isFinite(touchInput?.y) ? touchInput.y : 0;
 
       // Convert touch input to camera delta (scale by dt for frame-rate independence)
-      const touchScale = 2.5; // Radians per second at full deflection
+      const touchScale = 1.2; // Radians per second at full deflection (lower than gamepad for less sensitivity)
       const scaledX = touchX * touchScale * dt;
       const scaledY = touchY * touchScale * dt;
 

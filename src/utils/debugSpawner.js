@@ -194,6 +194,12 @@ const stateOverrides = {
     playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
   },
 
+  DIALOG_CHOICE_2: {
+    isPlaying: true,
+    controlEnabled: true,
+    playerPosition: { x: -5.14, y: 2.05, z: 84.66 },
+  },
+
   CZAR_STRUGGLE: {
     isPlaying: true,
     controlEnabled: true,

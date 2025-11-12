@@ -65,10 +65,27 @@ logger.log("✅ Loading screen created");
 // Register loading tasks (scene assets and audio files will register themselves as they load)
 loadingScreen.registerTask("initialization", 1);
 
+// Get accurate viewport dimensions (handles iOS Chrome browser UI)
+function getViewportSize() {
+  // Use visual viewport API if available (iOS Safari/Chrome)
+  if (window.visualViewport) {
+    return {
+      width: window.visualViewport.width,
+      height: window.visualViewport.height,
+    };
+  }
+  // Fallback to window dimensions
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+const initialSize = getViewportSize();
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   60,
-  window.innerWidth / window.innerHeight,
+  initialSize.width / initialSize.height,
   0.01,
   100
 );
@@ -76,7 +93,7 @@ camera.position.set(0, 5, 0);
 scene.add(camera); // Add camera to scene so its children render
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(initialSize.width, initialSize.height);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
 renderer.toneMapping = THREE.CineonToneMapping; // Better HDR tone mapping
@@ -248,23 +265,30 @@ window.captureStrokeData = () => {
 };
 
 // Handle window resize
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+const handleResize = () => {
+  const { width, height } = getViewportSize();
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  vfxManager.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(width, height);
+  vfxManager.setSize(width, height);
 
   // Update text camera aspect ratios
   if (startScreen && startScreen.textCamera) {
-    startScreen.textCamera.aspect = window.innerWidth / window.innerHeight;
+    startScreen.textCamera.aspect = width / height;
     startScreen.textCamera.updateProjectionMatrix();
   }
   if (timePassesSequence && timePassesSequence.textCamera) {
-    timePassesSequence.textCamera.aspect =
-      window.innerWidth / window.innerHeight;
+    timePassesSequence.textCamera.aspect = width / height;
     timePassesSequence.textCamera.updateProjectionMatrix();
   }
-});
+};
+
+window.addEventListener("resize", handleResize);
+// Also listen to visual viewport changes on iOS
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", handleResize);
+  window.visualViewport.addEventListener("scroll", handleResize);
+}
 
 // Use debug spawn position if available, otherwise default
 

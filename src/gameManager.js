@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
@@ -389,6 +390,33 @@ class GameManager {
       this.logger.log(
         `[GameManager] currentState changed from ${oldState.currentState} to ${newState.currentState}`
       );
+
+      // Calculate and store position for shoulderTap when state is set
+      // This ensures video and lookAt use the same position regardless of timing
+      // Use the same calculation as the lookAt: camera quaternion, not body yaw
+      if (newState.currentState === GAME_STATES.SHOULDER_TAP && this.characterController?.camera) {
+        const camera = this.characterController.camera;
+        
+        // Get current camera forward direction
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(camera.quaternion);
+        
+        // Reverse it to get backward direction (180 degrees)
+        forward.negate();
+        
+        // Calculate point behind camera at reasonable distance
+        const distance = 2.0;
+        const targetPosition = {
+          x: camera.position.x + forward.x * distance,
+          y: camera.position.y + forward.y * distance,
+          z: camera.position.z + forward.z * distance,
+        };
+        
+        this.state.shoulderTapTargetPosition = targetPosition;
+        this.logger.log(
+          `[GameManager] Calculated shoulderTap target position: [${targetPosition.x.toFixed(2)}, ${targetPosition.y.toFixed(2)}, ${targetPosition.z.toFixed(2)}]`
+        );
+      }
 
       // Fire gtag event for state change
       if (typeof window !== "undefined" && window.gtag) {
