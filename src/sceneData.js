@@ -1195,6 +1195,21 @@ export const sceneObjects = {
     },
   },
 
+  projectorScreen: {
+    id: "projectorScreen",
+    type: "gltf",
+    path: "/gltf/projector-screen.glb",
+    description: "Projector screen for outro sequence",
+    position: { x: -0.24, y: 1.79, z: 83.33 },
+    rotation: { x: -3.1416, y: -0.0078, z: -3.1416 },
+    scale: { x: 0.81, y: 0.51, z: 0.51 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.OUTRO_CZAR,
+      },
+    },
+  },
+
   letter: {
     id: "letter",
     type: "gltf",
