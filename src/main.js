@@ -187,7 +187,7 @@ const spark = new SparkRenderer({
   apertureAngle: apertureAngle,
   focalDistance: focalDistance,
   maxStdDev: maxStdDev,
-  minAlpha: 0.001,
+  minAlpha: 0.00033,
 });
 spark.renderOrder = 9998;
 scene.add(spark);
@@ -717,13 +717,13 @@ const unlockAudioOnInteraction = () => {
     unlockAllAudioContexts();
   }
 
-  // Unlock videos (defer to next frame to avoid blocking - this is expensive)
+  // Unlock videos immediately during gesture context (critical for iOS Safari)
+  // Start the async work (play promises) synchronously to maintain gesture context
   if (!videoUnlocked && gameManager?.videoManager?.unlockVideoPlayback) {
     videoUnlocked = true;
-    // Defer video unlocking to avoid blocking the click handler
-    requestAnimationFrame(() => {
-      gameManager.videoManager.unlockVideoPlayback();
-    });
+    // Call immediately - async play() promises will still run within gesture context
+    // as long as we start them synchronously during the user interaction
+    gameManager.videoManager.unlockVideoPlayback();
   }
 
   // Retry queued video plays (iOS Safari autoplay restrictions)

@@ -49,6 +49,11 @@ class InputManager {
     this.leftJoystick = null;
     this.rightJoystick = null;
 
+    // Cached values (updated per frame to avoid repeated DOM queries)
+    this.cachedGamepad = null;
+    this.cachedDialogChoiceVisible = false;
+    this.dialogVisibilityCheckCounter = 0; // Debounce dialog visibility checks
+
     // Gamepad settings
     this.deadzone = 0.15; // Dead zone for analog sticks (0-1)
     this.stickSensitivity = 1.0; // Sensitivity multiplier for gamepad sticks
@@ -136,23 +141,31 @@ class InputManager {
     window.addEventListener("keydown", (event) => {
       if (!this.enabled) return;
       const k = event.key.toLowerCase();
-      if (k in this.keys) this.keys[k] = true;
+      // Check lowercase keys first (w, a, s, d)
+      if (k in this.keys) {
+        this.keys[k] = true;
+      }
+      // Handle special keys that don't lowercase properly
       if (event.key === "Shift") this.keys.shift = true;
-      if (event.key === "ArrowUp") this.keys.arrowUp = true;
-      if (event.key === "ArrowDown") this.keys.arrowDown = true;
-      if (event.key === "ArrowLeft") this.keys.arrowLeft = true;
-      if (event.key === "ArrowRight") this.keys.arrowRight = true;
+      else if (event.key === "ArrowUp") this.keys.arrowUp = true;
+      else if (event.key === "ArrowDown") this.keys.arrowDown = true;
+      else if (event.key === "ArrowLeft") this.keys.arrowLeft = true;
+      else if (event.key === "ArrowRight") this.keys.arrowRight = true;
     });
 
     window.addEventListener("keyup", (event) => {
       if (!this.enabled) return;
       const k = event.key.toLowerCase();
-      if (k in this.keys) this.keys[k] = false;
+      // Check lowercase keys first (w, a, s, d)
+      if (k in this.keys) {
+        this.keys[k] = false;
+      }
+      // Handle special keys that don't lowercase properly
       if (event.key === "Shift") this.keys.shift = false;
-      if (event.key === "ArrowUp") this.keys.arrowUp = false;
-      if (event.key === "ArrowDown") this.keys.arrowDown = false;
-      if (event.key === "ArrowLeft") this.keys.arrowLeft = false;
-      if (event.key === "ArrowRight") this.keys.arrowRight = false;
+      else if (event.key === "ArrowUp") this.keys.arrowUp = false;
+      else if (event.key === "ArrowDown") this.keys.arrowDown = false;
+      else if (event.key === "ArrowLeft") this.keys.arrowLeft = false;
+      else if (event.key === "ArrowRight") this.keys.arrowRight = false;
     });
 
     // Pointer lock + mouse look
@@ -372,7 +385,8 @@ class InputManager {
     }
 
     // Block vertical movement keys (W, S, Up, Down) when dialog choice UI is visible
-    const dialogChoiceVisible = this.isDialogChoiceVisible();
+    // Use cached value to avoid DOM queries every frame
+    const dialogChoiceVisible = this.cachedDialogChoiceVisible;
 
     let x = 0;
     let y = 0;
@@ -387,8 +401,8 @@ class InputManager {
     if (this.keys.a || this.keys.arrowLeft) x -= 1;
     if (this.keys.d || this.keys.arrowRight) x += 1;
 
-    // Gamepad input (left stick)
-    const gamepad = this.getGamepad();
+    // Gamepad input (left stick) - use cached value
+    const gamepad = this.cachedGamepad;
     if (gamepad) {
       const leftX = this.applyDeadzone(
         gamepad.axes[this.gamepadMapping.AXIS_LEFT_STICK_X]
@@ -432,11 +446,10 @@ class InputManager {
     let deltaY = 0;
     let hasGamepadInput = false;
 
-    // Validate and sanitize mouseDelta before use
-    const mouseX = isFinite(this.mouseDelta.x) ? this.mouseDelta.x : 0;
-    const mouseY = isFinite(this.mouseDelta.y) ? this.mouseDelta.y : 0;
-
     // Mouse input (accumulated during frame)
+    // mouseDelta is already validated in mousemove handler, no need to re-validate
+    const mouseX = this.mouseDelta.x;
+    const mouseY = this.mouseDelta.y;
     // Scale by dt for frame-rate independence (normalize to 60fps reference)
     // At 60fps, dt = 0.0167, so we scale by dt/0.0167 to maintain same feel
     // Clamp dtScale to prevent huge jumps during lag spikes (max 2.0 = 30fps equivalent)
@@ -444,13 +457,13 @@ class InputManager {
     deltaX += mouseX * this.mouseSensitivity * dtScale;
     deltaY += mouseY * this.mouseSensitivity * dtScale;
 
-    // Gamepad input (right stick)
-    const gamepad = this.getGamepad();
+    // Gamepad input (right stick) - use cached value
+    const gamepad = this.cachedGamepad;
     if (gamepad) {
       const rawRightX = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_X];
       const rawRightY = gamepad.axes[this.gamepadMapping.AXIS_RIGHT_STICK_Y];
 
-      // Validate gamepad axes before use
+      // Apply deadzone (gamepad axes are typically finite, but validate if needed)
       const rightX = isFinite(rawRightX) ? this.applyDeadzone(rawRightX) : 0;
       const rightY = isFinite(rawRightY) ? this.applyDeadzone(rawRightY) : 0;
 
@@ -473,21 +486,15 @@ class InputManager {
       hasGamepadInput = true; // Treat touch like gamepad (direct control, no smoothing)
 
       const touchInput = this.rightJoystick.getValue();
-      // Validate touch input
-      const touchX = isFinite(touchInput?.x) ? touchInput.x : 0;
-      const touchY = isFinite(touchInput?.y) ? touchInput.y : 0;
+      // touchJoystick.getValue() already returns valid values, no need to validate
 
       // Convert touch input to camera delta (scale by dt for frame-rate independence)
       const touchScale = 1.2; // Radians per second at full deflection (lower than gamepad for less sensitivity)
-      const scaledX = touchX * touchScale * dt;
-      const scaledY = touchY * touchScale * dt;
-
-      // Only add if finite
-      if (isFinite(scaledX)) deltaX += scaledX;
-      if (isFinite(scaledY)) deltaY -= scaledY; // Invert Y for natural camera movement
+      deltaX += touchInput.x * touchScale * dt;
+      deltaY -= touchInput.y * touchScale * dt; // Invert Y for natural camera movement
     }
 
-    // Ensure final values are finite
+    // Ensure final values are finite (defensive check for edge cases)
     deltaX = isFinite(deltaX) ? deltaX : 0;
     deltaY = isFinite(deltaY) ? deltaY : 0;
 
@@ -515,8 +522,8 @@ class InputManager {
     // Keyboard input
     if (this.keys.shift) return true;
 
-    // Gamepad input (L2/LT trigger, R2/RT trigger, L3 button, or R3 button)
-    const gamepad = this.getGamepad();
+    // Gamepad input (L2/LT trigger, R2/RT trigger, L3 button, or R3 button) - use cached value
+    const gamepad = this.cachedGamepad;
     if (gamepad) {
       // Check L3 (left stick press)
       if (gamepad.buttons[this.gamepadMapping.BUTTON_L3]?.pressed) return true;
@@ -925,9 +932,20 @@ class InputManager {
    * @param {number} dt - Delta time (for future use with gamepad input scaling)
    */
   update(dt) {
-    // Gamepad state is automatically updated by the browser
-    // This method is here for future extensions and consistency
-    // Could add gamepad rumble/haptics here in the future
+    // Cache gamepad per frame to avoid repeated navigator.getGamepads() calls
+    if (this.gamepadIndex !== null) {
+      const gamepads = navigator.getGamepads();
+      this.cachedGamepad = gamepads[this.gamepadIndex] || null;
+    } else {
+      this.cachedGamepad = null;
+    }
+
+    // Cache dialog visibility (debounced - check every 5 frames ~83ms at 60fps)
+    this.dialogVisibilityCheckCounter++;
+    if (this.dialogVisibilityCheckCounter >= 5) {
+      this.dialogVisibilityCheckCounter = 0;
+      this.cachedDialogChoiceVisible = this.isDialogChoiceVisible();
+    }
   }
 }
 
