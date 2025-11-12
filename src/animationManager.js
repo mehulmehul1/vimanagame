@@ -268,42 +268,78 @@ class AnimationManager {
     for (const animData of animations) {
       if (animData.fireOnEvent) {
         const eventName = animData.fireOnEvent;
-        this.logger.log(
-          `Registering event listener for animation "${animData.id}" on event "${eventName}"`
-        );
 
-        // Create a listener that plays this animation when the event fires
-        const listener = (eventData) => {
-          // Check if animation has already been played (if playOnce is set)
-          if (animData.playOnce && this.playedAnimations.has(animData.id)) {
-            this.logger.log(
-              `Animation "${animData.id}" already played (playOnce), skipping event "${eventName}"`
-            );
-            return;
-          }
+        // For video:play events, register for both base and Safari versions
+        const eventNames = this._getCounterpartEventNames(eventName);
 
-          // Check if animation is already playing
-          if (
-            this.isPlaying &&
-            this.currentAnimationData &&
-            this.currentAnimationData.id === animData.id
-          ) {
-            this.logger.log(
-              `Animation "${animData.id}" is already playing, skipping event "${eventName}"`
-            );
-            return;
-          }
-
+        for (const evtName of eventNames) {
           this.logger.log(
-            `Event "${eventName}" fired, playing animation "${animData.id}"`
+            `Registering event listener for animation "${animData.id}" on event "${evtName}"`
           );
-          this.playFromData(animData);
-        };
 
-        // Register listener with gameManager
-        this.gameManager.on(eventName, listener);
+          // Create a listener that plays this animation when the event fires
+          const listener = (eventData) => {
+            // Check if animation has already been played (if playOnce is set)
+            if (animData.playOnce && this.playedAnimations.has(animData.id)) {
+              this.logger.log(
+                `Animation "${animData.id}" already played (playOnce), skipping event "${evtName}"`
+              );
+              return;
+            }
+
+            // Check if animation is already playing
+            if (
+              this.isPlaying &&
+              this.currentAnimationData &&
+              this.currentAnimationData.id === animData.id
+            ) {
+              this.logger.log(
+                `Animation "${animData.id}" is already playing, skipping event "${evtName}"`
+              );
+              return;
+            }
+
+            this.logger.log(
+              `Event "${evtName}" fired, playing animation "${animData.id}"`
+            );
+            this.playFromData(animData);
+          };
+
+          // Register listener with gameManager
+          this.gameManager.on(evtName, listener);
+        }
       }
     }
+  }
+
+  /**
+   * Get counterpart event names for video:play events (base <-> Safari)
+   * @param {string} eventName - Event name
+   * @returns {Array<string>} Array of event names to register (original + counterpart if applicable)
+   * @private
+   */
+  _getCounterpartEventNames(eventName) {
+    // Check if this is a video:play event
+    if (!eventName.startsWith("video:play:")) {
+      return [eventName]; // Not a video play event, return as-is
+    }
+
+    // Extract video ID from event name
+    const videoId = eventName.replace("video:play:", "");
+    const eventNames = [eventName];
+
+    // Add counterpart video event
+    if (videoId.endsWith("Safari")) {
+      // If Safari video, also check base version
+      const baseId = videoId.replace("Safari", "");
+      eventNames.push(`video:play:${baseId}`);
+    } else {
+      // If base video, also check Safari version
+      const safariId = videoId + "Safari";
+      eventNames.push(`video:play:${safariId}`);
+    }
+
+    return eventNames;
   }
 
   /**

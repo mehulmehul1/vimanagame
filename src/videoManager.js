@@ -567,8 +567,11 @@ class VideoManager {
           if (wasEarlyPreloaded) {
             // Keep early preloaded videos around even if criteria don't match
             // They were explicitly loaded for future states
+            // But hide them so they don't show stale frames
+            player.stop();
+            player.setVisible(false);
             this.logger.log(
-              `Keeping early preloaded video "${videoId}" (criteria not met, but was preloaded early)`
+              `Hiding early preloaded video "${videoId}" (criteria not met, but was preloaded early)`
             );
           } else {
             player.destroy();

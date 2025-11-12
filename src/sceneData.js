@@ -717,9 +717,9 @@ export const sceneObjects = {
   officeHell: {
     id: "officeHell",
     type: "splat",
-    path: "/office-hell.sog",
+    path: "/office-hell-500.sog",
     description:
-      "Hell version of office interior (morphs from interior-nan-2.sog during VIEWMASTER_HELL)",
+      "Hell version of office interior (morphs from interior-nan-2.sog during VIEWMASTER_HELL) - laptop/mobile optimized",
     position: { x: -2.36, y: 2.73, z: 84.04 },
     rotation: { x: -0.0, y: -1.3373, z: 3.1416 },
     scale: { x: 2.06, y: 2.06, z: 2.06 },
@@ -730,6 +730,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.VIEWMASTER_HELL,
         $lte: GAME_STATES.POST_VIEWMASTER,
       },
+      performanceProfile: { $in: ["mobile", "laptop"] },
     },
     preload: false,
   },

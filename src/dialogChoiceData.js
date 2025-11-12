@@ -117,7 +117,7 @@ export const dialogChoices = {
         dialog: dialogTracks.dialogChoice2Empath,
       },
       {
-        text: "I can't say who's responsible yet...",
+        text: "Can't say who's responsible yet...",
         responseType: DIALOG_RESPONSE_TYPES.PSYCHOLOGIST,
         dialog: dialogTracks.dialogChoice2Psychologist,
       },
