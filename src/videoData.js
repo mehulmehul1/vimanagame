@@ -591,7 +591,7 @@ export const videos = {
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 0.16, y: 0.31, z: 1.31 },
     autoPlay: true,
-    loop: true,
+    loop: false,
     billboard: true,
     muted: false,
     criteria: {
@@ -608,7 +608,7 @@ export const videos = {
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 0.16, y: 0.31, z: 1.31 },
     autoPlay: true,
-    loop: true,
+    loop: false,
     billboard: true,
     muted: false,
     criteria: {

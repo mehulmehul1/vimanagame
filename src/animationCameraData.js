@@ -573,7 +573,7 @@ export const cameraAnimations = {
     type: "fade",
     description: "Fade to white at POST_CURSOR, hold, then fade back",
     color: { r: 1, g: 1, b: 1 }, // White
-    fadeInTime: 0.5, // Fade to white over 0.5 seconds
+    fadeInTime: 0.2, // Fade to white over 0.5 seconds
     holdTime: 1.0, // Hold at white for 0.5 seconds
     fadeOutTime: 2.0, // Fade back in over 2 seconds
     maxOpacity: 1.0, // Full white
@@ -1035,7 +1035,8 @@ export const cameraAnimations = {
       return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
     },
     transitionTime: 0.5,
-    returnToOriginalView: false,
+    returnToOriginalView: true, // Keep tracking during GLTF animation
+    lookAtHoldDuration: 10.0, // Long hold to track the entire GLTF animation (will complete early when letter reparents)
     restoreInput: true, // Restore input when lookat completes
     criteria: { currentState: GAME_STATES.OUTRO },
     playOnce: true,
@@ -1079,7 +1080,7 @@ export const cameraAnimations = {
       rotation: true,
     },
     zoomOptions: {
-      zoomFactor: 2.0,
+      letterzoomFactor: 2.0,
       minAperture: 0.15,
       maxAperture: 0.35,
       transitionStart: 0.6,
@@ -1107,7 +1108,7 @@ export const cameraAnimations = {
     enableZoom: true,
     restoreInput: true,
     zoomOptions: {
-      zoomFactor: 2.0,
+      zoomFactor: 1.25,
       minAperture: 0.15,
       maxAperture: 0.35,
       transitionStart: 0.6,

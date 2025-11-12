@@ -35,9 +35,12 @@ export class TimePassesSequence {
       20.0
     );
 
+    const isMobile = this.gameManager?.getState?.()?.isMobile || false;
+    const textZ = isMobile ? -4.0 : -2.25;
+
     const imageData = createParticleImage(this.textScene, {
       imageUrl: "/images/SomeTimePasses.png",
-      position: { x: 0, y: 0, z: -2.25 },
+      position: { x: 0, y: 0, z: textZ },
       scale: 0.03125,
       animate: true,
       particleDensity: 0.5,

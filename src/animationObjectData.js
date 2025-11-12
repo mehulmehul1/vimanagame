@@ -269,10 +269,9 @@ export const objectAnimations = {
     duration: 1.5,
     properties: {
       position: {
-        // Start from slightly further back, animate forward to camera
-        // This ensures smooth animation regardless of where GLTF animation ended
+        // Omit "from" to use current position after GLTF animation ends
+        // After reparenting to camera, this will be the letter's position in camera-local space
         // Negative Z is forward in camera-local space (like viewmaster animations)
-        from: { x: 0, y: 0, z: -0.6 }, // Start 0.6m in front of camera (closer, more visible)
         to: { x: 0, y: 0, z: -0.3 }, // End 0.3m in front of camera
       },
       rotation: {

@@ -222,7 +222,7 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
-    playerRotation: { x: 0.0, y: 180, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
+    playerRotation: { x: 0.0, y: 0, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
   },
 
   CURSOR: {
@@ -280,6 +280,7 @@ const stateOverrides = {
     isPlaying: true,
     controlEnabled: true,
     playerPosition: { x: -5.14, y: 2.05, z: 83.66 },
+    playerRotation: { x: 0.0, y: 0, z: 0.0 }, // Rotation in DEGREES (converted to radians internally)
   },
 };
 

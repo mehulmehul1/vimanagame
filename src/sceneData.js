@@ -747,6 +747,26 @@ export const sceneObjects = {
       currentState: {
         $gte: GAME_STATES.LIGHTS_OUT,
       },
+      performanceProfile: { $ne: "mobile" },
+    },
+    preload: false,
+  },
+
+  clubMobile: {
+    id: "club",
+    type: "splat",
+    path: "/club-1m.sog",
+    gizmo: true,
+    description: "Club environment splat mesh (mobile optimized)",
+    position: { x: -3.72, y: 0.55, z: 84.88 },
+
+    rotation: { x: 0.04, y: Math.PI / 2, z: -Math.PI },
+    scale: { x: 1.8, y: 1.8, z: 1.8 },
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.LIGHTS_OUT,
+      },
+      performanceProfile: "mobile",
     },
     preload: false,
   },
@@ -1215,7 +1235,7 @@ export const sceneObjects = {
     type: "gltf",
     path: "/gltf/letter.glb",
     description: "Animated letter plane for outro sequence",
-    position: { x: -4.28, y: 1.94, z: 75.77 },
+    position: { x: -4.28, y: 1.94, z: 78.77 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     options: {
