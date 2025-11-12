@@ -387,7 +387,7 @@ export const videos = {
     preload: false, // Load after loading screen
     position: { x: -12.7, y: 1.52, z: 79.28 },
     rotation: { x: 0.0, y: 1.3344, z: 0.0 },
-    scale: { x: 1.75, y: 1.0, z: 3.04 },
+    scale: { x: 1.22, y: 0.65, z: 3.04 },
     autoPlay: true,
     loop: false,
     billboard: false,

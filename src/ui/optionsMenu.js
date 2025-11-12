@@ -628,7 +628,11 @@ class OptionsMenu {
 
   /**
    * Update performance mode dropdown options based on platform
-   * Disables non-mobile options on mobile devices (unless on localhost/IP)
+   *
+   * Behavior:
+   * - Desktop/laptop users: All options enabled (including mobile, for testing)
+   * - Mobile devices on production: Only "mobile" option enabled (prevents crashes)
+   * - Mobile devices on localhost/IP: All options enabled (for developer testing)
    */
   updatePerformanceModeOptions() {
     const performanceSelect = document.getElementById("performance-profile");
@@ -643,7 +647,8 @@ class OptionsMenu {
     // Check if we're on localhost or IP address
     const isLocalOrIP = this.isLocalhostOrIP();
 
-    // If on mobile and not on localhost/IP, disable non-mobile options
+    // Only restrict on actual mobile devices when not on localhost/IP
+    // Desktop/laptop users (not detected as mobile) will have all options enabled
     if (isMobile && !isLocalOrIP) {
       const options = performanceSelect.querySelectorAll("option");
       options.forEach((option) => {
@@ -658,7 +663,7 @@ class OptionsMenu {
         this.saveSettings();
       }
     } else {
-      // Enable all options
+      // Enable all options (desktop/laptop users, or mobile on localhost/IP)
       const options = performanceSelect.querySelectorAll("option");
       options.forEach((option) => {
         option.disabled = false;

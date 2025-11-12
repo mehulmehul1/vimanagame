@@ -168,7 +168,7 @@ export const sceneObjects = {
   plazaMobile: {
     id: "plaza",
     type: "splat",
-    path: "/splats/35/plaza_35.sog",
+    path: "/splats/1m/plaza-1m.sog",
     description: "Plaza section of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
     rotation: { x: 0, y: Math.PI, z: Math.PI },
@@ -247,7 +247,7 @@ export const sceneObjects = {
   fourWayMobile: {
     id: "fourWay",
     type: "splat",
-    path: "/splats/35/fourWay_35.sog",
+    path: "/splats/1m/fourWay-1m.sog",
     description:
       "Four-way intersection section of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -326,7 +326,7 @@ export const sceneObjects = {
   alleyIntroMobile: {
     id: "alleyIntro",
     type: "splat",
-    path: "/splats/35/alleyIntro_35.sog",
+    path: "/splats/1m/alleyIntro-1m.sog",
     description:
       "Intro alley section of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -406,7 +406,7 @@ export const sceneObjects = {
   alleyLongViewMobile: {
     id: "alleyLongView",
     type: "splat",
-    path: "/splats/35/alleyLongView_35.sog",
+    path: "/splats/1m/alleyLongView-1m.sog",
     description:
       "Long view alley section of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -506,7 +506,7 @@ export const sceneObjects = {
   threeWayMobile: {
     id: "threeWay",
     type: "splat",
-    path: "/splats/35/threeWay_35.sog",
+    path: "/splats/1m/threeWay-1m.sog",
     description:
       "Three-way intersection section of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },
@@ -586,7 +586,7 @@ export const sceneObjects = {
   threeWay2Mobile: {
     id: "threeWay2",
     type: "splat",
-    path: "/splats/35/threeWay2_35.sog",
+    path: "/splats/1m/threeWay2-1m.sog",
     description:
       "Three-way intersection section 2 of exterior environment (mobile optimized)",
     position: { x: 0.35, y: 1.0, z: 1.9 },

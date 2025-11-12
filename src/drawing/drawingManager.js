@@ -148,6 +148,13 @@ export class DrawingManager {
             );
             this.updateRuneVisibility(currentState);
           }
+
+          // Set initial body class for caption positioning
+          if (currentState.currentState >= GAME_STATES.POST_CURSOR) {
+            document.body.classList.add("post-cursor-gameplay");
+          } else {
+            document.body.classList.remove("post-cursor-gameplay");
+          }
         }
       }, 100);
 
@@ -165,6 +172,13 @@ export class DrawingManager {
 
         // Update rune visibility based on viewmaster equipped state
         this.updateRuneVisibility(newState);
+
+        // Add/remove body class for caption positioning after cursor gameplay
+        if (newState.currentState >= GAME_STATES.POST_CURSOR) {
+          document.body.classList.add("post-cursor-gameplay");
+        } else {
+          document.body.classList.remove("post-cursor-gameplay");
+        }
       });
     }
   }
@@ -261,11 +275,8 @@ export class DrawingManager {
         opacity: 0.8;
       }
 
-      /* Hide mobile button when captions are showing */
-      #space-bar-hint.mobile-button.captions-active {
-        opacity: 0 !important;
-        pointer-events: none;
-      }
+      /* Keep mobile button visible when captions are showing - captions will appear below it */
+      /* Removed hiding behavior - button stays visible, captions positioned below via dialog.css */
 
       @keyframes space-bar-hint-cycle {
         0% {
@@ -774,7 +785,7 @@ export class DrawingManager {
       return;
     }
 
-    // Check if captions are showing
+    // Check if captions are showing (for tracking, but don't hide button)
     const captionElement = document.getElementById("dialog-caption");
     const hasCaptions =
       captionElement && captionElement.textContent.trim().length > 0;
@@ -783,18 +794,20 @@ export class DrawingManager {
       this.spaceBarHintElement.classList.add("captions-active");
     } else {
       this.spaceBarHintElement.classList.remove("captions-active");
-      // Show button if viewmaster toggle is enabled or drawing game is active
-      const isViewmasterEnabled =
-        window.viewmasterController?.isToggleEnabled === true;
-      const isViewmasterEquipped = gameState?.isViewmasterEquipped === true;
+    }
 
-      if (this.isActive || isViewmasterEnabled || isViewmasterEquipped) {
-        this.spaceBarHintElement.style.opacity = "1";
-        this.spaceBarHintElement.style.pointerEvents = "all";
-      } else {
-        this.spaceBarHintElement.style.opacity = "0";
-        this.spaceBarHintElement.style.pointerEvents = "none";
-      }
+    // Show button if viewmaster toggle is enabled or drawing game is active
+    // Button stays visible even when captions are showing (captions appear below it)
+    const isViewmasterEnabled =
+      window.viewmasterController?.isToggleEnabled === true;
+    const isViewmasterEquipped = gameState?.isViewmasterEquipped === true;
+
+    if (this.isActive || isViewmasterEnabled || isViewmasterEquipped) {
+      this.spaceBarHintElement.style.opacity = "1";
+      this.spaceBarHintElement.style.pointerEvents = "all";
+    } else {
+      this.spaceBarHintElement.style.opacity = "0";
+      this.spaceBarHintElement.style.pointerEvents = "none";
     }
   }
 
