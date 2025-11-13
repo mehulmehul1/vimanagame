@@ -94,8 +94,6 @@ scene.add(camera); // Add camera to scene so its children render
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
 renderer.setSize(initialSize.width, initialSize.height);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
 renderer.toneMapping = THREE.CineonToneMapping; // Better HDR tone mapping
 renderer.toneMappingExposure = 1.0; // Adjust exposure for bloom
 renderer.outputColorSpace = THREE.SRGBColorSpace; // Proper color space
@@ -176,9 +174,9 @@ let maxStdDev;
 if (profileToUse === "desktop" || profileToUse === "max") {
   maxStdDev = Math.sqrt(8); // Current value for Desktop/Max
 } else if (profileToUse === "laptop") {
-  maxStdDev = 6;
+  maxStdDev = Math.sqrt(6);
 } else {
-  maxStdDev = 4; // Mobile
+  maxStdDev = Math.sqrt(4); // Mobile
 }
 
 logger.log("Creating SparkRenderer...");

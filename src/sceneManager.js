@@ -312,9 +312,7 @@ class SceneManager {
     // Set position (support functions for dynamic positioning)
     if (position) {
       const resolvedPosition =
-        typeof position === "function"
-          ? position(this.gameManager)
-          : position;
+        typeof position === "function" ? position(this.gameManager) : position;
       splatMesh.position.set(
         resolvedPosition.x,
         resolvedPosition.y,
@@ -1246,10 +1244,10 @@ class SceneManager {
       for (const [animId, storedAction] of this.animationActions) {
         if (storedAction === action) {
           this.logger.log(`Animation "${animId}" finished`);
-          
+
           // Get the animation config
           const config = this.animationData.get(animId);
-          
+
           // Call onComplete callback if provided
           if (config && config.onComplete && this.gameManager) {
             try {
@@ -1261,7 +1259,7 @@ class SceneManager {
               );
             }
           }
-          
+
           // Emit animation:finished event
           this.emit("animation:finished", animId);
 

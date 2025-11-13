@@ -45,6 +45,20 @@ class ColliderManager {
     // SparkRenderer reference for updating accumulator origin position
     this.sparkRenderer = null; // Will be set by setSparkRenderer()
 
+    // Pre-allocated Vector3 instances for checkPointInMesh to avoid allocations
+    this._pointInMeshVectors = {
+      rayOrigin: new THREE.Vector3(),
+      rayDirection: new THREE.Vector3(1, 0, 0),
+      v0: new THREE.Vector3(),
+      v1: new THREE.Vector3(),
+      v2: new THREE.Vector3(),
+      edge1: new THREE.Vector3(),
+      edge2: new THREE.Vector3(),
+      h: new THREE.Vector3(),
+      s: new THREE.Vector3(),
+      q: new THREE.Vector3(),
+    };
+
     // Check for gizmo-enabled colliders and set global flag
     this.checkForGizmoColliders(colliderData);
 
@@ -631,9 +645,10 @@ class ColliderManager {
     const indexAttribute = geometry.index;
     const indices = indexAttribute ? indexAttribute.array : null;
 
-    // Cast a ray from the point along positive X-axis
-    const rayOrigin = point.clone();
-    const rayDirection = new THREE.Vector3(1, 0, 0);
+    // Use pre-allocated vectors
+    const v = this._pointInMeshVectors;
+    v.rayOrigin.copy(point);
+    // rayDirection is already set to (1, 0, 0) in constructor
 
     let intersectionCount = 0;
 
@@ -642,68 +657,78 @@ class ColliderManager {
     const triangleCount = indices ? indices.length / 3 : vertexCount / 3;
 
     for (let i = 0; i < triangleCount; i++) {
-      let v0, v1, v2;
-
       if (indices) {
         const i0 = indices[i * 3];
         const i1 = indices[i * 3 + 1];
         const i2 = indices[i * 3 + 2];
         // Transform vertices to world space
-        v0 = new THREE.Vector3(
-          positionAttribute.getX(i0),
-          positionAttribute.getY(i0),
-          positionAttribute.getZ(i0)
-        ).applyMatrix4(worldMatrix);
-        v1 = new THREE.Vector3(
-          positionAttribute.getX(i1),
-          positionAttribute.getY(i1),
-          positionAttribute.getZ(i1)
-        ).applyMatrix4(worldMatrix);
-        v2 = new THREE.Vector3(
-          positionAttribute.getX(i2),
-          positionAttribute.getY(i2),
-          positionAttribute.getZ(i2)
-        ).applyMatrix4(worldMatrix);
+        v.v0
+          .set(
+            positionAttribute.getX(i0),
+            positionAttribute.getY(i0),
+            positionAttribute.getZ(i0)
+          )
+          .applyMatrix4(worldMatrix);
+        v.v1
+          .set(
+            positionAttribute.getX(i1),
+            positionAttribute.getY(i1),
+            positionAttribute.getZ(i1)
+          )
+          .applyMatrix4(worldMatrix);
+        v.v2
+          .set(
+            positionAttribute.getX(i2),
+            positionAttribute.getY(i2),
+            positionAttribute.getZ(i2)
+          )
+          .applyMatrix4(worldMatrix);
       } else {
         // Transform vertices to world space
-        v0 = new THREE.Vector3(
-          positionAttribute.getX(i * 3),
-          positionAttribute.getY(i * 3),
-          positionAttribute.getZ(i * 3)
-        ).applyMatrix4(worldMatrix);
-        v1 = new THREE.Vector3(
-          positionAttribute.getX(i * 3 + 1),
-          positionAttribute.getY(i * 3 + 1),
-          positionAttribute.getZ(i * 3 + 1)
-        ).applyMatrix4(worldMatrix);
-        v2 = new THREE.Vector3(
-          positionAttribute.getX(i * 3 + 2),
-          positionAttribute.getY(i * 3 + 2),
-          positionAttribute.getZ(i * 3 + 2)
-        ).applyMatrix4(worldMatrix);
+        v.v0
+          .set(
+            positionAttribute.getX(i * 3),
+            positionAttribute.getY(i * 3),
+            positionAttribute.getZ(i * 3)
+          )
+          .applyMatrix4(worldMatrix);
+        v.v1
+          .set(
+            positionAttribute.getX(i * 3 + 1),
+            positionAttribute.getY(i * 3 + 1),
+            positionAttribute.getZ(i * 3 + 1)
+          )
+          .applyMatrix4(worldMatrix);
+        v.v2
+          .set(
+            positionAttribute.getX(i * 3 + 2),
+            positionAttribute.getY(i * 3 + 2),
+            positionAttribute.getZ(i * 3 + 2)
+          )
+          .applyMatrix4(worldMatrix);
       }
 
       // Check ray-triangle intersection using Möller-Trumbore algorithm
-      const edge1 = new THREE.Vector3().subVectors(v1, v0);
-      const edge2 = new THREE.Vector3().subVectors(v2, v0);
-      const h = new THREE.Vector3().crossVectors(rayDirection, edge2);
-      const a = edge1.dot(h);
+      v.edge1.subVectors(v.v1, v.v0);
+      v.edge2.subVectors(v.v2, v.v0);
+      v.h.crossVectors(v.rayDirection, v.edge2);
+      const a = v.edge1.dot(v.h);
 
       // Ray is parallel to triangle
       if (Math.abs(a) < 1e-8) continue;
 
       const f = 1.0 / a;
-      const s = new THREE.Vector3().subVectors(rayOrigin, v0);
-      const u = f * s.dot(h);
+      v.s.subVectors(v.rayOrigin, v.v0);
+      const u = f * v.s.dot(v.h);
 
       if (u < 0.0 || u > 1.0) continue;
 
-      const q = new THREE.Vector3().crossVectors(s, edge1);
-      const v = f * rayDirection.dot(q);
+      v.q.crossVectors(v.s, v.edge1);
+      const vCoord = f * v.rayDirection.dot(v.q);
 
-      if (v < 0.0 || u + v > 1.0) continue;
+      if (vCoord < 0.0 || u + vCoord > 1.0) continue;
 
-      const t = f * edge2.dot(q);
+      const t = f * v.edge2.dot(v.q);
 
       // Intersection found (t > 0 means ray goes forward)
       if (t > 1e-8) {
