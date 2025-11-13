@@ -57,6 +57,7 @@ export class ContactShadow {
     this.renderer = renderer;
     this.scene = scene;
     this.parentObject = parentObject;
+    this.sparkRenderer = config.sparkRenderer || null; // Optional SparkRenderer reference
 
     const {
       size = { x: 0.5, y: 0.5 },
@@ -423,6 +424,22 @@ export class ContactShadow {
     const initialClearAlpha = this.renderer.getClearAlpha();
     const initialRenderTarget = this.renderer.getRenderTarget();
 
+    // Disable SparkRenderer to avoid unnecessary draw calls during contact shadow rendering
+    let sparkRendererWasVisible = true;
+    if (this.sparkRenderer && this.sparkRenderer.visible !== undefined) {
+      sparkRendererWasVisible = this.sparkRenderer.visible;
+      this.sparkRenderer.visible = false;
+    }
+
+    // Disable Three.js shadow mapping to avoid framebuffer binds/clears during contact shadow rendering
+    const shadowMapEnabledLights = [];
+    this.scene.traverse((object) => {
+      if (object.isLight && object.castShadow) {
+        shadowMapEnabledLights.push(object);
+        object.castShadow = false;
+      }
+    });
+
     // Hide camera helper during render
     if (this.cameraHelper) {
       this.cameraHelper.visible = false;
@@ -457,6 +474,16 @@ export class ContactShadow {
     this.renderer.setRenderTarget(initialRenderTarget);
     this.renderer.setClearAlpha(initialClearAlpha);
     this.scene.background = initialBackground;
+
+    // Re-enable Three.js shadow mapping
+    shadowMapEnabledLights.forEach((light) => {
+      light.castShadow = true;
+    });
+
+    // Re-enable SparkRenderer
+    if (this.sparkRenderer && this.sparkRenderer.visible !== undefined) {
+      this.sparkRenderer.visible = sparkRendererWasVisible;
+    }
 
     // Mark as rendered for static shadows
     if (this.config.isStatic) {

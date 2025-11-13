@@ -489,6 +489,7 @@ class SceneManager {
             const shadowConfig = {
               ...options.contactShadow,
               name: `${id}_contactShadow`,
+              sparkRenderer: this.sparkRenderer, // Pass sparkRenderer to disable during rendering
             };
             // Map 'static' to 'isStatic' for backward compatibility
             if (shadowConfig.static !== undefined) {
