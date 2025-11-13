@@ -432,13 +432,13 @@ export class ContactShadow {
     }
 
     // Disable Three.js shadow mapping to avoid framebuffer binds/clears during contact shadow rendering
-    const shadowMapEnabledLights = [];
-    this.scene.traverse((object) => {
-      if (object.isLight && object.castShadow) {
-        shadowMapEnabledLights.push(object);
-        object.castShadow = false;
-      }
-    });
+    // const shadowMapEnabledLights = [];
+    // this.scene.traverse((object) => {
+    //   if (object.isLight && object.castShadow) {
+    //     shadowMapEnabledLights.push(object);
+    //     object.castShadow = false;
+    //   }
+    // });
 
     // Hide camera helper during render
     if (this.cameraHelper) {
@@ -475,10 +475,10 @@ export class ContactShadow {
     this.renderer.setClearAlpha(initialClearAlpha);
     this.scene.background = initialBackground;
 
-    // Re-enable Three.js shadow mapping
-    shadowMapEnabledLights.forEach((light) => {
-      light.castShadow = true;
-    });
+    // // Re-enable Three.js shadow mapping
+    // shadowMapEnabledLights.forEach((light) => {
+    //   light.castShadow = true;
+    // });
 
     // Re-enable SparkRenderer
     if (this.sparkRenderer && this.sparkRenderer.visible !== undefined) {
