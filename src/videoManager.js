@@ -1263,7 +1263,7 @@ class VideoPlayer {
 
     // Register loading task if tracking progress
     if (this.loadingScreen && this.videoId) {
-      this.loadingScreen.registerTask(`video_${this.videoId}`, 1);
+      this.loadingScreen.registerTask(`video_${this.videoId}`);
     }
 
     // Explicitly trigger loading to start the fetch immediately

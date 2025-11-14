@@ -288,7 +288,7 @@ class MusicManager {
 
     // Register with loading screen if available and preloading
     if (this.loadingScreen && preload) {
-      this.loadingScreen.registerTask(`music_${name}`, 1);
+      this.loadingScreen.registerTask(`music_${name}`);
     }
 
     this.tracks[name] = new Howl({

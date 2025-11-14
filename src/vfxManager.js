@@ -331,7 +331,7 @@ export class VFXSystemManager {
   async initialize(sceneManager = null) {
     // Register loading task
     if (this.loadingScreen) {
-      this.loadingScreen.registerTask("vfx-system", 1);
+      this.loadingScreen.registerTask("vfx-system");
     }
 
     this.logger.log("Initializing VFX effects...");

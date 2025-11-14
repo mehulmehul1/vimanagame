@@ -425,7 +425,7 @@ class DialogManager {
 
       // Register with loading screen if available and preloading
       if (this.loadingScreen && shouldPreload) {
-        this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
+        this.loadingScreen.registerTask(`dialog_${dialog.id}`);
       }
 
       // Preload the audio
@@ -543,7 +543,7 @@ class DialogManager {
 
     // Register with loading screen if available
     if (this.loadingScreen) {
-      this.loadingScreen.registerTask(`dialog_${dialog.id}`, 1);
+      this.loadingScreen.registerTask(`dialog_${dialog.id}`);
     }
 
     try {

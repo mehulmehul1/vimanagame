@@ -285,21 +285,16 @@ class SceneManager {
     const shouldPreload = objectData.preload === true;
     const shouldTrackProgress = shouldPreload && this.loadingScreen;
     if (shouldTrackProgress) {
-      this.loadingScreen.registerTask(`splat_${id}`, 100);
+      this.loadingScreen.registerTask(`splat_${id}`);
     }
-
-    // Track download progress for UI feedback
-    let downloadProgress = 0;
 
     const splatMesh = new SplatMesh({
       url: path,
       editable: false, // Don't apply SplatEdit operations to scene splats (only fog)
       onProgress: (progress) => {
         // Progress is a number between 0 and 1
-        downloadProgress = progress;
         if (shouldTrackProgress) {
-          const percentage = Math.round(progress * 100);
-          this.loadingScreen.updateTask(`splat_${id}`, percentage, 100);
+          this.loadingScreen.updateTask(`splat_${id}`, progress);
         }
       },
     });
@@ -344,15 +339,6 @@ class SceneManager {
     // The initialized promise only resolves when the asset is fully downloaded and processed
     // This ensures the browser has fully loaded the asset into memory before we continue
     await splatMesh.initialized;
-    
-    // Update progress to 100% if tracking (in case progress callback didn't fire or stopped early)
-    // The initialized promise resolving means the asset is ready, so we can safely mark as complete
-    if (shouldTrackProgress) {
-      // Ensure progress shows 100% even if callback didn't reach it
-      if (downloadProgress < 1.0) {
-        this.loadingScreen.updateTask(`splat_${id}`, 100, 100);
-      }
-    }
 
     // Mark as complete only if tracking progress
     if (shouldTrackProgress) {
@@ -379,7 +365,7 @@ class SceneManager {
       const shouldPreload = objectData.preload === true;
       const shouldTrackProgress = shouldPreload && this.loadingScreen;
       if (shouldTrackProgress) {
-        this.loadingScreen.registerTask(`gltf_${id}`, 100);
+        this.loadingScreen.registerTask(`gltf_${id}`);
       }
 
       this.gltfLoader.load(
@@ -634,8 +620,8 @@ class SceneManager {
         (xhr) => {
           // Progress callback
           if (xhr.lengthComputable && shouldTrackProgress) {
-            const percentage = Math.round((xhr.loaded / xhr.total) * 100);
-            this.loadingScreen.updateTask(`gltf_${id}`, percentage, 100);
+            const progress = xhr.loaded / xhr.total; // 0-1
+            this.loadingScreen.updateTask(`gltf_${id}`, progress);
           }
         },
         (error) => {

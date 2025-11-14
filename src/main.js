@@ -63,7 +63,7 @@ window.loadingScreen = loadingScreen; // Make accessible globally for lazy initi
 logger.log("✅ Loading screen created");
 
 // Register loading tasks (scene assets and audio files will register themselves as they load)
-loadingScreen.registerTask("initialization", 1);
+loadingScreen.registerTask("initialization");
 
 // Get accurate viewport dimensions (handles iOS Chrome browser UI)
 function getViewportSize() {

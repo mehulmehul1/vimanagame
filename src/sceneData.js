@@ -622,7 +622,7 @@ export const sceneObjects = {
     preload: true,
     criteria: {
       currentState: {
-        $gte: GAME_STATES.START_SCREEN,
+        $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },
@@ -645,7 +645,7 @@ export const sceneObjects = {
     preload: true,
     criteria: {
       currentState: {
-        $gte: GAME_STATES.START_SCREEN,
+        $gte: GAME_STATES.LOADING,
         $lt: GAME_STATES.ENTERING_OFFICE,
       },
     },

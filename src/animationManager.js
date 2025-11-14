@@ -2125,7 +2125,7 @@ class AnimationManager {
   async loadAnimation(name, url, isPreload = false) {
     // Register with loading screen if preloading
     if (this.loadingScreen && isPreload) {
-      this.loadingScreen.registerTask(`camera_anim_${name}`, 1);
+      this.loadingScreen.registerTask(`camera_anim_${name}`);
     }
 
     try {

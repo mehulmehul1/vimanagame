@@ -330,7 +330,7 @@ class SFXManager {
 
       // Register with loading screen if available and preloading
       if (this.loadingScreen && shouldPreload) {
-        this.loadingScreen.registerTask(`sfx_${sound.id}`, 1);
+        this.loadingScreen.registerTask(`sfx_${sound.id}`);
       }
 
       // Check if this sound has a loop delay - if so, we'll manage looping manually
@@ -493,7 +493,7 @@ class SFXManager {
 
     // Register with loading screen if available
     if (this.loadingScreen) {
-      this.loadingScreen.registerTask(`sfx_${sound.id}`, 1);
+      this.loadingScreen.registerTask(`sfx_${sound.id}`);
     }
 
     try {

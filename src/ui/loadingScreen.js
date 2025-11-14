@@ -12,7 +12,7 @@ export class LoadingScreen {
     this.progressRect = null;
     this.logger = new Logger("LoadingScreen", false);
     this.progressText = null;
-    this.loadingTasks = new Map(); // task name -> { loaded: number, total: number }
+    this.loadingTasks = new Map(); // task name -> { progress: number } (0-1)
     this.isVisible = true;
     this.isComplete = false;
     this.gameManager = null; // Will be set after GameManager is created
@@ -73,28 +73,23 @@ export class LoadingScreen {
   }
 
   /**
-   * Register a loading task
+   * Register a loading task (one asset)
    * @param {string} taskName - Unique name for the task
-   * @param {number} total - Total number of items to load (default 1)
    */
-  registerTask(taskName, total = 1) {
-    this.loadingTasks.set(taskName, { loaded: 0, total });
+  registerTask(taskName) {
+    this.loadingTasks.set(taskName, { progress: 0 });
     this.updateProgress();
   }
 
   /**
    * Update progress for a specific task
    * @param {string} taskName - Name of the task
-   * @param {number} loaded - Number of items loaded
-   * @param {number} total - Total items (optional, updates total if provided)
+   * @param {number} progress - Progress value (0-1, where 1 = complete)
    */
-  updateTask(taskName, loaded, total = null) {
+  updateTask(taskName, progress) {
     const task = this.loadingTasks.get(taskName);
     if (task) {
-      task.loaded = loaded;
-      if (total !== null) {
-        task.total = total;
-      }
+      task.progress = Math.max(0, Math.min(1, progress));
       this.updateProgress();
     }
   }
@@ -106,7 +101,7 @@ export class LoadingScreen {
   completeTask(taskName) {
     const task = this.loadingTasks.get(taskName);
     if (task) {
-      task.loaded = task.total;
+      task.progress = 1;
       this.updateProgress();
     }
   }
@@ -115,27 +110,34 @@ export class LoadingScreen {
    * Calculate and update overall progress
    */
   updateProgress() {
-    let totalLoaded = 0;
-    let totalItems = 0;
-
-    for (const task of this.loadingTasks.values()) {
-      totalLoaded += task.loaded;
-      totalItems += task.total;
+    if (this.loadingTasks.size === 0) {
+      return;
     }
 
-    const progress = totalItems > 0 ? (totalLoaded / totalItems) * 100 : 0;
+    let totalProgress = 0;
+    let allTasksComplete = true;
+
+    for (const task of this.loadingTasks.values()) {
+      totalProgress += task.progress;
+      if (task.progress < 1) {
+        allTasksComplete = false;
+      }
+    }
+
+    const averageProgress = totalProgress / this.loadingTasks.size;
+    const progressPercent = averageProgress * 100;
 
     // Update UI - SVG progress rect width goes from 0 to 850
     if (this.progressRect) {
-      const width = (progress / 100) * 850;
+      const width = progressPercent * 8.5; // 850 / 100
       this.progressRect.setAttribute("width", width.toString());
     }
     if (this.progressText) {
-      this.progressText.textContent = `${Math.round(progress)}%`;
+      this.progressText.textContent = `${Math.round(progressPercent)}%`;
     }
 
-    // Check if complete and automatically trigger completion flow
-    if (progress >= 100 && !this.isComplete) {
+    // Check if complete: ALL tasks must be individually at 100% progress
+    if (allTasksComplete && !this.isComplete) {
       this.isComplete = true;
       this.handleLoadingComplete();
     }
@@ -235,14 +237,15 @@ export class LoadingScreen {
    * Get current progress (0-100)
    */
   getProgress() {
-    let totalLoaded = 0;
-    let totalItems = 0;
-
-    for (const task of this.loadingTasks.values()) {
-      totalLoaded += task.loaded;
-      totalItems += task.total;
+    if (this.loadingTasks.size === 0) {
+      return 0;
     }
 
-    return totalItems > 0 ? (totalLoaded / totalItems) * 100 : 0;
+    let totalProgress = 0;
+    for (const task of this.loadingTasks.values()) {
+      totalProgress += task.progress;
+    }
+
+    return (totalProgress / this.loadingTasks.size) * 100;
   }
 }
