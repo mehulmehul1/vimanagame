@@ -281,6 +281,7 @@ export const sceneObjects = {
       },
       performanceProfile: "max",
     },
+    preload: true
   },
 
   alleyIntroLaptop: {
@@ -301,6 +302,7 @@ export const sceneObjects = {
       },
       performanceProfile: "laptop",
     },
+    preload: true
   },
 
   alleyIntroDesktop: {
@@ -321,6 +323,7 @@ export const sceneObjects = {
       },
       performanceProfile: "desktop",
     },
+    preload: true
   },
 
   alleyIntroMobile: {
@@ -341,6 +344,7 @@ export const sceneObjects = {
       },
       performanceProfile: "mobile",
     },
+    preload: true
   },
 
   alleyLongView: {
