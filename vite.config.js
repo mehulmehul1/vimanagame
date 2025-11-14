@@ -18,6 +18,7 @@ export default defineConfig({
     exclude: [],
   },
   build: {
+    minify: false,
     rollupOptions: {
       output: {
         format: "es",
