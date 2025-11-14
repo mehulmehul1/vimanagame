@@ -69,6 +69,7 @@ import * as THREE from "three";
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
+import { texture } from "three/tsl";
 
 const logger = new Logger("VideoData", false);
 
@@ -112,7 +113,7 @@ export const videos = {
   cat: {
     id: "cat",
     videoPath: "/video/cat.webm",
-    preload: false, // Load after loading screen
+    preload: true, // Load after loading screen
     position: { x: -24.13, y: -1.48, z: 21.46 },
     rotation: { x: 0.0, y: 0, z: 0.0 },
     scale: { x: 1, y: 1, z: 1 },

@@ -285,11 +285,15 @@ class SceneManager {
       this.loadingScreen.registerTask(`splat_${id}`, 100);
     }
 
+    // Track download progress for UI feedback
+    let downloadProgress = 0;
+
     const splatMesh = new SplatMesh({
       url: path,
       editable: false, // Don't apply SplatEdit operations to scene splats (only fog)
       onProgress: (progress) => {
         // Progress is a number between 0 and 1
+        downloadProgress = progress;
         if (shouldTrackProgress) {
           const percentage = Math.round(progress * 100);
           this.loadingScreen.updateTask(`splat_${id}`, percentage, 100);
@@ -333,8 +337,19 @@ class SceneManager {
       this.scene.add(splatMesh);
     }
 
-    // Wait for splat to initialize
+    // Wait for initialization - this is the primary indicator that the asset is ready
+    // The initialized promise only resolves when the asset is fully downloaded and processed
+    // This ensures the browser has fully loaded the asset into memory before we continue
     await splatMesh.initialized;
+    
+    // Update progress to 100% if tracking (in case progress callback didn't fire or stopped early)
+    // The initialized promise resolving means the asset is ready, so we can safely mark as complete
+    if (shouldTrackProgress) {
+      // Ensure progress shows 100% even if callback didn't reach it
+      if (downloadProgress < 1.0) {
+        this.loadingScreen.updateTask(`splat_${id}`, 100, 100);
+      }
+    }
 
     // Mark as complete only if tracking progress
     if (shouldTrackProgress) {
