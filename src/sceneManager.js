@@ -51,6 +51,9 @@ class SceneManager {
     this.objects = new Map(); // Map of id -> THREE.Object3D
     this.objectData = new Map(); // Map of id -> original config data (for gizmo flag)
     this.gltfLoader = new GLTFLoader();
+    // Create a loading manager to track all GLTF assets (including textures)
+    this.gltfLoadingManager = new THREE.LoadingManager();
+    this.gltfLoader.manager = this.gltfLoadingManager;
     this.loadingPromises = new Map(); // Track loading promises
     this.physicsColliderObjects = new Set(); // Track which objects have physics colliders
     this.objectsNotInScene = new Set(); // Track objects loaded but not added to scene (deferred loading)
@@ -381,13 +384,14 @@ class SceneManager {
 
       this.gltfLoader.load(
         path,
-        (gltf) => {
-          // Mark as complete only if tracking progress
-          if (shouldTrackProgress) {
-            this.loadingScreen.completeTask(`gltf_${id}`);
-          }
-
+        async (gltf) => {
           const model = gltf.scene;
+
+          // For preload assets, wait for all textures to be fully loaded
+          // GLTFLoader callback fires when the GLTF file is loaded, but textures may still be loading
+          if (shouldTrackProgress) {
+            await this._waitForGLTFTextures(model);
+          }
 
           // Traverse all children and ensure materials are visible
           // Also remove any lights from the GLTF (we manage lights separately)
@@ -620,6 +624,11 @@ class SceneManager {
             }
           }
 
+          // Mark as complete only if tracking progress (after textures are loaded)
+          if (shouldTrackProgress) {
+            this.loadingScreen.completeTask(`gltf_${id}`);
+          }
+
           resolve(finalObject);
         },
         (xhr) => {
@@ -630,10 +639,78 @@ class SceneManager {
           }
         },
         (error) => {
+          // Complete task even on error to prevent loading screen from hanging
+          if (shouldTrackProgress) {
+            this.loadingScreen.completeTask(`gltf_${id}`);
+          }
           reject(error);
         }
       );
     });
+  }
+
+  /**
+   * Wait for all textures in a GLTF model to be fully loaded
+   * @param {THREE.Object3D} model - The loaded GLTF model
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _waitForGLTFTextures(model) {
+    const texturePromises = [];
+
+    model.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+
+        materials.forEach((material) => {
+          // Check all texture properties
+          const textureProperties = [
+            "map",
+            "normalMap",
+            "roughnessMap",
+            "metalnessMap",
+            "aoMap",
+            "emissiveMap",
+            "bumpMap",
+            "displacementMap",
+            "alphaMap",
+            "lightMap",
+            "envMap",
+          ];
+
+          textureProperties.forEach((prop) => {
+            const texture = material[prop];
+            if (texture && texture instanceof THREE.Texture) {
+              // Check if texture image is loaded
+              if (texture.image) {
+                if (texture.image instanceof Image) {
+                  // Wait for image to load
+                  if (!texture.image.complete) {
+                    texturePromises.push(
+                      new Promise((resolve) => {
+                        texture.image.onload = resolve;
+                        texture.image.onerror = resolve; // Resolve on error too to prevent hanging
+                      })
+                    );
+                  }
+                } else if (texture.image instanceof HTMLCanvasElement) {
+                  // Canvas is already ready
+                } else if (texture.image instanceof ImageData) {
+                  // ImageData is already ready
+                }
+              }
+            }
+          });
+        });
+      }
+    });
+
+    // Wait for all textures to load
+    if (texturePromises.length > 0) {
+      await Promise.all(texturePromises);
+    }
   }
 
   /**

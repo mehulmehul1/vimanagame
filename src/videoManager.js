@@ -610,12 +610,6 @@ class VideoManager {
         ? videoConfig.position(this.gameManager)
         : videoConfig.position;
 
-    // Check if this is a preload video that should be tracked
-    const shouldPreload = videoConfig.preload !== false; // Default to true
-    const isLoadingComplete =
-      !this.loadingScreen || this.loadingScreen.isLoadingComplete();
-    const shouldTrackProgress = shouldPreload && !isLoadingComplete && this.loadingScreen;
-
     const player = new VideoPlayer({
       scene: this.scene,
       gameManager: this.gameManager,
@@ -636,8 +630,6 @@ class VideoManager {
       audioPositionOffset: videoConfig.audioPositionOffset,
       pannerAttr: videoConfig.pannerAttr,
       billboard: videoConfig.billboard,
-      loadingScreen: shouldTrackProgress ? this.loadingScreen : null,
-      videoId: shouldTrackProgress ? videoId : null,
     });
 
     player.initialize();
@@ -1190,8 +1182,6 @@ class VideoPlayer {
     this.gameManager = options.gameManager;
     this.camera = options.camera;
     this.logger = new Logger("VideoPlayer", false);
-    this.loadingScreen = options.loadingScreen || null;
-    this.videoId = options.videoId || null;
 
     // Video configuration
     this.config = {
@@ -1261,19 +1251,9 @@ class VideoPlayer {
     this.video.preload = "auto"; // Browser will fetch metadata and possibly video data
     this.video.playbackRate = this.config.playbackRate;
 
-    // Register with loading screen if tracking progress
-    if (this.loadingScreen && this.videoId) {
-      this.loadingScreen.registerTask(`video_${this.videoId}`, 1);
-    }
-
     // Explicitly trigger loading to start the fetch immediately
     // This ensures the video starts downloading even if it's not playing
     this.video.load();
-
-    // Wait for video to be ready if tracking progress
-    if (this.loadingScreen && this.videoId) {
-      this._waitForVideoReady();
-    }
 
     // Set up spatial audio if enabled
     const useSpatialAudio = this.config.spatialAudio && !this.config.muted;
@@ -1443,46 +1423,6 @@ class VideoPlayer {
     }
 
     this.isInitialized = true;
-  }
-
-  /**
-   * Wait for video to be ready (fully downloaded and can play through)
-   * Only used for preload videos tracked by loading screen
-   * @private
-   */
-  _waitForVideoReady() {
-    if (!this.loadingScreen || !this.videoId || !this.video) {
-      return;
-    }
-
-    // Check if already ready
-    if (this.video.readyState >= this.video.HAVE_ENOUGH_DATA) {
-      // Video is already ready, complete task immediately
-      this.loadingScreen.completeTask(`video_${this.videoId}`);
-      return;
-    }
-
-    // Wait for canplaythrough event (video can play through without buffering)
-    const onCanPlayThrough = () => {
-      if (this.loadingScreen && this.videoId) {
-        this.loadingScreen.completeTask(`video_${this.videoId}`);
-      }
-      this.video.removeEventListener("canplaythrough", onCanPlayThrough);
-      this.video.removeEventListener("error", onError);
-    };
-
-    // Also handle errors
-    const onError = () => {
-      // Complete task even on error to prevent loading screen from hanging
-      if (this.loadingScreen && this.videoId) {
-        this.loadingScreen.completeTask(`video_${this.videoId}`);
-      }
-      this.video.removeEventListener("canplaythrough", onCanPlayThrough);
-      this.video.removeEventListener("error", onError);
-    };
-
-    this.video.addEventListener("canplaythrough", onCanPlayThrough, { once: true });
-    this.video.addEventListener("error", onError, { once: true });
   }
 
   /**
