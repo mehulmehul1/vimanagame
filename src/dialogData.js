@@ -939,6 +939,12 @@ export const dialogTracks = {
       { text: "Cole!", duration: 1.5 },
       { text: "He's tied us up!", duration: 2.5 },
     ],
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.WAKING_UP,
+        $lt: GAME_STATES.SHADOW_AMPLIFICATIONS,
+      },
+    },
     once: true,
     autoPlay: true,
     priority: 110,
@@ -1009,11 +1015,15 @@ export const dialogTracks = {
       },
       { text: "Let us try.", startTime: 10.5, duration: 4.0 },
     ],
+    criteria: {
+      currentState: {
+        $gte: GAME_STATES.WAKING_UP,
+        $lt: GAME_STATES.SHADOW_AMPLIFICATIONS,
+      },
+    },
     once: true,
     autoPlay: true,
     priority: 90,
-    // Video-synced dialogs should only play when video is playing, not based on state
-    // No criteria needed - handled by video-sync logic
   },
 
   coleHangOnToYourHat: {

@@ -804,234 +804,228 @@ class DialogManager {
     // Register listeners for video play events to trigger video-synced dialogs immediately
     // This ensures dialogs trigger as soon as videos start (e.g., via playNext)
     // rather than waiting for update loop detection
-    import("./dialogData.js").then(
-      ({ dialogTracks, getDialogsForState }) => {
-        this.logger.log("Dialog data loaded, registering state listener");
-        this._dialogDataLoaded = true;
-        // Cache for continuous checking in update()
-        this._getDialogsForState = getDialogsForState;
+    import("./dialogData.js").then(({ dialogTracks, getDialogsForState }) => {
+      this.logger.log("Dialog data loaded, registering state listener");
+      this._dialogDataLoaded = true;
+      // Cache for continuous checking in update()
+      this._getDialogsForState = getDialogsForState;
 
-        // Register event listeners for each video-synced dialog
-        // Also register for counterpart videos (base <-> Safari)
-        const registeredEvents = new Set();
-        for (const dialog of Object.values(dialogTracks)) {
-          if (dialog.videoId && dialog.autoPlay) {
-            const videoIdsToRegister = this._getCounterpartVideoIds(
-              dialog.videoId
-            );
-            for (const vidId of videoIdsToRegister) {
-              const eventName = `video:play:${vidId}`;
-              if (!registeredEvents.has(eventName)) {
-                this.gameManager.on(eventName, () => {
-                  this._checkAndTriggerVideoDialog(vidId);
-                });
-                registeredEvents.add(eventName);
-                this.logger.log(
-                  `Registered video play listener for dialog "${dialog.id}" on event "${eventName}"`
-                );
-              }
-            }
-          }
-
-          // Register event listeners for dialogs with fireOnEvent
-          if (dialog.fireOnEvent && dialog.autoPlay) {
-            const eventName = dialog.fireOnEvent;
+      // Register event listeners for each video-synced dialog
+      // Also register for counterpart videos (base <-> Safari)
+      const registeredEvents = new Set();
+      for (const dialog of Object.values(dialogTracks)) {
+        if (dialog.videoId && dialog.autoPlay) {
+          const videoIdsToRegister = this._getCounterpartVideoIds(
+            dialog.videoId
+          );
+          for (const vidId of videoIdsToRegister) {
+            const eventName = `video:play:${vidId}`;
             if (!registeredEvents.has(eventName)) {
-              this.gameManager.on(eventName, (eventData) => {
-                this._checkAndTriggerEventDialog(eventName, eventData);
+              this.gameManager.on(eventName, () => {
+                this._checkAndTriggerVideoDialog(vidId);
               });
               registeredEvents.add(eventName);
               this.logger.log(
-                `Registered event listener for dialog "${dialog.id}" on event "${eventName}"`
+                `Registered video play listener for dialog "${dialog.id}" on event "${eventName}"`
               );
             }
           }
         }
 
-        // Listen for state changes
-        const stateChangeHandler = (newState, oldState) => {
-          // Only process if currentState actually changed (not just property updates)
-          if (oldState?.currentState === newState?.currentState) {
-            // Skip property-only updates (e.g., viewmasterInsanityIntensity changes)
+        // Register event listeners for dialogs with fireOnEvent
+        if (dialog.fireOnEvent && dialog.autoPlay) {
+          const eventName = dialog.fireOnEvent;
+          if (!registeredEvents.has(eventName)) {
+            this.gameManager.on(eventName, (eventData) => {
+              this._checkAndTriggerEventDialog(eventName, eventData);
+            });
+            registeredEvents.add(eventName);
             this.logger.log(
-              `Skipping state change handler - currentState unchanged (${newState?.currentState}), only properties updated`
+              `Registered event listener for dialog "${dialog.id}" on event "${eventName}"`
             );
-            return;
           }
-
-          const matchingDialogs = getDialogsForState(
-            newState,
-            this.playedDialogs
-          );
-
-          this.logger.log(
-            `State changed: ${oldState?.currentState} -> ${
-              newState.currentState
-            }, found ${
-              matchingDialogs.length
-            } matching dialog(s): ${matchingDialogs
-              .map((d) => d.id)
-              .join(", ")}`
-          );
-
-          // If there are matching dialogs for the new state
-          if (matchingDialogs.length > 0) {
-            // Process dialogs in priority order, play the first valid one
-            // (Sequential behavior: highest priority dialog plays, interrupts current if needed)
-            for (const dialog of matchingDialogs) {
-              // Skip if already played and marked as "once" (check this FIRST)
-              if (
-                dialog.once &&
-                this.playedDialogs &&
-                this.playedDialogs.has(dialog.id)
-              ) {
-                this.logger.log(
-                  `Skipping dialog "${dialog.id}" - already played (once: true)`
-                );
-                continue;
-              }
-
-              // Skip video-synced dialogs (handled in update loop when video is actually playing)
-              // Video-synced dialogs should ONLY play when their video is playing, not from state changes
-              if (dialog.videoId) {
-                continue;
-              }
-
-              // Skip if this is already active
-              if (this.activeDialogs.has(dialog.id)) {
-                this.logger.log(
-                  `Skipping dialog "${dialog.id}" - already active`
-                );
-                continue;
-              }
-
-              // Skip if already pending
-              if (this.pendingDialogs.has(dialog.id)) {
-                this.logger.log(
-                  `Skipping dialog "${dialog.id}" - already pending`
-                );
-                continue;
-              }
-
-              // All dialogs can interrupt/run concurrently (add to active dialogs, don't stop existing)
-              this.logger.log(
-                `Auto-playing dialog "${dialog.id}" from state change`
-              );
-
-              // Only track in playedDialogs if marked as "once" (allows replay for once: false)
-              if (dialog.once) {
-                this.playedDialogs.add(dialog.id);
-              }
-
-              // Emit event for tracking
-              this.gameManager.emit("dialog:trigger", dialog.id, dialog);
-
-              // Play the dialog (will be scheduled with its delay if specified)
-              this.playDialog(dialog, (completedDialog) => {
-                this.gameManager.emit("dialog:finished", completedDialog);
-              });
-
-              // Break after playing first valid dialog (sequential behavior for state changes)
-              break;
-            }
-          }
-        };
-
-        // Register the state change handler
-        this.gameManager.on("state:changed", stateChangeHandler);
-
-        this.logger.log("Event listeners registered");
-
-        // Check initial state in case we're already in a state that should trigger dialogs
-        const currentState = this.gameManager.getState();
-        if (currentState) {
-          this.logger.log(
-            `Checking initial state: ${currentState.currentState}, isViewmasterEquipped: ${currentState.isViewmasterEquipped}`
-          );
-          const matchingDialogs = getDialogsForState(
-            currentState,
-            this.playedDialogs
-          );
-          this.logger.log(
-            `Initial state check: found ${
-              matchingDialogs.length
-            } matching dialog(s): ${matchingDialogs
-              .map((d) => d.id)
-              .join(", ")}`
-          );
-
-          // Process matching dialogs for initial state
-          if (matchingDialogs.length > 0) {
-            for (const dialog of matchingDialogs) {
-              // Skip if already played and marked as "once"
-              if (
-                dialog.once &&
-                this.playedDialogs &&
-                this.playedDialogs.has(dialog.id)
-              ) {
-                this.logger.log(
-                  `Skipping initial dialog "${dialog.id}" - already played (once: true)`
-                );
-                continue;
-              }
-
-              // Skip video-synced dialogs (handled in update loop)
-              if (dialog.videoId) {
-                continue;
-              }
-
-              // Skip if this is already active
-              if (this.activeDialogs.has(dialog.id)) {
-                this.logger.log(
-                  `Skipping initial dialog "${dialog.id}" - already active`
-                );
-                continue;
-              }
-
-              // Skip if already pending
-              if (this.pendingDialogs.has(dialog.id)) {
-                this.logger.log(
-                  `Skipping initial dialog "${dialog.id}" - already pending`
-                );
-                continue;
-              }
-
-              this.logger.log(
-                `Auto-playing dialog "${dialog.id}" from initial state check`
-              );
-
-              // Only track in playedDialogs if marked as "once"
-              if (dialog.once) {
-                this.playedDialogs.add(dialog.id);
-              }
-
-              // Emit event for tracking
-              this.gameManager.emit("dialog:trigger", dialog.id, dialog);
-
-              // Play the dialog (will be scheduled with its delay if specified)
-              this.playDialog(dialog, (completedDialog) => {
-                this.gameManager.emit("dialog:finished", completedDialog);
-              });
-
-              // Break after playing first valid dialog (sequential behavior)
-              break;
-            }
-          }
-        }
-
-        // Register the state change handler
-        this.gameManager.on("state:changed", stateChangeHandler);
-
-        // Process any pending state checks that happened before dialog data loaded
-        while (this._pendingStateChecks.length > 0) {
-          const { newState, oldState } = this._pendingStateChecks.shift();
-          this.logger.log(
-            "Processing pending state check that occurred before dialog data loaded"
-          );
-          stateChangeHandler(newState, oldState);
         }
       }
-    );
+
+      // Listen for state changes
+      const stateChangeHandler = (newState, oldState) => {
+        // Only process if currentState actually changed (not just property updates)
+        if (oldState?.currentState === newState?.currentState) {
+          // Skip property-only updates (e.g., viewmasterInsanityIntensity changes)
+          this.logger.log(
+            `Skipping state change handler - currentState unchanged (${newState?.currentState}), only properties updated`
+          );
+          return;
+        }
+
+        const matchingDialogs = getDialogsForState(
+          newState,
+          this.playedDialogs
+        );
+
+        this.logger.log(
+          `State changed: ${oldState?.currentState} -> ${
+            newState.currentState
+          }, found ${
+            matchingDialogs.length
+          } matching dialog(s): ${matchingDialogs.map((d) => d.id).join(", ")}`
+        );
+
+        // If there are matching dialogs for the new state
+        if (matchingDialogs.length > 0) {
+          // Process dialogs in priority order, play the first valid one
+          // (Sequential behavior: highest priority dialog plays, interrupts current if needed)
+          for (const dialog of matchingDialogs) {
+            // Skip if already played and marked as "once" (check this FIRST)
+            if (
+              dialog.once &&
+              this.playedDialogs &&
+              this.playedDialogs.has(dialog.id)
+            ) {
+              this.logger.log(
+                `Skipping dialog "${dialog.id}" - already played (once: true)`
+              );
+              continue;
+            }
+
+            // Skip video-synced dialogs (handled in update loop when video is actually playing)
+            // Video-synced dialogs should ONLY play when their video is playing, not from state changes
+            if (dialog.videoId) {
+              continue;
+            }
+
+            // Skip if this is already active
+            if (this.activeDialogs.has(dialog.id)) {
+              this.logger.log(
+                `Skipping dialog "${dialog.id}" - already active`
+              );
+              continue;
+            }
+
+            // Skip if already pending
+            if (this.pendingDialogs.has(dialog.id)) {
+              this.logger.log(
+                `Skipping dialog "${dialog.id}" - already pending`
+              );
+              continue;
+            }
+
+            // All dialogs can interrupt/run concurrently (add to active dialogs, don't stop existing)
+            this.logger.log(
+              `Auto-playing dialog "${dialog.id}" from state change`
+            );
+
+            // Only track in playedDialogs if marked as "once" (allows replay for once: false)
+            if (dialog.once) {
+              this.playedDialogs.add(dialog.id);
+            }
+
+            // Emit event for tracking
+            this.gameManager.emit("dialog:trigger", dialog.id, dialog);
+
+            // Play the dialog (will be scheduled with its delay if specified)
+            this.playDialog(dialog, (completedDialog) => {
+              this.gameManager.emit("dialog:finished", completedDialog);
+            });
+
+            // Break after playing first valid dialog (sequential behavior for state changes)
+            break;
+          }
+        }
+      };
+
+      // Register the state change handler
+      this.gameManager.on("state:changed", stateChangeHandler);
+
+      this.logger.log("Event listeners registered");
+
+      // Check initial state in case we're already in a state that should trigger dialogs
+      const currentState = this.gameManager.getState();
+      if (currentState) {
+        this.logger.log(
+          `Checking initial state: ${currentState.currentState}, isViewmasterEquipped: ${currentState.isViewmasterEquipped}`
+        );
+        const matchingDialogs = getDialogsForState(
+          currentState,
+          this.playedDialogs
+        );
+        this.logger.log(
+          `Initial state check: found ${
+            matchingDialogs.length
+          } matching dialog(s): ${matchingDialogs.map((d) => d.id).join(", ")}`
+        );
+
+        // Process matching dialogs for initial state
+        if (matchingDialogs.length > 0) {
+          for (const dialog of matchingDialogs) {
+            // Skip if already played and marked as "once"
+            if (
+              dialog.once &&
+              this.playedDialogs &&
+              this.playedDialogs.has(dialog.id)
+            ) {
+              this.logger.log(
+                `Skipping initial dialog "${dialog.id}" - already played (once: true)`
+              );
+              continue;
+            }
+
+            // Skip video-synced dialogs (handled in update loop)
+            if (dialog.videoId) {
+              continue;
+            }
+
+            // Skip if this is already active
+            if (this.activeDialogs.has(dialog.id)) {
+              this.logger.log(
+                `Skipping initial dialog "${dialog.id}" - already active`
+              );
+              continue;
+            }
+
+            // Skip if already pending
+            if (this.pendingDialogs.has(dialog.id)) {
+              this.logger.log(
+                `Skipping initial dialog "${dialog.id}" - already pending`
+              );
+              continue;
+            }
+
+            this.logger.log(
+              `Auto-playing dialog "${dialog.id}" from initial state check`
+            );
+
+            // Only track in playedDialogs if marked as "once"
+            if (dialog.once) {
+              this.playedDialogs.add(dialog.id);
+            }
+
+            // Emit event for tracking
+            this.gameManager.emit("dialog:trigger", dialog.id, dialog);
+
+            // Play the dialog (will be scheduled with its delay if specified)
+            this.playDialog(dialog, (completedDialog) => {
+              this.gameManager.emit("dialog:finished", completedDialog);
+            });
+
+            // Break after playing first valid dialog (sequential behavior)
+            break;
+          }
+        }
+      }
+
+      // Register the state change handler
+      this.gameManager.on("state:changed", stateChangeHandler);
+
+      // Process any pending state checks that happened before dialog data loaded
+      while (this._pendingStateChecks.length > 0) {
+        const { newState, oldState } = this._pendingStateChecks.shift();
+        this.logger.log(
+          "Processing pending state check that occurred before dialog data loaded"
+        );
+        stateChangeHandler(newState, oldState);
+      }
+    });
 
     // Also register a temporary listener BEFORE async import completes
     // This will catch state changes that happen during initialization
@@ -1866,8 +1860,18 @@ class DialogManager {
 
     const videoCurrentTime = videoPlayer.video.currentTime;
 
+    // Get current game state for criteria checking
+    const currentState = this.gameManager?.getState?.() || {};
+
     // Trigger all matching dialogs
     for (const dialog of matchingDialogs) {
+      // Check criteria if dialog has them
+      if (dialog.criteria) {
+        if (!checkCriteria(currentState, dialog.criteria)) {
+          continue;
+        }
+      }
+
       // Skip if already played and marked as "once"
       if (
         dialog.once &&
