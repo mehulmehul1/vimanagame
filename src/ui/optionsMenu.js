@@ -501,10 +501,10 @@ class OptionsMenu {
   /**
    * Set performance profile early (before options menu is fully initialized)
    * Called from main.js right after platform detection
-   * @param {string} profile - "mobile", "laptop", or "max"
+   * @param {string} profile - "mobile", "laptop", "desktop", or "max"
    */
   setPerformanceProfile(profile) {
-    if (!["mobile", "laptop", "max"].includes(profile)) {
+    if (!["mobile", "laptop", "desktop", "max"].includes(profile)) {
       this.logger.warn(
         `Invalid performance profile: ${profile}, defaulting to "max"`
       );
