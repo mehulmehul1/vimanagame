@@ -281,7 +281,7 @@ export const sceneObjects = {
       },
       performanceProfile: "max",
     },
-    preload: true
+    preload: true,
   },
 
   alleyIntroLaptop: {
@@ -302,7 +302,7 @@ export const sceneObjects = {
       },
       performanceProfile: "laptop",
     },
-    preload: true
+    preload: true,
   },
 
   alleyIntroDesktop: {
@@ -323,7 +323,7 @@ export const sceneObjects = {
       },
       performanceProfile: "desktop",
     },
-    preload: true
+    preload: true,
   },
 
   alleyIntroMobile: {
@@ -344,7 +344,7 @@ export const sceneObjects = {
       },
       performanceProfile: "mobile",
     },
-    preload: true
+    preload: true,
   },
 
   alleyLongView: {
@@ -734,7 +734,7 @@ export const sceneObjects = {
         $gte: GAME_STATES.VIEWMASTER_HELL,
         $lte: GAME_STATES.POST_VIEWMASTER,
       },
-      performanceProfile: { $in: ["mobile", "laptop"] },
+      performanceProfile: { $in: ["mobile", "laptop", "desktop", "max"] },
     },
     preload: false,
   },
