@@ -43,10 +43,14 @@
         dataLayer.push(arguments);
       }
       gtag("js", new Date());
-      gtag("config", "G-7GXLMFXBJV");
+      gtag("config", "G-7GXLMFXBJV", {
+        cookie_flags: "SameSite=None; Secure",
+        cookie_update: false,
+      });
     </script>
     <style>
-      html, body {
+      html,
+      body {
         margin: 0;
         padding: 0;
         width: 100%;
