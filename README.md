@@ -17,7 +17,7 @@ Shadow is built with SparkJS.dev (https://sparkjs.dev), World Labs' three.js-bas
 
 ### Core Framework
 
-The game uses a manager-based architecture where specialized managers handle different aspects. The idea is that managers listen for game state changes, and then decide based on criteria whether to take action on any given asset or piece of media within its respective data script. Aside from responding to state changes, manager scripts can also initiate them, causing the game to progress and other managers to initiate scripting:
+The game uses a manager-based architecture where specialized managers handle different features, assets or media types. The idea is that managers listen for game state changes, and then review their respective data scripts and decide based on criteria whether to take action on any given asset or piece of media. Aside from responding to state changes, manager scripts can also initiate them, causing the game to progress and other managers to initiate followup responses:
 
 - **GameManager**: Central state store with event emitter pattern
 - **SceneManager**: Loads and manages splat meshes and GLTF models
