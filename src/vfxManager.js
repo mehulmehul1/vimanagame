@@ -1,52 +1,47 @@
-import { Logger } from "./utils/logger.js";
-
 /**
- * VFXManager - Base class for state-driven VFX systems
+ * VFXManager.js - BASE CLASS FOR STATE-DRIVEN VFX SYSTEMS
+ * =============================================================================
  *
- * Provides reusable game state management for VFX effects.
- * VFX systems can extend this class to automatically respond to game state changes.
- * All VFX effects are defined in a single centralized vfxData.js file.
+ * ROLE: Base class that provides reusable game state management for VFX effects.
+ * VFX systems extend this class to automatically respond to game state changes.
  *
- * Usage:
+ * KEY RESPONSIBILITIES:
+ * - Subscribe to GameManager state changes
+ * - Match VFX effects to current state via criteria
+ * - Apply highest-priority matching effect
+ * - Support delayed effect application
+ * - Provide abstract applyEffect() for subclasses
  *
- * 1. Add your VFX effects to vfxData.js:
- *    export const myVfxEffects = {
- *      effectName: {
- *        id: "effectName",
- *        parameters: { ... }, // Your VFX-specific parameters
- *        criteria: { currentState: { $gte: GAME_STATES.INTRO } },
- *        priority: 10,
- *        delay: 2.0, // Optional: delay in seconds before applying effect
- *      },
- *    };
+ * VFX DATA STRUCTURE:
+ * Effects are defined in vfxData.js:
+ *   {
+ *     id: "effectName",
+ *     parameters: { ... },     // VFX-specific parameters
+ *     criteria: { ... },       // State matching criteria
+ *     priority: 10,            // Higher = checked first
+ *     delay: 2.0,              // Seconds before applying
+ *   }
  *
- *    // Add to vfxEffects object:
- *    export const vfxEffects = {
- *      desaturation: desaturationEffects,
- *      myVfx: myVfxEffects, // <-- Add your effects here
- *    };
+ * USAGE:
+ *   class MyVFX extends VFXManager {
+ *     constructor() { super("MyVFX"); }
+ *     applyEffect(effect, state) {
+ *       const params = effect.parameters || {};
+ *       // Apply effect parameters
+ *     }
+ *   }
  *
- * 2. Your VFX class extends VFXManager:
- *    class MyVFX extends VFXManager {
- *      constructor() {
- *        super("MyVFX"); // Pass logger name
- *        // Your VFX initialization
- *      }
+ *   myVfx.setGameManager(gameManager, "myVfxType");
  *
- *      applyEffect(effect, state) {
- *        // Apply the effect parameters to your VFX
- *        const params = effect.parameters || {};
- *        this.opacity = params.opacity;
- *        this.color = params.color;
- *        // etc.
- *      }
- *    }
+ * SUBCLASSES:
+ * - DesaturationAndGlitchEffects
+ * - SplatFractalEffect
+ * - DissolveEffect
  *
- * 3. In main.js, connect to game manager with just the VFX type name:
- *    myVfx.setGameManager(gameManager, "myVfx");
- *
- * That's it! The VFX will automatically load effects from vfxData.js and respond to state changes.
+ * =============================================================================
  */
+
+import { Logger } from "./utils/logger.js";
 export class VFXManager {
   /**
    * @param {string} loggerName - Name for the logger (e.g., "MyVFX")

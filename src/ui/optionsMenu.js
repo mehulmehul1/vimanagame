@@ -1,11 +1,26 @@
 /**
- * OptionsMenu - Manages the in-game options/settings menu
+ * optionsMenu.js - IN-GAME OPTIONS AND SETTINGS MENU
+ * =============================================================================
  *
- * Features:
- * - Opens/closes with short Escape key press (< 200ms)
- * - Music volume slider
+ * ROLE: Manages the options/settings menu accessible during gameplay.
+ * Handles volume controls, DOF toggle, captions, and performance profiles.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Open/close with Escape key
+ * - Music and SFX volume sliders
+ * - Depth of Field toggle
+ * - Captions enable/disable
+ * - Performance profile selection (mobile/laptop/desktop/max)
+ * - Save/load settings to localStorage
  * - Pause game when open
- * - Save settings to localStorage
+ *
+ * PERFORMANCE PROFILES:
+ * - mobile: 2M splat budget, merged zones
+ * - laptop: 5M splat budget
+ * - desktop: 8M splat budget
+ * - max: Full quality
+ *
+ * =============================================================================
  */
 
 import { Logger } from "../utils/logger.js";

@@ -1,3 +1,48 @@
+/**
+ * main.js - APPLICATION ENTRY POINT
+ * =============================================================================
+ *
+ * ROLE: Initializes the entire game application, wiring together all managers
+ * and systems. This is the bootstrap file that creates the Three.js scene,
+ * SparkRenderer, physics world, and all game subsystems.
+ *
+ * INITIALIZATION FLOW:
+ * 1. LoadingScreen created (DOM overlay)
+ * 2. Platform detection (mobile/iOS/Safari capabilities)
+ * 3. OptionsMenu for performance profile selection
+ * 4. Three.js scene, camera, renderer setup
+ * 5. SparkRenderer for Gaussian splatting
+ * 6. PhysicsManager (Rapier world)
+ * 7. All managers initialized (Scene, Animation, Dialog, Video, Music, etc.)
+ * 8. Asset preloading (splats, models, audio)
+ * 9. StartScreen displayed
+ * 10. User clicks START → INTRO state → game begins
+ *
+ * KEY SYSTEMS INITIALIZED:
+ * - GameManager: Central state store
+ * - SceneManager: Splat and GLTF loading
+ * - AnimationManager: Camera and object animations
+ * - DialogManager: Audio dialog with captions
+ * - VideoManager: WebM video playback
+ * - MusicManager: Background music
+ * - SFXManager: Sound effects
+ * - CharacterController: First-person movement
+ * - InputManager: Keyboard/mouse/gamepad/touch
+ * - PhysicsManager: Rapier physics
+ * - ColliderManager: Trigger zones
+ * - ZoneManager: Dynamic zone loading
+ * - LightManager: Lighting
+ * - VFX Systems: Dissolve, bloom, desaturation
+ *
+ * DEBUG URL PARAMETERS:
+ * - ?gameState=<STATE_NAME> - Skip to specific game state
+ * - ?performanceProfile=<PROFILE> - Set performance profile (mobile/laptop/desktop/max)
+ * - ?dialogChoice2=<CHOICE> - Pre-select dialog choice
+ * - ?debug=colliders - Show collider debug meshes
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { SparkRenderer } from "@sparkjsdev/spark";
 import { Howler } from "howler";

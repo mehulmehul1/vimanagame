@@ -1,21 +1,27 @@
 /**
- * Dialog Choice Data
+ * dialogChoiceData.js - MULTIPLE CHOICE DIALOG DEFINITIONS
+ * =============================================================================
  *
- * Defines which dialog options to present as choices for each DIALOG_CHOICE state.
- * This keeps dialog data clean and separates choice configuration.
+ * ROLE: Defines branching dialog choices presented to the player at specific
+ * states. Each choice can trigger a different response dialog and set state.
  *
- * Structure:
- * - triggerDialog: Dialog object that triggers this choice moment (e.g., dialogTracks.bonneSoiree)
- * - choiceStateKey: The game state key to store the selected response type
- * - prompt: Optional prompt text shown above choices
- * - choices: Array of choice objects:
- *   - text: Button text (what player sees)
- *   - responseType: Response type to store in game state (from DIALOG_RESPONSE_TYPES)
- *   - dialog: Dialog object to play from dialogData.js (e.g., dialogTracks.dialogChoice1Empath)
- * - onSelect: Callback when any choice is selected
- *   - Receives: (gameManager, selectedChoice)
- *   - Should return: object with state updates (e.g., { currentState: GAME_STATES.NEXT })
- *   - Returns are merged with choiceStateKey to apply all updates at once
+ * CHOICE STRUCTURE:
+ * - id: Unique identifier
+ * - criteria: State conditions for showing choices
+ * - triggerDialog: Dialog that precedes choices (optional)
+ * - choiceStateKey: State key to store selected response type
+ * - prompt: Optional text above choices
+ * - choices: Array of options
+ *   - text: Button label
+ *   - responseType: DIALOG_RESPONSE_TYPES value
+ *   - dialog: Response dialog to play
+ * - onSelect: Callback receiving (gameManager, selectedChoice)
+ *
+ * USAGE:
+ * DialogChoiceUI reads from this file and displays choices when criteria match.
+ * Player selection is stored in gameState[choiceStateKey].
+ *
+ * =============================================================================
  */
 
 import { GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";

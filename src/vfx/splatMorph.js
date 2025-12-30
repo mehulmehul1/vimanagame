@@ -1,19 +1,24 @@
+/**
+ * splatMorph.js - SPLAT SCENE MORPHING TRANSITION
+ * =============================================================================
+ *
+ * ROLE: Creates dramatic transitions between two splat scenes. One scene
+ * scatters into particles and reforms into a different splat scene.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load source and target splat meshes
+ * - Animate particle scatter from source
+ * - Animate particle reform to target
+ * - Procedural audio during transition
+ * - State-driven via VFXManager base class
+ *
+ * =============================================================================
+ */
+
 import { dyno } from "@sparkjsdev/spark";
 import { VFXManager } from "../vfxManager.js";
 import { Logger } from "../utils/logger.js";
 import { ProceduralAudio } from "./proceduralAudio.js";
-
-/**
- * SplatMorphEffect - Morphs between two splat scenes
- *
- * Creates a dramatic transition where one splat scatters into particles
- * and reforms into a different splat scene.
- *
- * Usage:
- * - Extends VFXManager for automatic state-driven behavior
- * - Configured via vfxData.js
- * - Transitions triggered by game state changes
- */
 export class SplatMorphEffect extends VFXManager {
   constructor(scene, sceneManager) {
     super("SplatMorph", false);

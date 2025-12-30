@@ -1,8 +1,24 @@
 /**
- * Game Data
+ * gameData.js - GAME STATE DEFINITIONS AND INITIAL VALUES
+ * =============================================================================
  *
- * Centralized definition of game state keys and their default values.
- * Keep this in sync with systems that read state (music, dialog, SFX, colliders).
+ * ROLE: Centralized definition of game state enums, response types, and the
+ * initial state object used at startup and for resets.
+ *
+ * KEY EXPORTS:
+ * - GAME_STATES: Enum of all narrative states (LOADING through GAME_OVER)
+ * - DIALOG_RESPONSE_TYPES: Enum for multiple-choice dialog responses
+ * - startScreen: Initial state object applied at game start
+ *
+ * STATE PROGRESSION:
+ * Game states are numeric and generally increase as the story progresses.
+ * Criteria can use comparison operators ($gte, $lt, etc.) against these values.
+ *
+ * USAGE:
+ * All data files (dialog, music, video, etc.) import GAME_STATES for criteria.
+ * GameManager initializes with startScreen state.
+ *
+ * =============================================================================
  */
 
 /**

@@ -1,19 +1,27 @@
 /**
- * Dissolve Effect
+ * dissolveEffect.js - GAUSSIAN SPLAT DISSOLVE WITH PARTICLES
+ * =============================================================================
  *
- * State-driven dissolve effect for GLTF models using Perlin noise.
+ * ROLE: State-driven dissolve effect for GLTF models using Perlin noise.
  * Extends VFXManager for automatic game state integration.
  *
- * Features:
- * - Multi-material support (traverses GLTF and modifies all materials)
- * - Particle emission from dissolving edges
- * - Colored edge glow
- * - Automatic or manual progress control
+ * KEY RESPONSIBILITIES:
+ * - Modify GLTF materials with dissolve shader
+ * - Emit particles from dissolving edges
+ * - Apply colored edge glow
+ * - Progress-based or state-driven animation
+ * - Procedural audio during dissolve
  *
- * Usage:
+ * SHADER INJECTION:
+ * Uses onBeforeCompile to inject Perlin noise and dissolve logic
+ * into existing Three.js materials.
+ *
+ * USAGE:
  *   const dissolve = new DissolveEffect(scene, sceneManager, renderer);
  *   dissolve.setGameManager(gameManager, "dissolve");
  *   dissolve.update(deltaTime);
+ *
+ * =============================================================================
  */
 
 import * as THREE from "three";

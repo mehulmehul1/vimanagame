@@ -1,24 +1,30 @@
+/**
+ * phoneCord.js - PHYSICS-BASED TELEPHONE CORD SIMULATION
+ * =============================================================================
+ *
+ * ROLE: Manages physics-based telephone cord using Rapier chain joints.
+ * Reusable module used by PhoneBooth, CandlestickPhone, and AmplifierCord.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create chain of physics bodies with joints
+ * - Kinematic anchors that follow scene objects
+ * - Visual tube mesh rendering along chain
+ * - Configurable rigid segments at attach points
+ * - Natural droop with gravity simulation
+ *
+ * USAGE:
+ *   const phoneCord = new PhoneCord({
+ *     scene,
+ *     physicsManager,
+ *     cordAttach: cordAttachMesh,
+ *     receiver: receiverMesh,
+ *   });
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
-
-/**
- * PhoneCord - Manages physics-based telephone cord simulation
- *
- * Features:
- * - Physics-based telephone cord with chain segments
- * - Kinematic anchor that follows the receiver
- * - Visual tube rendering along the cord
- * - Configurable rigid segments at attach point
- * - Natural droop and curve
- *
- * Usage:
- * const phoneCord = new PhoneCord({
- *   scene,
- *   physicsManager,
- *   cordAttach: cordAttachMesh,
- *   receiver: receiverMesh,
- * });
- */
 class PhoneCord {
   constructor(options = {}) {
     this.scene = options.scene;

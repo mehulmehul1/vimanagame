@@ -1,3 +1,28 @@
+/**
+ * splatFractalEffect.js - FRACTAL SHADER EFFECTS FOR SPLAT MESHES
+ * =============================================================================
+ *
+ * ROLE: Applies fractal and distortion shader effects to Gaussian splat meshes
+ * via SparkRenderer dyno system. Extends VFXManager for state-driven behavior.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Apply fractal patterns with head movement tracking
+ * - Wave distortion effects (sine-based)
+ * - Disintegration particle effects
+ * - Breathing/meditation animations
+ * - Light flare gathering effects
+ * - Procedural audio synchronization
+ *
+ * EFFECT MODES:
+ * - Electronic: Fractal patterns tied to camera position
+ * - Deep Meditation: Complex fractals with breathing animation
+ * - Waves: Sine wave displacement
+ * - Disintegrate: Particle scatter
+ * - Flare: Light gathering effect
+ *
+ * =============================================================================
+ */
+
 import { dyno } from "@sparkjsdev/spark";
 import { VFXManager } from "../vfxManager.js";
 import { Logger } from "../utils/logger.js";
@@ -12,22 +37,6 @@ import { getSceneObjectsForState } from "../sceneData.js";
 export function octavesToMultiplier(octaves) {
   return Math.pow(2, octaves) - 1;
 }
-
-/**
- * SplatFractalEffect - Applies fractal shader effects to splat meshes
- *
- * Creates various visual effects including:
- * - Electronic: Fractal patterns with head movement
- * - Deep Meditation: Breathing animation with complex fractals
- * - Waves: Sine wave distortions
- * - Disintegrate: Particle disintegration
- * - Flare: Light flare gathering effect
- *
- * Usage:
- * - Extends VFXManager for automatic state-driven behavior
- * - Configured via vfxData.js
- * - Can be applied to specific splat meshes or all splats
- */
 export class SplatFractalEffect extends VFXManager {
   constructor(scene, sceneManager) {
     super("SplatFractalEffect", false);

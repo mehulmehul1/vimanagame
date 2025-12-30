@@ -1,5 +1,23 @@
-// Normalized stroke data (0-1 coordinates) for static rune rendering
-// Captured from actual drawings using window.captureStrokeData()
+/**
+ * strokeData.js - STATIC RUNE STROKE DEFINITIONS
+ * =============================================================================
+ *
+ * ROLE: Contains normalized stroke data (0-1 coordinates) for rendering
+ * static rune previews. Captured from actual drawings using
+ * window.captureStrokeData().
+ *
+ * USAGE:
+ * - RuneManager uses these shapes to display goal runes
+ * - StrokeMesh renders these as 3D line geometry
+ * - Coordinates are UV-normalized (0-1 range)
+ *
+ * SHAPES:
+ * - lightning: Zigzag lightning bolt pattern
+ * - star: Five-pointed star (single continuous stroke)
+ * - circle: Closed circular shape
+ *
+ * =============================================================================
+ */
 
 export const STROKE_SHAPES = {
   lightning: [

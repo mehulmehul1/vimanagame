@@ -1,18 +1,40 @@
+/**
+ * DialogManager.js - DIALOG AUDIO AND CAPTION MANAGEMENT
+ * =============================================================================
+ *
+ * ROLE: Manages dialog audio playback with synchronized captions. Supports
+ * multiple concurrent dialogs, video-synced captions, and state-based triggers.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Play dialog audio via Howler.js
+ * - Display synchronized captions with timing
+ * - Support multiple concurrent dialogs
+ * - Unified caption queue across all active dialogs
+ * - Video-synced captions (startTime-based timing)
+ * - State-based auto-play via criteria
+ * - Dialog chaining via playNext
+ * - Fade out support for interruptions
+ * - iOS audio prefetch with budget system
+ *
+ * CAPTION TIMING:
+ * - Duration-based: Captions shown sequentially based on duration
+ * - Video-synced: Captions triggered by video time via startTime
+ *
+ * CONCURRENT DIALOGS:
+ * Multiple dialogs can play simultaneously. Captions are merged into a
+ * unified queue sorted by absolute time.
+ *
+ * PRELOADING:
+ * - preload: true - Load during loading screen
+ * - preload: false - Defer loading, prefetch when criteria could match
+ * - iOS uses blob prefetch with 25MB budget to avoid Howl pool exhaustion
+ *
+ * =============================================================================
+ */
+
 import { Howl } from "howler";
 import { Logger } from "./utils/logger.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
-
-/**
- * DialogManager - Manages dialog audio playback and synchronized captions
- *
- * Supports:
- * - Multiple concurrent dialogs playing simultaneously
- * - Unified caption queue that interleaves captions from all active dialogs chronologically
- * - Audio tracks from multiple dialogs playing at the same time (not stopped when new dialog starts)
- * - Video-synced captions
- * - State-based auto-play
- * - Dialog chaining via playNext
- */
 class DialogManager {
   constructor(options = {}) {
     this.sfxManager = options.sfxManager;

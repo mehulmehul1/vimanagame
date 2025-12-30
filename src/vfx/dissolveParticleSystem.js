@@ -1,8 +1,17 @@
 /**
- * Dissolve Particle System
+ * dissolveParticleSystem.js - DISSOLVE EDGE PARTICLE EMISSION
+ * =============================================================================
  *
- * Manages particle emission from dissolving edges with physics simulation.
- * Particles spawn at the dissolve boundary and animate with wave offsets.
+ * ROLE: Manages particle emission from dissolving mesh edges. Particles spawn
+ * at the dissolve boundary and animate outward with wave-based offsets.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Sample vertex positions from dissolving geometry
+ * - Calculate particle spawn positions at dissolve boundary
+ * - Animate particles with velocity and wave offset
+ * - Scale and rotate particles during animation
+ *
+ * =============================================================================
  */
 
 import * as THREE from "three";

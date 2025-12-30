@@ -1,19 +1,29 @@
 /**
- * VFX Data - Centralized VFX effect definitions
+ * vfxData.js - VFX EFFECT DEFINITIONS
+ * =============================================================================
  *
- * All VFX systems are configured here with their state-based behaviors.
- * Each VFX type has its own section with effect definitions.
+ * ROLE: Centralized definitions for all VFX effects with state-based activation.
+ * VFX systems extend VFXManager and load effects from this file.
  *
- * Structure:
- * - Each effect has: id, parameters, criteria, priority, delay (optional)
+ * VFX TYPES:
+ * - desaturation: Color-to-grayscale transitions
+ * - glitch: Digital glitch post-process effects
+ * - dissolve: Gaussian splat dissolve with particles
+ * - fractal: Splat fractal distortion
+ * - bloom: Selective bloom post-process
+ *
+ * EFFECT STRUCTURE:
+ * - id: Unique identifier
  * - parameters: VFX-specific settings (opacity, color, speed, etc.)
- * - criteria: Game state conditions using the criteria helper
- * - priority: Higher priority effects override lower ones
- * - delay: Optional delay in seconds before applying effect after criteria is met
+ * - criteria: State conditions for activation
+ * - priority: Higher priority effects override lower
+ * - delay: Seconds before applying after criteria match
  *
- * Usage:
- * import { getVfxEffectForState } from './vfxData.js';
- * const effect = getVfxEffectForState('desaturation', gameState);
+ * USAGE:
+ *   import { getVfxEffectForState } from './vfxData.js';
+ *   const effect = getVfxEffectForState('desaturation', gameState);
+ *
+ * =============================================================================
  */
 
 import { GAME_STATES } from "./gameData.js";

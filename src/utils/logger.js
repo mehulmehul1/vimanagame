@@ -1,15 +1,24 @@
 /**
- * Logger utility for class-specific debug logging
+ * logger.js - CLASS-SPECIFIC DEBUG LOGGING UTILITY
+ * =============================================================================
  *
- * Usage:
- * import { Logger } from './utils/logger.js';
+ * ROLE: Provides per-class logging with enable/disable control. Allows
+ * selective debug output without global console spam.
  *
- * class MyManager {
- *   constructor() {
- *     this.logger = new Logger('MyManager', false); // false = debug off by default
- *     this.logger.log('This only appears if debug is enabled');
- *   }
- * }
+ * KEY FEATURES:
+ * - Per-instance debug flag
+ * - Prefixed log output with class name
+ * - log() only outputs when debug=true
+ * - warn() and error() always output
+ * - raw() outputs without prefix for copy-paste data
+ *
+ * USAGE:
+ *   const logger = new Logger('MyManager', true);  // debug enabled
+ *   logger.log('Debug message');   // [MyManager] Debug message
+ *   logger.warn('Warning');        // [MyManager] Warning (always shown)
+ *   logger.error('Error');         // [MyManager] Error (always shown)
+ *
+ * =============================================================================
  */
 
 export class Logger {

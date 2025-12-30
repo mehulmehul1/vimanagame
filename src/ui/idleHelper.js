@@ -1,3 +1,19 @@
+/**
+ * idleHelper.js - IDLE DETECTION AND VISUAL HINTS
+ * =============================================================================
+ *
+ * ROLE: Detects player inactivity and shows visual hints (pulsing rings) to
+ * guide the player. Disabled during dialog, camera animations, or gizmo mode.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Track last movement/interaction time
+ * - Show pulsing indicator rings after idle threshold
+ * - Animate rings toward objective positions
+ * - Disable during blocked states (dialog, animation, choices)
+ *
+ * =============================================================================
+ */
+
 import { Logger } from "../utils/logger.js";
 import "../styles/idleHelper.css";
 

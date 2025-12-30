@@ -1,19 +1,25 @@
+/**
+ * phonebooth.js - PHONE BOOTH INTERACTION CONTROLLER
+ * =============================================================================
+ *
+ * ROLE: Manages the exterior phone booth interaction including receiver pickup,
+ * cord physics, and audio-reactive lighting.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Animate receiver pickup/drop with lerp
+ * - Manage physics-based telephone cord via PhoneCord
+ * - Integrate audio-reactive light for ringing
+ * - Track phone booth state (ringing, answered, dropped)
+ * - Coordinate with GameManager for state transitions
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GAME_STATES } from "../gameData.js";
 import { Logger } from "../utils/logger.js";
 import { checkCriteria } from "../utils/criteriaHelper.js";
 import PhoneCord from "./phoneCord.js";
-
-/**
- * PhoneBooth - Manages phonebooth-specific interactions and animations
- *
- * Features:
- * - Receiver reparenting and lerp animation
- * - Physics-based telephone cord simulation
- * - Audio-reactive light integration
- * - Phone booth state management
- * - Animation callbacks
- */
 class PhoneBooth {
   constructor(options = {}) {
     this.sceneManager = options.sceneManager;

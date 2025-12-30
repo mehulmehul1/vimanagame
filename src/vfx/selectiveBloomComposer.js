@@ -1,14 +1,22 @@
 /**
- * Selective Bloom Composer
+ * selectiveBloomComposer.js - SELECTIVE BLOOM POST-PROCESSING
+ * =============================================================================
  *
- * Two-pass rendering for selective bloom effect.
- * Renders bloom to separate texture then composites with base scene.
+ * ROLE: Two-pass rendering for selective bloom effect. Only specified objects
+ * receive bloom, composited over the base scene.
  *
- * Usage:
+ * KEY RESPONSIBILITIES:
+ * - Create bloom render pass with UnrealBloomPass
+ * - Composite bloom texture over base scene
+ * - Configurable bloom strength, threshold, radius
+ * - Resolution scaling for performance
+ *
+ * USAGE:
  *   const bloomComposer = createSelectiveBloomComposer(renderer, scene, camera);
  *   bloomComposer.composer1.render(); // Bloom pass
  *   bloomComposer.composer2.render(); // Composite pass
- *   bloomComposer.updateBloomStrength(12.0);
+ *
+ * =============================================================================
  */
 
 import * as THREE from "three";

@@ -1,3 +1,33 @@
+/**
+ * VideoManager.js - VIDEO PLAYBACK WITH STATE-BASED CONTROL
+ * =============================================================================
+ *
+ * ROLE: Manages WebM video playback in 3D space with alpha channel transparency,
+ * spatial audio, and state-driven playback control.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load and play WebM videos with alpha channel support
+ * - State-based playback via criteria matching
+ * - Billboard mode (video always faces camera)
+ * - Spatial audio with 3D positioning
+ * - Video chaining via playNext
+ * - Deferred loading for non-preload videos
+ * - iOS video unlock during gesture context
+ *
+ * VIDEO FEATURES:
+ * - Alpha channel transparency for compositing over 3D scenes
+ * - Dynamic positioning (static or function-based)
+ * - Playback rate control
+ * - Loop and mute options
+ * - spawnCriteria/playCriteria for staged visibility
+ *
+ * SPATIAL AUDIO:
+ * Videos can have spatial: true for 3D positioned audio with
+ * panner attributes (HRTF, distance rolloff, etc.)
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { videos } from "./videoData.js";
 import {
@@ -5,16 +35,6 @@ import {
   couldCriteriaStillMatch,
 } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * VideoManager - Manages video playback with state-based control
- *
- * Features:
- * - State-based video playback
- * - WebM alpha channel support
- * - Multiple video instances
- * - Billboard mode to face camera
- */
 class VideoManager {
   constructor(options = {}) {
     this.scene = options.scene;

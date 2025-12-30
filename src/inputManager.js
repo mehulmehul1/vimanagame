@@ -1,19 +1,42 @@
+/**
+ * InputManager.js - UNIFIED INPUT HANDLING
+ * =============================================================================
+ *
+ * ROLE: Provides unified input handling across keyboard, mouse, gamepad, and
+ * touch devices. Abstracts platform-specific input into a common interface
+ * for the CharacterController.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Keyboard input (WASD/Arrow keys, Shift for sprint)
+ * - Mouse input via pointer lock for camera rotation
+ * - Gamepad API support (sticks, triggers, buttons)
+ * - Touch joysticks for mobile (dual virtual joysticks)
+ * - Dead zone handling for analog sticks
+ * - Sensitivity settings (mouse and gamepad)
+ * - Enable/disable controls (movement and rotation separately)
+ * - Gizmo mode for debug positioning
+ *
+ * GAMEPAD MAPPING (Standard Layout):
+ * - Left stick: Movement
+ * - Right stick: Camera rotation
+ * - Left trigger/bumper: Sprint
+ * - A button: Interact (via CharacterController)
+ *
+ * TOUCH INPUT:
+ * Mobile devices get dual virtual joysticks:
+ * - Left joystick: Movement
+ * - Right joystick: Camera rotation
+ *
+ * POINTER LOCK:
+ * Desktop uses pointer lock for mouse look. Can be blocked during
+ * dialog choices or gizmo manipulation.
+ *
+ * =============================================================================
+ */
+
 import { TouchJoystick } from "./ui/touchJoystick.js";
 import { GAME_STATES } from "./gameData.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * InputManager - Unified input handling for keyboard, mouse, gamepad, and touch
- *
- * Features:
- * - Keyboard input (WASD/Arrow keys + Shift for sprint)
- * - Mouse input (for camera rotation via pointer lock)
- * - Gamepad API support (left stick = movement, right stick = camera, triggers/buttons = sprint)
- * - Touch joysticks for mobile (left = movement, right = camera)
- * - Unified interface for character controller
- * - Dead zone handling for gamepad sticks
- * - Automatic gamepad detection and connection handling
- */
 
 class InputManager {
   constructor(rendererDomElement, gameManager = null) {

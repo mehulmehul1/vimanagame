@@ -1,8 +1,21 @@
 /**
- * Platform Detection Utility
+ * platformDetection.js - DEVICE AND BROWSER CAPABILITY DETECTION
+ * =============================================================================
  *
- * Detects platform capabilities and sets gameManager state.
- * This should be called early in initialization so other systems can rely on the state.
+ * ROLE: Detects platform capabilities (mobile, iOS, Safari, fullscreen support)
+ * and sets corresponding flags in gameManager state.
+ *
+ * DETECTED CAPABILITIES:
+ * - isMobile: Touch-capable device
+ * - isIOS: iPhone/iPad (doesn't support Fullscreen API)
+ * - isSafari: Safari browser (all versions)
+ * - isFullscreenSupported: Fullscreen API availability
+ *
+ * USAGE:
+ * Call detectPlatform(gameManager) early in initialization.
+ * Other systems can then check gameState.isIOS, gameState.isMobile, etc.
+ *
+ * =============================================================================
  */
 
 /**

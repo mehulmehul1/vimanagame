@@ -1,18 +1,24 @@
+/**
+ * amplifierCord.js - AMPLIFIER TO VIEWMASTER CORD CONNECTION
+ * =============================================================================
+ *
+ * ROLE: Manages physics-based cord connecting the amplifier to the viewmaster
+ * headset. Appears after LIGHTS_OUT state.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create physics cord between amplifier and viewmaster CordAttach points
+ * - Configure rigid segments at amplifier end
+ * - Track viewmaster pickup for cord updates
+ * - Destroy and recreate cord as needed
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
 import { GAME_STATES } from "../gameData.js";
 import { checkCriteria } from "../utils/criteriaHelper.js";
 import PhoneCord from "./phoneCord.js";
-
-/**
- * AmplifierCord - Manages physics-based cord from amplifier to viewmaster
- *
- * Features:
- * - Physics-based cord with chain segments
- * - Two rigid segments at amplifier end (similar to phonebooth)
- * - Connects amplifier's CordAttach to viewmaster's CordAttach
- * - Only exists after LIGHTS_OUT state
- */
 class AmplifierCord {
   constructor(options = {}) {
     this.sceneManager = options.sceneManager;

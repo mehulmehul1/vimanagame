@@ -5,10 +5,11 @@ This module integrates Google's Quick Draw CNN model into the game as an in-worl
 ## Files
 
 - `drawingRecognitionManager.js` - Main manager for loading model, handling predictions, and coordinating drawing
-- `drawingCanvas3D.js` - Creates a 3D canvas mesh with drawing input handling
-- `drawingLabels.js` - Contains label definitions (3 active labels: car, star, house)
+- `particleCanvas3D.js` - Creates a magical particle canvas with GPU physics and stroke effects
+- `drawingLabels.js` - Contains label definitions (3 active labels: lightning, star, circle)
 - `imagePreprocessor.js` - Processes stroke data into 28x28 images for the model
-- `drawingExample.js` - Example integration showing how to use the system
+- `strokeData.js` - Normalized stroke data for static rune rendering
+- `drawingManager.js` - Game-level manager for the rune-drawing minigame
 
 ## Quick Start
 
@@ -65,11 +66,11 @@ Creates a 3D drawing canvas mesh in the scene.
 - `position` - Object with x, y, z coordinates
 - `scale` - Size of the canvas plane (default: 1)
 
-Returns: DrawingCanvas3D instance
+Returns: ParticleCanvas3D instance
 
 #### `setExpectedDrawing(label)`
 
-Sets what drawing the player should create. Must be one of: 'car', 'star', 'house'
+Sets what drawing the player should create. Must be one of: 'lightning', 'star', 'circle'
 
 Returns: true if successful, false if label not in active set
 
@@ -147,7 +148,7 @@ Default settings in `drawingRecognitionManager.js`:
 - Recognition threshold: 0.4 (40% confidence minimum)
 - Canvas size: 500x500 pixels
 - Stroke weight: 1.5 pixels (in preprocessed 28x28 image)
-- Active labels: ['car', 'star', 'house']
+- Active labels: ['lightning', 'star', 'circle']
 
 To modify the active labels, edit `DRAWING_LABELS` in `drawingLabels.js`.
 
@@ -166,7 +167,7 @@ A puzzle where the player must draw specific symbols to progress:
 
 ```javascript
 const drawingPuzzle = {
-  sequence: ["star", "house", "car"],
+  sequence: ["lightning", "star", "circle"],
   currentIndex: 0,
 
   async checkDrawing() {

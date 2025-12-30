@@ -1,12 +1,23 @@
+/**
+ * timePassesSequence.js - TIME TRANSITION OVERLAY ANIMATION
+ * =============================================================================
+ *
+ * ROLE: Manages the "SOME TIME PASSES..." particle animation shown during
+ * the LIGHTS_OUT state to indicate passage of time.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create particle-based text overlay
+ * - Run fade in/out sequence
+ * - Trigger next state on completion
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { createParticleImage } from "../vfx/titleText.js";
 import { TitleSequence } from "../vfx/titleSequence.js";
 import { GAME_STATES } from "../gameData.js";
 import { Logger } from "../utils/logger.js";
-
-/**
- * TimePassesSequence - Manages the "SOME TIME PASSES..." particle image animation during LIGHTS_OUT
- */
 export class TimePassesSequence {
   constructor(camera, options = {}) {
     this.camera = camera;

@@ -1,3 +1,27 @@
+/**
+ * drawingRecognitionManager.js - ML DRAWING RECOGNITION
+ * =============================================================================
+ *
+ * ROLE: Manages TensorFlow.js-based drawing recognition using QuickDraw model.
+ * Handles lazy loading of ML assets and prediction evaluation.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Lazy load TensorFlow.js and TFLite model (~15MB) on first use
+ * - Create and manage ParticleCanvas3D for drawing input
+ * - Preprocess stroke data into 28x28 grayscale images
+ * - Run ML inference and filter predictions to active labels
+ * - Raycast pointer events to canvas for drawing mode
+ * - Callback system for stroke completion
+ *
+ * ML PIPELINE:
+ * 1. User draws strokes on 3D canvas (stored as [x[], y[]] arrays)
+ * 2. ImagePreprocessor converts to 28x28 grayscale image
+ * 3. TFLite model predicts from 345 QuickDraw categories
+ * 4. Filter to DRAWING_LABELS and return top prediction
+ *
+ * =============================================================================
+ */
+
 import { DRAWING_LABELS, FULL_LABEL_SET } from "./drawingLabels.js";
 import { ImagePreprocessor } from "./imagePreprocessor.js";
 import { ParticleCanvas3D } from "./particleCanvas3D.js";

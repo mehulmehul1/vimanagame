@@ -1,11 +1,17 @@
 /**
- * FullscreenButton - Manages fullscreen toggle button
+ * fullscreenButton.js - FULLSCREEN TOGGLE BUTTON
+ * =============================================================================
  *
- * Features:
- * - Bottom-left corner placement
- * - Toggles fullscreen mode
- * - Integrates with UIManager
- * - Handles fullscreen change events
+ * ROLE: Provides a UI button to toggle fullscreen mode. Hidden on iOS where
+ * the Fullscreen API is not supported.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create fullscreen toggle button
+ * - Request/exit fullscreen via Fullscreen API
+ * - Update button state on fullscreen changes
+ * - Hide/show during pointer lock
+ *
+ * =============================================================================
  */
 
 import { Logger } from "../utils/logger.js";

@@ -1,3 +1,19 @@
+/**
+ * runeManager.js - RUNE SYMBOL PLACEMENT AND MANAGEMENT
+ * =============================================================================
+ *
+ * ROLE: Creates and manages rune symbols in the 3D scene. Runes are rendered
+ * as glowing stroke meshes positioned in the environment.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create rune stroke meshes from strokeData templates
+ * - Position runes in world space
+ * - Manage rune visibility and lifecycle
+ * - Track active runes
+ *
+ * =============================================================================
+ */
+
 import { StrokeMesh } from "../vfx/strokeMesh.js";
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";

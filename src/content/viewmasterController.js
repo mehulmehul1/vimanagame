@@ -1,3 +1,21 @@
+/**
+ * viewmasterController.js - VIEWMASTER EQUIP/UNEQUIP MECHANIC
+ * =============================================================================
+ *
+ * ROLE: Controls the viewmaster headset mechanic including equip/unequip
+ * animations, fractal VFX intensity, and overheat timeout.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Toggle viewmaster equip state via V key or button
+ * - Animate equip/unequip object animations
+ * - Track fractal intensity and overheat
+ * - Trigger VFX (fractal distortion) when equipped
+ * - Auto-equip during SHADOW_AMPLIFICATIONS state
+ * - Handle timeout and max intensity transitions
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { objectAnimations } from "../animationObjectData.js";
 import { GAME_STATES } from "../gameData.js";

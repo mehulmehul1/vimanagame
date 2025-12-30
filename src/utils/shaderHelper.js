@@ -1,8 +1,21 @@
 /**
- * Shader Helper Utilities
+ * shaderHelper.js - THREE.JS SHADER INJECTION UTILITIES
+ * =============================================================================
  *
- * Utilities for injecting custom shader code into Three.js materials
- * via the onBeforeCompile hook.
+ * ROLE: Utilities for injecting custom shader code into Three.js materials
+ * via the onBeforeCompile hook. Used for custom visual effects.
+ *
+ * KEY FUNCTIONS:
+ * - setupUniforms: Add uniforms to a shader
+ * - setupShaderSnippets: Inject vertex/fragment code snippets
+ *
+ * INJECTION POINTS:
+ * - vertexGlobal: Outside main() in vertex shader
+ * - vertexMain: Inside main() in vertex shader
+ * - fragmentGlobal: Outside main() in fragment shader
+ * - fragmentMain: Inside main() in fragment shader (after #include <dithering_fragment>)
+ *
+ * =============================================================================
  */
 
 /**

@@ -1,3 +1,33 @@
+/**
+ * PhysicsManager.js - RAPIER PHYSICS INTEGRATION
+ * =============================================================================
+ *
+ * ROLE: Manages the Rapier physics world including the player character capsule,
+ * trimesh colliders from GLTF models, and sensor colliders for triggers.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Initialize Rapier physics world with gravity
+ * - Create player character capsule (dynamic body)
+ * - Create trimesh colliders from GLTF geometry
+ * - Create sensor colliders for trigger zones
+ * - Fixed timestep physics stepping (60Hz)
+ * - Raycast support for ground detection
+ *
+ * CHARACTER PHYSICS:
+ * Player uses a capsule collider with locked rotations to stay upright.
+ * Movement is applied via velocity changes, not forces.
+ *
+ * TRIMESH COLLIDERS:
+ * Static trimesh colliders can be created from GLTF mesh geometry
+ * for accurate collision with complex level geometry.
+ *
+ * FIXED TIMESTEP:
+ * Physics runs at 60Hz with accumulated time to ensure consistent
+ * simulation regardless of frame rate.
+ *
+ * =============================================================================
+ */
+
 const RAPIER = await import("@dimforge/rapier3d");
 import * as THREE from "three";
 import { Logger } from "./utils/logger.js";

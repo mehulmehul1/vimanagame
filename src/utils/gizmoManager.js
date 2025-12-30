@@ -1,32 +1,38 @@
+/**
+ * GizmoManager.js - DEBUG TRANSFORM GIZMOS FOR ASSET POSITIONING
+ * =============================================================================
+ *
+ * ROLE: Provides interactive transform gizmos (translate/rotate/scale) for
+ * positioning and authoring 3D assets during development.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create TransformControls gizmos for objects with gizmo: true
+ * - Support multiple simultaneous gizmos
+ * - Switch between translate/rotate/scale modes
+ * - Log transform values on release for copy/paste
+ * - Dynamic gizmo spawning via P key
+ * - Teleport to gizmo objects for inspection
+ *
+ * KEYBOARD CONTROLS:
+ * - G: Translate mode
+ * - R: Rotate mode
+ * - X: Scale mode
+ * - Space: Toggle world/local space
+ * - H: Toggle gizmo visibility
+ * - U: Cycle through gizmos and teleport
+ * - P: Spawn gizmo at camera (requires ?gizmo URL param)
+ * - Q/E: Fly down/up (flight mode)
+ *
+ * DATA INTEGRATION:
+ * Set gizmo: true in object data (videoData.js, sceneData.js, etc.)
+ * to automatically create a gizmo for that object.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { Logger } from "./logger.js";
-
-/**
- * GizmoManager - Debug tool for positioning assets in 3D space
- *
- * Features:
- * - Auto-creates gizmo for each object with gizmo: true
- * - Multiple simultaneous gizmos supported (multi-gizmo mode)
- * - Drag gizmo arrows/rings to move/rotate/scale any object
- * - Switch between translate/rotate/scale modes (affects all gizmos)
- * - Log position/rotation/scale on release
- * - Works with meshes, splats, video planes, and colliders
- * - Spawn gizmos dynamically with P key (when ?gizmo URL param present)
- *
- * Usage:
- * - Set gizmo: true in object data (videoData.js, sceneData.js, colliderData.js, etc.)
- * - Gizmo appears automatically for each enabled object
- * - Add ?gizmo to URL to enable P key spawning (blocks pointer lock & idle)
- * - Click object to focus it for logging
- * - P = spawn gizmo 5m in front of camera (only with ?gizmo param)
- * - G = translate, R = rotate, X = scale (all gizmos)
- * - Space = toggle world/local space (all gizmos)
- * - H = toggle visibility (all gizmos)
- * - U = cycle through gizmos and teleport character 5m in front of each
- * - Q/E = fly down/up (flight mode enabled automatically with gizmo)
- * - Drag any gizmo to manipulate, release to log position
- */
 class GizmoManager {
   constructor(
     scene,

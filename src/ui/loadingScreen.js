@@ -1,10 +1,26 @@
+/**
+ * loadingScreen.js - ASSET LOADING PROGRESS OVERLAY
+ * =============================================================================
+ *
+ * ROLE: DOM overlay showing loading progress before the game starts.
+ * Tracks multiple loading tasks and displays aggregate progress.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create DOM overlay with progress bar and SVG animation
+ * - Track multiple named loading tasks
+ * - Calculate and display aggregate progress
+ * - Fade out and trigger START_SCREEN when complete
+ *
+ * TASK TRACKING:
+ * - registerTask(name): Add a new loading task
+ * - updateTask(name, progress): Update task progress (0-1)
+ * - completeTask(name): Mark task as 100% complete
+ *
+ * =============================================================================
+ */
+
 import { Logger } from "../utils/logger.js";
 import { GAME_STATES } from "../gameData.js";
-
-/**
- * LoadingScreen - Minimal loading screen that tracks asset loading progress
- * Shows before main.js initialization and hides when all assets are loaded
- */
 
 export class LoadingScreen {
   constructor() {

@@ -1,3 +1,20 @@
+/**
+ * strokeMesh.js - 3D STROKE RENDERING FOR RUNES
+ * =============================================================================
+ *
+ * ROLE: Renders 3D strokes in the scene for rune symbols. Supports fade
+ * in/out, viewmaster visibility control, and glowing material effects.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create tube geometry from stroke points
+ * - Apply glowing emissive material
+ * - Animate fade in/out based on game state
+ * - Track viewmaster equipped state for visibility
+ * - Scale/position strokes in world space
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 export class StrokeMesh {

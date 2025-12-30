@@ -1,3 +1,41 @@
+/**
+ * CharacterController.js - FIRST-PERSON PLAYER CONTROL
+ * =============================================================================
+ *
+ * ROLE: Manages first-person player movement and camera control. Handles
+ * physics-based locomotion, look-at animations, move-to sequences, and
+ * depth of field effects.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Physics-based movement via Rapier capsule body
+ * - Camera rotation (yaw/pitch) from input
+ * - Look-at system with smooth easing to target
+ * - Move-to system for scripted player movement
+ * - Depth of Field transitions during look-at
+ * - Sprint and collision handling
+ * - Body rotation separate from camera
+ * - Foot position tracking for DOF
+ *
+ * COORDINATE SYSTEM:
+ * - Y-up world space
+ * - Camera pitch clamped to prevent full vertical rotation
+ * - Body yaw updates during movement only
+ *
+ * LOOK-AT SYSTEM:
+ * Smoothly rotates camera to face a target position or dynamic target.
+ * Supports hold duration, return to original view, and progress callbacks.
+ *
+ * MOVE-TO SYSTEM:
+ * Smoothly moves player position and rotation to target over duration.
+ * Used for scripted sequences and transitions.
+ *
+ * DOF INTEGRATION:
+ * Automatically adjusts SparkRenderer DOF during look-at animations
+ * to focus on the target object.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Howl } from "howler";
 import { Logger } from "./utils/logger.js";

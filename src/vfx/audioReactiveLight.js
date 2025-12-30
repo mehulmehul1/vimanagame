@@ -1,24 +1,30 @@
+/**
+ * audioReactiveLight.js - AUDIO-REACTIVE LIGHT INTENSITY
+ * =============================================================================
+ *
+ * ROLE: Makes a Three.js light react to audio analysis. Uses Web Audio API
+ * to analyze frequency/amplitude and modulates light intensity in real-time.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Connect to Howl audio via Web Audio API analyser
+ * - Calculate amplitude from frequency data
+ * - Modulate light intensity based on amplitude
+ * - Apply smoothing and noise floor
+ * - Support frequency range filtering (bass/mid/high/full)
+ *
+ * USAGE:
+ *   const reactiveLight = new AudioReactiveLight(light, howl, {
+ *     baseIntensity: 1.0,
+ *     reactivityMultiplier: 3.0
+ *   });
+ *   reactiveLight.update(); // Call each frame
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Howl, Howler } from "howler";
 import { Logger } from "../utils/logger.js";
-
-/**
- * AudioReactiveLight - Makes a THREE.js light react to audio analysis
- *
- * Uses Web Audio API to analyze a Howl sound's frequency/amplitude
- * and adjusts a light's intensity in real-time.
- *
- * Usage:
- * const light = new THREE.PointLight(0xff0000, 1.0);
- * const howl = new Howl({ src: ['sound.mp3'] });
- * const reactiveLight = new AudioReactiveLight(light, howl, {
- *   baseIntensity: 1.0,
- *   reactivityMultiplier: 3.0
- * });
- *
- * // In animation loop
- * reactiveLight.update();
- */
 
 class AudioReactiveLight {
   constructor(light, howl, options = {}) {

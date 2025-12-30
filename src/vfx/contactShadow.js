@@ -1,3 +1,33 @@
+/**
+ * contactShadow.js - DYNAMIC CONTACT SHADOWS VIA DEPTH RENDERING
+ * =============================================================================
+ *
+ * ROLE: Creates contact shadows underneath 3D objects using depth rendering.
+ * More performant than shadow maps - no lights required.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Render object depth to texture via orthographic camera
+ * - Apply blur passes for soft shadows
+ * - Support static (render once) and dynamic (per-frame) modes
+ * - Track animated meshes within GLTF models
+ * - Fade in/out with configurable duration
+ *
+ * PERFORMANCE:
+ * Each shadow renders 3 times per update (depth + 2 blur passes).
+ * Use isStatic: true for static objects, or updateFrequency to throttle.
+ *
+ * USAGE:
+ *   const shadow = new ContactShadow(renderer, scene, parent, {
+ *     size: { x: 0.5, y: 0.5 },
+ *     blur: 3.5,
+ *     opacity: 0.5,
+ *     isStatic: true
+ *   });
+ *   shadow.update(); // Call before main render
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
 import { HorizontalBlurShader } from "three/examples/jsm/shaders/HorizontalBlurShader.js";
@@ -5,53 +35,6 @@ import { VerticalBlurShader } from "three/examples/jsm/shaders/VerticalBlurShade
 
 // Create module-level logger
 const logger = new Logger("ContactShadow", false);
-
-/**
- * ContactShadow
- *
- * Creates contact shadows underneath 3D objects using depth rendering.
- * More performant and simpler than traditional shadow maps - no lights required!
- *
- * Based on the three.js contact shadows example.
- *
- * Performance: Each shadow renders 3 times per update (depth + 2 blur passes).
- * Use isStatic:true for objects that never move, or updateFrequency to throttle updates.
- *
- * Usage:
- * import { ContactShadow } from './vfx/contactShadow.js';
- *
- * // Static object (renders once, never updates):
- * const staticShadow = new ContactShadow(renderer, scene, parentObject, {
- *   size: { x: 0.5, y: 0.5 },
- *   blur: 3.5,
- *   darkness: 1.5,
- *   opacity: 0.5,
- *   fadeDuration: 0.3,  // Fade in/out duration (seconds)
- *   shadowScale: { x: 1.5, y: 1.5 },  // Scale shadow plane display (doesn't affect capture area)
- *   isStatic: true  // Render once and stop
- * });
- *
- * // Animated object (updates every frame):
- * const dynamicShadow = new ContactShadow(renderer, scene, parentObject, {
- *   updateFrequency: 1,  // Every frame
- *   trackMesh: "CarMesh"
- * });
- *
- * // In animation loop (call update before render):
- * contactShadow.update(deltaTime);  // For fade animations
- * contactShadow.render();
- *
- * // Enable/disable with fade:
- * contactShadow.enable();  // Fade in
- * contactShadow.disable(); // Fade out
- *
- * // For static objects that need to re-render after moving:
- * staticShadow.requestUpdate();
- */
-
-/**
- * ContactShadow class - renders contact shadows for an object using depth rendering
- */
 export class ContactShadow {
   constructor(renderer, scene, parentObject, config = {}) {
     this.renderer = renderer;

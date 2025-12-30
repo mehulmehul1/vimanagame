@@ -1,21 +1,42 @@
+/**
+ * ZoneManager.js - DYNAMIC ZONE LOADING FOR EXTERIOR ENVIRONMENTS
+ * =============================================================================
+ *
+ * ROLE: Manages loading and unloading of Gaussian splat zones based on player
+ * location. Keeps adjacent zones loaded for seamless transitions while
+ * unloading distant zones to manage memory.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Track current player zone via gameState.currentZone
+ * - Load adjacent zones based on zone mapping
+ * - Unload zones outside the adjacency set
+ * - Fade splats in/out during transitions
+ * - Support multiple performance profile mappings
+ * - Update SparkRenderer accumulator origin
+ *
+ * ZONE MAPPING:
+ * Each zone has a list of adjacent zones that should stay loaded:
+ *   alleyIntro: [alleyIntro, alleyNavigable, fourWay]
+ *   fourWay: [fourWay, alleyNavigable, threeWay, plaza, alleyIntro]
+ *   etc.
+ *
+ * PERFORMANCE PROFILES:
+ * Different profiles have different zone mappings:
+ * - max: Full quality with all zones
+ * - desktop: 8M splat budget
+ * - laptop: 5M splat budget
+ * - mobile: Merged zones for lowest memory
+ *
+ * ZONE TRANSITIONS:
+ * Splats fade in/out over configurable duration to avoid pop-in.
+ *
+ * =============================================================================
+ */
+
 import { Logger } from "./utils/logger.js";
 import { GAME_STATES } from "./gameData.js";
 import { getSceneObjectsForState, sceneObjects } from "./sceneData.js";
 import { isDebugSpawnActive } from "./utils/debugSpawner.js";
-
-/**
- * ZoneManager - Manages loading/unloading of exterior splat zones based on player location
- *
- * Zone mapping:
- * - AlleyIntro: loads AlleyIntro + AlleyNavigable + FourWay
- * - AlleyNavigable: loads AlleyNavigable + AlleyLongView + FourWay + AlleyIntro
- * - FourWay: loads FourWay + AlleyNavigable + ThreeWay + Plaza
- * - ThreeWay: loads ThreeWay + FourWay + ThreeWay2
- * - ThreeWay2: loads ThreeWay2 + ThreeWay + Plaza
- * - Plaza: loads Plaza + ThreeWay2 + FourWay
- *
- * Only active when currentState < OFFICE_INTERIOR
- */
 
 class ZoneManager {
   constructor(gameManager, sceneManager) {

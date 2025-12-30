@@ -1,6 +1,17 @@
 /**
- * Simple image-based title sequence with fade-in/fade-out
- * Lightweight backup system for when particle effects are too CPU-intensive
+ * imageTitleSequence.js - IMAGE-BASED TITLE SEQUENCE
+ * =============================================================================
+ *
+ * ROLE: Lightweight fallback title sequence using image fade-in/fade-out.
+ * Used when particle effects are too CPU-intensive.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Fade in text images with staggered timing
+ * - Hold for specified duration
+ * - Fade out all elements
+ * - Fire onComplete callback
+ *
+ * =============================================================================
  */
 export class ImageTitleSequence {
   constructor(texts, options = {}) {

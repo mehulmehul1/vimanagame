@@ -1,17 +1,36 @@
+/**
+ * SFXManager.js - SOUND EFFECTS WITH SPATIAL AUDIO
+ * =============================================================================
+ *
+ * ROLE: Manages all sound effects with master volume control, spatial audio
+ * positioning, and state-based playback triggers.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load and play sound effects via Howler.js
+ * - Master volume control affecting all SFX
+ * - Spatial/positional audio with 3D positioning
+ * - State-based auto-play via criteria
+ * - Loop with configurable delay
+ * - Deferred loading for non-preload sounds
+ * - iOS audio prefetch with 25MB budget
+ * - Audio-reactive light triggering
+ *
+ * SPATIAL AUDIO:
+ * Sounds can be positioned in 3D space with panner attributes:
+ * - panningModel: 'equalpower' or 'HRTF'
+ * - distanceModel: 'linear', 'inverse', 'exponential'
+ * - refDistance, rolloffFactor, maxDistance
+ *
+ * STATE-DRIVEN PLAYBACK:
+ * Sounds with criteria auto-play/stop based on game state.
+ * playOnce sounds only trigger once per session.
+ *
+ * =============================================================================
+ */
+
 import { Howl, Howler } from "howler";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * SFXManager - Manages all sound effects with master volume control
- *
- * Features:
- * - Centralized SFX volume control using Howler.js
- * - Register/unregister individual sound effects
- * - Master volume that scales all SFX
- * - Individual sound volume relative to master
- * - Support for spatial/positional audio
- */
 
 class SFXManager {
   constructor(options = {}) {

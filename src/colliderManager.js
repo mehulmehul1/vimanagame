@@ -1,18 +1,40 @@
+/**
+ * ColliderManager.js - TRIGGER ZONES AND INTERSECTION DETECTION
+ * =============================================================================
+ *
+ * ROLE: Manages trigger colliders (sensors) for detecting when the player
+ * enters or exits specific zones. Triggers game state changes and events.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create trigger colliders from colliderData.js definitions
+ * - Detect player entry/exit from trigger zones
+ * - Set game state via GameManager on triggers
+ * - Support box, sphere, capsule, and mesh-based zones
+ * - Handle one-time triggers (fire once per session)
+ * - State-based activation via criteria
+ * - Debug visualization of colliders
+ * - Camera probe for zone detection during animations
+ *
+ * COLLIDER TYPES:
+ * - box: Axis-aligned box trigger
+ * - sphere: Spherical trigger zone
+ * - capsule: Capsule-shaped trigger
+ * - zone: Complex mesh-based zone from GLTF
+ *
+ * ZONE COLLIDERS:
+ * Complex zones use THREE.Mesh with raycasting for point-in-mesh detection.
+ * Registered via SceneManager when GLTF models load.
+ *
+ * CAMERA PROBE:
+ * During START_SCREEN or camera animations, a separate camera probe
+ * tests zone intersections instead of the physics character body.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * ColliderManager - Manages trigger colliders and intersection detection
- *
- * Features:
- * - Creates trigger colliders from collider data below
- * - Detects when character enters/exits colliders
- * - Sets game state through GameManager
- * - Supports box, sphere, and capsule shapes
- * - Handles one-time triggers and enable/disable states
- * - Supports state-based activation criteria
- */
 
 class ColliderManager {
   constructor(

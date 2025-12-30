@@ -1,42 +1,36 @@
+/**
+ * MusicManager.js - BACKGROUND MUSIC PLAYBACK WITH CROSSFADE
+ * =============================================================================
+ *
+ * ROLE: Manages background music playback with smooth crossfade transitions
+ * between tracks. Supports state-driven track changes via criteria.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load and play music tracks via Howler.js
+ * - Crossfade transitions between tracks
+ * - State-based track selection via criteria
+ * - Volume control with fade
+ * - Loop and pause support
+ *
+ * CROSSFADE SYSTEM:
+ * When changing tracks, the old track fades out while the new track fades in
+ * simultaneously over the specified duration.
+ *
+ * STATE-DRIVEN PLAYBACK:
+ * Listens to GameManager state changes and automatically switches tracks
+ * based on criteria defined in musicData.js.
+ *
+ * USAGE:
+ *   const musicManager = new MusicManager({ defaultVolume: 0.7 });
+ *   musicManager.addTrack('menu', './audio/music/menu.mp3');
+ *   musicManager.changeMusic('menu', 2.0); // 2 second crossfade
+ *   musicManager.update(dt); // Call each frame
+ *
+ * =============================================================================
+ */
+
 import { Howl, Howler } from "howler";
 import { Logger } from "./utils/logger.js";
-
-/**
- * MusicManager - Audio manager for background music with fade transitions
- *
- * Usage Example:
- *
- * import MusicManager from './musicManager.js';
- *
- * // Create manager
- * const musicManager = new MusicManager({ defaultVolume: 0.7 });
- *
- * // Add tracks
- * musicManager.addTrack('menu', './audio/music/menu.mp3');
- * musicManager.addTrack('gameplay', ['./audio/music/gameplay.webm', './audio/music/gameplay.mp3']);
- * musicManager.addTrack('boss', './audio/music/boss.mp3', { loop: true });
- *
- * // Play music with 2 second fade
- * musicManager.changeMusic('menu', 2.0);
- *
- * // Switch to gameplay music with 3 second crossfade
- * musicManager.changeMusic('gameplay', 3.0);
- *
- * // Control playback
- * musicManager.pauseMusic();
- * musicManager.resumeMusic();
- * musicManager.stopMusic();
- *
- * // Change volume with fade
- * musicManager.setVolume(0.5, 2.0); // Fade to 50% over 2 seconds
- *
- * // In your animation loop
- * function animate(time) {
- *   const dt = getDeltaTime();
- *   musicManager.update(dt);
- *   // ... rest of your update code
- * }
- */
 
 class MusicManager {
   constructor(options = {}) {

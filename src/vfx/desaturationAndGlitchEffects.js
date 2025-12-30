@@ -1,14 +1,29 @@
+/**
+ * desaturationAndGlitchEffects.js - COMBINED POST-PROCESSING EFFECTS
+ * =============================================================================
+ *
+ * ROLE: Combined post-processing shader for desaturation (color grading) and
+ * digital glitch effects. Single-pass rendering for performance.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Desaturation: Color to grayscale transitions
+ * - Multiple transition modes: fade, bleed, wipe
+ * - Glitch: Digital noise, scan lines, color shift
+ * - State-driven activation via VFXManager base class
+ * - Procedural audio during glitch
+ *
+ * TRANSITION MODES:
+ * - fade: Simple lerp between color and grayscale
+ * - bleed: Perlin noise-based transition
+ * - wipe: Directional wipe (top-to-bottom, etc.)
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { FullScreenQuad } from "three/addons/postprocessing/Pass.js";
 import { VFXManager } from "../vfxManager.js";
 import { ProceduralAudio } from "./proceduralAudio.js";
-
-/**
- * DesaturationAndGlitchEffects - Combined post-processing shader
- * Applies both desaturation and glitch effects in a single pass for better performance
- *
- * Maintains separate controls, triggers, and timing for both effects
- */
 export class DesaturationAndGlitchEffects extends VFXManager {
   constructor(renderer) {
     super("DesaturationAndGlitchEffects", false);

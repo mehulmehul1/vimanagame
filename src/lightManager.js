@@ -1,3 +1,36 @@
+/**
+ * LightManager.js - SCENE LIGHTING AND AUDIO-REACTIVE EFFECTS
+ * =============================================================================
+ *
+ * ROLE: Manages all lighting in the scene including Three.js lights, splat-based
+ * lights via SplatEdit, audio-reactive lights, and lens flares.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load lights from lightData.js definitions
+ * - Create Three.js lights (point, spot, directional)
+ * - Create splat-based lights via SplatEdit layers
+ * - Manage audio-reactive lights that pulse to sound
+ * - Add lens flare effects to lights
+ * - Criteria-based light visibility
+ * - Parent lights to scene objects
+ *
+ * LIGHT TYPES:
+ * - point: Omnidirectional point light
+ * - spot: Directed spotlight with cone
+ * - directional: Parallel rays (sun-like)
+ * - splat: SplatEdit color/brightness modification layer
+ *
+ * AUDIO-REACTIVE LIGHTS:
+ * Lights can pulse intensity/color based on audio playback.
+ * Configured via AudioReactiveLight module.
+ *
+ * SPLAT LIGHTS:
+ * Use SplatEdit to modify splat appearance with spherical SDFs.
+ * Affects splat rendering without adding traditional 3D lights.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import {
   SplatEdit,
@@ -13,21 +46,6 @@ import {
 import { lights } from "./lightData.js";
 import { checkCriteria } from "./utils/criteriaHelper.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * LightManager - Manages all lights in the scene
- *
- * Features:
- * - Create and manage static lights (Three.js and Splat-based)
- * - Create and manage audio-reactive lights
- * - Load lights from data file
- * - Centralized light control
- *
- * Usage:
- * const lightManager = new LightManager(scene);
- * lightManager.loadLightsFromData(lightsData);
- * lightManager.createReactiveLight('phone-light', howl, config);
- */
 
 class LightManager {
   constructor(scene, sceneManager = null, gameManager = null) {

@@ -1,8 +1,20 @@
 /**
- * GamepadMenuNavigation - Shared gamepad navigation utility for menu systems
+ * gamepadMenuNavigation.js - GAMEPAD MENU NAVIGATION UTILITY
+ * =============================================================================
  *
- * Handles gamepad input for vertical menu navigation (up/down selection, A button confirm)
- * Used by StartScreen, DialogChoiceUI, and other menu systems
+ * ROLE: Shared utility for gamepad-based menu navigation. Handles D-pad/stick
+ * up/down and A button confirm for consistent menu behavior.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Poll gamepad for navigation input
+ * - Edge detection for button presses
+ * - Cooldown to prevent rapid navigation
+ * - Play navigation sounds via SFXManager
+ *
+ * USAGE:
+ * Used by StartScreen, DialogChoiceUI, and other menu systems.
+ *
+ * =============================================================================
  */
 
 export class GamepadMenuNavigation {

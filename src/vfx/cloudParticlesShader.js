@@ -1,13 +1,24 @@
+/**
+ * cloudParticlesShader.js - GPU-BASED FOG/CLOUD PARTICLE SYSTEM
+ * =============================================================================
+ *
+ * ROLE: Creates slow drifting fog animation using Gaussian splats with
+ * GPU-based animation via SparkRenderer dyno shader system.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Generate cloud particle splat mesh
+ * - Animate particles on GPU using dyno shaders
+ * - Wind drift with turbulence
+ * - Configurable opacity, color, size
+ * - State-driven activation via VFXManager
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { SplatMesh, dyno } from "@sparkjsdev/spark";
 import { Logger } from "../utils/logger.js";
 import { VFXManager } from "../vfxManager.js";
-
-/**
- * Cloud Particles System (Shader-based)
- * Creates a slow drifting fog animation using Gaussian splats with GPU-based animation
- * Uses the dyno shader system for high-performance particle updates
- */
 
 class CloudParticlesShader extends VFXManager {
   constructor(scene, camera = null) {

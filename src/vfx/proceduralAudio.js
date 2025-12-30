@@ -1,3 +1,24 @@
+/**
+ * proceduralAudio.js - WEB AUDIO API PROCEDURAL SOUND GENERATION
+ * =============================================================================
+ *
+ * ROLE: Generates procedural audio using Web Audio API oscillators and noise.
+ * Used for VFX sounds (dissolve, glitch) without requiring audio files.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create and manage AudioContext
+ * - Generate oscillator-based tones
+ * - Create noise generators
+ * - Handle iOS/Safari audio context unlocking
+ * - Proactive suspend on tab background (Safari)
+ *
+ * AUDIO UNLOCK:
+ * iOS requires user interaction to start audio. Call unlockAllAudioContexts()
+ * during a click/touch event to enable audio.
+ *
+ * =============================================================================
+ */
+
 import { Logger } from "../utils/logger.js";
 
 // Global registry of all ProceduralAudio instances for unlocking on user interaction

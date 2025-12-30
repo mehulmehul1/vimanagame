@@ -1,0 +1,406 @@
+# Shadow Project Documentation
+
+## Project Overview
+
+Shadow is a first-person narrative experience built with Three.js and Gaussian Splatting (via Spark). It's a noir detective story with:
+
+- **Gaussian Splat Environments**: High-fidelity 3D scenes rendered via SparkRenderer
+- **State-Driven Media**: Dialog, music, SFX, and video triggered by game state criteria
+- **Physics-Based Movement**: Rapier physics for character controller and colliders
+- **Procedural VFX**: Dissolve effects, particle systems, bloom, and audio-reactive lighting
+- **Interactive Objects**: Phone booth, viewmaster, drawing minigame
+- **Multi-Platform Support**: Desktop, laptop, and mobile with adaptive quality profiles
+
+## Architecture
+
+### Core Framework
+
+The game uses a manager-based architecture where specialized managers handle different aspects:
+
+- **GameManager**: Central state store with event emitter pattern
+- **SceneManager**: Loads and manages splat meshes and GLTF models
+- **AnimationManager**: Camera and object animation playback
+- **DialogManager**: Audio dialog with synchronized captions
+- **VideoManager**: WebM video playback with alpha channel support
+- **MusicManager**: Background music with crossfade transitions
+- **SFXManager**: Sound effects with spatial audio support
+- **CharacterController**: First-person movement and camera control
+- **InputManager**: Unified keyboard, mouse, gamepad, and touch input
+- **PhysicsManager**: Rapier physics world and character capsule
+- **ColliderManager**: Trigger zones and intersection detection
+- **ZoneManager**: Dynamic loading/unloading of exterior splat zones
+- **LightManager**: Three.js and splat-based lighting with audio reactivity
+- **VFXManager**: State-driven visual effects base class
+
+### State Management
+
+The game uses a criteria-based system for triggering content:
+
+```javascript
+GAME_STATES = {
+  LOADING: -1,
+  START_SCREEN: 0,
+  INTRO: 1,
+  TITLE_SEQUENCE: 2,
+  // ... 40+ states for narrative progression
+  GAME_OVER: 44,
+};
+```
+
+### Criteria System (`src/utils/criteriaHelper.js`)
+
+MongoDB-style operators for state matching:
+
+```javascript
+// Simple equality
+criteria: { currentState: GAME_STATES.INTRO }
+
+// Comparison operators
+criteria: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+
+// Array membership
+criteria: { currentState: { $in: [STATE1, STATE2] } }
+```
+
+**Supported Operators:** `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$mod`
+
+## Game Initialization Flow
+
+```
+Page Load
+    ↓
+LoadingScreen (DOM overlay)
+    ↓
+Platform Detection (mobile/iOS/Safari)
+    ↓
+Options Menu (performance profile)
+    ↓
+Three.js + SparkRenderer setup
+    ↓
+Physics World creation
+    ↓
+Manager initialization (Scene, Animation, Dialog, etc.)
+    ↓
+Asset preloading (splats, models, audio)
+    ↓
+StartScreen shown
+    ↓
+User clicks START
+    ↓
+INTRO state → Game begins
+```
+
+## Core Managers
+
+### GameManager (`src/gameManager.js`)
+
+Central game state with event emitter:
+
+- Stores all game state (currentState, flags, choices)
+- Emits `state:changed` events for reactive systems
+- URL parameter support for debug spawning
+- Manages interactive objects (phone booth, etc.)
+
+### SceneManager (`src/sceneManager.js`)
+
+Manages 3D scene content:
+
+- Loads Gaussian splats via SparkRenderer
+- Loads GLTF models with physics colliders
+- Environment map generation from splat scenes
+- Contact shadow rendering
+- Criteria-based object visibility
+
+### AnimationManager (`src/animationManager.js`)
+
+Orchestrates camera and object animations:
+
+- Head-pose animations from JSON data
+- State-driven playback with criteria
+- Smooth handoff to/from character controller
+- Object animations (position, rotation, scale, opacity)
+- Fade effects (screen whiteout/blackout)
+- Animation chaining via `playNext`
+
+### DialogManager (`src/dialogManager.js`)
+
+Audio dialog with captions:
+
+- Multiple concurrent dialogs
+- Unified caption queue across all active dialogs
+- Video-synced captions
+- State-based auto-play
+- Dialog chaining via `playNext`
+- iOS audio prefetch budget system
+
+### VideoManager (`src/videoManager.js`)
+
+WebM video playback:
+
+- Alpha channel transparency
+- Billboard mode (always face camera)
+- Spatial audio support
+- State-based playback criteria
+- Video chaining via `playNext`
+
+### CharacterController (`src/characterController.js`)
+
+First-person player control:
+
+- Physics-based movement via Rapier capsule
+- Camera look-at system with easing
+- Move-to system for scripted movement
+- Depth of Field control
+- Sprint, jump, and collision handling
+- Mobile touch joystick support
+
+### InputManager (`src/inputManager.js`)
+
+Unified input handling:
+
+- Keyboard (WASD/arrows + modifiers)
+- Mouse (pointer lock camera rotation)
+- Gamepad (sticks, triggers, buttons)
+- Touch joysticks for mobile
+- Sensitivity settings and dead zones
+
+### PhysicsManager (`src/physicsManager.js`)
+
+Rapier physics integration:
+
+- Fixed timestep physics (60Hz)
+- Character capsule collider
+- Trimesh colliders from GLTF geometry
+- Sensor colliders for triggers
+- Raycast support
+
+### ColliderManager (`src/colliderManager.js`)
+
+Trigger zone detection:
+
+- Box, sphere, and capsule shapes
+- Enter/exit callbacks
+- State-based trigger criteria
+- One-time triggers
+- Debug visualization
+
+### ZoneManager (`src/zoneManager.js`)
+
+Dynamic exterior loading:
+
+- Zone-based splat loading/unloading
+- Performance profile-aware asset selection
+- Smooth transitions between zones
+- Memory management for large environments
+
+### LightManager (`src/lightManager.js`)
+
+Scene lighting:
+
+- Three.js lights (point, spot, directional)
+- Splat-based lights via SplatEdit
+- Audio-reactive lights (pulse to music/dialog)
+- Lens flare effects
+- Criteria-based visibility
+
+### VFXManager (`src/vfxManager.js`)
+
+Base class for VFX systems:
+
+- State-driven effect activation
+- Automatic criteria checking
+- Effect priority and delays
+- Used by dissolve, desaturation, bloom effects
+
+## Data Files
+
+All content is data-driven via centralized data files:
+
+| File | Purpose |
+| --- | --- |
+| `gameData.js` | GAME_STATES enum and initial state |
+| `sceneData.js` | Splat and GLTF object definitions |
+| `dialogData.js` | Dialog audio and captions |
+| `dialogChoiceData.js` | Multiple-choice dialog definitions |
+| `videoData.js` | Video definitions and playback settings |
+| `musicData.js` | Music track definitions |
+| `sfxData.js` | Sound effect definitions |
+| `lightData.js` | Light definitions |
+| `colliderData.js` | Trigger collider definitions |
+| `vfxData.js` | VFX effect definitions |
+| `animationCameraData.js` | Camera animation definitions |
+| `animationObjectData.js` | Object animation definitions |
+
+## VFX System (`src/vfx/`)
+
+Visual effects modules:
+
+| VFX | Purpose |
+| --- | --- |
+| `dissolveEffect.js` | Gaussian splat dissolve with particles |
+| `desaturationAndGlitchEffects.js` | Color grading and glitch post-process |
+| `selectiveBloomComposer.js` | Selective bloom post-process |
+| `contactShadow.js` | Dynamic contact shadows |
+| `audioReactiveLight.js` | Lights that pulse to audio |
+| `titleSequence.js` | Title card animations |
+| `splatFractalEffect.js` | Fractal distortion effect |
+| `strokeMesh.js` | 3D stroke rendering |
+
+## Interactive Content (`src/content/`)
+
+Interactive game objects:
+
+| Module | Purpose |
+| --- | --- |
+| `phonebooth.js` | Phone booth interaction |
+| `candlestickPhone.js` | Interior phone interaction |
+| `viewmasterController.js` | Viewmaster equip/unequip mechanic |
+| `runeManager.js` | Rune sighting and tracking |
+| `amplifierCord.js` | Amplifier cord interaction |
+
+## Drawing System (`src/drawing/`)
+
+Drawing minigame for CURSOR sequence:
+
+| Module | Purpose |
+| --- | --- |
+| `drawingManager.js` | Drawing game orchestration |
+| `drawingCanvas3D.js` | 3D canvas for drawing strokes |
+| `drawingRecognitionManager.js` | Stroke recognition via ML model |
+| `particleCanvas3D.js` | Particle effects for canvas |
+| `strokeData.js` | Pre-defined stroke templates |
+
+## UI System (`src/ui/`)
+
+User interface components:
+
+| Module | Purpose |
+| --- | --- |
+| `uiManager.js` | Central UI orchestration |
+| `loadingScreen.js` | Asset loading progress overlay |
+| `startScreen.js` | Main menu |
+| `optionsMenu.js` | Settings menu |
+| `dialogChoiceUI.js` | Multiple-choice dialog display |
+| `touchJoystick.js` | Mobile touch controls |
+| `fullscreenButton.js` | Fullscreen toggle |
+| `imageTitleSequence.js` | Title card display |
+| `timePassesSequence.js` | Time transition overlay |
+
+## Utilities (`src/utils/`)
+
+Helper modules:
+
+| Module | Purpose |
+| --- | --- |
+| `criteriaHelper.js` | MongoDB-style state matching |
+| `debugSpawner.js` | URL-based debug state spawning |
+| `gizmoManager.js` | Debug transform gizmos |
+| `logger.js` | Centralized logging utility |
+| `platformDetection.js` | Device/browser detection |
+| `shaderHelper.js` | Shader compilation utilities |
+
+## Project Structure
+
+```
+src/
+├── main.js                     # Application entry point
+├── gameManager.js              # Central state management
+├── gameData.js                 # Game states and initial state
+├── sceneManager.js             # Scene object management
+├── sceneData.js                # Scene object definitions
+├── animationManager.js         # Animation playback
+├── animationCameraData.js      # Camera animation data
+├── animationObjectData.js      # Object animation data
+├── dialogManager.js            # Dialog audio and captions
+├── dialogData.js               # Dialog definitions
+├── dialogChoiceData.js         # Choice dialog definitions
+├── videoManager.js             # Video playback
+├── videoData.js                # Video definitions
+├── musicManager.js             # Music playback
+├── musicData.js                # Music track definitions
+├── sfxManager.js               # Sound effects
+├── sfxData.js                  # SFX definitions
+├── characterController.js      # First-person controller
+├── inputManager.js             # Input handling
+├── physicsManager.js           # Rapier physics
+├── colliderManager.js          # Trigger zones
+├── colliderData.js             # Collider definitions
+├── zoneManager.js              # Zone loading
+├── lightManager.js             # Lighting
+├── lightData.js                # Light definitions
+├── vfxManager.js               # VFX base class
+├── vfxData.js                  # VFX definitions
+├── ui/                         # UI components
+├── vfx/                        # Visual effects
+├── content/                    # Interactive objects
+├── drawing/                    # Drawing minigame
+├── utils/                      # Utilities
+└── styles/                     # CSS files
+```
+
+## Performance Profiles
+
+The game supports multiple performance profiles:
+
+| Profile | Target | Splat Quality |
+| --- | --- | --- |
+| `mobile` | Mobile devices | 2M splats, merged zones |
+| `laptop` | Integrated GPU | 5M splats |
+| `desktop` | Discrete GPU | 8M splats |
+| `max` | High-end desktop | Full quality |
+
+Set via URL parameter: `?performanceProfile=mobile`
+
+## Debug Features
+
+### URL Parameters
+
+- `?gameState=<STATE_NAME>` - Skip to specific game state
+- `?dialogChoice2=<CHOICE>` - Pre-select dialog choice
+- `?performanceProfile=<PROFILE>` - Set performance profile
+- `?debug=colliders` - Show collider debug meshes
+
+### Console Commands
+
+```javascript
+// Skip to state
+gameManager.setState({ currentState: GAME_STATES.OFFICE_INTERIOR });
+
+// Play specific dialog
+dialogManager.playDialog(dialogTracks.intro);
+
+// Toggle zone debug
+zoneManager.setDebug(true);
+```
+
+## Development
+
+```bash
+npm install    # Install dependencies
+npm run dev    # Start Vite dev server
+npm run build  # Production build
+```
+
+### Requirements
+
+- Node.js >= 18
+- Modern browser with WebGL 2.0
+- Rapier WASM support
+
+## Dependencies
+
+### Runtime
+
+- **Three.js** - 3D graphics
+- **@sparkjsdev/spark** - Gaussian splatting renderer
+- **@dimforge/rapier3d** - Physics engine
+- **Howler.js** - Audio playback
+
+### Build
+
+- **Vite** - Build tool and dev server
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

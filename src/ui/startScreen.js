@@ -1,3 +1,25 @@
+/**
+ * startScreen.js - MAIN MENU AND INTRO SEQUENCE
+ * =============================================================================
+ *
+ * ROLE: Manages the start screen UI, title sequence animation, and transition
+ * into gameplay. Handles START button, options access, and audio unlocking.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Display start menu with START/OPTIONS buttons
+ * - Run title sequence animation (particle or image-based)
+ * - Unlock audio contexts on first interaction
+ * - Handle gamepad navigation for menu
+ * - Transition to INTRO state on START
+ * - Manage animated background elements
+ *
+ * TITLE SEQUENCE:
+ * Two modes: particle-based text or fallback image sequence.
+ * Typewriter effect with keystroke sounds.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Howler } from "howler";
 import { unlockAllAudioContexts } from "../vfx/proceduralAudio.js";
@@ -8,10 +30,6 @@ import { GAME_STATES } from "../gameData.js";
 import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";
 import { Logger } from "../utils/logger.js";
 import "../styles/startScreen.css";
-
-/**
- * StartScreen - Manages the intro camera animation and start button
- */
 export class StartScreen {
   constructor(camera, scene, options = {}) {
     this.camera = camera;

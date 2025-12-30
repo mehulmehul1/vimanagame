@@ -1,25 +1,24 @@
+/**
+ * candlestickPhone.js - INTERIOR CANDLESTICK PHONE CONTROLLER
+ * =============================================================================
+ *
+ * ROLE: Manages the interior candlestick phone interaction including receiver
+ * animation, cord physics, and handoff mechanics.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Animate receiver pickup/handoff with lerp
+ * - Manage physics-based telephone cord via PhoneCord
+ * - Track phone state (ringing, answered, handoff)
+ * - Coordinate with GameManager for state transitions
+ * - Handle look-at targets for player guidance
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
 import { GAME_STATES } from "../gameData.js";
 import PhoneCord from "./phoneCord.js";
-
-/**
- * CandlestickPhone - Manages candlestick phone interactions and cord physics
- *
- * Features:
- * - Physics-based telephone cord simulation
- * - Receiver management
- * - Future: Interaction system for picking up receiver
- *
- * Usage:
- * const candlestickPhone = new CandlestickPhone({
- *   sceneManager,
- *   physicsManager,
- *   scene,
- *   camera,
- * });
- * candlestickPhone.initialize();
- */
 class CandlestickPhone {
   constructor(options = {}) {
     this.sceneManager = options.sceneManager;

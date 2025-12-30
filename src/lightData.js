@@ -1,14 +1,29 @@
+/**
+ * lightData.js - LIGHT DEFINITIONS
+ * =============================================================================
+ *
+ * ROLE: Centralized definitions for all lights in the scene including Three.js
+ * lights and Spark splat-based lights.
+ *
+ * LIGHT TYPES:
+ * - AmbientLight: Uniform ambient illumination
+ * - DirectionalLight: Parallel rays (sun-like)
+ * - PointLight: Omnidirectional point source
+ * - SpotLight: Cone-shaped directed light
+ * - SplatLight: Splat-based light via SplatEditSdf
+ *
+ * SPLAT LIGHTS:
+ * Use SplatEditSdf to modify splat appearance with spherical SDFs.
+ * Properties: splatType, color, radius, opacity, rgbaBlendMode, sdfSmooth, softEdge
+ *
+ * CRITERIA:
+ * Lights can have criteria for state-based visibility using MongoDB-style operators.
+ *
+ * =============================================================================
+ */
+
 import { sceneObjects } from "./sceneData.js";
 import { GAME_STATES } from "./gameData.js";
-
-/**
- * Light Data - Defines all lights in the scene
- *
- * Supports both regular Three.js lights and Spark splat lights
- *
- * Each light can have criteria to control when it's active based on game state.
- * Criteria uses the same format as sceneData.js (see criteriaHelper.js)
- */
 
 export const lights = {
   // Standard Three.js Lights

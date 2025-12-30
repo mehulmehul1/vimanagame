@@ -1,14 +1,25 @@
+/**
+ * titleText.js - PARTICLE-BASED TEXT RENDERING
+ * =============================================================================
+ *
+ * ROLE: Creates text as particle systems using canvas-based texture sampling.
+ * Particles are positioned based on text pixel data.
+ *
+ * KEY EXPORTS:
+ * - createParticleText: Text string to particle Points mesh
+ * - createParticleImage: Image file to particle Points mesh
+ *
+ * PARTICLE SYSTEM:
+ * Each visible pixel becomes a particle with position, velocity, and opacity.
+ * Particles can animate for intro/outro effects.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";
 
 const logger = new Logger("TitleText", true);
-
-/**
- * Creates text as particles using canvas-based texture
- * @param {THREE.Scene} scene - The scene to add the particles to
- * @param {Object} options - Configuration options
- * @returns {Object} Object with mesh (Points), particles array, and update function
- */
 export function createParticleText(scene, options = {}) {
   const {
     text = "HELLO WORLD",

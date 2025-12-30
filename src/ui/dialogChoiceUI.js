@@ -1,11 +1,18 @@
 /**
- * DialogChoiceUI - Handles multiple choice dialog responses
+ * dialogChoiceUI.js - MULTIPLE CHOICE DIALOG DISPLAY
+ * =============================================================================
  *
- * Features:
- * - Display choice buttons at bottom of screen
- * - Art deco black and white styling with La Porsche font
- * - Emit events when choices are made
- * - Track choice history
+ * ROLE: Displays branching dialog choices to the player and handles selection.
+ * Integrates with dialogChoiceData.js for choice definitions.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Display choice buttons with art deco styling
+ * - Handle keyboard and gamepad navigation
+ * - Typewriter effect for choice text
+ * - Emit selection events to GameManager
+ * - Block pointer lock during choice display
+ *
+ * =============================================================================
  */
 
 import { GamepadMenuNavigation } from "./gamepadMenuNavigation.js";

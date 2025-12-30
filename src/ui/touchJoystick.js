@@ -1,8 +1,18 @@
 /**
- * TouchJoystick - Virtual joystick for mobile touch controls
+ * touchJoystick.js - VIRTUAL JOYSTICK FOR MOBILE TOUCH CONTROLS
+ * =============================================================================
  *
- * Creates a visual joystick that responds to touch input within a range of motion.
- * Returns normalized values (-1 to 1) for X and Y axes.
+ * ROLE: Provides a visual virtual joystick for mobile devices. Returns
+ * normalized X/Y values (-1 to 1) for use by InputManager.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Create joystick DOM elements
+ * - Handle touch events with multi-touch support
+ * - Calculate normalized stick position
+ * - Apply dead zone and speed multiplier
+ * - RAF-based visual updates for performance
+ *
+ * =============================================================================
  */
 
 export class TouchJoystick {

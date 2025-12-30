@@ -1,3 +1,35 @@
+/**
+ * particleCanvas3D.js - MAGICAL PARTICLE DRAWING CANVAS
+ * =============================================================================
+ *
+ * ROLE: Advanced 3D drawing canvas with particle effects, magical brush strokes,
+ * and GPU-accelerated physics. The primary canvas used for rune drawing gameplay.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Hidden 2D canvas for ML stroke recording
+ * - 10,000 particle grid with GPGPU-style physics simulation
+ * - Magical brush stroke mesh with energy shader
+ * - Color cycling (blue -> orange -> white) on success
+ * - Explosion animation on final success
+ * - Stroke segment fade with timestamps
+ * - Galaxy-style particle swirl animation
+ * - Particle repulsion from strokes
+ *
+ * RENDERING:
+ * - Particles: Instanced billboards with velocity-based brightness
+ * - Strokes: Triangle strip mesh with scrolling brush texture
+ * - Both use additive/normal blending for magical glow
+ *
+ * PHYSICS (CPU per-frame):
+ * - Velocity relaxation (damping)
+ * - Ambient drift (cloud-like floating)
+ * - Galaxy swirl around center
+ * - Home position attraction
+ * - Stroke repulsion with spatial bounds optimization
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 
 const CANVAS_SIZE = 500;

@@ -1,3 +1,29 @@
+/**
+ * drawingManager.js - DRAWING GAMEPLAY MANAGER
+ * =============================================================================
+ *
+ * ROLE: Manages the rune-drawing minigame during CURSOR and CURSOR_FINAL states.
+ * Coordinates between the drawing recognition system and game state.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Game loop: pick target rune, evaluate drawings, track success/failure
+ * - State management: start/stop game based on GAME_STATES
+ * - UI: emoji display, space bar hint, mobile button support
+ * - Canvas positioning, billboarding, and shake animation on failure
+ * - Rune visibility synced with viewmaster equipped state
+ * - Color stage progression (blue -> orange -> white -> explosion)
+ * - Integration with InputManager for pointer lock blocking
+ *
+ * GAME FLOW:
+ * 1. CURSOR state triggers startGame()
+ * 2. Player draws runes on the 3D canvas
+ * 3. DrawingRecognitionManager predicts and evaluates
+ * 4. Success advances color stage; 3 successes -> POST_CURSOR
+ * 5. Failure triggers shake animation and fade
+ *
+ * =============================================================================
+ */
+
 import { GAME_STATES } from "../gameData.js";
 import * as THREE from "three";
 import { Logger } from "../utils/logger.js";

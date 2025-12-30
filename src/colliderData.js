@@ -1,38 +1,33 @@
 /**
- * Collider Data Structure
+ * colliderData.js - TRIGGER ZONE DEFINITIONS
+ * =============================================================================
  *
- * Each collider defines a trigger zone that sets game state when the player enters or exits.
- * Colliders are purely for state management - all game behavior (dialog, music, camera
- * animations, character movement, etc.) should be driven by state changes through their
- * respective managers (GameManager, MusicManager, CameraAnimationManager, etc.).
+ * ROLE: Centralized definitions for all trigger colliders that detect player
+ * entry/exit and set game state accordingly.
  *
- * Collider properties:
- * - id: Unique identifier for the collider
- * - type: Shape type - "box", "sphere", or "capsule"
+ * COLLIDER TYPES:
+ * - box: Axis-aligned box with half-extents
+ * - sphere: Spherical trigger with radius
+ * - capsule: Capsule shape with halfHeight and radius
+ * - zone: Complex mesh-based zone (registered via SceneManager)
+ *
+ * PROPERTIES:
+ * - id: Unique identifier
+ * - type: Shape type
  * - position: {x, y, z} world position
- * - rotation: {x, y, z} rotation in DEGREES (converted to quaternion internally)
+ * - rotation: {x, y, z} in DEGREES
  * - dimensions: Shape-specific dimensions
- *   - box: {x, y, z} half-extents (full size is 2x these values)
- *   - sphere: {radius}
- *   - capsule: {halfHeight, radius}
- * - blocking: If true, creates a solid blocking collider (prevents movement) instead of a trigger
- *   - Blocking colliders are automatically handled by the physics engine
- *   - They do not trigger setStateOnEnter/Exit events
- *   - They are created/removed based on criteria like regular colliders
- * - setStateOnEnter: Object with key-value pairs to set when player enters (optional)
- *   - Example: { currentState: GAME_STATES.NEAR_RADIO, nearRadio: true }
- * - setStateOnExit: Object with key-value pairs to set when player exits (optional)
- *   - Example: { nearRadio: false }
- * - once: If true, only trigger once then deactivate (default: false)
- * - enabled: If false, collider is inactive (default: true)
- * - criteria: Optional object with key-value pairs that must match game state
- *   - Simple equality: { introComplete: true, chapter: 1 }
- *   - Comparison operators: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
- *   - Operators: $eq, $ne, $gt, $gte, $lt, $lte, $in, $nin
- * - gizmo: If true, indicates this collider is part of gizmo authoring mode (blocks idle behaviors)
+ * - setStateOnEnter: State updates on player entry
+ * - setStateOnExit: State updates on player exit
+ * - once: If true, trigger only once
+ * - criteria: State-based activation conditions
+ * - blocking: If true, solid physics collider instead of trigger
  *
- * Note: All game behaviors should be triggered by state changes, not directly by colliders.
- * Use animationCameraData.js, animationObjectData.js, musicData.js, dialogData.js, etc. with state-based criteria.
+ * DESIGN NOTE:
+ * Colliders should only set state - actual behaviors (dialog, music, animations)
+ * are triggered by state changes in their respective managers.
+ *
+ * =============================================================================
  */
 
 import { GAME_STATES } from "./gameData.js";

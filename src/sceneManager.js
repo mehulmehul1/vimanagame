@@ -1,3 +1,39 @@
+/**
+ * SceneManager.js - SCENE OBJECT LOADING AND MANAGEMENT
+ * =============================================================================
+ *
+ * ROLE: Central manager for loading and managing 3D scene content including
+ * Gaussian splats (via SparkRenderer) and GLTF models (via Three.js GLTFLoader).
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load Gaussian splat meshes from .sog files
+ * - Load GLTF models with optional physics colliders
+ * - Manage environment map generation from splat scenes
+ * - Create and update contact shadows
+ * - Handle criteria-based object visibility
+ * - Manage GLTF animations with state-based playback
+ * - Support material render order for transparency
+ *
+ * ASSET TYPES:
+ * - 'splat': Gaussian splat mesh via SparkRenderer
+ * - 'gltf': GLTF/GLB model with optional physics/envmap/animations
+ *
+ * ENVIRONMENT MAPS:
+ * GLTF objects can request envMap: true to render reflections from splat scene.
+ * Environment maps are cached and rendered from envMapWorldCenter positions.
+ *
+ * CONTACT SHADOWS:
+ * Objects can specify contactShadow config for dynamic ground shadows.
+ * Shadows are rendered via orthographic camera and updated per-frame.
+ *
+ * USAGE:
+ *   const sceneManager = new SceneManager(scene, { renderer, sparkRenderer });
+ *   await sceneManager.loadFromData(sceneObjects);
+ *   const obj = sceneManager.getObject('phonebooth');
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { SplatMesh } from "@sparkjsdev/spark";
@@ -5,37 +41,6 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 import { createHeadlightBeamShader } from "./vfx/shaders/headlightBeamShader.js";
 import { ContactShadow } from "./vfx/contactShadow.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * SceneManager - Manages scene objects (splats, GLTF models, etc.)
- *
- * Features:
- * - Load and manage splat meshes
- * - Load and manage GLTF models
- * - Centralized scene object registration
- * - Automatic cleanup and unloading
- *
- * Usage Example:
- *
- * import SceneManager from './sceneManager.js';
- * import { sceneObjects } from './sceneData.js';
- *
- * // Create manager
- * const sceneManager = new SceneManager(scene);
- *
- * // Load all objects from data
- * await sceneManager.loadFromData(sceneObjects);
- *
- * // Or load individual objects
- * await sceneManager.loadObject(sceneObjects.exterior);
- * await sceneManager.loadObject(sceneObjects.phonebooth);
- *
- * // Access loaded objects
- * const phonebooth = sceneManager.getObject('phonebooth');
- *
- * // Cleanup
- * sceneManager.destroy();
- */
 
 class SceneManager {
   constructor(scene, options = {}) {

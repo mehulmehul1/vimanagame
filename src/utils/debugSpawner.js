@@ -1,18 +1,40 @@
+/**
+ * debugSpawner.js - DEBUG STATE SPAWNING VIA URL PARAMETERS
+ * =============================================================================
+ *
+ * ROLE: Allows developers to skip directly to specific game states via URL
+ * parameters for testing. Automatically applies appropriate player position,
+ * rotation, and state flags.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Parse ?gameState=<STATE_NAME> from URL
+ * - Return state overrides for the specified state
+ * - Support custom positioning per state
+ * - Automatically support all GAME_STATES values
+ *
+ * USAGE:
+ *   ?gameState=OFFICE_INTERIOR - Spawn in office
+ *   ?gameState=DRIVE_BY - Spawn at drive-by scene
+ *
+ * STATE OVERRIDES:
+ * Custom overrides per state can specify:
+ * - playerPosition: {x, y, z} spawn location
+ * - playerRotation: {x, y, z} initial rotation in degrees
+ * - controlEnabled: Whether input is enabled
+ * - Any other state flags
+ *
+ * EXPORTS:
+ * - getDebugSpawnState(): Returns state overrides or null
+ * - isDebugSpawnActive(): Returns true if debug spawn is active
+ *
+ * =============================================================================
+ */
+
 import { GAME_STATES, startScreen } from "../gameData.js";
 import { sceneObjects } from "../sceneData.js";
 import { Logger } from "./logger.js";
 
 const logger = new Logger("DebugSpawner", false);
-
-/**
- * DebugSpawner - Debug utility for spawning into specific game states
- *
- * Usage:
- * - Add ?gameState=<STATE_NAME> to URL (e.g., ?gameState=DRIVE_BY)
- * - All managers will initialize with correct state (music, SFX, dialogs, scenes)
- * - Any state name from GAME_STATES in gameData.js is automatically supported
- * - Custom overrides can be defined in stateOverrides for specific positioning/settings
- */
 
 /**
  * Custom overrides for specific states that need non-default settings

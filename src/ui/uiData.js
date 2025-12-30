@@ -1,8 +1,20 @@
 /**
- * UI Data - Centralized UI element definitions
+ * uiData.js - UI ELEMENT CONFIGURATION DATA
+ * =============================================================================
  *
- * This file contains configuration for various UI elements that are
- * managed by the UIManager system.
+ * ROLE: Centralized definitions for UI elements including position, size,
+ * styling, and behavior. Used by UIManager to create UI components.
+ *
+ * ELEMENT STRUCTURE:
+ * - id: Unique identifier
+ * - layer: Z-index layer name
+ * - image: Image source path
+ * - position: CSS positioning
+ * - size: Width/height
+ * - style: CSS styles
+ * - hoverStyle: Hover state styles
+ *
+ * =============================================================================
  */
 
 export const uiElements = {

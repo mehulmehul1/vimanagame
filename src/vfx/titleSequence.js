@@ -1,8 +1,20 @@
-import * as THREE from "three";
-
 /**
- * Manages a sequenced intro/outro animation for text particles
+ * titleSequence.js - SEQUENCED TEXT PARTICLE ANIMATION
+ * =============================================================================
+ *
+ * ROLE: Manages sequenced intro/hold/outro animation for particle-based text.
+ * Used for title cards and story text displays.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Staggered text intro with fade-in
+ * - Hold phase with subtle particle drift
+ * - Outro with particle dispersion
+ * - Completion callback
+ *
+ * =============================================================================
  */
+
+import * as THREE from "three";
 export class TitleSequence {
   constructor(texts, options = {}) {
     this.texts = texts;

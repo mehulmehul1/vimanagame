@@ -1,12 +1,28 @@
 /**
- * UIManager - Centralized UI management system
+ * uiManager.js - CENTRALIZED UI MANAGEMENT SYSTEM
+ * =============================================================================
  *
- * Features:
- * - Manages z-index layers for all UI elements
- * - Handles UI stack (what's on top)
- * - Integrates with GameManager
- * - Prevents UI conflicts and overlap issues
- * - Instantiates and manages UI components
+ * ROLE: Manages all UI elements including z-index layering, component lifecycle,
+ * and integration with GameManager for state-based UI visibility.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Define z-index layers for UI stacking
+ * - Track active UI elements
+ * - Manage UI stack (what's on top)
+ * - Instantiate and register UI components
+ * - Coordinate IdleHelper and FullscreenButton
+ *
+ * Z-INDEX LAYERS:
+ * - BACKGROUND: 1000 (background UI)
+ * - GAME_HUD: 2000 (in-game HUD)
+ * - MAIN_MENU: 3000 (main menu)
+ * - PAUSE_MENU: 4000 (pause/options)
+ * - DIALOG: 5000 (captions/subtitles)
+ * - MODAL: 6000 (modal dialogs)
+ * - TOOLTIP: 7000 (tooltips)
+ * - DEBUG: 9000 (debug overlays)
+ *
+ * =============================================================================
  */
 
 import { IdleHelper } from "./idleHelper.js";

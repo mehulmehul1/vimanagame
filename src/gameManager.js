@@ -1,3 +1,35 @@
+/**
+ * GameManager.js - CENTRAL GAME STATE AND EVENT MANAGEMENT
+ * =============================================================================
+ *
+ * ROLE: The central state store and event bus for the entire game. All game
+ * state flows through this manager, and all systems react to state changes
+ * via the event emitter pattern.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Store and update all game state (currentState, flags, choices)
+ * - Emit `state:changed` events for reactive systems
+ * - Parse and apply URL parameters for debug spawning
+ * - Manage references to interactive content controllers
+ * - Provide unified event emitter interface (on/off/emit)
+ *
+ * STATE STRUCTURE:
+ * - currentState: GAME_STATES enum value for narrative progression
+ * - currentZone: Zone name for exterior splat loading
+ * - controlEnabled: Whether player input is active
+ * - Various flags for story progression and choices
+ *
+ * EVENT PATTERN:
+ * Systems subscribe to `state:changed` and react to state updates:
+ *   gameManager.on("state:changed", (newState, oldState) => { ... });
+ *
+ * DEBUG SPAWN:
+ * URL parameters can override initial state for testing:
+ *   ?gameState=OFFICE_INTERIOR&dialogChoice2=EMPATH
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { getSceneObjectsForState } from "./sceneData.js";
 import { startScreen, GAME_STATES, DIALOG_RESPONSE_TYPES } from "./gameData.js";
@@ -11,15 +43,6 @@ import CandlestickPhone from "./content/candlestickPhone.js";
 import AmplifierCord from "./content/amplifierCord.js";
 import VideoManager from "./videoManager.js";
 import { Logger } from "./utils/logger.js";
-
-/**
- * GameManager - Central game state and event management
- *
- * Features:
- * - Manage game state
- * - Trigger events
- * - Coordinate between different systems
- */
 
 class GameManager {
   constructor() {

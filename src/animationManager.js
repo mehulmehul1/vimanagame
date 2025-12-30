@@ -1,3 +1,40 @@
+/**
+ * AnimationManager.js - CAMERA AND OBJECT ANIMATION ORCHESTRATOR
+ * =============================================================================
+ *
+ * ROLE: Central manager for playing camera animations (head-pose) and object
+ * animations (position, rotation, scale, opacity). Handles smooth handoff
+ * between player control and scripted animations.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Load camera animations from JSON files (animationCameraData.js)
+ * - Play head-pose animations with local-space deltas
+ * - State-driven playback via criteria matching
+ * - Smooth pre-animation slerp to level horizon
+ * - Object animation playback on scene objects
+ * - Animation chaining via playNext
+ * - Fade effects (screen whiteout/blackout)
+ * - Input disable/restore during animations
+ *
+ * CAMERA ANIMATION FLOW:
+ * 1. Pre-slerp: Level camera pitch while keeping yaw
+ * 2. Capture base pose (position + quaternion)
+ * 3. Play animation deltas relative to base
+ * 4. Post-settle: Ensure character clears physics floor
+ * 5. Restore input and hand back to CharacterController
+ *
+ * OBJECT ANIMATIONS:
+ * Animate scene objects loaded by SceneManager:
+ * - Position, rotation, scale keyframes
+ * - Opacity/dissolve effects
+ * - Forward/reverse playback
+ *
+ * LOOKAT SEQUENCES:
+ * Chain multiple look-at targets with delays between them.
+ *
+ * =============================================================================
+ */
+
 import * as THREE from "three";
 import { getCameraAnimationsForState } from "./animationCameraData.js";
 import { objectAnimations } from "./animationObjectData.js";
@@ -6,19 +43,6 @@ import { checkCriteria } from "./utils/criteriaHelper.js";
 
 // Store objectAnimations reference for playNext resolution
 let objectAnimationsData = objectAnimations;
-
-/**
- * AnimationManager - Manages playback of camera and object animations
- *
- * Features:
- * - Load and play head-pose animations from JSON
- * - State-driven playback with criteria support
- * - Smooth handoff to/from character controller
- * - Local-space playback (applies deltas relative to starting pose)
- * - playOnce tracking per animation
- * - Configurable input restoration
- * - Object animation support (position, rotation, scale, opacity)
- */
 class AnimationManager {
   constructor(camera, characterController, gameManager, options = {}) {
     // Debug logging

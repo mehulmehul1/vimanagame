@@ -1,3 +1,18 @@
+/**
+ * drawingLabels.js - DRAWING LABEL DEFINITIONS
+ * =============================================================================
+ *
+ * ROLE: Defines the labels (categories) for the drawing recognition system.
+ *
+ * DRAWING_LABELS: Active runes used in the game (lightning, star, circle)
+ * FULL_LABEL_SET: Complete QuickDraw dataset labels (345 categories)
+ *
+ * The game filters predictions to only consider DRAWING_LABELS, ignoring
+ * other QuickDraw categories the model may predict.
+ *
+ * =============================================================================
+ */
+
 export const DRAWING_LABELS = ["lightning", "star", "circle"];
 
 export const FULL_LABEL_SET = [

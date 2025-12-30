@@ -1,3 +1,26 @@
+/**
+ * imagePreprocessor.js - DRAWING IMAGE PREPROCESSING
+ * =============================================================================
+ *
+ * ROLE: Converts raw stroke data into 28x28 grayscale images for ML inference.
+ * Matches the QuickDraw dataset preprocessing pipeline.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Reposition strokes to origin with padding
+ * - Calculate bounding box and scale to fit
+ * - Render to temporary canvas with antialiasing
+ * - Resize to 28x28 with platform-specific handling
+ * - macOS uses manual pixel sampling to avoid browser rendering differences
+ *
+ * PREPROCESSING STEPS:
+ * 1. Normalize stroke coordinates to bounding box
+ * 2. Draw black strokes on white background (280x280)
+ * 3. Resize to 28x28 with smoothing
+ * 4. Return canvas ready for TensorFlow.js
+ *
+ * =============================================================================
+ */
+
 const WIDTH = 500;
 const HEIGHT = 500;
 const CROP_PADDING = 2;

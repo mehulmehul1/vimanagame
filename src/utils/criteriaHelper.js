@@ -1,27 +1,44 @@
+/**
+ * criteriaHelper.js - MONGODB-STYLE CRITERIA MATCHING FOR GAME STATE
+ * =============================================================================
+ *
+ * ROLE: Provides declarative criteria matching for game state conditions.
+ * Uses MongoDB-style query operators for flexible state-based logic.
+ *
+ * KEY RESPONSIBILITIES:
+ * - Match simple equality conditions
+ * - Support comparison operators ($gt, $gte, $lt, $lte)
+ * - Support set operators ($in, $nin, $eq, $ne)
+ * - Support modulo operator ($mod)
+ * - Check multiple criteria against state object
+ * - Predict if criteria could still match in future (for prefetching)
+ *
+ * OPERATORS:
+ * - $eq: Equals (same as direct value)
+ * - $ne: Not equals
+ * - $gt/$gte: Greater than / greater than or equal
+ * - $lt/$lte: Less than / less than or equal
+ * - $in: Value in array
+ * - $nin: Value not in array
+ * - $mod: [divisor, remainder] - value % divisor === remainder
+ *
+ * EXAMPLES:
+ * - { currentState: GAME_STATES.PLAYING }
+ * - { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
+ * - { currentState: { $in: [STATE1, STATE2] } }
+ * - { viewmasterOverheatCount: { $mod: [2, 0] } } // even counts
+ *
+ * EXPORTS:
+ * - matchesCriteria(value, criteria): Check single value
+ * - checkCriteria(state, criteriaObj): Check all criteria against state
+ * - couldCriteriaStillMatch(state, criteria): Predict future matching
+ *
+ * =============================================================================
+ */
+
 import { Logger } from "./logger.js";
 
 const logger = new Logger("CriteriaHelper", false);
-
-/**
- * Criteria Helper - Unified criteria checking for game state
- *
- * Supports:
- * - Simple equality: { currentState: GAME_STATES.INTRO }
- * - Comparisons: { currentState: { $gte: GAME_STATES.INTRO, $lt: GAME_STATES.DRIVE_BY } }
- * - Arrays: { currentState: { $in: [STATE1, STATE2] } }
- * - Multiple conditions on same key
- *
- * Operators:
- * - $eq: equals (same as simple value)
- * - $ne: not equals
- * - $gt: greater than
- * - $gte: greater than or equal
- * - $lt: less than
- * - $lte: less than or equal
- * - $in: in array
- * - $nin: not in array
- * - $mod: modulo check - { $mod: [divisor, remainder] } checks if value % divisor === remainder
- */
 
 /**
  * Check if a single value matches a criteria definition
