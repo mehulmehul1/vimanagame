@@ -43,7 +43,7 @@
         "Critical systems identified and prioritized"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Focus on Music Room Epic stories, use GIVEN/WHEN/THEN format"
     },
     {

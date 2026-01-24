@@ -1,0 +1,88 @@
+# Ralph Progress Log - Gametest Workflows
+
+Started: 2026-01-24
+
+---
+
+## Codebase Patterns
+- **Project**: Vimana (Three.js + Vite game)
+- **Tech Stack**: Three.js, Rapier3d, Howler, Vite, TypeScript
+- **Tests**: Vitest (unit) + Playwright (E2E)
+- **Source Location**: src/
+- **Test Location**: tests/
+- **Gametest Workflows**: ../_bmad/bmgd/workflows/gametest/
+- **Music Room Epic**: 9 stories in ../_bmad-output/implementation-artifacts/1-*.md
+
+**Key Files**:
+- PROMPT.md - Music Room Epic implementation prompt
+- CLAUDE-GAMETEST.md - Ralph instructions for gametest workflows
+- prd-gametest.json - 6 gametest workflows as user stories
+- sprint-status.yaml - Story tracking
+
+**Workflow Execution Order**:
+1. test-framework (priority 1)
+2. test-design (priority 2)
+3. automate (priority 3)
+4. playtest-plan (priority 4)
+5. performance (priority 5)
+6. test-review (priority 6)
+
+**Quality Checks**:
+- npm run test - Run unit tests
+- npm run test:e2e - Run E2E tests
+- npm run typecheck - TypeScript type checking
+
+---
+
+
+## 2025-01-24 - test-framework
+- Workflow executed: test-framework (Game Test Framework Setup)
+- Files created:
+  - playwright.config.ts - Playwright E2E configuration with multi-browser support
+  - tests/e2e/smoke.test.ts - Smoke tests for game launch and WebGL
+  - tests/e2e/harp-interaction.test.ts - Harp interaction E2E tests
+  - tests/e2e/jelly-behavior.test.ts - Jelly creature behavior E2E tests
+  - tests/e2e/vortex-activation.test.ts - Vortex activation E2E tests
+- Files modified:
+  - package.json - Added E2E test scripts (test:e2e, test:e2e:ui, test:e2e:debug, test:e2e:headed, test:all)
+  - vitest.config.ts - Updated to exclude E2E tests from Vitest
+  - tests/README.md - Comprehensive test framework documentation
+  - prd-gametest.json - Marked test-framework as complete (passes: true)
+- Tests verified: Vitest unit tests pass (VortexSystem.test.ts: 4 tests passed)
+- Validation results: All checklist items satisfied
+- Commit: 1f2e1a6 - "test: test-framework - Game Test Framework Setup"
+- **Learnings for future iterations:**
+  - Workflow instructions are Unity/Unreal/Godot-specific - needed adaptation for web-based Three.js game
+  - Vitest was already configured - focused on verification and adding Playwright
+  - E2E tests require test hooks in game code for full validation (e.g., window.gameScene for state inspection)
+  - Pre-existing test issues (PatientJellyManager.test.ts, DuetFlow.test.ts) are separate from framework setup
+
+---
+
+## 2025-01-24 - test-design
+- Workflow executed: test-design (Game Test Design)
+- Files created:
+  - tests/TEST-DESIGN.md - Comprehensive test design document (87 scenarios)
+- Files modified:
+  - prd-gametest.json - Marked test-design as complete (passes: true)
+- Test scenarios created: 87 total across all 9 Music Room Epic stories
+  - P0 (Critical): 53 scenarios (61%)
+  - P1 (High): 20 scenarios (23%)
+  - P2 (Medium): 12 scenarios (14%)
+- Coverage areas:
+  - Gameplay: Harp interaction, jelly creatures, gentle feedback, duet mechanics
+  - Visual/Shaders: Water ripples, vortex particles, bioluminescence, SDF shells
+  - Audio: Discordant tones, harmony chords, completion chords
+  - Physics: Trimesh colliders, character movement, raycasting
+  - UI: Shell overlay, slot animations
+  - Performance: FPS targets (60/30), LOD, memory leaks
+  - Platform: WebGL2, desktop WASD, mobile touch
+- Validation results: All checklist items satisfied
+- **Learnings for future iterations:**
+  - GIVEN/WHEN/THEN format provides excellent clarity for test scenarios
+  - Vimana's "patient teaching" philosophy requires special attention to no-reset state testing
+  - Shader-heavy game needs visual testing strategy (E2E limited for visual validation)
+  - Performance is critical: P0 scenarios include all FPS/LOD tests
+  - Entity structure is well-organized (26 entities in src/entities/)
+  - Existing tests (PatientJellyManager.test.ts, VortexSystem.test.ts) follow good patterns
+---
