@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "mcp__web-search-prime__webSearchPrime",
+      "mcp__web-reader__webReader",
+      "Bash(ralph --help:*)",
+      "Bash(ralph-setup:*)",
+      "Bash(ralph --verbose --calls:*)",
+      "Bash(ralph --status:*)",
+      "Bash(cat:*)",
+      "Bash(/c/Users/mehul/.ralph/ralph_loop.sh:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

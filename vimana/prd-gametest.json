@@ -1,0 +1,135 @@
+{
+  "project": "Vimana",
+  "branchName": "ralph/gametest-workflows",
+  "description": "Complete Gametest Workflow Suite - Execute all 6 BMAD gametest workflows to create comprehensive test coverage for Vimana",
+  "userStories": [
+    {
+      "id": "test-framework",
+      "title": "Game Test Framework Setup",
+      "description": "Initialize/verify the test framework for Vimana. Create documentation explaining the testing infrastructure (Vitest + Playwright).",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/test-framework/instructions.md",
+        "Detect game engine (Three.js + Vite, web-based)",
+        "Document existing test framework (tests/README.md)",
+        "Verify Vitest configuration",
+        "Verify Playwright configuration",
+        "Document directory structure",
+        "Document running tests locally",
+        "Document CI integration commands",
+        "Validate against ../_bmad/bmgd/workflows/gametest/test-framework/checklist.md",
+        "All checklist items satisfied",
+        "Tests run successfully (npm run test)"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Framework already exists, focus on documentation and verification"
+    },
+    {
+      "id": "test-design",
+      "title": "Game Test Design",
+      "description": "Create comprehensive test scenarios covering all 9 Music Room Epic stories, core gameplay, audio, physics, video, and UI systems.",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/test-design/instructions.md",
+        "Read Music Room Epic: ../_bmad-output/music-room-proto-epic.md",
+        "Read all 9 story files: ../_bmad-output/implementation-artifacts/1-*.md",
+        "Identify critical systems (harp, audio, physics, video, UI)",
+        "Define test categories with priorities (P0-P3)",
+        "Create test scenarios using GIVEN/WHEN/THEN format",
+        "Create coverage matrix (features vs priorities)",
+        "Define automation strategy",
+        "Generate tests/TEST-DESIGN.md",
+        "Validate against ../_bmad/bmgd/workflows/gametest/test-design/checklist.md",
+        "All 9 stories covered in test design",
+        "Critical systems identified and prioritized"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Focus on Music Room Epic stories, use GIVEN/WHEN/THEN format"
+    },
+    {
+      "id": "automate",
+      "title": "Automated Test Generation",
+      "description": "Generate automated tests (unit + E2E) based on TEST-DESIGN.md. Create test files for managers, entities, and critical user flows.",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/automate/instructions.md",
+        "Analyze src/ directory for testable systems",
+        "Generate unit tests (Vitest) for managers",
+        "Generate unit tests (Vitest) for entities",
+        "Generate E2E tests (Playwright) for harp interaction",
+        "Generate E2E tests for jelly creatures",
+        "Generate E2E tests for vortex activation",
+        "Generate smoke tests (game launch, intro video, music room load)",
+        "Create tests/AUTOMATION-SUMMARY.md",
+        "All tests follow framework patterns",
+        "Tests run successfully (npm run test)",
+        "E2E tests run successfully (npm run test:e2e)",
+        "Validate against ../_bmad/bmgd/workflows/gametest/automate/checklist.md"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Use Vitest for unit tests, Playwright for E2E, follow existing patterns"
+    },
+    {
+      "id": "playtest-plan",
+      "title": "Playtest Planning",
+      "description": "Create structured playtesting sessions to validate gameplay, gather user feedback, and identify issues that automated testing cannot catch.",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/playtest-plan/instructions.md",
+        "Define playtest objectives (harp interaction, teaching mechanic)",
+        "Define metrics to collect (success rate, time to harmony, frustration points)",
+        "Create session structure (pre-session, gameplay, post-session)",
+        "Create observation guide (what to watch for)",
+        "Create feedback questionnaire",
+        "Generate tests/PLAYTEST-PLAN.md",
+        "Validate against ../_bmad/bmgd/workflows/gametest/playtest-plan/checklist.md",
+        "Session structure defined",
+        "Observation guide ready",
+        "Feedback questions prepared"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Internal playtest focus, 30-minute sessions, harp duet mechanic"
+    },
+    {
+      "id": "performance",
+      "title": "Performance Testing Strategy",
+      "description": "Design comprehensive performance testing covering frame rate, memory usage, loading times, and platform-specific requirements.",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/performance/instructions.md",
+        "Define performance targets (60 FPS desktop, 30 FPS mobile)",
+        "Identify test scenarios (max particles, stress tests)",
+        "Create benchmark scenarios (max jellies, full scene)",
+        "Generate performance tests (particle stress, memory leaks)",
+        "Generate tests/PERFORMANCE-PLAN.md",
+        "Validate against ../_bmad/bmgd/workflows/gametest/performance/checklist.md",
+        "FPS targets defined for all platforms",
+        "Stress scenarios identified",
+        "Benchmark tests created"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Focus on particles (jellies, vortex), draw calls, memory, loading"
+    },
+    {
+      "id": "test-review",
+      "title": "Test Suite Review",
+      "description": "Review existing test suite quality, identify coverage gaps, and recommend improvements. Validate all tests created in previous workflows.",
+      "acceptanceCriteria": [
+        "Read workflow instructions from ../_bmad/bmgd/workflows/gametest/test-review/instructions.md",
+        "Gather test suite metrics (count by type, pass rate)",
+        "Assess test quality (deterministic, isolated, fast, readable)",
+        "Identify coverage gaps",
+        "Review test infrastructure",
+        "Generate recommendations",
+        "Create tests/TEST-REVIEW.md",
+        "Validate against ../_bmad/bmgd/workflows/gametest/test-review/checklist.md",
+        "All previous workflow deliverables validated",
+        "Coverage gaps identified",
+        "Action items prioritized"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Final workflow, validate all previous workflows, ensure comprehensive coverage"
+    }
+  ]
+}
