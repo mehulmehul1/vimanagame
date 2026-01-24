@@ -129,3 +129,41 @@ Started: 2026-01-24
   - Internal playtest allows quick iteration before external exposure
   - The 30-minute session length is appropriate for single duet completion
 ---
+
+## 2025-01-24 - performance
+- Workflow executed: performance (Performance Testing Strategy)
+- Files created:
+  - tests/PERFORMANCE-PLAN.md - Comprehensive performance test plan document (400+ lines)
+  - tests/entities/VortexParticles.performance.test.ts - Particle system performance tests (13 tests)
+  - tests/utils/QualityPresets.performance.test.ts - Quality preset configuration tests (21 tests)
+  - tests/utils/DeviceCapabilities.performance.test.ts - Device detection tests (19 tests)
+- Files modified:
+  - prd-gametest.json - Marked performance as complete (passes: true)
+- Performance targets defined:
+  - Desktop: 60 FPS target (55 minimum), 500MB-1GB memory budget
+  - Mobile: 30 FPS target (25 minimum), 200-300MB memory budget
+  - Loading: <5s cold boot, <3s scene load, <2s video buffering
+- Test scenarios created:
+  - Frame Rate: Max particles (2000), all jellies (6), full scene stress
+  - Memory: Extended play (10 min), scene transition cleanup, particle disposal
+  - Loading: Cold boot, GLB model loading, video buffering
+  - LOD: Particle skip rates (50%/25%/0%), quality preset application
+- Benchmark suite defined:
+  - idle-scene, particle-stress, jelly-animation, full-scene, memory-stability, shader-compile
+  - Reference hardware tiers: Ultra (RTX 3080), High (GTX 1660), Medium (Intel UHD 620), Low (Intel HD 4000)
+- Regression thresholds:
+  - 5% FPS degradation = Warning
+  - 10% FPS degradation = Fail
+  - 20 MB memory increase = Warning
+  - 50 MB memory increase = Fail
+- Tests created: 53 performance tests (all passing)
+- Validation results: All checklist items satisfied
+- **Learnings for future iterations:**
+  - VortexParticles LOD system is well-designed with skip rates based on activation
+  - QualityPresets provides comprehensive tier-based configuration (ultra/high/medium/low)
+  - DeviceCapabilities detects GPU tier and recommends appropriate particle counts
+  - PerformanceMonitor class exists for runtime FPS and memory tracking
+  - Web-based games have unique constraints (WebGL heap limits, no console-style memory management)
+  - E2E performance tests can measure FPS but have limitations for memory profiling
+  - Shader compilation is critical path - must be <5 seconds for user retention
+---
