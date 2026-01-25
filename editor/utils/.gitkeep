@@ -1,0 +1,14 @@
+# Utility Functions
+
+This directory contains shared utility functions and helpers.
+
+## Planned Files
+
+- `threeHelpers.ts` - Three.js utility functions
+- `fileHelpers.ts` - File operations
+- `keyboardShortcuts.ts` - Keyboard shortcut definitions
+- `mathHelpers.ts` - Math utility functions
+
+## Status
+
+TO BE IMPLEMENTED in Phase 1, Task 2

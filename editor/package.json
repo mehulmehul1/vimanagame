@@ -1,0 +1,31 @@
+{
+  "name": "shadow-web-editor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Professional web-based 3D game editor for Shadow Czar Engine using PCUI",
+  "scripts": {
+    "dev": "vite --config vite.editor.config.ts",
+    "build": "tsc && vite build --config vite.editor.config.ts",
+    "preview": "vite preview --config vite.editor.config.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@playcanvas/observer": "^1.7.1",
+    "@playcanvas/pcui": "^5.5.0",
+    "@sparkjsdev/spark": "^0.1.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-top-level-await": "^1.6.0"
+  }
+}

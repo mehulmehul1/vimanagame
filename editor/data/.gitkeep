@@ -1,0 +1,14 @@
+# Data Models
+
+This directory contains TypeScript interfaces and data models for the editor.
+
+## Planned Files
+
+- `SceneFormat.ts` - sceneData.js format interfaces
+- `EditorState.ts` - Editor state interfaces
+- `Observers.ts` - PCUI Observer schemas
+- `Commands.ts` - Undo/redo command interfaces
+
+## Status
+
+TO BE IMPLEMENTED in Phase 1, Task 2

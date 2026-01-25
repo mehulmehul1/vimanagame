@@ -386,6 +386,8 @@ class SceneManager {
 
           // Traverse all children and ensure materials are visible
           // Also remove any lights from the GLTF (we manage lights separately)
+          // Unless keepLights option is set
+          const keepLights = (options && options.keepLights === true) || (objectData.keepLights === true);
           const lightsToRemove = [];
           model.traverse((child) => {
             if (child.isMesh) {
@@ -429,17 +431,23 @@ class SceneManager {
               }
             }
             // Collect lights to remove (can't remove during traversal)
-            if (child.isLight) {
+            // Skip if keepLights is enabled
+            if (child.isLight && !keepLights) {
               lightsToRemove.push(child);
             }
           });
 
           // Remove collected lights
-          lightsToRemove.forEach((light) => {
-            if (light.parent) {
-              light.parent.remove(light);
-            }
-          });
+          if (keepLights) {
+            this.logger.log(`✅ Keeping ${lightsToRemove.length} lights from GLTF "${id}"`);
+          } else {
+            lightsToRemove.forEach((light) => {
+              if (light.parent) {
+                light.parent.remove(light);
+              }
+            });
+            this.logger.log(`🗑️ Removed ${lightsToRemove.length} lights from GLTF "${id}"`);
+          }
 
           // Create container group if requested
           let finalObject;

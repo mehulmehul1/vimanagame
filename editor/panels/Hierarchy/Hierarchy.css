@@ -1,0 +1,256 @@
+/**
+ * Hierarchy Panel Styles - Enhanced
+ */
+
+.hierarchy-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--editor-bg-medium);
+}
+
+.hierarchy-header {
+    height: 35px;
+    background: var(--editor-bg-light);
+    border-bottom: 1px solid var(--editor-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+}
+
+.hierarchy-header h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--editor-text);
+    margin: 0;
+}
+
+.hierarchy-toolbar {
+    display: flex;
+    gap: 4px;
+}
+
+.toolbar-button {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--editor-text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.toolbar-button:hover {
+    background: var(--editor-bg-medium);
+    border-color: var(--editor-border);
+    color: var(--editor-text);
+}
+
+.hierarchy-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.hierarchy-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--editor-text-muted);
+}
+
+.hierarchy-empty p {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+}
+
+.hierarchy-empty .hint {
+    font-size: 11px;
+    font-style: italic;
+}
+
+.hierarchy-tree {
+    padding: 4px 0;
+}
+
+.tree-node {
+    user-select: none;
+}
+
+.tree-children {
+    padding-left: 0;
+}
+
+.hierarchy-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--editor-bg-dark);
+    transition: background 0.15s;
+    position: relative;
+}
+
+.hierarchy-item:hover {
+    background: var(--editor-bg-light);
+}
+
+.hierarchy-item.selected {
+    background: var(--editor-accent);
+    border-color: var(--editor-accent);
+}
+
+.hierarchy-item.selected .object-name {
+    color: white;
+}
+
+.hierarchy-item.editing {
+    background: var(--editor-bg-light);
+}
+
+.expand-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    color: var(--editor-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.expand-icon:hover {
+    color: var(--editor-text);
+}
+
+.expand-placeholder {
+    width: 16px;
+    display: inline-block;
+}
+
+.object-icon {
+    width: 20px;
+    font-size: 14px;
+    text-align: center;
+    margin-right: 8px;
+    opacity: 0.8;
+}
+
+.object-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--editor-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hierarchy-name-input {
+    flex: 1;
+    font-size: 12px;
+    padding: 2px 6px;
+    background: var(--editor-bg-medium);
+    border: 1px solid var(--editor-accent);
+    border-radius: 3px;
+    color: var(--editor-text);
+    outline: none;
+}
+
+.hierarchy-name-input:focus {
+    background: var(--editor-bg-light);
+}
+
+.hierarchy-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.hierarchy-item:hover .hierarchy-actions {
+    opacity: 1;
+}
+
+.action-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+.action-icon:hover {
+    background: var(--editor-bg-medium);
+}
+
+.action-icon.visible {
+    color: var(--editor-text);
+}
+
+.action-icon.hidden {
+    color: var(--editor-text-muted);
+    opacity: 0.5;
+}
+
+.action-icon.locked {
+    color: #ff6b6b;
+}
+
+.action-icon.unlocked {
+    color: var(--editor-text-muted);
+}
+
+.hierarchy-footer {
+    height: 30px;
+    background: var(--editor-bg-light);
+    border-top: 1px solid var(--editor-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+}
+
+.hierarchy-footer .hint {
+    font-size: 10px;
+    color: var(--editor-text-muted);
+    font-style: italic;
+}
+
+.object-material {
+    font-size: 10px;
+    color: var(--editor-text-muted);
+    padding: 2px 6px;
+    background: var(--editor-bg-dark);
+    border-radius: 3px;
+    margin-left: 8px;
+}
+
+/* Scrollbar styling */
+.hierarchy-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.hierarchy-content::-webkit-scrollbar-track {
+    background: var(--editor-bg-dark);
+}
+
+.hierarchy-content::-webkit-scrollbar-thumb {
+    background: var(--editor-border);
+    border-radius: 4px;
+}
+
+.hierarchy-content::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-text-muted);
+}

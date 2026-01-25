@@ -246,11 +246,19 @@ class ColliderManager {
 
       if (!colliderDesc) return null;
 
+      // Apply custom collision groups if specified
+      if (data.collisionGroups !== undefined) {
+        colliderDesc.setCollisionGroups(data.collisionGroups);
+      }
+
       // Create blocking collider with fixed body
+      // Pass custom collision groups as 4th parameter if specified
+      const customGroups = data.collisionGroups !== undefined ? data.collisionGroups : null;
       return this.physicsManager.createBlockingCollider(
         colliderDesc,
         position,
-        { x: quat.x, y: quat.y, z: quat.z, w: quat.w }
+        { x: quat.x, y: quat.y, z: quat.z, w: quat.w },
+        customGroups
       );
     } else {
       // Sensor colliders (triggers, no physics interaction)

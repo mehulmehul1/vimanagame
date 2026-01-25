@@ -85,6 +85,7 @@ class PhysicsManager {
     const colliderDesc = RAPIER.ColliderDesc.capsule(0.6, 0.3)
       .setFriction(0.9)
       .setMass(60);
+      // Don't set collision groups - use default 0xffffffff (collides with everything)
     this.world.createCollider(colliderDesc, body);
     return body;
   }
@@ -170,17 +171,21 @@ class PhysicsManager {
    * @param {Object} colliderDesc - Collider descriptor (from createBlockingBox/Sphere/Capsule)
    * @param {Object} position - Position {x, y, z}
    * @param {Object} rotation - Rotation quaternion {x, y, z, w}
+   * @param {number} customCollisionGroups - Optional collision groups (if not provided, uses Rapier default 0xffffffff)
    * @returns {Object} { collider, body } or null if failed
    */
-  createBlockingCollider(colliderDesc, position, rotation) {
+  createBlockingCollider(colliderDesc, position, rotation, customCollisionGroups = null) {
     // Create a fixed (static) rigid body
     const bodyDesc = RAPIER.RigidBodyDesc.fixed()
       .setTranslation(position.x, position.y, position.z)
       .setRotation(rotation);
     const body = this.world.createRigidBody(bodyDesc);
 
-    // Set collision groups (belongs to group 3 (environment), collides with all groups)
-    colliderDesc.setCollisionGroups(0xffff0008);
+    // Set collision groups - use custom if provided, otherwise use Rapier default (0xffffffff = collides with everything)
+    if (customCollisionGroups !== null) {
+      colliderDesc.setCollisionGroups(customCollisionGroups);
+    }
+    // If customCollisionGroups is null, don't set collision groups - use Rapier's default
 
     // Create the collider and attach to the body
     const collider = this.world.createCollider(colliderDesc, body);

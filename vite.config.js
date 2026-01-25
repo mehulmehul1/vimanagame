@@ -15,7 +15,11 @@ export default defineConfig({
     host: true,
   },
   optimizeDeps: {
-    exclude: [],
+    exclude: ["@sparkjsdev/spark"],
+  },
+  assetsInclude: ["**/*.wasm"],
+  worker: {
+    format: "es",
   },
   build: {
     minify: false,

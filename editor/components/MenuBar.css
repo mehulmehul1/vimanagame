@@ -1,0 +1,264 @@
+.menubar-container {
+    width: 100%;
+    background: #2a2a2a;
+    border-bottom: 1px solid #333;
+}
+
+.menubar {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 8px;
+    position: relative;
+}
+
+.menubar-logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    margin-right: 16px;
+    color: #4a9eff;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.logo-icon {
+    font-size: 16px;
+}
+
+.logo-text {
+    color: #ccc;
+}
+
+.menubar-item {
+    position: relative;
+    padding: 8px 12px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    user-select: none;
+}
+
+.menubar-item:hover {
+    background: #333;
+}
+
+.menubar-item.active {
+    background: #3a3a3a;
+}
+
+.menubar-spacer {
+    flex: 1;
+}
+
+.menubar-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.toolbar-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+    background: #333;
+}
+
+.toolbar-btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.toolbar-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 16px;
+    background: #444;
+    margin: 0 4px;
+}
+
+/* Menu dropdown */
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 180px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    padding: 4px 0;
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.menu-dropdown::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 12px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 4px solid #2a2a2a;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: left;
+}
+
+.menu-item:hover:not(.disabled) {
+    background: #333;
+}
+
+.menu-item.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.menu-item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.menu-item-shortcut {
+    font-size: 10px;
+    color: #888;
+    font-family: monospace;
+}
+
+.menu-separator {
+    height: 1px;
+    background: #333;
+    margin: 4px 0;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    min-width: 500px;
+    max-width: 80vw;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: #333;
+    border-bottom: 1px solid #444;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.modal-close {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.modal-close:hover {
+    color: white;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(80vh - 60px);
+}
+
+.shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.shortcut-category {
+    background: #222;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.shortcut-category h4 {
+    margin: 0 0 12px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #888;
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+}
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 11px;
+}
+
+.shortcut-key {
+    font-family: monospace;
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #4a9eff;
+}
+
+.shortcut-desc {
+    color: #ccc;
+}

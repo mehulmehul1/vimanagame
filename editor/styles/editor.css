@@ -1,0 +1,468 @@
+/**
+ * Shadow Web Editor - Global Styles
+ *
+ * This file contains global styles for the editor application.
+ * PCUI components come pre-styled, but these styles provide
+ * custom editor-specific styling.
+ */
+
+/* Reset and base styles */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* PCUI overrides and custom styles */
+:root {
+    --editor-bg-dark: #1a1a1a;
+    --editor-bg-medium: #252525;
+    --editor-bg-light: #3d3d3d;
+    --editor-border: #4d4d4d;
+    --editor-text: #ffffff;
+    --editor-text-muted: #888888;
+    --editor-accent: #5c9aff;
+    --editor-accent-hover: #4a8ae8;
+    --editor-danger: #ff6b6b;
+    --editor-success: #51cf66;
+    --editor-warning: #ffd43b;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--editor-bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--editor-bg-light);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-border);
+}
+
+/* Utility classes */
+.editor-panel {
+    background: var(--editor-bg-medium);
+    border: 1px solid var(--editor-border);
+    border-radius: 4px;
+}
+
+.editor-button {
+    background: var(--editor-bg-light);
+    color: var(--editor-text);
+    border: 1px solid var(--editor-border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.editor-button:hover {
+    background: var(--editor-border);
+}
+
+.editor-button:active {
+    transform: scale(0.98);
+}
+
+/* Loading spinner */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+    border: 3px solid var(--editor-bg-light);
+    border-top: 3px solid var(--editor-accent);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .editor-panel {
+        font-size: 12px;
+    }
+}
+
+/* Editor Container */
+.editor-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--editor-bg-dark);
+    color: var(--editor-text);
+    overflow: hidden;
+}
+
+/* Error & Loading Screens */
+.error-screen,
+.loading-screen {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: var(--editor-bg-dark);
+    color: var(--editor-text);
+}
+
+.error-screen {
+    color: var(--editor-danger);
+}
+
+.error-screen h1,
+.loading-screen h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.error-screen pre,
+.loading-screen p {
+    font-size: 14px;
+    font-family: monospace;
+}
+
+/* Menu Bar */
+.editor-menubar {
+    height: 35px;
+    background: var(--editor-bg-light);
+    border-bottom: 1px solid var(--editor-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+}
+
+.menubar-left,
+.menubar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.editor-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.menubar-separator {
+    color: var(--editor-border);
+}
+
+.menubar-info {
+    font-size: 12px;
+    color: var(--editor-text-muted);
+}
+
+.play-button {
+    background: var(--editor-success);
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.play-button:hover {
+    background: #40c057;
+    transform: scale(1.02);
+}
+
+.play-button.playing {
+    background: var(--editor-danger);
+}
+
+.play-button.playing:hover {
+    background: #fa5252;
+}
+
+/* Main Editor Area */
+.editor-main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Panel Layout */
+.panel-hierarchy {
+    width: 20%;
+    min-width: 200px;
+    max-width: 400px;
+    border-right: 1px solid var(--editor-border);
+    overflow: hidden;
+}
+
+.panel-viewport {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.panel-inspector {
+    width: 30%;
+    min-width: 250px;
+    max-width: 450px;
+    border-left: 1px solid var(--editor-border);
+    overflow: hidden;
+}
+
+.panel-asset-browser {
+    height: 200px;
+    border-top: 1px solid var(--editor-border);
+    overflow: hidden;
+}
+
+/* Status Bar */
+.editor-statusbar {
+    height: 25px;
+    background: var(--editor-bg-light);
+    border-top: 1px solid var(--editor-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 11px;
+}
+
+.status-text {
+    color: var(--editor-text-muted);
+}
+
+.status-info {
+    color: var(--editor-accent);
+    font-family: monospace;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .panel-hierarchy {
+        width: 25%;
+        min-width: 180px;
+    }
+
+    .panel-inspector {
+        width: 25%;
+        min-width: 200px;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+}
+
+/* Load Shadow Czar Scene Component */
+.load-scene-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.load-scene-button,
+.clear-scene-button {
+    background: var(--editor-accent);
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.load-scene-button:hover:not(:disabled) {
+    background: var(--editor-accent-hover);
+}
+
+.load-scene-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.clear-scene-button {
+    background: var(--editor-bg-light);
+    color: var(--editor-text);
+}
+
+.clear-scene-button:hover {
+    background: var(--editor-border);
+}
+
+.load-progress,
+.load-success,
+.load-error {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.load-progress {
+    color: var(--editor-accent);
+}
+
+.load-success {
+    color: var(--editor-success);
+}
+
+.load-error {
+    color: var(--editor-danger);
+    cursor: help;
+}
+
+/* ========================
+ * Phase 4: Scene Flow Navigator
+ * ======================== */
+
+/* Menu Bar Toggle Button */
+.menubar-toggle {
+    background: var(--editor-bg-medium);
+    color: var(--editor-text);
+    border: 1px solid var(--editor-border);
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.menubar-toggle:hover {
+    background: var(--editor-bg-light);
+    border-color: var(--editor-accent);
+}
+
+.menubar-toggle.active {
+    background: var(--editor-accent);
+    border-color: var(--editor-accent-hover);
+}
+
+/* Scene Flow Navigator Panel */
+.panel-scene-flow {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ReactFlow-specific overrides for dark theme */
+.panel-scene-flow .react-flow__attribution {
+    background: var(--editor-bg-medium);
+    color: var(--editor-text-muted);
+    font-size: 10px;
+}
+
+.panel-scene-flow .react-flow__panel {
+    background: rgba(37, 37, 37, 0.95);
+    border: 1px solid var(--editor-border);
+    border-radius: 8px;
+}
+
+.panel-scene-flow .react-flow__controls-button {
+    background: var(--editor-bg-light);
+    border-color: var(--editor-border);
+    fill: var(--editor-text);
+}
+
+.panel-scene-flow .react-flow__controls-button:hover {
+    background: var(--editor-border);
+}
+
+.panel-scene-flow .react-flow__minimap {
+    background: var(--editor-bg-dark);
+    border-color: var(--editor-border);
+}
+
+/* Keyboard shortcuts help overlay */
+.scene-flow-shortcuts {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(37, 37, 37, 0.95);
+    border: 1px solid var(--editor-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 11px;
+    z-index: 100;
+}
+
+.scene-flow-shortcuts h4 {
+    margin: 0 0 8px 0;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--editor-text-muted);
+}
+
+.scene-flow-shortcuts kbd {
+    background: var(--editor-bg-dark);
+    border: 1px solid var(--editor-border);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 10px;
+    margin-right: 4px;
+}
+
+/* Scene Flow Toggle Animation */
+.panel-scene-flow,
+.panel-viewport {
+    transition: opacity 0.2s ease;
+}
+
+.panel-scene-flow.fade-enter,
+.panel-viewport.fade-enter {
+    opacity: 0;
+}
+
+.panel-scene-flow.fade-enter-active,
+.panel-viewport.fade-enter-active {
+    opacity: 1;
+}
+
+/* Responsive adjustments for Scene Flow */
+@media (max-width: 1024px) {
+    .menubar-toggle {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+}

@@ -1,0 +1,15 @@
+# Core Editor Systems
+
+This directory contains the core editor systems that manage the editor's state and functionality.
+
+## Planned Files
+
+- `EditorManager.ts` - Central state management and coordination
+- `SelectionManager.ts` - Multi-object selection system
+- `UndoRedoManager.ts` - Command pattern for undo/redo
+- `ClipboardManager.ts` - Copy/paste functionality
+- `DataManager.ts` - sceneData.js read/write operations
+
+## Status
+
+TO BE IMPLEMENTED in Phase 1, Task 2

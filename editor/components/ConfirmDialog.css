@@ -1,0 +1,145 @@
+/**
+ * ConfirmDialog.css - Styles for Confirmation Dialog
+ */
+
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.confirm-dialog {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: scale(0.95) translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-dialog-header {
+  padding: 16px 20px 8px;
+}
+
+.confirm-dialog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.confirm-dialog-body {
+  padding: 8px 20px 16px;
+}
+
+.confirm-dialog-message {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.confirm-dialog-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 20px 16px;
+  border-top: 1px solid #334155;
+}
+
+.confirm-dialog-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.confirm-dialog-btn-cancel {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.confirm-dialog-btn-cancel:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.confirm-dialog-btn-confirm {
+  background: #3b82f6;
+  color: white;
+}
+
+.confirm-dialog-btn-confirm:hover {
+  background: #2563eb;
+}
+
+.confirm-dialog-btn-confirm-danger {
+  background: #dc2626;
+}
+
+.confirm-dialog-btn-confirm-danger:hover {
+  background: #b91c1c;
+}
+
+.confirm-dialog-btn-confirm-warning {
+  background: #f59e0b;
+  color: #0f172a;
+}
+
+.confirm-dialog-btn-confirm-warning:hover {
+  background: #d97706;
+}
+
+.confirm-dialog-btn-confirm-info {
+  background: #06b6d4;
+}
+
+.confirm-dialog-btn-confirm-info:hover {
+  background: #0891b2;
+}
+
+/* Variant-specific border colors */
+.confirm-dialog-danger {
+  border-color: #dc2626;
+}
+
+.confirm-dialog-warning {
+  border-color: #f59e0b;
+}
+
+.confirm-dialog-info {
+  border-color: #06b6d4;
+}

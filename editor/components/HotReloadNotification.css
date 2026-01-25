@@ -1,0 +1,124 @@
+/**
+ * HotReloadNotification Component Styles
+ */
+
+.hot-reload-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 400px;
+    max-width: 500px;
+    background: var(--panel-bg, #2a2a2a);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.notification-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.notification-icon {
+    font-size: 24px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.notification-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.notification-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #ffffff);
+    margin-bottom: 4px;
+}
+
+.notification-message {
+    font-size: 12px;
+    color: var(--text-secondary, #aaaaaa);
+    line-height: 1.4;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.notification-button {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.notification-button:hover {
+    transform: translateY(-1px);
+}
+
+.notification-button:active {
+    transform: translateY(0);
+}
+
+.notification-button.primary {
+    background: var(--primary-color, #3b82f6);
+    color: white;
+}
+
+.notification-button.primary:hover {
+    background: var(--primary-hover, #2563eb);
+}
+
+.notification-button.secondary {
+    background: transparent;
+    color: var(--text-secondary, #aaaaaa);
+    border: 1px solid var(--border-color, #444);
+}
+
+.notification-button.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #ffffff);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .hot-reload-notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: auto;
+        max-width: none;
+    }
+
+    .notification-content {
+        flex-wrap: wrap;
+    }
+
+    .notification-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

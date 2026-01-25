@@ -1,4 +1,4 @@
-# The Shadow of the Czar - Project Documentation
+* # The Shadow of the Czar - Project Documentation
 
 ![The Shadow of the Czar](public/images/preview.jpg)
 

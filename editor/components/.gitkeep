@@ -1,0 +1,15 @@
+# Shared Components
+
+This directory contains shared React components used across the editor.
+
+## Planned Components
+
+- `Toolbar.tsx` - Main toolbar with tools
+- `MenuBar.tsx` - Application menu bar
+- `StatusBar.tsx` - Status bar at bottom
+- `Button.tsx` - Reusable button component
+- `Input.tsx` - Reusable input component
+
+## Status
+
+TO BE IMPLEMENTED in Phase 1, Task 2

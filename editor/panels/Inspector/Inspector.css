@@ -1,0 +1,303 @@
+/**
+ * Inspector Panel Styles - Enhanced
+ */
+
+.inspector-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--editor-bg-medium);
+}
+
+.inspector-header {
+    height: 35px;
+    background: var(--editor-bg-light);
+    border-bottom: 1px solid var(--editor-border);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+}
+
+.inspector-header h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--editor-text);
+    margin: 0;
+}
+
+.inspector-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+}
+
+.inspector-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--editor-text-muted);
+}
+
+.inspector-empty p {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+}
+
+.inspector-empty .hint {
+    font-size: 11px;
+    font-style: italic;
+}
+
+.inspector-section {
+    border-bottom: 1px solid var(--editor-bg-dark);
+    padding: 8px 10px;
+}
+
+.inspector-section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--editor-text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapse-icon {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.inspector-input {
+    width: 100%;
+    background: var(--editor-bg-dark);
+    border: 1px solid var(--editor-border);
+    border-radius: 4px;
+    color: var(--editor-text);
+    font-size: 12px;
+    padding: 6px 8px;
+    transition: border-color 0.2s;
+}
+
+.inspector-input:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+}
+
+.inspector-input.full-width {
+    width: 100%;
+}
+
+.inspector-input.small {
+    width: 60px;
+}
+
+.inspector-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.object-type,
+.object-uuid,
+.material-info {
+    font-size: 12px;
+    color: var(--editor-text);
+    padding: 4px 0;
+}
+
+.object-uuid {
+    font-family: monospace;
+    color: var(--editor-text-muted);
+    font-size: 11px;
+}
+
+.vector3-input {
+    display: flex;
+    gap: 8px;
+}
+
+.vector3-field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.axis-label {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 6px;
+    border-radius: 3px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.axis-label.x-axis {
+    background: #ff6b6b;
+    color: white;
+}
+
+.axis-label.y-axis {
+    background: #51cf66;
+    color: white;
+}
+
+.axis-label.z-axis {
+    background: #5c9aff;
+    color: white;
+}
+
+/* Material inputs */
+.material-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.material-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.material-label {
+    font-size: 11px;
+    color: var(--editor-text-muted);
+    min-width: 70px;
+}
+
+.color-input {
+    width: 40px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--editor-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.slider-input {
+    flex: 1;
+    cursor: pointer;
+}
+
+/* Criteria inputs */
+.criteria-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.criteria-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.criteria-label {
+    font-size: 11px;
+    color: var(--editor-text-muted);
+}
+
+/* Custom properties */
+.custom-props {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.custom-prop-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.custom-prop-add {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--editor-border);
+}
+
+.prop-key {
+    flex: 1;
+    min-width: 100px;
+}
+
+.prop-value {
+    flex: 1;
+    min-width: 100px;
+}
+
+.prop-type {
+    width: 80px;
+}
+
+.prop-remove-btn,
+.prop-add-btn {
+    width: 28px;
+    height: 28px;
+    background: var(--editor-bg-dark);
+    border: 1px solid var(--editor-border);
+    border-radius: 4px;
+    color: var(--editor-text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.prop-remove-btn:hover {
+    background: #ff6b6b;
+    color: white;
+    border-color: #ff6b6b;
+}
+
+.prop-add-btn:hover:not(:disabled) {
+    background: #51cf66;
+    color: white;
+    border-color: #51cf66;
+}
+
+.prop-add-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Scrollbar styling */
+.inspector-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.inspector-content::-webkit-scrollbar-track {
+    background: var(--editor-bg-dark);
+}
+
+.inspector-content::-webkit-scrollbar-thumb {
+    background: var(--editor-border);
+    border-radius: 4px;
+}
+
+.inspector-content::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-text-muted);
+}
+
+/* Input number arrow buttons styling */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1;
+    height: 20px;
+}
+
+/* Select styling */
+select.inspector-input {
+    cursor: pointer;
+}

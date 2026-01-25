@@ -78,6 +78,9 @@ import GizmoManager from "./utils/gizmoManager.js";
 import { VFXSystemManager } from "./vfxManager.js";
 import ViewmasterController from "./content/viewmasterController.js";
 import { LoadingScreen } from "./ui/loadingScreen.js";
+import SceneSelectorMenu from "./ui/sceneSelectorMenu.js";
+import DebugInspector from "./ui/debugInspector.js";
+import ShadowEditor from "./editor/ShadowEditor.js";
 import { Logger } from "./utils/logger.js";
 import { DrawingRecognitionManager } from "./drawing/drawingRecognitionManager.js";
 import { DrawingManager } from "./drawing/drawingManager.js";
@@ -88,6 +91,7 @@ import "./styles/optionsMenu.css";
 import "./styles/dialog.css";
 import "./styles/loadingScreen.css";
 import "./styles/fullscreenButton.css";
+import "./styles/sceneSelectorMenu.css";
 
 const logger = new Logger("Main", true);
 
@@ -451,6 +455,13 @@ window.viewmasterController = viewmasterController;
 // Initialize UI manager (manages all UI elements and z-index)
 const uiManager = new UIManager(gameManager);
 
+// Initialize scene selector menu (debug tool for jumping to any scene)
+const sceneSelectorMenu = new SceneSelectorMenu({
+  gameManager: gameManager,
+  uiManager: uiManager,
+});
+window.sceneSelectorMenu = sceneSelectorMenu; // Make accessible globally for debugging
+
 // Initialize music manager (automatically loads tracks from musicData)
 // Use saved volume from optionsMenu if available, otherwise default to 0.6
 const savedMusicVolume = optionsMenu.getSettings().musicVolume ?? 0.6;
@@ -728,6 +739,27 @@ gizmoManager.registerLights(lightManager, lights);
 window.gizmoManager = gizmoManager;
 // Make game manager globally accessible for gizmoManager setState integration
 window.gameManager = gameManager;
+
+// Initialize debug inspector (Blender-style outliner and properties panel)
+const debugInspector = new DebugInspector({
+  sceneManager: sceneManager,
+  gizmoManager: gizmoManager,
+  camera: camera,
+  renderer: renderer,
+  characterController: characterController,
+});
+window.debugInspector = debugInspector; // Make accessible globally for debugging
+
+// Initialize Shadow Editor (full game editor)
+const shadowEditor = new ShadowEditor({
+  sceneManager: sceneManager,
+  gizmoManager: gizmoManager,
+  camera: camera,
+  renderer: renderer,
+  characterController: characterController,
+  lightManager: lightManager,
+});
+window.shadowEditor = shadowEditor; // Make accessible globally for debugging
 
 // Standardize global effects via managers (sceneManager/videoManager set game state)
 

@@ -1,0 +1,152 @@
+/**
+ * ShellUIOverlay - Styles for shell collection HUD
+ */
+
+/* Overlay container */
+.shell-ui-overlay {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.9;
+    font-family: 'Cinzel', 'Times New Roman', serif;
+    transition: opacity 0.5s ease;
+}
+
+.shell-ui-overlay.position-top-left {
+    top: 24px;
+    left: 24px;
+    align-items: flex-start;
+}
+
+.shell-ui-overlay.position-top-right {
+    top: 24px;
+    right: 24px;
+    align-items: flex-end;
+}
+
+.shell-ui-overlay.position-bottom-left {
+    bottom: 24px;
+    left: 24px;
+    align-items: flex-start;
+}
+
+.shell-ui-overlay.position-bottom-right {
+    bottom: 24px;
+    right: 24px;
+    align-items: flex-end;
+}
+
+/* Individual shell slot */
+.shell-slot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+    opacity: 0.5;
+    transform: translateY(-10px);
+    animation: slotFadeIn 0.5s ease forwards;
+    transition: all 0.3s ease;
+}
+
+.shell-slot.collected {
+    opacity: 1;
+    border-color: rgba(255, 200, 100, 0.5);
+    background: rgba(255, 150, 50, 0.15);
+    box-shadow: 0 0 20px rgba(255, 150, 50, 0.2);
+}
+
+.shell-slot.pulse {
+    animation: shellPulse 1s ease;
+}
+
+/* Shell icon canvas */
+.shell-icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+/* Shell label */
+.shell-label {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 0.3s ease;
+}
+
+.shell-slot.collected .shell-label {
+    color: rgba(255, 220, 150, 0.9);
+    text-shadow: 0 0 10px rgba(255, 150, 50, 0.5);
+}
+
+/* Animations */
+@keyframes slotFadeIn {
+    to {
+        opacity: 0.5;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shellPulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(255, 150, 50, 0.2);
+    }
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 40px rgba(255, 150, 50, 0.6);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(255, 150, 50, 0.2);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .shell-ui-overlay {
+        gap: 8px;
+        top: 16px;
+        right: 16px;
+        left: 16px;
+    }
+
+    .shell-slot {
+        padding: 6px 10px;
+        gap: 8px;
+    }
+
+    .shell-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .shell-label {
+        font-size: 11px;
+        max-width: 100px;
+    }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .shell-slot {
+        transition: none;
+        animation: none;
+    }
+
+    .shell-slot.pulse {
+        animation: none;
+    }
+}

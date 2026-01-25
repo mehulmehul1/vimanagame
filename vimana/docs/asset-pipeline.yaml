@@ -1,0 +1,728 @@
+# ============================================================
+# VIMANA ASSET PRODUCTION PIPELINE
+# ============================================================
+# Project: VIMANA
+# Version: 1.0
+# Last Updated: 2026-01-26
+# Maintainer: Mehul (Scrum Master)
+# ============================================================
+#
+# This file tracks ALL visual assets across the entire production.
+# Each asset has a unique ID, pipeline stage, assignee, and status.
+#
+# PIPELINE STAGES:
+#   storyboard → references → description → concepts → modeling
+#   → integration → polish → done
+#
+# ASSET TYPES:
+#   - splat-env: Gaussian Splat environment scene
+#   - glb-model: 3D model in GLB format
+#   - shader: GLSL shader code
+#   - vfx: Visual effects system
+#   - audio: Sound/music files
+#   - ui: UI elements
+#
+# STATUS VALUES:
+#   - backlog: Not started
+#   - in-progress: Actively being worked on
+#   - review: Ready for review/feedback
+#   - done: Complete and integrated
+#   - blocked: Waiting on dependencies
+#
+# CHAMBERS:
+#   - prologue: Opening sequence
+#   - hub: Central chamber
+#   - culture: Archive of Voices (Music Room)
+#   - art: Gallery of Forms
+#   - nature: Hydroponic Memory
+#   - tech: Engine of Growth
+#   - finale: Voyage Gate / Ascension
+# ============================================================
+
+# ============================================================
+# GLOBAL ACROSS ALL SCENES
+# ============================================================
+
+global:
+  player-ui:
+    id: GLOBAL-001
+    name: "Player UI Overlay"
+    chamber: global
+    type: ui
+    assigned: mehul
+    priority: high
+    status: done
+    pipeline:
+      storyboard: done
+      references: done
+      description: done
+      concepts: done
+      modeling: done
+      integration: done
+      polish: done
+    files:
+      location: "src/ui/"
+      main: "ShellUIOverlay.ts"
+    dependencies: []
+    notes: "4-slot shell collection UI, completed in Epic 1.7"
+
+# ============================================================
+# PROLOGUE SCENE
+# ============================================================
+
+prologue:
+  prologue-splat:
+    id: PROLOGUE-001
+    name: "Prologue Environment Splat"
+    chamber: prologue
+    type: splat-env
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/prologue/"
+      splats: "public/assets/splats/prologue/"
+    dependencies: []
+    estimated_days: 3
+    notes: "Dark dormant Vimana interior, opening awakening moment"
+
+  prologue-lighting:
+    id: PROLOGUE-002
+    name: "Prologue Lighting Setup"
+    chamber: prologue
+    type: vfx
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      implementation: pending
+      integration: pending
+      polish: pending
+    dependencies: [PROLOGUE-001]
+    notes: "From dark to first bioluminescent glow"
+
+# ============================================================
+# HUB CHAMBER (Central)
+# ============================================================
+
+hub:
+  hub-splat:
+    id: HUB-001
+    name: "Hub Chamber Environment Splat"
+    chamber: hub
+    type: splat-env
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/hub/"
+      splats: "public/assets/splats/hub/"
+    dependencies: []
+    estimated_days: 4
+    notes: "Central chamber with paths to 4 themed chambers, Voyage Gate at center"
+
+  hub-gate-prop:
+    id: HUB-002
+    name: "Voyage Gate Prop (Dormant State)"
+    chamber: hub
+    type: glb-model
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      modeling: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/hub/gate/"
+      model: "public/assets/models/hub/voyage-gate.glb"
+    dependencies: []
+    estimated_days: 2
+    notes: "Inert gate sculpture, becomes active portal after all chambers complete"
+
+# ============================================================
+# CULTURE CHAMBER - ARCHIVE OF VOICES (Music Room)
+# ============================================================
+
+culture:
+  # --------------------------------------------------------
+  # ENVIRONMENT
+  # --------------------------------------------------------
+  music-room-splat:
+    id: CULTURE-001
+    name: "Archive of Voices - Environment Splat"
+    chamber: culture
+    type: splat-env
+    assigned: tuhinanshu
+    priority: critical
+    status: in-progress
+    pipeline:
+      storyboard: done
+      references: in-progress
+      description: done
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/culture/music-room/"
+      splats: "public/assets/splats/culture/music-room/"
+      existing: "public/assets/splats/music-room-prototype.splat"
+    dependencies: []
+    estimated_days: 5
+    notes: "Redesign of entire chamber. Bioluminescent water pool, resonating chamber walls, ethereal atmosphere. Cyan/amber color palette with warm cultural glow."
+
+  # --------------------------------------------------------
+  # PROPS / INTERACTIVE OBJECTS
+  # --------------------------------------------------------
+  harp-mechanism:
+    id: CULTURE-002
+    name: "Six-String Harp Mechanism"
+    chamber: culture
+    type: glb-model
+    assigned: tuhinanshu
+    priority: critical
+    status: backlog
+    pipeline:
+      storyboard: done
+      references: pending
+      description: done
+      concepts: pending
+      modeling: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/culture/harp/"
+      model: "public/assets/models/culture/harp-mechanism.glb"
+      textures: "public/assets/textures/culture/harp/"
+    dependencies: []
+    estimated_days: 4
+    notes: |
+      Interactive musical instrument. 6 strings corresponding to notes C, D, E, F, G, A.
+      Organic design - grown from chamber walls, not manufactured.
+      Bioluminescent strings that glow when plucked.
+      Position: Center of chamber, over water pool.
+
+  platform-standing:
+    id: CULTURE-003
+    name: "Player Standing Platform"
+    chamber: culture
+    type: glb-model
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: done
+      references: pending
+      description: done
+      concepts: pending
+      modeling: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/culture/platform/"
+      model: "public/assets/models/culture/standing-platform.glb"
+    dependencies: []
+    estimated_days: 2
+    notes: "Circular platform where player stands. Detaches and rides to vortex on completion."
+
+  # --------------------------------------------------------
+  # CREATURES (Procedural + Visual Design)
+  # --------------------------------------------------------
+  jelly-creature-design:
+    id: CULTURE-004
+    name: "Jelly Creature - Visual Design Reference"
+    chamber: culture
+    type: design
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: done
+      references: pending
+      description: done
+      concepts: pending
+      final: pending
+    files:
+      concepts: "docs/concepts/culture/jellies/"
+      reference: "docs/references/culture/jelly-creatures.md"
+    dependencies: []
+    estimated_days: 2
+    notes: |
+      Musical messenger creatures that teach the player.
+      Translucent, bioluminescent, organic pulsing animation.
+      Emerge from water, demonstrate notes, submerge when done.
+      Different glow colors per note (C=cyan, D=blue, E=green, F=yellow, G=orange, A=red).
+
+  # --------------------------------------------------------
+  # COLLECTIBLES
+  # --------------------------------------------------------
+  shell-collectible:
+    id: CULTURE-005
+    name: "Nautilus Shell Collectible"
+    chamber: culture
+    type: glb-model
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: done
+      references: pending
+      description: done
+      concepts: pending
+      modeling: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/culture/shell/"
+      model: "public/assets/models/culture/nautilus-shell.glb"
+      textures: "public/assets/textures/culture/shell/"
+    dependencies: []
+    estimated_days: 2
+    notes: |
+      Procedural nautilus spiral shell with iridescence.
+      Appears after vortex completion, floats in front of player.
+      Click to collect, flies to UI slot.
+
+  # --------------------------------------------------------
+  # SHADERS / VFX
+  # --------------------------------------------------------
+  water-shader:
+    id: CULTURE-006
+    name: "Bioluminescent Water Shader"
+    chamber: culture
+    type: shader
+    assigned: mehul
+    priority: critical
+    status: review
+    pipeline:
+      storyboard: done
+      references: done
+      description: done
+      concepts: done
+      implementation: done
+      integration: review
+      polish: pending
+    files:
+      shader: "src/shaders/water-vertex.glsl"
+      shader: "src/shaders/water-fragment.glsl"
+      material: "src/entities/WaterMaterial.ts"
+    dependencies: []
+    notes: "Already implemented in Story 1.1. Needs visual polish/review with new assets."
+
+  vortex-shader:
+    id: CULTURE-007
+    name: "Vortex Portal Shader + Particles"
+    chamber: culture
+    type: shader
+    assigned: mehul
+    priority: critical
+    status: review
+    pipeline:
+      storyboard: done
+      references: done
+      description: done
+      concepts: done
+      implementation: done
+      integration: review
+      polish: pending
+    files:
+      shader: "src/shaders/vortex-vertex.glsl"
+      shader: "src/shaders/vortex-fragment.glsl"
+      material: "src/entities/VortexMaterial.ts"
+      system: "src/entities/VortexParticles.ts"
+    dependencies: []
+    notes: "SDF torus vortex with 2000 particles flowing in spiral. Implemented in Story 1.1, needs visual review."
+
+  jelly-shader:
+    id: CULTURE-008
+    name: "Jelly Creature Shader"
+    chamber: culture
+    type: shader
+    assigned: mehul
+    priority: high
+    status: review
+    pipeline:
+      storyboard: done
+      references: done
+      description: done
+      concepts: done
+      implementation: done
+      integration: review
+      polish: pending
+    files:
+      shader: "src/shaders/jelly-vertex.glsl"
+      shader: "src/shaders/jelly-fragment.glsl"
+      material: "src/entities/JellyCreature.ts"
+    dependencies: [CULTURE-004]
+    notes: "Enhanced shader with teaching state, bioluminescence, organic pulse. Implemented in Story 1.2."
+
+  # --------------------------------------------------------
+  # POST-PROCESSING / CAMERA
+  # --------------------------------------------------------
+  post-processing-culture:
+    id: CULTURE-009
+    name: "Culture Chamber Post-Processing"
+    chamber: culture
+    type: vfx
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      implementation: pending
+      integration: pending
+      polish: pending
+    dependencies: [CULTURE-001]
+    notes: "Bloom, chromatic aberration, vignette for ethereal atmosphere"
+
+  camera-presets-culture:
+    id: CULTURE-010
+    name: "Culture Chamber Camera Presets"
+    chamber: culture
+    type: vfx
+    assigned: tuhinanshu
+    priority: low
+    status: backlog
+    pipeline:
+      storyboard: pending
+      implementation: pending
+      integration: pending
+    dependencies: [CULTURE-001]
+    notes: "Initial view angles, transition to vortex, platform ride camera"
+
+  # --------------------------------------------------------
+  # AUDIO / SOUNDS
+  # --------------------------------------------------------
+  audio-harp-strings:
+    id: CULTURE-011
+    name: "Harp String Samples (6 notes)"
+    chamber: culture
+    type: audio
+    assigned: TBD
+    priority: critical
+    status: backlog
+    pipeline:
+      storyboard: done
+      description: done
+      recording: pending
+      processing: pending
+      integration: pending
+    files:
+      audio: "public/assets/audio/culture/harp-strings/"
+      notes: "C4, D4, E4, F4, G4, A4 - pure tones with organic resonance"
+    dependencies: []
+    estimated_days: 2
+    notes: "6 individual string pluck sounds. Can be synthesized or recorded."
+
+  audio-ambience-culture:
+    id: CULTURE-012
+    name: "Culture Chamber Ambience"
+    chamber: culture
+    type: audio
+    assigned: TBD
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: done
+      description: done
+      recording: pending
+      processing: pending
+      integration: pending
+    files:
+      audio: "public/assets/audio/culture/ambience.mp3"
+    dependencies: []
+    notes: "Echoing whispers, harmonic resonance, water sounds"
+
+  audio-feedback-sounds:
+    id: CULTURE-013
+    name: "Feedback Sound Effects"
+    chamber: culture
+    type: audio
+    assigned: TBD
+    priority: medium
+    status: backlog
+    pipeline:
+      description: done
+      recording: pending
+      processing: pending
+      integration: pending
+    files:
+      audio: "public/assets/audio/culture/feedback/"
+    notes: |
+      - Discordant tone (wrong note)
+      - Harmony chord (correct note)
+      - Completion chord (sequence finish)
+      - Gentle reminder sound
+
+# ============================================================
+# ART CHAMBER - GALLERY OF FORMS
+# ============================================================
+
+art:
+  art-room-splat:
+    id: ART-001
+    name: "Gallery of Forms - Environment Splat"
+    chamber: art
+    type: splat-env
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/art/gallery/"
+      splats: "public/assets/splats/art/gallery-of-forms/"
+    dependencies: []
+    estimated_days: 5
+    notes: "Art exhibition chamber. Floating frames, morphing sculptures, color-play environment."
+
+  art-props:
+    id: ART-002
+    name: "Art Chamber Props Collection"
+    chamber: art
+    type: glb-model
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      concepts: pending
+      modeling: pending
+      integration: pending
+    files:
+      model: "public/assets/models/art/"
+    dependencies: []
+    estimated_days: 4
+    notes: "Frames, pedestals, sculptures, interactive art pieces"
+
+# ============================================================
+# NATURE CHAMBER - HYDROPONIC MEMORY
+# ============================================================
+
+nature:
+  nature-room-splat:
+    id: NATURE-001
+    name: "Hydroponic Memory - Environment Splat"
+    chamber: nature
+    type: splat-env
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/nature/hydroponic/"
+      splats: "public/assets/splats/nature/hydroponic-memory/"
+    dependencies: []
+    estimated_days: 5
+    notes: "Living garden chamber. Mycelial networks, bioluminescent flora, organic growth."
+
+  nature-props:
+    id: NATURE-002
+    name: "Nature Chamber Props Collection"
+    chamber: nature
+    type: glb-model
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      concepts: pending
+      modeling: pending
+      integration: pending
+    files:
+      model: "public/assets/models/nature/"
+    dependencies: []
+    estimated_days: 4
+    notes: "Plants, fungi, growth vessels, organic structures"
+
+# ============================================================
+# TECHNOLOGY CHAMBER - ENGINE OF GROWTH
+# ============================================================
+
+tech:
+  tech-room-splat:
+    id: TECH-001
+    name: "Engine of Growth - Environment Splat"
+    chamber: tech
+    type: splat-env
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      description: pending
+      concepts: pending
+      capture: pending
+      integration: pending
+      polish: pending
+    files:
+      concepts: "docs/concepts/tech/engine/"
+      splats: "public/assets/splats/tech/engine-of-growth/"
+    dependencies: []
+    estimated_days: 5
+    notes: "Technology chamber. Grown circuits, bioluminescent data streams, organic machinery."
+
+  tech-props:
+    id: TECH-002
+    name: "Tech Chamber Props Collection"
+    chamber: tech
+    type: glb-model
+    assigned: tuhinanshu
+    priority: medium
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      concepts: pending
+      modeling: pending
+      integration: pending
+    files:
+      model: "public/assets/models/tech/"
+    dependencies: []
+    estimated_days: 4
+    notes: "Circuit growths, data crystals, interface membranes"
+
+# ============================================================
+# FINALE - VOYAGE_gate / ASCENSION
+# ============================================================
+
+finale:
+  gate-activated:
+    id: FINALE-001
+    name: "Voyage Gate - Activated State"
+    chamber: finale
+    type: vfx
+    assigned: tuhinanshu
+    priority: high
+    status: backlog
+    pipeline:
+      storyboard: pending
+      references: pending
+      concepts: pending
+      implementation: pending
+      integration: pending
+    dependencies: [HUB-002]
+    notes: "Portal effect, liquid light membrane, cosmic chord visual"
+
+  ascension-vfx:
+    id: FINALE-002
+    name: "Ascension Sequence VFX"
+    chamber: finale
+    type: vfx
+    assigned: mehul
+    priority: critical
+    status: backlog
+    pipeline:
+      storyboard: done
+      references: pending
+      description: done
+      implementation: pending
+      integration: pending
+      polish: pending
+    dependencies: []
+    notes: |
+      Water→Sky→Space→Void sequence
+      Bubbles, refraction, light burst
+      Clouds, star streak, warp effect
+      Color shifts, reality bending
+
+  white-flash-shader:
+    id: FINALE-003
+    name: "White Flash Ending Shader"
+    chamber: finale
+    type: shader
+    assigned: mehul
+    priority: high
+    status: review
+    pipeline:
+      storyboard: done
+      references: done
+      description: done
+      concepts: done
+      implementation: done
+      integration: review
+      polish: pending
+    files:
+      shader: "src/shaders/whiteflash-fragment.glsl"
+      class: "src/entities/WhiteFlashEnding.ts"
+    dependencies: []
+    notes: "Full-screen spiral to white transition. Implemented in Story 1.8."
+
+# ============================================================
+# SUMMARY STATISTICS
+# ============================================================
+
+summary:
+  total_assets: 38
+  by_status:
+    done: 1
+    in_progress: 1
+    review: 5
+    backlog: 31
+  by_type:
+    splat-env: 7
+    glb-model: 10
+    shader: 6
+    vfx: 8
+    audio: 4
+    ui: 1
+    design: 2
+  by_chamber:
+    prologue: 2
+    hub: 2
+    culture: 13
+    art: 2
+    nature: 2
+    tech: 2
+    finale: 3
+    global: 1
+  by_assignee:
+    mehul: 7
+    tuhinanshu: 22
+    TBD: 4
+  estimated_total_days: 85
+
+# ============================================================
+# END OF ASSET PIPELINE
+# ============================================================

@@ -1,0 +1,134 @@
+/**
+ * TestOverlay.css - Styles for Test Mode Overlay
+ */
+
+.test-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 10000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.test-overlay-content {
+  background: #1e293b;
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  padding: 16px 24px;
+  pointer-events: auto;
+  animation: slideDown 0.3s ease-out;
+  text-align: center;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.test-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.test-dot {
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+.test-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #22c55e;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.test-state-info {
+  margin-bottom: 16px;
+}
+
+.test-state-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+.test-state-value {
+  font-size: 14px;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+}
+
+.test-exit-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.test-exit-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.test-exit-btn:active {
+  transform: translateY(0);
+}
+
+.test-countdown {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #f59e0b;
+}
+
+.test-hint {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.test-hint kbd {
+  background: #334155;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  border: 1px solid #475569;
+}

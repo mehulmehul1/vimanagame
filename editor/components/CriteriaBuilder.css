@@ -1,0 +1,223 @@
+/**
+ * CriteriaBuilder Component Styles
+ */
+
+.criteria-builder {
+    background: var(--panel-bg, #2a2a2a);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.criteria-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.criteria-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary, #ffffff);
+}
+
+.mode-toggle {
+    padding: 4px 8px;
+    background: transparent;
+    color: var(--text-secondary, #aaaaaa);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #ffffff);
+}
+
+.mode-toggle.advanced {
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.mode-toggle.advanced:hover {
+    background: var(--primary-hover, #2563eb);
+}
+
+/* Simple Builder Mode */
+.criteria-simple {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.criteria-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary, #aaaaaa);
+}
+
+.criteria-empty p {
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.conditions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.condition-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.logical-operator {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--primary-color, #3b82f6);
+    text-transform: uppercase;
+    padding-left: 8px;
+}
+
+.condition-content {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.condition-field,
+.condition-operator,
+.condition-value {
+    padding: 4px 8px;
+    background: var(--input-bg, #1a1a1a);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+}
+
+.condition-field {
+    flex: 2;
+}
+
+.condition-operator {
+    flex: 2;
+}
+
+.condition-value,
+.condition-value-input {
+    flex: 3;
+}
+
+.condition-value-input {
+    padding: 4px 8px;
+    background: var(--input-bg, #1a1a1a);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 4px;
+    font-size: 11px;
+    outline: none;
+}
+
+.condition-field:focus,
+.condition-operator:focus,
+.condition-value:focus,
+.condition-value-input:focus {
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.remove-condition-button {
+    padding: 4px 6px;
+    background: transparent;
+    color: var(--text-secondary, #aaaaaa);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.remove-condition-button:hover {
+    background: rgba(220, 38, 38, 0.2);
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+.add-condition-button {
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--primary-color, #3b82f6);
+    border: 1px dashed var(--primary-color, #3b82f6);
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    align-self: flex-start;
+}
+
+.add-condition-button:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.criteria-preview {
+    padding: 8px;
+    background: var(--input-bg, #1a1a1a);
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+.preview-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary, #aaaaaa);
+    margin-bottom: 4px;
+}
+
+.preview-code {
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--text-primary, #ffffff);
+    background: transparent;
+    margin: 0;
+    overflow-x: auto;
+}
+
+/* Advanced Editor Mode */
+.criteria-advanced {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.advanced-editor {
+    width: 100%;
+    min-height: 120px;
+    padding: 8px;
+    background: var(--input-bg, #1a1a1a);
+    color: var(--text-primary, #ffffff);
+    border: 1px solid var(--border-color, #444);
+    border-radius: 4px;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    resize: vertical;
+    outline: none;
+}
+
+.advanced-editor:focus {
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.advanced-hint {
+    font-size: 10px;
+    color: var(--text-tertiary, #888888);
+    line-height: 1.4;
+}

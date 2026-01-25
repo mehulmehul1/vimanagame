@@ -1,0 +1,1111 @@
+{
+  "states": {
+    "LOADING": {
+      "id": "LOADING",
+      "value": -1,
+      "label": "Loading",
+      "act": 1,
+      "category": "Intro & Title",
+      "color": "#3b82f6",
+      "zone": null,
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_loading_start",
+          "from": "LOADING",
+          "to": "START_SCREEN",
+          "trigger": "onComplete",
+          "label": "Loading complete"
+        }
+      ],
+      "description": "Initial loading screen"
+    },
+    "START_SCREEN": {
+      "id": "START_SCREEN",
+      "value": 0,
+      "label": "Start Screen",
+      "act": 1,
+      "category": "Intro & Title",
+      "color": "#3b82f6",
+      "zone": null,
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_start_intro",
+          "from": "START_SCREEN",
+          "to": "INTRO",
+          "trigger": "onInteract",
+          "label": "Press any key"
+        }
+      ],
+      "description": "Title screen with start option"
+    },
+    "INTRO": {
+      "id": "INTRO",
+      "value": 1,
+      "label": "Intro",
+      "act": 1,
+      "category": "Intro & Title",
+      "color": "#3b82f6",
+      "zone": "plaza",
+      "content": {
+        "video": "intro_sequence.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_intro_title",
+          "from": "INTRO",
+          "to": "TITLE_SEQUENCE",
+          "trigger": "onComplete",
+          "label": "Video ends"
+        }
+      ],
+      "description": "Opening cinematic"
+    },
+    "TITLE_SEQUENCE": {
+      "id": "TITLE_SEQUENCE",
+      "value": 2,
+      "label": "Title Sequence",
+      "act": 1,
+      "category": "Intro & Title",
+      "color": "#3b82f6",
+      "zone": "plaza",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_title_complete",
+          "from": "TITLE_SEQUENCE",
+          "to": "TITLE_SEQUENCE_COMPLETE",
+          "trigger": "onComplete",
+          "label": "Title animation ends"
+        }
+      ],
+      "description": "Title card animation"
+    },
+    "TITLE_SEQUENCE_COMPLETE": {
+      "id": "TITLE_SEQUENCE_COMPLETE",
+      "value": 3,
+      "label": "Title Sequence Complete",
+      "act": 1,
+      "category": "Intro & Title",
+      "color": "#3b82f6",
+      "zone": "plaza",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_title_cat",
+          "from": "TITLE_SEQUENCE_COMPLETE",
+          "to": "CAT_DIALOG_CHOICE",
+          "trigger": "onComplete",
+          "label": "Fade to gameplay"
+        }
+      ],
+      "description": "Title sequence ends"
+    },
+    "CAT_DIALOG_CHOICE": {
+      "id": "CAT_DIALOG_CHOICE",
+      "value": 4,
+      "label": "Cat Dialog Choice",
+      "act": 1,
+      "category": "Exterior - Plaza",
+      "color": "#22c55e",
+      "zone": "plaza",
+      "content": {
+        "dialog": "cat_first_encounter"
+      },
+      "transitions": [
+        {
+          "id": "trans_cat_radio",
+          "from": "CAT_DIALOG_CHOICE",
+          "to": "NEAR_RADIO",
+          "trigger": "onChoice",
+          "label": "Dialog choice 1",
+          "dialogChoice": 1
+        }
+      ],
+      "description": "First encounter with the cat"
+    },
+    "NEAR_RADIO": {
+      "id": "NEAR_RADIO",
+      "value": 5,
+      "label": "Near Radio",
+      "act": 1,
+      "category": "Exterior - Plaza",
+      "color": "#22c55e",
+      "zone": "plaza",
+      "content": {},
+      "criteria": {
+        "currentState": { "$gte": 4 }
+      },
+      "transitions": [
+        {
+          "id": "trans_radio_phone",
+          "from": "NEAR_RADIO",
+          "to": "PHONE_BOOTH_RINGING",
+          "trigger": "onProximity",
+          "label": "Approach phone booth",
+          "proximity": {
+            "x": -8.45,
+            "y": 1.6,
+            "z": 3.1,
+            "radius": 5
+          }
+        }
+      ],
+      "description": "Player approaches the radio"
+    },
+    "PHONE_BOOTH_RINGING": {
+      "id": "PHONE_BOOTH_RINGING",
+      "value": 6,
+      "label": "Phone Booth Ringing",
+      "act": 1,
+      "category": "Phone Booth Scene",
+      "color": "#a855f7",
+      "zone": "plaza",
+      "playerPosition": {
+        "x": -8.45,
+        "y": 1.6,
+        "z": 3.1
+      },
+      "content": {
+        "video": "phone-booth-ringing.mp4",
+        "dialog": "phone_conversation",
+        "music": "tense_ambience"
+      },
+      "criteria": {
+        "currentState": { "$gte": 5 }
+      },
+      "transitions": [
+        {
+          "id": "trans_phone_answer",
+          "from": "PHONE_BOOTH_RINGING",
+          "to": "ANSWERED_PHONE",
+          "trigger": "onInteract",
+          "label": "Player answers phone"
+        },
+        {
+          "id": "trans_phone_walk_away",
+          "from": "PHONE_BOOTH_RINGING",
+          "to": "CAT_DIALOG_CHOICE_2",
+          "trigger": "onProximity",
+          "label": "Walks away",
+          "proximity": {
+            "x": 0,
+            "y": 0,
+            "z": 10,
+            "radius": 5
+          }
+        }
+      ],
+      "description": "The phone booth rings as player approaches"
+    },
+    "ANSWERED_PHONE": {
+      "id": "ANSWERED_PHONE",
+      "value": 7,
+      "label": "Answered Phone",
+      "act": 2,
+      "category": "Phone Booth Scene",
+      "color": "#a855f7",
+      "zone": "plaza",
+      "content": {
+        "dialog": "phone_answered_conversation"
+      },
+      "transitions": [
+        {
+          "id": "trans_answered_choice",
+          "from": "ANSWERED_PHONE",
+          "to": "DIALOG_CHOICE_1",
+          "trigger": "onChoice",
+          "label": "Make choice",
+          "dialogChoice": 1
+        }
+      ],
+      "description": "Player answers the ringing phone"
+    },
+    "DIALOG_CHOICE_1": {
+      "id": "DIALOG_CHOICE_1",
+      "value": 8,
+      "label": "Dialog Choice 1",
+      "act": 2,
+      "category": "Phone Booth Scene",
+      "color": "#a855f7",
+      "zone": "plaza",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_choice1_drive",
+          "from": "DIALOG_CHOICE_1",
+          "to": "DRIVE_BY_PREAMBLE",
+          "trigger": "onComplete",
+          "label": "Proceed to drive-by"
+        }
+      ],
+      "description": "First major dialog choice"
+    },
+    "DRIVE_BY_PREAMBLE": {
+      "id": "DRIVE_BY_PREAMBLE",
+      "value": 9,
+      "label": "Drive By Preamble",
+      "act": 2,
+      "category": "Drive By Scene",
+      "color": "#f59e0b",
+      "zone": "street",
+      "content": {
+        "cameraAnimation": "drive_by_setup"
+      },
+      "transitions": [
+        {
+          "id": "trans_preamble_drive",
+          "from": "DRIVE_BY_PREAMBLE",
+          "to": "DRIVE_BY",
+          "trigger": "onTimeout",
+          "label": "Timer ends",
+          "timeout": 3000
+        }
+      ],
+      "description": "Setup for drive-by event"
+    },
+    "DRIVE_BY": {
+      "id": "DRIVE_BY",
+      "value": 10,
+      "label": "Drive By",
+      "act": 2,
+      "category": "Drive By Scene",
+      "color": "#f59e0b",
+      "zone": "street",
+      "content": {
+        "video": "drive_by_sequence.mp4",
+        "music": "action_music",
+        "sfx": ["car_horn", "tires_squeal"]
+      },
+      "transitions": [
+        {
+          "id": "trans_drive_post",
+          "from": "DRIVE_BY",
+          "to": "POST_DRIVE_BY",
+          "trigger": "onComplete",
+          "label": "Sequence ends"
+        }
+      ],
+      "description": "Drive-by event occurs"
+    },
+    "POST_DRIVE_BY": {
+      "id": "POST_DRIVE_BY",
+      "value": 11,
+      "label": "Post Drive By",
+      "act": 2,
+      "category": "Drive By Scene",
+      "color": "#f59e0b",
+      "zone": "street",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_post_doors",
+          "from": "POST_DRIVE_BY",
+          "to": "DOORS_CLOSE",
+          "trigger": "onComplete",
+          "label": "Doors close"
+        }
+      ],
+      "description": "Aftermath of drive-by"
+    },
+    "DOORS_CLOSE": {
+      "id": "DOORS_CLOSE",
+      "value": 12,
+      "label": "Doors Close",
+      "act": 2,
+      "category": "Office Entry",
+      "color": "#64748b",
+      "zone": "office_exterior",
+      "content": {
+        "sfx": ["door_slam"]
+      },
+      "transitions": [
+        {
+          "id": "trans_doors_entering",
+          "from": "DOORS_CLOSE",
+          "to": "ENTERING_OFFICE",
+          "trigger": "onInteract",
+          "label": "Enter office"
+        }
+      ],
+      "description": "Office doors close"
+    },
+    "ENTERING_OFFICE": {
+      "id": "ENTERING_OFFICE",
+      "value": 13,
+      "label": "Entering Office",
+      "act": 2,
+      "category": "Office Entry",
+      "color": "#64748b",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "office_entrance"
+      },
+      "transitions": [
+        {
+          "id": "trans_entering_office",
+          "from": "ENTERING_OFFICE",
+          "to": "OFFICE_INTERIOR",
+          "trigger": "onComplete",
+          "label": "Inside office"
+        }
+      ],
+      "description": "Player enters the office"
+    },
+    "OFFICE_INTERIOR": {
+      "id": "OFFICE_INTERIOR",
+      "value": 14,
+      "label": "Office Interior",
+      "act": 2,
+      "category": "Office Entry",
+      "color": "#64748b",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_office_phone",
+          "from": "OFFICE_INTERIOR",
+          "to": "OFFICE_PHONE_ANSWERED",
+          "trigger": "onInteract",
+          "label": "Answer office phone"
+        }
+      ],
+      "description": "Explore the office"
+    },
+    "OFFICE_PHONE_ANSWERED": {
+      "id": "OFFICE_PHONE_ANSWERED",
+      "value": 15,
+      "label": "Office Phone Answered",
+      "act": 2,
+      "category": "Office Phone",
+      "color": "#8b5cf6",
+      "zone": "office_interior",
+      "content": {
+        "dialog": "office_phone_call"
+      },
+      "transitions": [
+        {
+          "id": "trans_office_viewmaster",
+          "from": "OFFICE_PHONE_ANSWERED",
+          "to": "PRE_VIEWMASTER",
+          "trigger": "onComplete",
+          "label": "Call ends"
+        }
+      ],
+      "description": "Office phone conversation"
+    },
+    "PRE_VIEWMASTER": {
+      "id": "PRE_VIEWMASTER",
+      "value": 16,
+      "label": "Pre ViewMaster",
+      "act": 2,
+      "category": "Office Phone",
+      "color": "#8b5cf6",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_pre_viewmaster",
+          "from": "PRE_VIEWMASTER",
+          "to": "VIEWMASTER",
+          "trigger": "onInteract",
+          "label": "Pick up View-Master"
+        }
+      ],
+      "description": "Before View-Master sequence"
+    },
+    "VIEWMASTER": {
+      "id": "VIEWMASTER",
+      "value": 17,
+      "label": "ViewMaster",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {
+        "video": "viewmaster_sequence.mp4",
+        "music": "hallucination_music"
+      },
+      "transitions": [
+        {
+          "id": "trans_viewmaster_color",
+          "from": "VIEWMASTER",
+          "to": "VIEWMASTER_COLOR",
+          "trigger": "onComplete",
+          "label": "Color sequence starts"
+        }
+      ],
+      "description": "View-Master hallucination begins"
+    },
+    "VIEWMASTER_COLOR": {
+      "id": "VIEWMASTER_COLOR",
+      "value": 18,
+      "label": "ViewMaster Color",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_color_dissolve",
+          "from": "VIEWMASTER_COLOR",
+          "to": "VIEWMASTER_DISSOLVE",
+          "trigger": "onTimeout",
+          "label": "Dissolve transition",
+          "timeout": 2000
+        }
+      ],
+      "description": "Color hallucination"
+    },
+    "VIEWMASTER_DISSOLVE": {
+      "id": "VIEWMASTER_DISSOLVE",
+      "value": 19,
+      "label": "ViewMaster Dissolve",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_dissolve_dialog",
+          "from": "VIEWMASTER_DISSOLVE",
+          "to": "VIEWMASTER_DIALOG",
+          "trigger": "onComplete",
+          "label": "Dialog begins"
+        }
+      ],
+      "description": "Dissolve transition"
+    },
+    "VIEWMASTER_DIALOG": {
+      "id": "VIEWMASTER_DIALOG",
+      "value": 20,
+      "label": "ViewMaster Dialog",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {
+        "dialog": "viewmaster_hallucination"
+      },
+      "transitions": [
+        {
+          "id": "trans_vm_dialog_hell",
+          "from": "VIEWMASTER_DIALOG",
+          "to": "VIEWMASTER_HELL",
+          "trigger": "onChoice",
+          "label": "Dark choice",
+          "dialogChoice": 2
+        }
+      ],
+      "description": "Dialog during hallucination"
+    },
+    "VIEWMASTER_HELL": {
+      "id": "VIEWMASTER_HELL",
+      "value": 21,
+      "label": "ViewMaster Hell",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {
+        "video": "viewmaster_hell.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_hell_post",
+          "from": "VIEWMASTER_HELL",
+          "to": "POST_VIEWMASTER",
+          "trigger": "onComplete",
+          "label": "Wake up"
+        }
+      ],
+      "description": "Dark hallucination"
+    },
+    "POST_VIEWMASTER": {
+      "id": "POST_VIEWMASTER",
+      "value": 22,
+      "label": "Post ViewMaster",
+      "act": 2,
+      "category": "ViewMaster Sequence",
+      "color": "#ef4444",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_post_vm_cat2",
+          "from": "POST_VIEWMASTER",
+          "to": "CAT_DIALOG_CHOICE_2",
+          "trigger": "onComplete",
+          "label": "Cat reappears"
+        }
+      ],
+      "description": "After hallucination"
+    },
+    "CAT_DIALOG_CHOICE_2": {
+      "id": "CAT_DIALOG_CHOICE_2",
+      "value": 23,
+      "label": "Cat Dialog Choice 2",
+      "act": 2,
+      "category": "Cat Dialog 2",
+      "color": "#06b6d4",
+      "zone": "office_interior",
+      "content": {
+        "dialog": "cat_second_encounter"
+      },
+      "transitions": [
+        {
+          "id": "trans_cat2_edison",
+          "from": "CAT_DIALOG_CHOICE_2",
+          "to": "PRE_EDISON",
+          "trigger": "onChoice",
+          "label": "Ask about Edison",
+          "dialogChoice": 1
+        }
+      ],
+      "description": "Second cat encounter"
+    },
+    "PRE_EDISON": {
+      "id": "PRE_EDISON",
+      "value": 24,
+      "label": "Pre Edison",
+      "act": 2,
+      "category": "Edison Scene",
+      "color": "#ec4899",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_pre_edison",
+          "from": "PRE_EDISON",
+          "to": "EDISON",
+          "trigger": "onProximity",
+          "label": "Approach Edison",
+          "proximity": {
+            "x": 5,
+            "y": 0,
+            "z": 5,
+            "radius": 3
+          }
+        }
+      ],
+      "description": "Before Edison confrontation"
+    },
+    "EDISON": {
+      "id": "EDISON",
+      "value": 25,
+      "label": "Edison",
+      "act": 2,
+      "category": "Edison Scene",
+      "color": "#ec4899",
+      "zone": "office_interior",
+      "content": {
+        "dialog": "edison_confrontation"
+      },
+      "transitions": [
+        {
+          "id": "trans_edison_choice",
+          "from": "EDISON",
+          "to": "DIALOG_CHOICE_2",
+          "trigger": "onChoice",
+          "label": "Make choice",
+          "dialogChoice": 1
+        }
+      ],
+      "description": "Edison confrontation"
+    },
+    "DIALOG_CHOICE_2": {
+      "id": "DIALOG_CHOICE_2",
+      "value": 26,
+      "label": "Dialog Choice 2",
+      "act": 2,
+      "category": "Edison Scene",
+      "color": "#ec4899",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_choice2_czar",
+          "from": "DIALOG_CHOICE_2",
+          "to": "CZAR_STRUGGLE",
+          "trigger": "onComplete",
+          "label": "Confrontation escalates"
+        }
+      ],
+      "description": "Second major choice point"
+    },
+    "CZAR_STRUGGLE": {
+      "id": "CZAR_STRUGGLE",
+      "value": 27,
+      "label": "Czar Struggle",
+      "act": 2,
+      "category": "Czar Struggle",
+      "color": "#f97316",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "struggle_shake"
+      },
+      "transitions": [
+        {
+          "id": "trans_struggle_tap",
+          "from": "CZAR_STRUGGLE",
+          "to": "SHOULDER_TAP",
+          "trigger": "onTimeout",
+          "label": "Shoulder tap",
+          "timeout": 3000
+        }
+      ],
+      "description": "Physical struggle with Czar"
+    },
+    "SHOULDER_TAP": {
+      "id": "SHOULDER_TAP",
+      "value": 28,
+      "label": "Shoulder Tap",
+      "act": 2,
+      "category": "Czar Struggle",
+      "color": "#f97316",
+      "zone": "office_interior",
+      "content": {
+        "sfx": ["shoulder_tap"]
+      },
+      "transitions": [
+        {
+          "id": "trans_tap_punch",
+          "from": "SHOULDER_TAP",
+          "to": "PUNCH_OUT",
+          "trigger": "onTimeout",
+          "label": "Punch out",
+          "timeout": 2000
+        }
+      ],
+      "description": "Shoulder tap moment"
+    },
+    "PUNCH_OUT": {
+      "id": "PUNCH_OUT",
+      "value": 29,
+      "label": "Punch Out",
+      "act": 2,
+      "category": "Czar Struggle",
+      "color": "#f97316",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "punch_impact"
+      },
+      "transitions": [
+        {
+          "id": "trans_punch_fallen",
+          "from": "PUNCH_OUT",
+          "to": "FALLEN",
+          "trigger": "onTimeout",
+          "label": "Fall down",
+          "timeout": 1500
+        }
+      ],
+      "description": "Player punches out"
+    },
+    "FALLEN": {
+      "id": "FALLEN",
+      "value": 30,
+      "label": "Fallen",
+      "act": 2,
+      "category": "Czar Struggle",
+      "color": "#f97316",
+      "zone": "office_interior",
+      "content": {
+        "music": "tense_fade"
+      },
+      "transitions": [
+        {
+          "id": "trans_fallen_lights",
+          "from": "FALLEN",
+          "to": "LIGHTS_OUT",
+          "trigger": "onTimeout",
+          "label": "Lights fade",
+          "timeout": 4000
+        }
+      ],
+      "description": "Fallen to ground"
+    },
+    "LIGHTS_OUT": {
+      "id": "LIGHTS_OUT",
+      "value": 31,
+      "label": "Lights Out",
+      "act": 2,
+      "category": "Czar Struggle",
+      "color": "#f97316",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_lights_waking",
+          "from": "LIGHTS_OUT",
+          "to": "WAKING_UP",
+          "trigger": "onTimeout",
+          "label": "Fade to black",
+          "timeout": 3000
+        }
+      ],
+      "description": "Lights go out"
+    },
+    "WAKING_UP": {
+      "id": "WAKING_UP",
+      "value": 32,
+      "label": "Waking Up",
+      "act": 3,
+      "category": "Waking Up",
+      "color": "#14b8a6",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "wake_up_fade",
+        "music": "wake_up_ambience"
+      },
+      "transitions": [
+        {
+          "id": "trans_wake_shadow",
+          "from": "WAKING_UP",
+          "to": "SHADOW_AMPLIFICATIONS",
+          "trigger": "onComplete",
+          "label": "Shadow powers emerge"
+        }
+      ],
+      "description": "Wake up sequence"
+    },
+    "SHADOW_AMPLIFICATIONS": {
+      "id": "SHADOW_AMPLIFICATIONS",
+      "value": 33,
+      "label": "Shadow Amplifications",
+      "act": 3,
+      "category": "Waking Up",
+      "color": "#14b8a6",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "shadow_powers",
+        "music": "shadow_theme"
+      },
+      "transitions": [
+        {
+          "id": "trans_shadow_cat",
+          "from": "SHADOW_AMPLIFICATIONS",
+          "to": "CAT_SAVE",
+          "trigger": "onComplete",
+          "label": "Cat saves you"
+        }
+      ],
+      "description": "Shadow powers manifest"
+    },
+    "CAT_SAVE": {
+      "id": "CAT_SAVE",
+      "value": 34,
+      "label": "Cat Save",
+      "act": 3,
+      "category": "Waking Up",
+      "color": "#14b8a6",
+      "zone": "office_interior",
+      "content": {
+        "dialog": "cat_save_conversation"
+      },
+      "transitions": [
+        {
+          "id": "trans_cat_cursor",
+          "from": "CAT_SAVE",
+          "to": "CURSOR",
+          "trigger": "onComplete",
+          "label": "Drawing minigame"
+        }
+      ],
+      "description": "Cat saves the player"
+    },
+    "CURSOR": {
+      "id": "CURSOR",
+      "value": 35,
+      "label": "Cursor",
+      "act": 3,
+      "category": "Drawing Minigame",
+      "color": "#eab308",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_cursor_final",
+          "from": "CURSOR",
+          "to": "CURSOR_FINAL",
+          "trigger": "onInteract",
+          "label": "Complete drawing"
+        }
+      ],
+      "description": "Drawing minigame starts"
+    },
+    "CURSOR_FINAL": {
+      "id": "CURSOR_FINAL",
+      "value": 36,
+      "label": "Cursor Final",
+      "act": 3,
+      "category": "Drawing Minigame",
+      "color": "#eab308",
+      "zone": "office_interior",
+      "content": {
+        "cameraAnimation": "rune_complete"
+      },
+      "transitions": [
+        {
+          "id": "trans_cursor_post",
+          "from": "CURSOR_FINAL",
+          "to": "POST_CURSOR",
+          "trigger": "onComplete",
+          "label": "Rune complete"
+        }
+      ],
+      "description": "Complete the rune"
+    },
+    "POST_CURSOR": {
+      "id": "POST_CURSOR",
+      "value": 37,
+      "label": "Post Cursor",
+      "act": 3,
+      "category": "Drawing Minigame",
+      "color": "#eab308",
+      "zone": "office_interior",
+      "content": {},
+      "transitions": [
+        {
+          "id": "trans_post_outro",
+          "from": "POST_CURSOR",
+          "to": "OUTRO",
+          "trigger": "onComplete",
+          "label": "Begin outro"
+        }
+      ],
+      "description": "After drawing minigame"
+    },
+    "OUTRO": {
+      "id": "OUTRO",
+      "value": 38,
+      "label": "Outro",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": "office_interior",
+      "content": {
+        "video": "outro_cinematic.mp4",
+        "music": "outro_music"
+      },
+      "transitions": [
+        {
+          "id": "trans_outro_leclaire",
+          "from": "OUTRO",
+          "to": "OUTRO_LECLAIRE",
+          "trigger": "onChoice",
+          "label": "LeClaire ending",
+          "dialogChoice": 1
+        },
+        {
+          "id": "trans_outro_cat",
+          "from": "OUTRO",
+          "to": "OUTRO_CAT",
+          "trigger": "onChoice",
+          "label": "Cat ending",
+          "dialogChoice": 2
+        },
+        {
+          "id": "trans_outro_czar",
+          "from": "OUTRO",
+          "to": "OUTRO_CZAR",
+          "trigger": "onChoice",
+          "label": "Czar ending",
+          "dialogChoice": 3
+        }
+      ],
+      "description": "Game finale begins"
+    },
+    "OUTRO_LECLAIRE": {
+      "id": "OUTRO_LECLAIRE",
+      "value": 39,
+      "label": "Outro LeClaire",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {
+        "video": "ending_leclaire.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_leclaire_credits",
+          "from": "OUTRO_LECLAIRE",
+          "to": "OUTRO_CREDITS",
+          "trigger": "onComplete",
+          "label": "Credits roll"
+        }
+      ],
+      "description": "LeClaire ending"
+    },
+    "OUTRO_CAT": {
+      "id": "OUTRO_CAT",
+      "value": 40,
+      "label": "Outro Cat",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {
+        "video": "ending_cat.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_cat_credits",
+          "from": "OUTRO_CAT",
+          "to": "OUTRO_CREDITS",
+          "trigger": "onComplete",
+          "label": "Credits roll"
+        }
+      ],
+      "description": "Cat ending"
+    },
+    "OUTRO_CZAR": {
+      "id": "OUTRO_CZAR",
+      "value": 41,
+      "label": "Outro Czar",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {
+        "video": "ending_czar.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_czar_credits",
+          "from": "OUTRO_CZAR",
+          "to": "OUTRO_CREDITS",
+          "trigger": "onComplete",
+          "label": "Credits roll"
+        }
+      ],
+      "description": "Czar ending"
+    },
+    "OUTRO_CREDITS": {
+      "id": "OUTRO_CREDITS",
+      "value": 42,
+      "label": "Outro Credits",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {
+        "music": "credits_music"
+      },
+      "transitions": [
+        {
+          "id": "trans_credits_movie",
+          "from": "OUTRO_CREDITS",
+          "to": "OUTRO_MOVIE",
+          "trigger": "onComplete",
+          "label": "Post-credits scene"
+        }
+      ],
+      "description": "Credits sequence"
+    },
+    "OUTRO_MOVIE": {
+      "id": "OUTRO_MOVIE",
+      "value": 43,
+      "label": "Outro Movie",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {
+        "video": "post_credits_scene.mp4"
+      },
+      "transitions": [
+        {
+          "id": "trans_movie_gameover",
+          "from": "OUTRO_MOVIE",
+          "to": "GAME_OVER",
+          "trigger": "onComplete",
+          "label": "Game complete"
+        }
+      ],
+      "description": "Post-credits scene"
+    },
+    "GAME_OVER": {
+      "id": "GAME_OVER",
+      "value": 44,
+      "label": "Game Over",
+      "act": 3,
+      "category": "Outro Sequences",
+      "color": "#6366f1",
+      "zone": null,
+      "content": {},
+      "transitions": [],
+      "description": "Game complete"
+    }
+  },
+  "acts": {
+    "1": {
+      "name": "Act 1: Introduction",
+      "color": "#3b82f6",
+      "states": [
+        "LOADING",
+        "START_SCREEN",
+        "INTRO",
+        "TITLE_SEQUENCE",
+        "TITLE_SEQUENCE_COMPLETE",
+        "CAT_DIALOG_CHOICE",
+        "NEAR_RADIO",
+        "PHONE_BOOTH_RINGING"
+      ]
+    },
+    "2": {
+      "name": "Act 2: The Journey",
+      "color": "#22c55e",
+      "states": [
+        "ANSWERED_PHONE",
+        "DIALOG_CHOICE_1",
+        "DRIVE_BY_PREAMBLE",
+        "DRIVE_BY",
+        "POST_DRIVE_BY",
+        "DOORS_CLOSE",
+        "ENTERING_OFFICE",
+        "OFFICE_INTERIOR",
+        "OFFICE_PHONE_ANSWERED",
+        "PRE_VIEWMASTER",
+        "VIEWMASTER",
+        "VIEWMASTER_COLOR",
+        "VIEWMASTER_DISSOLVE",
+        "VIEWMASTER_DIALOG",
+        "VIEWMASTER_HELL",
+        "POST_VIEWMASTER",
+        "CAT_DIALOG_CHOICE_2",
+        "PRE_EDISON",
+        "EDISON",
+        "DIALOG_CHOICE_2",
+        "CZAR_STRUGGLE",
+        "SHOULDER_TAP",
+        "PUNCH_OUT",
+        "FALLEN",
+        "LIGHTS_OUT"
+      ]
+    },
+    "3": {
+      "name": "Act 3: Resolution",
+      "color": "#6366f1",
+      "states": [
+        "WAKING_UP",
+        "SHADOW_AMPLIFICATIONS",
+        "CAT_SAVE",
+        "CURSOR",
+        "CURSOR_FINAL",
+        "POST_CURSOR",
+        "OUTRO",
+        "OUTRO_LECLAIRE",
+        "OUTRO_CAT",
+        "OUTRO_CZAR",
+        "OUTRO_CREDITS",
+        "OUTRO_MOVIE",
+        "GAME_OVER"
+      ]
+    }
+  }
+}

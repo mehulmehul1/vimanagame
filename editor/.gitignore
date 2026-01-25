@@ -1,0 +1,41 @@
+# Editor dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Editor build output
+dist/
+build/
+*.local
+
+# Editor-specific
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

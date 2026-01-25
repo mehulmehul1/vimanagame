@@ -1,0 +1,269 @@
+/**
+ * SceneFlowNavigator.css - Styles for Scene Flow Navigator Panel
+ */
+
+.scene-flow-navigator-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  position: relative;
+}
+
+.scene-flow-navigator {
+  flex: 1;
+  height: 100%;
+  background: #1a1a2e;
+  position: relative;
+}
+
+.scene-flow-inspector-panel {
+  width: 350px;
+  min-width: 300px;
+  max-width: 450px;
+  height: 100%;
+  background: #0f172a;
+  border-left: 1px solid #334155;
+  overflow-y: auto;
+  transition: width 0.3s ease;
+}
+
+.scene-flow-canvas {
+  background: #1a1a2e;
+}
+
+.scene-flow-canvas .react-flow__background {
+  background: #1a1a2e;
+}
+
+.scene-flow-canvas .react-flow__edge {
+  stroke: #475569;
+}
+
+.scene-flow-canvas .react-flow__edge.selected {
+  stroke: #fbbf24;
+}
+
+.scene-flow-canvas .react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.scene-flow-controls {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+}
+
+.scene-flow-controls button {
+  background: #334155;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+}
+
+.scene-flow-controls button:hover {
+  background: #475569;
+}
+
+.scene-flow-minimap {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+}
+
+.scene-flow-minimap .react-flow__minimap-node {
+  fill: #64748b;
+}
+
+/* Info Panel */
+.scene-flow-info {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 250px;
+}
+
+.scene-flow-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.scene-flow-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.current-label {
+  color: #94a3b8;
+}
+
+.current-value {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+/* Legend Panel */
+.scene-flow-legend {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+  padding: 12px;
+  max-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.legend-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 8px;
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 10px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Help Panel */
+.scene-flow-help {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.help-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.help-item:last-child {
+  margin-bottom: 0;
+}
+
+.help-item kbd {
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #e2e8f0;
+}
+
+/* Scrollbar styling for legend */
+.scene-flow-legend::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scene-flow-legend::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.scene-flow-legend::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+.scene-flow-legend::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .scene-flow-legend {
+    max-width: 150px;
+  }
+
+  .scene-flow-info {
+    max-width: 180px;
+  }
+
+  .legend-label {
+    font-size: 9px;
+  }
+
+  .scene-flow-inspector-panel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Toolbar */
+.scene-flow-toolbar {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 8px;
+  padding: 8px;
+  top: 10px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toolbar-btn {
+  background: #334155;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: #475569;
+  border-color: #64748b;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}

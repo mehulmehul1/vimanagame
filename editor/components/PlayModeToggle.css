@@ -1,0 +1,145 @@
+/**
+ * PlayModeToggle Component Styles
+ */
+
+.play-mode-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--panel-bg, #2a2a2a);
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #444);
+    transition: all 0.3s ease;
+}
+
+.play-mode-toggle.playing {
+    background: rgba(220, 38, 38, 0.2);
+    border-color: rgba(220, 38, 38, 0.6);
+}
+
+.play-mode-toggle.editing {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.6);
+}
+
+.play-mode-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.play-mode-button:hover:not(:disabled) {
+    background: var(--primary-hover, #2563eb);
+    transform: translateY(-1px);
+}
+
+.play-mode-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.play-mode-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.play-mode-button.active {
+    background: #dc2626;
+}
+
+.play-mode-button.active:hover:not(:disabled) {
+    background: #b91c1c;
+}
+
+.play-mode-button.transitioning {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.play-mode-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.play-mode-text {
+    font-size: 12px;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mode-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 3px;
+    pointer-events: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.mode-badge.badge-editing {
+    background: #22c55e;
+    color: white;
+}
+
+.mode-badge.badge-playing {
+    background: #dc2626;
+    color: white;
+}
+
+.shortcut-hint {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--text-secondary, #888);
+    white-space: nowrap;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .play-mode-toggle {
+        padding: 6px 8px;
+    }
+
+    .play-mode-button {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+
+    .play-mode-text {
+        display: none;
+    }
+
+    .shortcut-hint {
+        display: none;
+    }
+}

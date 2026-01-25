@@ -1,0 +1,278 @@
+.shader-editor-container {
+    display: flex;
+    height: 100%;
+    background: #1e1e1e;
+    color: #ccc;
+    font-size: 12px;
+}
+
+.shader-presets {
+    width: 180px;
+    min-width: 180px;
+    background: #252525;
+    border-right: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+}
+
+.presets-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #333;
+}
+
+.presets-header h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.toggle-presets {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #444;
+    background: #333;
+    color: #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.toggle-presets:hover {
+    background: #444;
+}
+
+.presets-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.preset-category {
+    margin-bottom: 16px;
+}
+
+.preset-category-header {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 6px;
+    padding: 0 4px;
+}
+
+.preset-item {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: #ccc;
+    text-align: left;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.preset-item:hover {
+    background: #333;
+}
+
+.preset-item.active {
+    background: #4a9eff;
+    color: white;
+}
+
+.shader-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.shader-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #252525;
+    border-bottom: 1px solid #333;
+}
+
+.shader-name-input {
+    flex: 1;
+    padding: 6px 10px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 3px;
+    color: #ccc;
+    font-size: 13px;
+}
+
+.shader-name-input:focus {
+    outline: none;
+    border-color: #4a9eff;
+}
+
+.export-btn {
+    padding: 6px 16px;
+    background: #4a9eff;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.export-btn:hover {
+    background: #3a8eef;
+}
+
+.shader-editor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.editor-tabs {
+    display: flex;
+    background: #252525;
+    border-bottom: 1px solid #333;
+}
+
+.editor-tabs .tab {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 12px;
+    border-bottom: 2px solid transparent;
+}
+
+.editor-tabs .tab:hover {
+    color: #ccc;
+}
+
+.editor-tabs .tab.active {
+    color: #4a9eff;
+    border-bottom-color: #4a9eff;
+}
+
+.editor-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.code-editor {
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a;
+    color: #ccc;
+    border: none;
+    padding: 12px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    resize: none;
+}
+
+.code-editor:focus {
+    outline: none;
+}
+
+.shader-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    min-width: 280px;
+    border-left: 1px solid #333;
+}
+
+.shader-preview {
+    border-bottom: 1px solid #333;
+}
+
+.preview-header {
+    padding: 8px 12px;
+    background: #2a2a2a;
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.preview-canvas {
+    width: 100%;
+    height: 200px;
+    display: block;
+    background: #000;
+}
+
+.shader-uniforms {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.uniforms-header {
+    padding: 8px 12px;
+    background: #2a2a2a;
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    border-bottom: 1px solid #333;
+}
+
+.uniforms-content {
+    padding: 12px;
+}
+
+.uniform-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.uniform-label {
+    flex: 1;
+    font-size: 11px;
+    color: #ccc;
+}
+
+.uniform-input {
+    width: 80px;
+}
+
+.uniform-input input {
+    width: 100%;
+    padding: 4px 6px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 3px;
+    color: #ccc;
+    font-size: 11px;
+}
+
+.uniform-input input[type="color"] {
+    padding: 0;
+    height: 24px;
+    cursor: pointer;
+}
+
+.uniform-input input[type="number"] {
+    text-align: right;
+}
+
+.uniform-value {
+    font-size: 10px;
+    color: #888;
+}
+
+.uniform-type {
+    font-size: 10px;
+    color: #666;
+    font-family: monospace;
+}

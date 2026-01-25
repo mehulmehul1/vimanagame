@@ -1,0 +1,268 @@
+/**
+ * FirstPersonMode.css - Styles for first-person mode toggle
+ */
+
+.firstperson-mode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.fp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(30, 30, 30, 0.9);
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.fp-toggle:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: #666;
+}
+
+.fp-toggle.active {
+    background: rgba(74, 158, 255, 0.2);
+    border-color: #4a9eff;
+    color: #4a9eff;
+}
+
+.fp-icon {
+    font-size: 16px;
+}
+
+.fp-label {
+    font-weight: 500;
+}
+
+/* Status indicator */
+.fp-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background: rgba(74, 158, 255, 0.1);
+    border: 1px solid rgba(74, 158, 255, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    color: #4a9eff;
+}
+
+.fp-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4a9eff;
+    animation: fp-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes fp-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
+.fp-controls-hint {
+    color: #888;
+}
+
+/* Settings panel */
+.fp-settings {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    width: 280px;
+    background: rgba(25, 25, 25, 0.98);
+    border: 1px solid #444;
+    border-radius: 6px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.fp-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #333;
+}
+
+.fp-settings-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: #ddd;
+}
+
+.fp-settings-close {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fp-settings-close:hover {
+    color: #fff;
+}
+
+.fp-settings-content {
+    padding: 16px;
+}
+
+.fp-setting-group {
+    margin-bottom: 16px;
+}
+
+.fp-setting-group:last-child {
+    margin-bottom: 0;
+}
+
+.fp-setting-group > label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #aaa;
+}
+
+.fp-slider {
+    width: 100%;
+    margin-bottom: 8px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+}
+
+.fp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #4a9eff;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.fp-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #4a9eff;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.fp-presets {
+    display: flex;
+    gap: 4px;
+}
+
+.fp-presets button {
+    flex: 1;
+    padding: 4px 8px;
+    background: #333;
+    border: 1px solid #444;
+    border-radius: 3px;
+    color: #999;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s ease;
+}
+
+.fp-presets button:hover {
+    background: #444;
+    border-color: #666;
+    color: #ccc;
+}
+
+.fp-instructions {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 12px;
+}
+
+.fp-instructions h5 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+}
+
+.fp-instructions ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.fp-instructions li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #999;
+}
+
+.fp-instructions li:last-child {
+    margin-bottom: 0;
+}
+
+.fp-instructions kbd {
+    padding: 2px 6px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 11px;
+    color: #ccc;
+}
+
+/* Settings toggle button */
+.fp-settings-toggle {
+    padding: 6px 8px;
+    background: rgba(30, 30, 30, 0.9);
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #888;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.fp-settings-toggle:hover {
+    background: rgba(50, 50, 50, 0.9);
+    border-color: #666;
+    color: #aaa;
+}
+
+/* Locked state */
+.firstperson-mode.locked .fp-toggle {
+    border-color: #4a9eff;
+    box-shadow: 0 0 8px rgba(74, 158, 255, 0.3);
+}
+
+.firstperson-mode.locked .fp-indicator {
+    animation: none;
+    background: #51cf66;
+}

@@ -1,0 +1,103 @@
+/**
+ * AutoSaveIndicator Component Styles
+ */
+
+.autosave-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--panel-bg, #2a2a2a);
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #444);
+    font-size: 11px;
+    transition: all 0.3s ease;
+}
+
+.autosave-indicator.saving {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: rgba(59, 130, 246, 0.1);
+    animation: pulse 1s ease-in-out;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.autosave-icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.autosave-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.autosave-label {
+    font-weight: 600;
+    color: var(--text-primary, #ffffff);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.autosave-time {
+    color: var(--text-secondary, #aaaaaa);
+    line-height: 1.2;
+}
+
+.autosave-next {
+    color: var(--text-tertiary, #888888);
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+.autosave-save-button {
+    padding: 4px 8px;
+    background: var(--primary-color, #3b82f6);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.autosave-save-button:hover:not(:disabled) {
+    background: var(--primary-hover, #2563eb);
+    transform: translateY(-1px);
+}
+
+.autosave-save-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.autosave-save-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .autosave-text {
+        display: none;
+    }
+
+    .autosave-save-button {
+        padding: 4px 6px;
+        font-size: 10px;
+    }
+}
