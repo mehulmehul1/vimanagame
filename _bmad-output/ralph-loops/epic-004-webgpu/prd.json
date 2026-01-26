@@ -1,0 +1,163 @@
+{
+  "project": "Vimana",
+  "epic": "EPIC-004: WebGPU Migration - Visionary Single-Canvas Architecture",
+  "epicFile": "../planning-artifacts/epics/EPIC-004-webgpu-migration.md",
+  "branchName": "ralph/epic-004-webgpu",
+  "description": "Migrate VIMANA rendering from WebGL2 to WebGPU with Gaussian Splat support through Visionary's hybrid rendering system. All shaders converted to TSL (Three.js Shading Language) for WGSL output. WaterBall fluid simulation with compute shaders enabled.",
+  "userStories": [
+    {
+      "id": "004-001",
+      "title": "Visionary Gaussian Splat Integration",
+      "storyFile": "../implementation-artifacts/4-1-visionary-integration.md",
+      "description": "Integrate Visionary's WebGPU Gaussian splat renderer with existing Three.js scene, enabling proper depth occlusion between splats and scene meshes. 2 days.",
+      "acceptanceCriteria": [
+        "Install visionary-core package from npm",
+        "Initialize GaussianThreeJSRenderer with WebGPU renderer",
+        "Load Gaussian splat files (PLY, SPLAT format support)",
+        "CRITICAL: Verify depth occlusion works (splats behind walls are hidden)",
+        "Integrate with existing render loop via onBeforeRender callbacks",
+        "Support 6 jelly creature splats with individual transforms",
+        "Proper disposal of Visionary resources"
+      ],
+      "priority": 1,
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "004-002",
+      "title": "WebGPU Renderer Initialization",
+      "storyFile": "../implementation-artifacts/4-2-webgpu-renderer-init.md",
+      "description": "Create WebGPU renderer initialization with feature detection, async compilation, and graceful WebGL2 fallback. Visionary platform detection (Ubuntu not supported). 1 day.",
+      "acceptanceCriteria": [
+        "createWebGPURenderer() function created in src/rendering/",
+        "WebGPU.isAvailable() check before initialization",
+        "Graceful fallback to WebGL2 if WebGPU unavailable",
+        "Async shader compilation via renderer.compileAsync()",
+        "Color management: outputColorSpace = SRGBColorSpace",
+        "Mobile pixel ratio limits (1.5 for mobile, 2 for desktop)",
+        "setAnimationLoop() pattern used (not requestAnimationFrame)",
+        "Tone mapping configured (ACESFilmicToneMapping, exposure 0.5)",
+        "Visionary compatibility check (Ubuntu not supported, macOS limited)"
+      ],
+      "priority": 1,
+      "passes": true,
+      "dependsOn": []
+    },
+    {
+      "id": "004-003",
+      "title": "Vortex Shader → TSL Migration",
+      "storyFile": "../implementation-artifacts/4-3-vortex-shader-tsl.md",
+      "description": "Convert vortex sphere constraint shader from GLSL to TSL using Fn() pattern. Preserve activation-based animation and visual parity. 2 days.",
+      "acceptanceCriteria": [
+        "Vortex shader converted to TSL using Fn() pattern in src/shaders/tsl/VortexShader.ts",
+        "Sphere constraint logic implemented in TSL nodes",
+        "positionLocal.sub(center) for vertex transformation",
+        "mix(), distance(), max() TSL math functions",
+        "If() conditional for tunnel radius constraint",
+        "Activation-based animation preserved (uVortexProgress)",
+        "Visual parity with GLSL version (spin, breathe, glow)",
+        "Fresnel effect using dot() and normalize()"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": ["004-002"]
+    },
+    {
+      "id": "004-004",
+      "title": "Water Material → TSL Migration",
+      "storyFile": "../implementation-artifacts/4-4-water-material-tsl.md",
+      "description": "Convert water surface shader to TSL with Fresnel effects, bioluminescence, 6-string frequency response, and jelly creature ripples. 3 days.",
+      "acceptanceCriteria": [
+        "Water shader converted to TSL in src/shaders/tsl/WaterShader.ts",
+        "Fresnel effect using dot(normalView, positionView.normalize())",
+        "pow(float(1).sub(dot(...)), float(3)) for edge intensity",
+        "Bioluminescent color mixing with mix()",
+        "6-string frequency response preserved with array uniforms",
+        "timerLocal() for animation time",
+        "Physical material properties: transmission, roughness, IOR",
+        "Jelly creature ripples preserved (6 jellies × 3 positions)",
+        "Sphere constraint animation for duet progress"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": ["004-003"]
+    },
+    {
+      "id": "004-005",
+      "title": "Shell SDF → TSL Migration",
+      "storyFile": "../implementation-artifacts/4-5-shell-sdf-tsl.md",
+      "description": "Convert procedural SDF shell shader to TSL with iridescence, simplex noise dissolve, 3-second appear animation. 2 days.",
+      "acceptanceCriteria": [
+        "Nautilus spiral SDF converted to TSL in src/shaders/tsl/ShellShader.ts",
+        "Iridescence effect using view angle (dot(viewDir, normal))",
+        "Simplex noise dissolve effect",
+        "3-second appear animation with easing",
+        "Easing functions in TSL (smoothstep())",
+        "Bobbing idle animation",
+        "Fresnel-based edge glow",
+        "Spiral pattern visualization on shell surface"
+      ],
+      "priority": 4,
+      "passes": false,
+      "dependsOn": ["004-004"]
+    },
+    {
+      "id": "004-006",
+      "title": "Jelly Shader → TSL Migration",
+      "storyFile": "../implementation-artifacts/4-6-jelly-shader-tsl.md",
+      "description": "Convert bioluminescent jelly creature shader to TSL with organic pulsing, teaching state enhancement, per-jelly frequency variations. 2 days.",
+      "acceptanceCriteria": [
+        "Jelly shader converted to TSL in src/shaders/tsl/JellyShader.ts",
+        "Organic pulsing animation using sin(timerLocal())",
+        "Bioluminescent glow with teaching state enhancement",
+        "Per-jelly frequency variations via uniform",
+        "Emissive material with emissiveNode",
+        "Fresnel-based rim lighting effect",
+        "Simplex noise displacement for organic movement",
+        "Bell-shaped pulse enhancement at top of jelly"
+      ],
+      "priority": 4,
+      "passes": false,
+      "dependsOn": ["004-004"]
+    },
+    {
+      "id": "004-007",
+      "title": "Fluid System Activation",
+      "storyFile": "../implementation-artifacts/4-7-fluid-system-activation.md",
+      "description": "Enable WaterBall fluid simulation with WebGPU compute shader execution. 10,000 particles at 60 FPS using TSL compute shaders. 3 days.",
+      "acceptanceCriteria": [
+        "WebGPURenderer context passed to fluid system",
+        "Compute shaders execute via renderer.compute(computeNode)",
+        "Compute executed BEFORE render in loop",
+        "TSL compute shaders for particle physics (MLS-MPM)",
+        "10,000 particles at 60 FPS on desktop",
+        "Storage buffers: position, velocity, force",
+        "Boundary collision with If() conditions",
+        "Sphere constraint animation integrated with compute"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": ["004-002", "004-004"]
+    },
+    {
+      "id": "004-008",
+      "title": "Performance Validation",
+      "storyFile": "../implementation-artifacts/4-8-performance-validation.md",
+      "description": "Profile and optimize Visionary + WebGPU system for target frame rates. Device capability detection, adaptive quality settings. 2 days.",
+      "acceptanceCriteria": [
+        "Frame time profiling implemented (WebGPU: 8ms, Fluid: 4ms, Splats: 3ms, Post: 1.5ms)",
+        "Desktop 60 FPS achieved (16.67ms budget)",
+        "Mobile 30 FPS achieved (33.33ms budget)",
+        "Memory profiling (<500MB on iOS Safari)",
+        "Device profile system (high/medium/low)",
+        "Pixel ratio limits enforced (1.5 mobile, 2 desktop)",
+        "Async shader compilation prevents frame drops",
+        "Visionary depth occlusion verified (splats hidden behind walls)",
+        "Platform capability detection (Ubuntu not supported)"
+      ],
+      "priority": 6,
+      "passes": false,
+      "dependsOn": ["004-007"]
+    }
+  ]
+}

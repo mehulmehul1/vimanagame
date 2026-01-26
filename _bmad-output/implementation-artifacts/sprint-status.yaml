@@ -1,4 +1,4 @@
-# generated: 2026-01-24
+# generated: 2026-01-27
 # project: shadowvimana
 # project_key: vimana
 # tracking_system: file-system
@@ -33,14 +33,16 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-01-25
+generated: 2026-01-27
 project: shadowvimana
 project_key: vimana
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  # Epic 1: Music Room Prototype - Archive of Voices
+  # ========================================
+  # EPIC 1: Music Room Prototype - Archive of Voices
+  # ========================================
   epic-1: done
 
   # Story 1.1: Visual Foundation
@@ -72,3 +74,79 @@ development_status:
 
   # Epic 1 Retrospective
   epic-1-retrospective: optional
+
+  # ========================================
+  # EPIC 2: WaterBall Fluid Simulation System
+  # ========================================
+  epic-2: done
+
+  # Story 2.1: MLS-MPM Particle Physics System
+  2-1-particle-physics: done
+
+  # Story 2.2: Depth & Thickness Rendering Pipeline
+  2-2-depth-thickness: done
+
+  # Story 2.3: Fluid Surface Shader
+  2-3-fluid-surface: done
+
+  # Story 2.4: Sphere Constraint Animation
+  2-4-sphere-animation: done
+
+  # Story 2.5: Harp-to-Water Interaction System
+  2-5-harp-interaction: done
+
+  # Story 2.6: Player Collision & Water Displacement
+  2-6-player-collision: done
+
+  # Epic 2 Retrospective
+  epic-2-retrospective: optional
+
+  # ========================================
+  # EPIC 4: WebGPU Migration - Visionary Single-Canvas Architecture
+  # ========================================
+  # Course Correction 2026-01-27: Dual-canvas replaced with Visionary for proper depth occlusion
+  epic-4: in-progress
+
+  # Story 4.1: Visionary Gaussian Splat Integration
+  # Replaces: Dual Canvas Setup (obsolete - depth buffer issue)
+  4-1-visionary-integration: ready-for-dev
+
+  # Story 4.2: WebGPU Renderer Initialization
+  4-2-webgpu-renderer-init: done
+
+  # Story 4.3: Vortex Shader → TSL Migration
+  4-3-vortex-shader-tsl: ready-for-dev
+
+  # Story 4.4: Water Material → TSL Migration
+  4-4-water-material-tsl: ready-for-dev
+
+  # Story 4.5: Shell SDF → TSL Migration
+  4-5-shell-sdf-tsl: ready-for-dev
+
+  # Story 4.6: Jelly Shader → TSL Migration
+  4-6-jelly-shader-tsl: ready-for-dev
+
+  # Story 4.7: Fluid System Activation
+  # (was 4.8 - renumbered after removing Splat Overlay Adapter)
+  4-7-fluid-system-activation: ready-for-dev
+
+  # Story 4.8: Performance Validation
+  # (was 4.9 - renumbered after removing Splat Overlay Adapter)
+  4-8-performance-validation: ready-for-dev
+
+  # Epic 4 Retrospective
+  epic-4-retrospective: optional
+
+# ========================================
+# COURSE CORRECTION LOG
+# ========================================
+# 2026-01-27: EPIC 4 architecture revised
+#   - OBSOLETE: Story 4.1 (Dual Canvas Setup) → archived to obsolete/
+#   - OBSOLETE: Story 4.7 (Splat Overlay Adapter) → never created, removed from plan
+#   - NEW: Story 4.1 (Visionary Integration) → single-canvas with depth compositing
+#   - Stories renumbered: 4.8→4.7, 4.9→4.8
+#   - Reason: Dual-canvas cannot share depth buffers between WebGPU/WebGL2 contexts
+#   - Solution: Visionary platform provides proper occlusion via single WebGPU context
+#   - Reference: sprint-change-proposal-2026-01-27.md
+#
+# ALL STORIES FOR EPIC 4 NOW READY FOR DEVELOPMENT

@@ -1,0 +1,83 @@
+# Ralph Progress Log - EPIC-004: WebGPU Migration
+Started: 2026-01-27
+---
+
+## Codebase Patterns
+- Project: Vimana (Three.js + WebGPU + TSL + Visionary)
+- Location: C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\vimana
+- Source: src/
+- Shaders: TSL (Three.js Shading Language) → WGSL
+- Renderer: WebGPURenderer with Visionary integration
+- Platform: Windows 10/11 (Ubuntu not supported)
+
+## Visionary Platform Notes
+- Ubuntu: NOT supported (fp16 WebGPU bug)
+- macOS: Performance limited (M4 Max+ recommended)
+- Windows: RECOMMENDED (discrete GPU)
+
+## Three.js Version Requirement
+- Minimum: r171.0+ for Visionary compatibility
+- Check: package.json "three" version before starting Story 4.1
+
+## Skills Reference (Use for TSL/WebGPU Decisions)
+- vimana/.claude/skills/3d-graphics/
+  - references/16-webgpu.md - WebGPU fundamentals
+  - references/13-node-materials.md - Node materials
+
+- vimana/.claude/skills/three-best-practices/
+  - rules/tsl-complete-reference.md - Full TSL API
+  - rules/tsl-compute-shaders.md - Compute shaders
+  - rules/tsl-post-processing.md - Post-processing
+  - rules/mobile-optimization.md - Mobile optimization
+
+## Course Correction (2026-01-27)
+- ❌ REJECTED: Dual-canvas architecture (separate depth buffers = no occlusion)
+- ✅ ADOPTED: Visionary single-canvas architecture (shared depth = proper occlusion)
+
+## Execution Order
+1. Foundation Phase (Parallel):
+   - 4.1 Visionary Integration (no dependencies)
+   - 4.2 WebGPU Renderer Init (no dependencies)
+
+2. TSL Migration Phase (After 4.2):
+   - 4.3 Vortex Shader TSL (depends on 4.2)
+   - 4.4 Water Material TSL (depends on 4.3)
+
+3. More TSL (After 4.4):
+   - 4.5 Shell SDF TSL (depends on 4.4)
+   - 4.6 Jelly Shader TSL (depends on 4.4)
+
+4. Fluid & Performance (After 4.2 + 4.4):
+   - 4.7 Fluid System Activation (depends on 4.2, 4.4)
+   - 4.8 Performance Validation (depends on 4.7)
+
+---
+
+## Implementation Log
+
+## [2025-01-27] - Story 004-002
+- Story: WebGPU Renderer Initialization
+- Files created:
+  - src/rendering/createWebGPURenderer.ts (main implementation)
+  - src/rendering/index.ts (module exports)
+- Acceptance criteria validated:
+  - [x] createWebGPURenderer() function created in src/rendering/
+  - [x] WebGPU.isAvailable() check before initialization
+  - [x] Graceful fallback to WebGL2 if WebGPU unavailable
+  - [x] Async shader compilation via renderer.compileAsync()
+  - [x] Color management: outputColorSpace = SRGBColorSpace
+  - [x] Mobile pixel ratio limits (1.5 for mobile, 2 for desktop)
+  - [x] setAnimationLoop() pattern used (not requestAnimationFrame)
+  - [x] Tone mapping configured (ACESFilmicToneMapping, exposure 0.5)
+  - [x] Visionary compatibility check (Ubuntu not supported, macOS limited)
+- Tests/verification performed:
+  - TypeScript compilation successful (npm run build)
+  - Dev server starts successfully
+  - All acceptance criteria satisfied
+- **Learnings for future iterations:**
+  - Existing renderer.js in src/core/ has similar WebGPU detection - new module adds Visionary-specific features
+  - Platform detection is critical for Visionary (Ubuntu not supported)
+  - Loading indicators improve UX during async shader compilation
+  - Three.js version r180.0 meets Visionary's r171.0+ requirement
+
+---
