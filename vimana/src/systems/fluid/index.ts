@@ -11,13 +11,33 @@ export { default as MLSMPMSimulator } from './MLSMPMSimulator';
 export { DepthThicknessRenderer } from './render/DepthThicknessRenderer';
 export { FluidSurfaceRenderer } from './render/FluidSurfaceRenderer';
 export { createProceduralCubemap, createCubemapView } from './render/createCubemap';
+export { SphereConstraintAnimator } from './animation/SphereConstraintAnimator';
+export { default as SphereConstraintAnimator } from './animation/SphereConstraintAnimator';
 export * from './types';
+
+// Harp-water interaction exports
+export {
+    HarpWaterInteraction,
+    StringRippleEffect,
+    StringForceCalculator,
+    STRING_POSITIONS,
+    STRING_FREQUENCIES,
+    DEFAULT_HARP_CONFIG,
+    DEFAULT_RIPPLE_CONFIG,
+    createHarpInteractionSystem,
+} from './interaction';
+export { default as HarpWaterInteraction } from './interaction/HarpWaterInteraction';
+export { default as StringRippleEffect } from './interaction/StringRippleEffect';
+export { default as StringForceCalculator } from './interaction/StringForceCalculator';
+export * from './interaction';
 
 // Debug interface setup
 export function setupDebugViews(
     simulator: import('./MLSMPMSimulator').default,
     depthRenderer?: import('./render/DepthThicknessRenderer').default,
-    fluidRenderer?: import('./render/FluidSurfaceRenderer').default
+    fluidRenderer?: import('./render/FluidSurfaceRenderer').default,
+    sphereAnimator?: import('./animation/SphereConstraintAnimator').default,
+    harpInteraction?: import('./interaction/HarpWaterInteraction').default
 ): void {
     if (!(window as any).debugVimana) {
         (window as any).debugVimana = {};
@@ -68,6 +88,28 @@ export function setupDebugViews(
     if (fluidRenderer) {
         debugAPI.toggleNormals = () => fluidRenderer.toggleNormals();
         debugAPI.isShowingNormals = () => fluidRenderer.isShowingNormals();
+    }
+
+    // Add sphere animator debug views if available
+    if (sphereAnimator) {
+        debugAPI.getBoxRatio = () => sphereAnimator.getBoxRatio();
+        debugAPI.setBoxRatio = (ratio: number) => sphereAnimator.setBoxRatio(ratio);
+        debugAPI.getTunnelRadius = () => sphereAnimator.getTunnelRadius();
+        debugAPI.isTunnelOpen = () => sphereAnimator.isTunnelOpen();
+        debugAPI.getAnimatorState = () => sphereAnimator.getState();
+    }
+
+    // Add harp-water interaction debug views if available
+    if (harpInteraction) {
+        debugAPI.getStringForce = (index: number) => harpInteraction.getStringForce(index);
+        debugAPI.getStringInteraction = (index: number) => harpInteraction.getStringInteraction(index);
+        debugAPI.getAllInteractions = () => harpInteraction.getAllInteractions();
+        debugAPI.getForceBuffer = () => harpInteraction.getForceBuffer();
+        debugAPI.triggerString = (index: number, intensity: number = 1.0) => {
+            harpInteraction.onStringPlucked(index, intensity);
+        };
+        debugAPI.resetHarpInteraction = () => harpInteraction.reset();
+        debugAPI.setHarpDebugMode = (enabled: boolean) => harpInteraction.setDebugMode(enabled);
     }
 
     (window as any).debugVimana.fluid = debugAPI;

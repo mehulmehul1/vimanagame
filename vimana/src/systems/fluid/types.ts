@@ -89,5 +89,36 @@ export interface SimulationState {
     isTunnelOpen: boolean;
 }
 
+// Sphere animation state
+export interface SphereAnimationState {
+    boxWidthRatio: number;
+    targetBoxWidthRatio: number;
+    isTunnelOpen: boolean;
+    tunnelRadius: number;
+}
+
 export type vec3 = [number, number, number];
 export type vec2 = [number, number, number];
+
+// Harp-water interaction types
+export interface StringWaterInteraction {
+    stringIndex: number;
+    stringPosition: vec3;
+    waterSurfaceY: number;
+    amplitude: number;
+    phase: number;
+    frequency: number;
+    influenceRadius: number;
+    forceMultiplier: number;
+}
+
+export interface Ripple {
+    position: vec3;
+    radius: number;
+    maxRadius: number;
+    alpha: number;
+    age: number;
+    maxAge: number;
+    stringIndex: number;
+    thickness: number;
+}
