@@ -2,10 +2,11 @@
  * src/systems/fluid/interaction/index.ts
  * =====================================
  *
- * Harp-to-water interaction system exports.
- * Manages coupling between harp string vibrations and fluid simulation.
+ * Interaction system exports.
+ * Manages coupling between harp strings, player, and fluid simulation.
  */
 
+// Harp-to-water interaction
 export {
     HarpWaterInteraction,
     STRING_POSITIONS,
@@ -40,6 +41,26 @@ export {
 } from './StringRippleEffect';
 
 export { default as StringRippleEffect } from './StringRippleEffect';
+
+// Player-to-water interaction
+export {
+    PlayerWaterInteraction,
+    DEFAULT_PLAYER_CONFIG,
+    type PlayerWaterInteractionState,
+    type PlayerInteractionData,
+} from './PlayerWaterInteraction';
+
+export { default as PlayerWaterInteraction } from './PlayerWaterInteraction';
+
+export {
+    PlayerWakeEffect,
+    PlayerWakeRenderer,
+    DEFAULT_WAKE_CONFIG,
+    type WakeParticle,
+    type WakeConfig,
+} from './PlayerWakeEffect';
+
+export { default as PlayerWakeEffect } from './PlayerWakeEffect';
 
 /**
  * Create a complete harp-water interaction system

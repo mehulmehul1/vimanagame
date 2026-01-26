@@ -122,3 +122,37 @@ export interface Ripple {
     stringIndex: number;
     thickness: number;
 }
+
+// Player-water interaction types
+export interface PlayerWaterInteractionState {
+    position: vec3;
+    velocity: vec3;
+    previousPosition: vec3;
+    colliderRadius: number;
+    colliderHeight: number;
+    buoyancyFactor: number;
+    isInWater: boolean;
+    waterSurfaceY: number;
+    immersionDepth: number;
+    wasInWater: boolean;
+    entrySpeed: number;
+    exitSpeed: number;
+}
+
+export interface PlayerInteractionData {
+    position: [number, number, number];
+    velocity: [number, number, number];
+    radius: number;
+    strength: number;
+}
+
+export interface WakeParticle {
+    position: vec3;
+    velocity: vec3;
+    radius: number;
+    maxRadius: number;
+    alpha: number;
+    age: number;
+    lifetime: number;
+    thickness: number;
+}

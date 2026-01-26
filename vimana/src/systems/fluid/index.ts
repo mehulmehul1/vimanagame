@@ -31,13 +31,26 @@ export { default as StringRippleEffect } from './interaction/StringRippleEffect'
 export { default as StringForceCalculator } from './interaction/StringForceCalculator';
 export * from './interaction';
 
+// Player-water interaction exports
+export {
+    PlayerWaterInteraction,
+    PlayerWakeEffect,
+    PlayerWakeRenderer,
+    DEFAULT_PLAYER_CONFIG,
+    DEFAULT_WAKE_CONFIG,
+} from './interaction';
+export { default as PlayerWaterInteraction } from './interaction/PlayerWaterInteraction';
+export { default as PlayerWakeEffect } from './interaction/PlayerWakeEffect';
+
 // Debug interface setup
 export function setupDebugViews(
     simulator: import('./MLSMPMSimulator').default,
     depthRenderer?: import('./render/DepthThicknessRenderer').default,
     fluidRenderer?: import('./render/FluidSurfaceRenderer').default,
     sphereAnimator?: import('./animation/SphereConstraintAnimator').default,
-    harpInteraction?: import('./interaction/HarpWaterInteraction').default
+    harpInteraction?: import('./interaction/HarpWaterInteraction').default,
+    playerInteraction?: import('./interaction/PlayerWaterInteraction').default,
+    wakeEffect?: import('./interaction/PlayerWakeEffect').default
 ): void {
     if (!(window as any).debugVimana) {
         (window as any).debugVimana = {};
@@ -110,6 +123,33 @@ export function setupDebugViews(
         };
         debugAPI.resetHarpInteraction = () => harpInteraction.reset();
         debugAPI.setHarpDebugMode = (enabled: boolean) => harpInteraction.setDebugMode(enabled);
+    }
+
+    // Add player-water interaction debug views if available
+    if (playerInteraction) {
+        debugAPI.getPlayerInteraction = () => playerInteraction.getState();
+        debugAPI.isPlayerInWater = () => playerInteraction.isInWater();
+        debugAPI.getPlayerImmersionDepth = () => playerInteraction.getImmersionDepth();
+        debugAPI.getPlayerSpeed = () => playerInteraction.getPlayerSpeed();
+        debugAPI.getPlayerMovementDirection = () => playerInteraction.getPlayerMovementDirection();
+        debugAPI.getBuoyancyForce = () => playerInteraction.getBuoyancyForce();
+        debugAPI.getDragFactor = () => playerInteraction.getDragFactor();
+        debugAPI.getWaterSurfaceY = () => playerInteraction.getWaterSurfaceY();
+        debugAPI.setWaterSurfaceY = (y: number) => playerInteraction.setWaterSurfaceY(y);
+        debugAPI.setPlayerMass = (mass: number) => playerInteraction.setPlayerMass(mass);
+        debugAPI.setPlayerPosition = (pos: [number, number, number]) => playerInteraction.setPlayerPosition(pos);
+        debugAPI.setPlayerVelocity = (vel: [number, number, number]) => playerInteraction.setPlayerVelocity(vel);
+        debugAPI.resetPlayerInteraction = () => playerInteraction.reset();
+        debugAPI.setPlayerDebugMode = (enabled: boolean) => playerInteraction.setDebugMode(enabled);
+        debugAPI.getPlayerBuffer = () => playerInteraction.getInteractionBuffer();
+    }
+
+    // Add wake effect debug views if available
+    if (wakeEffect) {
+        debugAPI.getWakeParticleCount = () => wakeEffect.getParticleCount();
+        debugAPI.getWakeParticles = () => wakeEffect.getWakeParticles();
+        debugAPI.clearWake = () => wakeEffect.clear();
+        debugAPI.setWakeDebugMode = (enabled: boolean) => wakeEffect.setDebugMode(enabled);
     }
 
     (window as any).debugVimana.fluid = debugAPI;
