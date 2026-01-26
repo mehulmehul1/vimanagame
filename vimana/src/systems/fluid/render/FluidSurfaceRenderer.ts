@@ -44,6 +44,9 @@ export class FluidSurfaceRenderer {
     // Sampler
     private sampler: GPUSampler;
 
+    // Debug uniform buffer
+    private debugUniformBuffer: GPUBuffer;
+
     // Debug state
     private showNormals = false;
 
@@ -70,6 +73,15 @@ export class FluidSurfaceRenderer {
             minFilter: 'linear',
             mipmapFilter: 'linear',
         });
+
+        // Create debug uniform buffer (16 bytes: show_normals f32 + padding vec3f)
+        this.debugUniformBuffer = device.createBuffer({
+            label: 'Debug Uniform Buffer',
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        // Initialize with show_normals = 0
+        this.device.queue.writeBuffer(this.debugUniformBuffer, 0, new Float32Array([0, 0, 0, 0]));
 
         // Create pipeline
         this.createPipeline(canvas.width, canvas.height);
@@ -124,6 +136,7 @@ export class FluidSurfaceRenderer {
             { binding: 1, resource: depthTextureView },
             { binding: 2, resource: { buffer: renderUniformBuffer } },
             { binding: 3, resource: thicknessTextureView },
+            { binding: 5, resource: { buffer: this.debugUniformBuffer } },
         ];
 
         if (cubemapTextureView) {
@@ -198,8 +211,12 @@ export class FluidSurfaceRenderer {
     /**
      * Toggle normal debug visualization
      */
-    public toggleNormals(): void {
+    public toggleNormals(): boolean {
         this.showNormals = !this.showNormals;
+        // Update the debug uniform buffer
+        const value = this.showNormals ? 1.0 : 0.0;
+        this.device.queue.writeBuffer(this.debugUniformBuffer, 0, new Float32Array([value, 0, 0, 0]));
+        console.log('[FluidSurfaceRenderer] Normal debug visualization:', this.showNormals ? 'ON' : 'OFF');
         return this.showNormals;
     }
 
@@ -215,6 +232,7 @@ export class FluidSurfaceRenderer {
      */
     public destroy(): void {
         this.sampler.destroy();
+        this.debugUniformBuffer.destroy();
     }
 }
 

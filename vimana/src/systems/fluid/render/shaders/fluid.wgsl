@@ -36,12 +36,18 @@ struct RenderUniforms {
     inv_view_matrix: mat4x4f,
 }
 
+struct DebugUniforms {
+    show_normals: f32,  // 1.0 to show normals, 0.0 for normal rendering
+    padding: vec3f,
+}
+
 // Bind group 0: Textures and uniforms
 @group(0) @binding(0) var texture_sampler: sampler;
 @group(0) @binding(1) var depth_texture: texture_2d<f32>;
 @group(0) @binding(2) var<uniform> uniforms: RenderUniforms;
 @group(0) @binding(3) var thickness_texture: texture_2d<f32>;
 @group(0) @binding(4) var envmap_texture: texture_cube<f32>;
+@group(0) @binding(5) var<uniform> debug_uniforms: DebugUniforms;
 
 override screenWidth: f32;
 override screenHeight: f32;
@@ -188,6 +194,14 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     let maxDeltaZ = max(max(abs(ddx.z), abs(ddy.z)), max(abs(ddx2.z), abs(ddy2.z)));
     if (maxDeltaZ > 1.5 * uniforms.sphere_size) {
         finalColor = mix(finalColor, vec3f(0.9), 0.4);
+    }
+
+    // === NORMAL DEBUG VISUALIZATION ===
+    // When show_normals is 1.0, display normals as RGB colors
+    if (debug_uniforms.show_normals > 0.5) {
+        // Convert normal from [-1,1] to [0,1] for display
+        let normalColor = normal * 0.5 + 0.5;
+        return vec4f(normalColor, 1.0);
     }
 
     return vec4f(finalColor, 1.0);
