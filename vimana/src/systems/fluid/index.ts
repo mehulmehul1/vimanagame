@@ -9,12 +9,15 @@
 export { MLSMPMSimulator, MAX_PARTICLES, MLSMPM_PARTICLE_STRUCT_SIZE } from './MLSMPMSimulator';
 export { default as MLSMPMSimulator } from './MLSMPMSimulator';
 export { DepthThicknessRenderer } from './render/DepthThicknessRenderer';
+export { FluidSurfaceRenderer } from './render/FluidSurfaceRenderer';
+export { createProceduralCubemap, createCubemapView } from './render/createCubemap';
 export * from './types';
 
 // Debug interface setup
 export function setupDebugViews(
     simulator: import('./MLSMPMSimulator').default,
-    renderer?: import('./render/DepthThicknessRenderer').default
+    depthRenderer?: import('./render/DepthThicknessRenderer').default,
+    fluidRenderer?: import('./render/FluidSurfaceRenderer').default
 ): void {
     if (!(window as any).debugVimana) {
         (window as any).debugVimana = {};
@@ -53,12 +56,18 @@ export function setupDebugViews(
         },
     };
 
-    // Add renderer debug views if available
-    if (renderer) {
-        debugAPI.showDepthMap = () => renderer.showDepthMap();
-        debugAPI.showThicknessMap = () => renderer.showThicknessMap();
-        debugAPI.hideDebugView = () => renderer.hideDebugView();
-        debugAPI.getDebugMode = () => renderer.getDebugMode();
+    // Add depth renderer debug views if available
+    if (depthRenderer) {
+        debugAPI.showDepthMap = () => depthRenderer.showDepthMap();
+        debugAPI.showThicknessMap = () => depthRenderer.showThicknessMap();
+        debugAPI.hideDebugView = () => depthRenderer.hideDebugView();
+        debugAPI.getDebugMode = () => depthRenderer.getDebugMode();
+    }
+
+    // Add fluid surface renderer debug views if available
+    if (fluidRenderer) {
+        debugAPI.toggleNormals = () => fluidRenderer.toggleNormals();
+        debugAPI.isShowingNormals = () => fluidRenderer.isShowingNormals();
     }
 
     (window as any).debugVimana.fluid = debugAPI;
