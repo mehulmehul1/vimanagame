@@ -1,0 +1,168 @@
+{
+  "project": "Vimana",
+  "epic": "EPIC-001: Music Room Prototype - Archive of Voices",
+  "epicFile": "../planning-artifacts/epics/EPIC-001-music-room-proto.md",
+  "branchName": "ralph/epic-001-music-room",
+  "description": "Implement the Archive of Voices chamber - Culture/Music room where players learn to harmonize with the ship through duet-based harp interaction with jelly creatures.",
+  "userStories": [
+    {
+      "id": "1-1",
+      "title": "Visual Foundation - Water & Vortex Shaders",
+      "storyFile": "../implementation-artifacts/1-1-visual-foundation.md",
+      "description": "Apply enhanced visual shaders to water surface and create SDF torus vortex with particle system. Visual foundation for the chamber.",
+      "acceptanceCriteria": [
+        "Water shader applied to ArenaFloor with bioluminescent resonance",
+        "Water ripples respond to all 6 string frequencies individually",
+        "SDF torus vortex mesh created at proper position (0, 0.5, 2)",
+        "Vortex particle system with 2000 particles (LOD-enabled)",
+        "Particles flow in spiral pattern through torus",
+        "Glow intensifies based on activation level (0-1)",
+        "60 FPS maintained with all systems active"
+      ],
+      "priority": 1,
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "1-2",
+      "title": "Jelly Creatures - Musical Messengers",
+      "storyFile": "../implementation-artifacts/1-2-jelly-creatures.md",
+      "description": "Create procedural jelly creatures that emerge from water to demonstrate the ship's song. Musical messengers teaching players which strings to play.",
+      "acceptanceCriteria": [
+        "JellyCreature class with enhanced shader material",
+        "Organic pulsing animation (different rate per note)",
+        "Bioluminescent glow that intensifies when teaching",
+        "Jump-out animation from water surface",
+        "Target string ripple visualization",
+        "Smooth emergence and submersion"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": ["1-1"]
+    },
+    {
+      "id": "1-3",
+      "title": "Gentle Feedback System",
+      "storyFile": "../implementation-artifacts/1-3-gentle-feedback.md",
+      "description": "Implement gentle feedback for wrong notes - camera shake + discordant tone + patient re-teaching. No failure states, only guidance.",
+      "acceptanceCriteria": [
+        "GentleFeedback class with camera shake",
+        "GentleAudioFeedback with discordant/reminder sounds",
+        "Shake intensity: 0.5 for wrong note, 0.3 for premature play",
+        "Discordant tone uses minor second dissonance",
+        "Patient reminder plays after wrong note (gentle E4)",
+        "No reset - player stays on same note"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": ["1-2"]
+    },
+    {
+      "id": "1-4",
+      "title": "Duet Mechanics - Patient Teaching",
+      "storyFile": "../implementation-artifacts/1-4-duet-mechanics.md",
+      "description": "Core duet mechanic where jelly creatures teach note sequences and player joins in harmony. Three teaching sequences with patient re-teaching.",
+      "acceptanceCriteria": [
+        "PatientJellyManager class with three sequences",
+        "Sequence 1: C, D, E (strings 0, 1, 2)",
+        "Sequence 2: F, G, A (strings 3, 4, 5)",
+        "Sequence 3: E, G, D (strings 2, 4, 1)",
+        "Jelly demonstrates → player plays → harmony chord or gentle correction",
+        "No failure - jelly reappears to demonstrate again",
+        "Harmony chord plays on correct note (player + perfect fifth)"
+      ],
+      "priority": 4,
+      "passes": false,
+      "dependsOn": ["1-3"]
+    },
+    {
+      "id": "1-5",
+      "title": "Vortex Activation",
+      "storyFile": "../implementation-artifacts/1-5-vortex-activation.md",
+      "description": "Connect duet progress to vortex activation. As harmony increases, vortex becomes more defined and ship's voice grows stronger.",
+      "acceptanceCriteria": [
+        "Vortex activation follows duet progress (0-1)",
+        "Vortex emissive intensity scales: 0 → 3.0",
+        "Water harmonicResonance uniform updates",
+        "Particle spin speed increases with activation",
+        "Core white light intensifies at full activation",
+        "Platform detaches and rides to vortex on completion"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": ["1-4"]
+    },
+    {
+      "id": "1-6",
+      "title": "Shell Collection System",
+      "storyFile": "../implementation-artifacts/1-6-shell-collection.md",
+      "description": "Create procedural SDF shell collectible that appears after vortex completion. 3-second materialize animation, click-to-collect, fly-to-UI animation.",
+      "acceptanceCriteria": [
+        "SDFShellMaterial with nautilus spiral SDF",
+        "3-second appear animation with easing",
+        "Iridescence shifts with view angle",
+        "Raycast click detection",
+        "1.5-second fly-to-UI animation with shrink",
+        "Shell spawns at (0, 1.0, 1.0) in front of player",
+        "Bobbing idle animation"
+      ],
+      "priority": 6,
+      "passes": false,
+      "dependsOn": ["1-5"]
+    },
+    {
+      "id": "1-7",
+      "title": "UI Overlay System",
+      "storyFile": "../implementation-artifacts/1-7-ui-overlay.md",
+      "description": "Create 4-slot UI overlay showing collected shells. Progress tracking across 4 rooms with animated slot filling.",
+      "acceptanceCriteria": [
+        "ShellUIOverlay with 4 slots at top-left",
+        "Canvas-drawn nautilus spiral icons",
+        "Slot fill animation with glow effect",
+        "Gentle pulse animation on filled slots",
+        "Shell count tracking (0-4)",
+        "Global window.shellUI registration"
+      ],
+      "priority": 7,
+      "passes": false,
+      "dependsOn": ["1-6"]
+    },
+    {
+      "id": "1-8",
+      "title": "White Flash Ending",
+      "storyFile": "../implementation-artifacts/1-8-white-flash-ending.md",
+      "description": "Implement vortex engulf ending - shader-based white flash with spiral pattern that fades to pure white. No 3D white room needed.",
+      "acceptanceCriteria": [
+        "WhiteFlashEnding class with full-screen quad",
+        "8-second total duration",
+        "Phase 1 (0-60%): Multi-layered spiral intensifies",
+        "Phase 2 (40-100%): Fade to white",
+        "Color transition: cyan → purple → white",
+        "Vignette effect for focus",
+        "Smooth alpha fade at end",
+        "Scene completion callback"
+      ],
+      "priority": 8,
+      "passes": false,
+      "dependsOn": ["1-7"]
+    },
+    {
+      "id": "1-9",
+      "title": "Performance & Polish",
+      "storyFile": "../implementation-artifacts/1-9-performance-polish.md",
+      "description": "Final performance optimization, shader preloading, mobile fallbacks, and overall polish pass.",
+      "acceptanceCriteria": [
+        "Async shader loading system implemented",
+        "60 FPS on desktop, 30 FPS mobile",
+        "Memory cleanup on scene transitions",
+        "Device capability detection",
+        "Performance monitor integration",
+        "Mobile particle count fallback (500 max)",
+        "All shaders compiled in < 5 seconds"
+      ],
+      "priority": 9,
+      "passes": false,
+      "dependsOn": ["1-8"]
+    }
+  ]
+}

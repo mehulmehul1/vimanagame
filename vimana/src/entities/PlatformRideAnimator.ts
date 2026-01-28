@@ -20,9 +20,11 @@ export interface PlatformRideConfig {
 
 export class PlatformRideAnimator {
     private platform: THREE.Mesh;
+    private camera: THREE.Camera | null;
     private startPosition: THREE.Vector3;
     private detachPosition: THREE.Vector3;
     private targetPosition: THREE.Vector3;
+    private cameraStartOffset: THREE.Vector3; // Camera offset from platform at start
 
     private rideProgress: number = 0;
     private detachProgress: number = 0;
@@ -38,9 +40,17 @@ export class PlatformRideAnimator {
         return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
     };
 
-    constructor(platform: THREE.Mesh, config: Partial<PlatformRideConfig> = {}) {
+    constructor(
+        platform: THREE.Mesh,
+        camera: THREE.Camera | null = null,
+        config: Partial<PlatformRideConfig> = {}
+    ) {
         this.platform = platform;
+        this.camera = camera;
         this.startPosition = platform.position.clone();
+
+        // Camera offset will be calculated when ride starts (after player walks onto platform)
+        this.cameraStartOffset = new THREE.Vector3();
 
         // Detach position is slightly lower
         this.detachPosition = this.startPosition.clone();
@@ -72,6 +82,19 @@ export class PlatformRideAnimator {
     public startRide(): void {
         this.rideStarted = true;
         this.isDetaching = true;
+
+        console.log('[PlatformRide] 🎢 Starting platform ride!');
+        console.log('[PlatformRide] Platform start:', this.startPosition);
+        console.log('[PlatformRide] Platform target:', this.targetPosition);
+
+        // Calculate camera offset NOW (when player is on platform, not at initialization)
+        // This ensures the player maintains their position relative to the platform
+        if (this.camera) {
+            this.cameraStartOffset.copy(this.camera.position).sub(this.platform.position);
+            console.log('[PlatformRide] Camera offset calculated:', this.cameraStartOffset);
+            console.log('[PlatformRide] Platform at:', this.platform.position);
+            console.log('[PlatformRide] Camera at:', this.camera.position);
+        }
     }
 
     /**
@@ -111,6 +134,11 @@ export class PlatformRideAnimator {
                 eased
             );
 
+            // Move camera with platform
+            if (this.camera) {
+                this.camera.position.copy(this.platform.position).add(this.cameraStartOffset);
+            }
+
             // Color shift: gray → warm amber
             this.updatePlatformColor(eased, 0xffaa44);
 
@@ -140,6 +168,11 @@ export class PlatformRideAnimator {
 
         // Add arc height
         this.platform.position.y += arcOffset;
+
+        // Move camera with platform (maintain same offset)
+        if (this.camera) {
+            this.camera.position.copy(this.platform.position).add(this.cameraStartOffset);
+        }
     }
 
     /**
@@ -191,6 +224,11 @@ export class PlatformRideAnimator {
 
         // Reset position
         this.platform.position.copy(this.startPosition);
+
+        // Reset camera to original position
+        if (this.camera) {
+            this.camera.position.copy(this.startPosition).add(this.cameraStartOffset);
+        }
 
         // Reset color
         if (this.platform.material) {

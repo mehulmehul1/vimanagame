@@ -1,5 +1,6 @@
 // ============================================================================
 // WATER & VORTEX SHADERS (Story 1.1)
+// Enhanced with WaterBall rendering techniques
 // ============================================================================
 
 export const waterVertexShader = `
@@ -9,6 +10,13 @@ uniform float uHarpVelocities[6];
 uniform float uDuetProgress;
 uniform float uShipPatience;
 uniform vec3 uBioluminescentColor;
+uniform float uSphereRadius;      // NEW: For sphere constraint animation
+uniform vec3 uSphereCenter;       // NEW: Center of sphere formation
+
+// Jelly creature interaction uniforms
+uniform vec3 uJellyPositions[6];   // World positions of 6 jellies
+uniform float uJellyVelocities[6]; // Movement intensity for ripples
+uniform float uJellyActive[6];     // 1.0 if jelly is active, 0.0 if hidden
 
 varying vec2 vUv;
 varying vec3 vNormal;
@@ -16,6 +24,9 @@ varying vec3 vWorldPosition;
 varying vec3 vViewPosition;
 varying float vWaveHeight;
 varying vec3 vBioluminescence;
+varying float vThickness;          // NEW: For depth-based absorption
+varying vec3 vTangent;             // NEW: For surface reconstruction
+varying vec3 vBitangent;           // NEW: For surface reconstruction
 
 float simplexNoise(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -47,28 +58,103 @@ float fbm(vec2 p, int octaves) {
 
 void main() {
     vUv = uv;
+
+    // Original position before displacement
+    vec3 pos = position;
+
+    // === SPHERE CONSTRAINT ANIMATION (NEW) ===
+    // Animate from flat plane (duetProgress=0) to sphere (duetProgress=1)
+    // This creates the "tunnel forming" effect as music progresses
+    if (uDuetProgress > 0.01) {
+        vec2 centeredXZ = pos.xz - uSphereCenter.xz;
+        float distFromCenter = length(centeredXZ);
+        float distFromSphere = distFromCenter - uSphereRadius;
+
+        // As duetProgress increases, pull vertices toward sphere surface
+        float pullStrength = smoothstep(0.3, 1.0, uDuetProgress);
+
+        // Calculate target position on sphere
+        vec3 spherePos = pos;
+        if (distFromCenter > 0.001) {
+            vec3 dir = normalize(vec3(centeredXZ.x, 0.0, centeredXZ.y));
+            spherePos = uSphereCenter + dir * uSphereRadius;
+        }
+
+        // Hollow center for tunnel effect - remove vertices in middle as sphere forms
+        float hollowRadius = uSphereRadius * (0.2 + 0.5 * (1.0 - uDuetProgress));
+        if (distFromCenter < hollowRadius && uDuetProgress > 0.5) {
+            // Dissolve edges of hollow center
+            float hollowFade = smoothstep(hollowRadius * 0.5, hollowRadius, distFromCenter);
+            pos.y -= 10.0 * (1.0 - hollowFade) * uDuetProgress;
+        }
+
+        // Blend flat -> sphere
+        pos = mix(pos, spherePos, pullStrength);
+
+        // Also lift the edges to form bowl/tunnel shape
+        float edgeLift = smoothstep(uSphereRadius * 0.5, uSphereRadius * 2.0, distFromCenter);
+        pos.y += edgeLift * uDuetProgress * 2.0;
+    }
+
+    // Normal at this position (before wave displacement)
     vNormal = normalize(normalMatrix * normal);
-    vec2 waveCoord = position.xz * 0.5;
+    vec3 tangent = normalize(vec3(1.0, 0.0, 0.0));
+    vec3 bitangent = normalize(vec3(0.0, 0.0, 1.0));
+    vTangent = tangent;
+    vBitangent = bitangent;
+
+    // === WAVE ANIMATION (existing) ===
+    vec2 waveCoord = pos.xz * 0.5;
     float baseWave = fbm(waveCoord + uTime * 0.1, 3) * 0.15;
     float stringResonance = 0.0;
     vec3 totalBioluminescence = vec3(0.0);
+
     for (int i = 0; i < 6; i++) {
         vec2 stringOrigin = vec2(float(i) * 2.0 - 5.0, 0.0);
-        float distTo = distance(position.xz, stringOrigin);
+        float distTo = distance(pos.xz, stringOrigin);
         float stringWave = sin(distTo * 3.0 - uTime * 2.0 + uHarpFrequencies[i]) * 0.05;
         stringWave *= smoothstep(3.0, 0.0, distTo);
         float intensity = uHarpVelocities[i] * 0.5;
         stringResonance += stringWave * intensity;
         totalBioluminescence += uBioluminescentColor * intensity * (1.0 - distTo / 4.0);
     }
-    vWaveHeight = baseWave + stringResonance;
+
+    // === JELLY CREATURE RIPPLES (NEW) ===
+    // Add ripples from jelly creatures swimming in the water
+    float jellyRipple = 0.0;
+    for (int i = 0; i < 6; i++) {
+        if (uJellyActive[i] > 0.5) {
+            // Get jelly XZ position
+            vec2 jellyXZ = uJellyPositions[i].xz;
+
+            // Calculate distance from this vertex to jelly
+            float dist = distance(pos.xz, jellyXZ);
+
+            // Ripple influence decays with distance
+            float rippleInfluence = exp(-dist * 0.8);
+
+            // Animated ripple ring emanating from jelly
+            float ripple = sin(dist * 8.0 - uTime * 5.0) * uJellyVelocities[i];
+
+            jellyRipple += ripple * rippleInfluence;
+        }
+    }
+
+    vWaveHeight = baseWave + stringResonance + jellyRipple * 0.15;
     vWaveHeight *= (1.0 + uDuetProgress * 0.5);
-    vec3 newPosition = position;
-    newPosition.y += vWaveHeight;
+
+    // Apply wave displacement
+    pos.y += vWaveHeight;
+
+    // Calculate thickness based on wave height (deeper waves = thicker water)
+    vThickness = 0.5 + vWaveHeight * 2.0 + uDuetProgress * 0.5;
+
     vBioluminescence = totalBioluminescence * (0.5 + uDuetProgress * 0.5);
-    vec4 worldPos = modelMatrix * vec4(newPosition, 1.0);
+
+    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
     vWorldPosition = worldPos.xyz;
     vViewPosition = (viewMatrix * worldPos).xyz;
+
     gl_Position = projectionMatrix * viewMatrix * worldPos;
 }
 `;
@@ -80,6 +166,7 @@ uniform float uShipPatience;
 uniform float uHarmonicResonance;
 uniform vec3 uBioluminescentColor;
 uniform vec3 uCameraPosition;
+uniform samplerCube uEnvMap;         // NEW: Environment map for reflections
 
 varying vec2 vUv;
 varying vec3 vNormal;
@@ -87,7 +174,11 @@ varying vec3 vWorldPosition;
 varying vec3 vViewPosition;
 varying float vWaveHeight;
 varying vec3 vBioluminescence;
+varying float vThickness;          // NEW: Depth-based absorption
+varying vec3 vTangent;             // NEW: For normal reconstruction
+varying vec3 vBitangent;           // NEW: For normal reconstruction
 
+// Noise functions for caustics
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -127,24 +218,88 @@ float caustics(vec2 uv, float time) {
     return c * 0.5;
 }
 
+// === ENHANCED FRESNEL from WaterBall ===
+// Schlick's approximation with proper F0 base reflectance
+float fresnelSchlick(float cosTheta, float F0) {
+    float x = 1.0 - cosTheta;
+    return F0 + (1.0 - F0) * pow(x, 5.0);
+}
+
 void main() {
+    // Reconstruct view direction
     vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
-    float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
-    vec3 deepColor = vec3(0.0, 0.1, 0.2);
-    vec3 shallowColor = vec3(0.0, 0.3, 0.4);
-    vec3 baseColor = mix(deepColor, shallowColor, vWaveHeight * 2.0 + 0.5);
+
+    // === SURFACE NORMAL RECONSTRUCTION from WaterBall ===
+    // Approximate surface derivatives from neighboring positions
+    // This gives more accurate lighting than simple geometric normals
+    vec3 ddx = dFdx(vWorldPosition);
+    vec3 ddy = dFdy(vWorldPosition);
+    vec3 reconstructedNormal = normalize(cross(ddy, ddx));
+
+    // Use reconstructed normal for more accurate lighting
+    vec3 N = mix(vNormal, reconstructedNormal, 0.3);
+
+    // === IMPROVED FRESNEL (WaterBall technique) ===
+    float F0 = 0.02; // Water's base reflectance at normal incidence
+    float fresnel = fresnelSchlick(max(dot(N, -viewDir), 0.0), F0);
+    fresnel = clamp(fresnel, 0.0, 1.0);
+
+    // === DEPTH-BASED COLORS ===
+    // Deeper areas are darker blue, shallow areas are brighter teal
+    vec3 deepColor = vec3(0.0, 0.08, 0.16);   // Dark blue
+    vec3 shallowColor = vec3(0.0, 0.24, 0.32); // Brighter teal
+
+    // Mix based on wave height for depth perception
+    vec3 baseColor = mix(deepColor, shallowColor, vWaveHeight * 3.0 + 0.3);
+
+    // === TRANSMITTANCE (WaterBall technique) ===
+    // Light absorption through water depth
+    // Thicker water = more absorption = darker/more colored
+    float density = 0.7; // How quickly light is absorbed
+    vec3 diffuseColor = vec3(0.0, 0.7375, 0.95); // Cyan-blue tint
+    vec3 transmittance = exp(-density * vThickness * (1.0 - diffuseColor));
+    vec3 refractionColor = vec3(0.7, 0.7, 0.75) * transmittance; // Background color
+
+    // === CAUSTICS ===
     vec2 causticUv = vWorldPosition.xz * 0.2;
     float caustic = caustics(causticUv, uTime);
+
+    // === BIOLUMINESCENCE ===
     vec3 glow = uBioluminescentColor * (0.3 + caustic * 0.2);
     glow += vBioluminescence * 0.5;
     glow *= (1.0 + uHarmonicResonance * 2.0);
     float duetIntensity = 0.5 + uDuetProgress * 1.5;
     glow *= duetIntensity;
-    vec3 finalColor = baseColor + glow;
-    vec3 fresnelColor = vec3(0.3, 0.8, 1.0);
-    finalColor += fresnelColor * fresnel * 0.3;
+
+    // === ENVIRONMENT REFLECTION (if available) ===
+    vec3 reflectionColor = vec3(0.0);
+    #ifdef HAS_ENVMAP
+        vec3 reflectDir = reflect(-viewDir, N);
+        reflectionColor = texture(uEnvMap, reflectDir).rgb * 0.5;
+    #endif
+
+    // Add simple reflection gradient even without cubemap
+    vec3 skyReflection = mix(vec3(0.3, 0.8, 1.0), vec3(0.1, 0.4, 0.6), fresnel) * 0.3;
+    reflectionColor += skyReflection;
+
+    // === FINAL COLOR COMPOSITION ===
+    // Mix refraction (background seen through water) with reflection
+    vec3 finalColor = mix(refractionColor, reflectionColor, fresnel);
+
+    // Add bioluminescent glow on top
+    finalColor += glow;
+
+    // Add some diffuse lighting from caustics
+    finalColor += vec3(caustic * 0.1) * diffuseColor;
+
+    // === ALPHA (transparency) ===
+    // Fresnel makes edges more reflective (more opaque appearance)
     float alpha = 0.6 + fresnel * 0.35;
     alpha *= (0.8 + uHarmonicResonance * 0.2);
+
+    // As duet progresses and water becomes more "solid", increase opacity
+    alpha = mix(alpha, 0.9, uDuetProgress * 0.5);
+
     gl_FragColor = vec4(finalColor, alpha);
 }
 `;

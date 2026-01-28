@@ -1,0 +1,13 @@
+# Ralph Progress Log - EPIC-001: Music Room Prototype
+Started: 2026-01-26
+---
+
+## Codebase Patterns
+- Project: Vimana (Three.js 0.180.0 + WebGL2 + Vite)
+- Location: C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\vimana
+- Source: src/
+- Shaders: GLSL format (Three.js ShaderMaterial)
+- Philosophy: "The ship doesn't test you. It teaches you."
+
+---
+

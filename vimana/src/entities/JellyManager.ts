@@ -10,18 +10,15 @@ export class JellyManager extends THREE.Group {
     private jellies: JellyCreature[] = [];
     private activeJelly: JellyCreature | null = null;
 
-    // 6 jellies for 6 strings (C, D, E, F, G, A)
-    private static readonly JELLY_POSITIONS = [
-        new THREE.Vector3(-2.5, 0, 1),
-        new THREE.Vector3(-1.5, 0, 1),
-        new THREE.Vector3(-0.5, 0, 1),
-        new THREE.Vector3(0.5, 0, 1),
-        new THREE.Vector3(1.5, 0, 1),
-        new THREE.Vector3(2.5, 0, 1)
-    ];
+    // Story 1.2 spec: X offsets for 6 strings, Z is negative (toward camera)
+    private static readonly JELLY_X_OFFSETS = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5];
+    private static readonly JELLY_Z_OFFSET = -1.0; // Negative = toward camera
 
-    // Pulse rates for each note (visual variety)
-    private static readonly PULSE_RATES = [1.8, 2.0, 2.2, 2.4, 2.6, 2.8];
+    // Story 1.2 spec: Pulse rates C=1.0, D=1.1, E=1.2, F=1.3, G=1.4, A=1.5
+    private static readonly PULSE_RATES = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5];
+
+    // Water surface Y (set dynamically by HarpRoom)
+    private waterSurfaceY: number = 0.0;
 
     constructor() {
         super();
@@ -30,17 +27,45 @@ export class JellyManager extends THREE.Group {
 
     private createJellies(): void {
         for (let i = 0; i < 6; i++) {
-            const jelly = new JellyCreature(JellyManager.JELLY_POSITIONS[i]);
+            // Position at water level with correct Z direction
+            const pos = new THREE.Vector3(
+                JellyManager.JELLY_X_OFFSETS[i],
+                0, // Y will be set by updateWaterSurface()
+                JellyManager.JELLY_Z_OFFSET
+            );
+            const jelly = new JellyCreature(pos, i);
             jelly.setPulseRate(JellyManager.PULSE_RATES[i]);
 
-            // Different color for each string position
-            const hue = i / 6.0;
-            const color = new THREE.Color().setHSL(0.4 + hue * 0.2, 0.8, 0.6);
+            // Story spec: Unique color per note (cyan-blue range)
+            // Using HSL: base hue 0.55 (cyan-blue) with variation
+            const hue = 0.5 + (i / 12.0); // 0.5 to 0.55 range
+            const color = new THREE.Color().setHSL(hue, 0.7, 0.6);
             jelly.setColor(color);
 
             this.jellies.push(jelly);
             this.add(jelly);
         }
+    }
+
+    /**
+     * Update jelly positions based on actual water surface Y
+     * Called by HarpRoom after detecting ArenaFloor position
+     */
+    public updateWaterSurface(waterSurfaceY: number): void {
+        this.waterSurfaceY = waterSurfaceY;
+
+        for (let i = 0; i < this.jellies.length; i++) {
+            const jelly = this.jellies[i];
+            const homePos = new THREE.Vector3(
+                JellyManager.JELLY_X_OFFSETS[i],
+                waterSurfaceY, // Water surface level
+                JellyManager.JELLY_Z_OFFSET
+            );
+            jelly.setHomePosition(homePos);
+            // Also set water surface for swim physics
+            jelly.setWaterSurface(waterSurfaceY);
+        }
+        console.log(`[JellyManager] ✅ Updated positions for water surface Y: ${waterSurfaceY.toFixed(3)}`);
     }
 
     /**

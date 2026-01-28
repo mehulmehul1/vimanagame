@@ -7,12 +7,10 @@
  */
 
 export { MLSMPMSimulator, MAX_PARTICLES, MLSMPM_PARTICLE_STRUCT_SIZE } from './MLSMPMSimulator';
-export { default as MLSMPMSimulator } from './MLSMPMSimulator';
 export { DepthThicknessRenderer } from './render/DepthThicknessRenderer';
 export { FluidSurfaceRenderer } from './render/FluidSurfaceRenderer';
 export { createProceduralCubemap, createCubemapView } from './render/createCubemap';
 export { SphereConstraintAnimator } from './animation/SphereConstraintAnimator';
-export { default as SphereConstraintAnimator } from './animation/SphereConstraintAnimator';
 export * from './types';
 
 // Harp-water interaction exports
@@ -26,10 +24,6 @@ export {
     DEFAULT_RIPPLE_CONFIG,
     createHarpInteractionSystem,
 } from './interaction';
-export { default as HarpWaterInteraction } from './interaction/HarpWaterInteraction';
-export { default as StringRippleEffect } from './interaction/StringRippleEffect';
-export { default as StringForceCalculator } from './interaction/StringForceCalculator';
-export * from './interaction';
 
 // Player-water interaction exports
 export {
@@ -39,8 +33,6 @@ export {
     DEFAULT_PLAYER_CONFIG,
     DEFAULT_WAKE_CONFIG,
 } from './interaction';
-export { default as PlayerWaterInteraction } from './interaction/PlayerWaterInteraction';
-export { default as PlayerWakeEffect } from './interaction/PlayerWakeEffect';
 
 // Debug interface setup
 export function setupDebugViews(

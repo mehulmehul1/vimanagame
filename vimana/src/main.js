@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { SparkRenderer } from '@sparkjsdev/spark';
+import { createOptimalRenderer, logRendererInfo, RendererCapabilities } from './core/renderer.js';
 import PhysicsManager from '@engine/physicsManager.js';
 import CharacterController from '@engine/characterController.js';
 import InputManager from '@engine/inputManager.js';
@@ -91,15 +92,25 @@ class VimanaGame {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
     this.scene.add(ambientLight);
 
-    // Create renderer
-    this.renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
+    // Create renderer (WebGPU with WebGL2 fallback)
+    // Phase 1: Switch to WebGPURenderer when available, fall back to WebGL2
+    // NOTE: SparkRenderer requires WebGL2, so we pass requiresWebGL: true
+    // Once we migrate Gaussian splats to WebGPU, we can remove this constraint
+    // REVERTED: WebGPU incompatible with existing GLSL shaders - using WebGL2
+    this.renderer = await createOptimalRenderer(
+      { alpha: true, antialias: false },
+      null, // no existing canvas yet
+      { requiresWebGL: true } // SparkRenderer is WebGL-only
+    );
     this.renderer.setSize(initialSize.width, initialSize.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.5;  // Reduced from 1.0 to fix washed-out appearance
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // Log renderer type for debugging
+    logRendererInfo(this.renderer);
+
+    // Initialize global renderer capabilities
+    await RendererCapabilities.init(this.renderer);
+    window.rendererCapabilities = RendererCapabilities;
 
     // Check canvas before appending
     const canvas = this.renderer.domElement;
@@ -1090,5 +1101,26 @@ window.debugVimana = {
       if (child.isLight) lights.push(child);
     });
     return lights;
+  },
+  // Phase 1: Check renderer type and capabilities
+  getRendererInfo: () => {
+    if (!vimanaGame?.renderer) return null;
+    return {
+      type: window.rendererType || 'Unknown',
+      isWebGPU: window.rendererType === 'WebGPU',
+      capabilities: window.rendererCapabilities?.instance || null,
+      hasCompute: window.rendererCapabilities?.hasCompute(),
+      hasTSL: window.rendererCapabilities?.hasTSL(),
+    };
+  },
+  logRenderer: () => {
+    const info = window.debugVimana.getRendererInfo();
+    console.log('📊 Renderer Info:', {
+      Type: info?.type,
+      'WebGPU': info?.isWebGPU ? '✅' : '❌',
+      'Compute Shaders': info?.hasCompute ? '✅' : '❌',
+      'TSL Support': info?.hasTSL ? '✅' : '❌',
+    });
+    return info;
   },
 };

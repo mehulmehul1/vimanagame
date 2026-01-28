@@ -35,10 +35,10 @@ export const sceneObjects = [
     // Keep lights from GLB model (don't remove them)
     keepLights: true,
 
-    // Player spawn point
+    // Player spawn point - on the beach near the harp
     spawn: {
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 }
+      position: { x: 45, y: 1.5, z: 5 }, // On the beach, looking toward harp
+      rotation: { x: 0, y: -0.5, z: 0 } // Looking toward the harp area
     },
 
     // State criteria for when this loads

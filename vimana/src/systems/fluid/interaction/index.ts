@@ -15,8 +15,6 @@ export {
     type StringWaterInteraction,
 } from './HarpWaterInteraction';
 
-export { default as HarpWaterInteraction } from './HarpWaterInteraction';
-
 export {
     calculateStringForce,
     calculateFalloff,
@@ -30,8 +28,6 @@ export {
     type ForceResult,
 } from './StringForceCalculator';
 
-export { default as StringForceCalculator } from './StringForceCalculator';
-
 export {
     StringRippleEffect,
     StringRippleRenderer,
@@ -39,8 +35,6 @@ export {
     type Ripple,
     type RippleConfig,
 } from './StringRippleEffect';
-
-export { default as StringRippleEffect } from './StringRippleEffect';
 
 // Player-to-water interaction
 export {
@@ -50,8 +44,6 @@ export {
     type PlayerInteractionData,
 } from './PlayerWaterInteraction';
 
-export { default as PlayerWaterInteraction } from './PlayerWaterInteraction';
-
 export {
     PlayerWakeEffect,
     PlayerWakeRenderer,
@@ -59,8 +51,6 @@ export {
     type WakeParticle,
     type WakeConfig,
 } from './PlayerWakeEffect';
-
-export { default as PlayerWakeEffect } from './PlayerWakeEffect';
 
 /**
  * Create a complete harp-water interaction system

@@ -17,6 +17,14 @@ import { JellyLabelManager } from '../entities/JellyLabel';
 import { NoteVisualizer } from '../entities/NoteVisualizer';
 import { HarpCameraController, HarpInteractionState } from '../entities/HarpCameraController';
 
+// WaterBall fluid simulation system
+import { MLSMPMSimulator } from '../systems/fluid';
+import { DepthThicknessRenderer } from '../systems/fluid/render/DepthThicknessRenderer';
+import { FluidSurfaceRenderer } from '../systems/fluid/render/FluidSurfaceRenderer';
+import { SphereConstraintAnimator } from '../systems/fluid/animation/SphereConstraintAnimator';
+import { HarpWaterInteraction, createHarpInteractionSystem, PlayerWaterInteraction, PlayerWakeEffect } from '../systems/fluid/interaction';
+import { setupDebugViews } from '../systems/fluid';
+
 /**
  * HarpRoom - Main scene controller for the Archive of Voices chamber
  *
@@ -31,8 +39,22 @@ export class HarpRoom {
 
     // Core systems
     private vortexSystem: VortexSystem;
+    private vortexPosition: THREE.Vector3 = new THREE.Vector3();  // Store vortex world position
     private waterMaterial?: WaterMaterial;
     private arenaFloor?: THREE.Mesh;
+    private waterSurfaceY: number = 0.0;  // Actual water surface Y from ArenaFloor bounding box
+    private platformMesh?: THREE.Mesh;  // The platform where harp sits - moves to vortex
+
+    // WaterBall fluid simulation system
+    private fluidSimulator?: InstanceType<typeof MLSMPMSimulator>;
+    private fluidDepthRenderer?: DepthThicknessRenderer;
+    private fluidSurfaceRenderer?: FluidSurfaceRenderer;
+    private sphereAnimator?: SphereConstraintAnimator;
+    private harpWaterInteraction?: HarpWaterInteraction;
+    private playerWaterInteraction?: PlayerWaterInteraction;
+    private wakeEffect?: PlayerWakeEffect;
+    private fluidEnabled: boolean = false;  // DISABLED: WebGPU incompatible with existing GLSL shaders
+
     private feedbackManager?: FeedbackManager;
     private jellyManager?: JellyManager;
     private patientJellyManager?: PatientJellyManager;
@@ -72,7 +94,7 @@ export class HarpRoom {
     // Callbacks
     private onCompleteCallback?: () => void;
 
-    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer, gameManager?: any) {
+    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: any, gameManager?: any) {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
@@ -248,10 +270,22 @@ export class HarpRoom {
             // Find and apply water material to ArenaFloor (search recursively)
             this.arenaFloor = this.findObjectByName(glbRoot, 'ArenaFloor') as THREE.Mesh;
             if (this.arenaFloor) {
-                this.waterMaterial = new WaterMaterial();
-                this.arenaFloor.material = this.waterMaterial;
-                this.vortexSystem.setWaterMaterial(this.waterMaterial);
-                console.log('[HarpRoom] ✅ Water material applied to ArenaFloor');
+                // Detect actual water surface level using Box3 (Three.js bounding box)
+                const bbox = new THREE.Box3().setFromObject(this.arenaFloor);
+                this.waterSurfaceY = bbox.max.y; // Top of the ArenaFloor = water surface
+                console.log(`[HarpRoom] 💧 Water surface Y detected: ${this.waterSurfaceY.toFixed(3)}`);
+                console.log(`[HarpRoom] 📦 ArenaFloor bounds: min=${bbox.min.y.toFixed(2)}, max=${bbox.max.y.toFixed(2)}`);
+
+                if (this.fluidEnabled) {
+                    // Initialize WaterBall fluid simulation system
+                    this.initializeFluidSystem();
+                } else {
+                    // Fall back to old water material
+                    this.waterMaterial = new WaterMaterial();
+                    this.arenaFloor.material = this.waterMaterial;
+                    this.vortexSystem.setWaterMaterial(this.waterMaterial);
+                    console.log('[HarpRoom] ✅ Water material applied to ArenaFloor');
+                }
             } else {
                 console.warn('[HarpRoom] ⚠️ ArenaFloor not found in scene');
             }
@@ -262,12 +296,43 @@ export class HarpRoom {
                 const worldPos = new THREE.Vector3();
                 vortexGate.getWorldPosition(worldPos);
                 this.vortexSystem.position.copy(worldPos);
+                // Store vortex position for platform ride target
+                this.vortexPosition.copy(worldPos);
                 // Ensure particles are at local zero
                 (this.vortexSystem as any).particles.position.set(0, 0, 0);
                 console.log(`[HarpRoom] ✅ Vortex positioned at: ${worldPos.x}, ${worldPos.y}, ${worldPos.z}`);
             } else {
                 console.warn('[HarpRoom] ⚠️ Vortex_gate not found in scene');
             }
+
+            // Find the platform mesh (where harp sits - this will move to vortex)
+            // From GLB analysis: Mesh #3 is "Platform" (Cube, 232 vertices)
+            this.platformMesh = this.findObjectByName(glbRoot, 'Platform') as THREE.Mesh;
+            if (this.platformMesh) {
+                console.log(`[HarpRoom] ✅ Found platform mesh "Platform" at position:`, this.platformMesh.position);
+            } else {
+                console.warn('[HarpRoom] ⚠️ Platform mesh not found!');
+            }
+
+            // Expose platform finder to window for debugging
+            (window as any).findPlatform = () => {
+                const results: { name: string; pos: THREE.Vector3 }[] = [];
+                glbRoot.traverse((child) => {
+                    if (child instanceof THREE.Mesh) {
+                        results.push({
+                            name: child.name || '(unnamed)',
+                            pos: child.position.clone()
+                        });
+                    }
+                });
+                console.table(results.map(r => ({
+                    name: r.name,
+                    x: r.pos.x.toFixed(2),
+                    y: r.pos.y.toFixed(2),
+                    z: r.pos.z.toFixed(2)
+                })));
+                return results;
+            };
 
             // Find harp strings for interaction setup (use glbRoot)
             this.setupHarpStrings(glbRoot);
@@ -461,22 +526,28 @@ export class HarpRoom {
 
         console.log('[HarpRoom] Updating jelly positions to match harp strings:');
         console.log(`[HarpRoom] Harp center at: (${this.harpPosition.x.toFixed(2)}, ${this.harpPosition.y.toFixed(2)}, ${this.harpPosition.z.toFixed(2)})`);
+        console.log(`[HarpRoom] Water surface Y: ${this.waterSurfaceY.toFixed(3)}`);
 
         for (let i = 0; i < 6; i++) {
             const stringPos = stringPositions[i];
             const jelly = this.jellyManager.getJelly(i);
             if (jelly && stringPos) {
-                // Position jelly near the string, in front of it
-                // Offset slightly in -z direction (toward player)
+                // Position jelly near the string, in front of it (toward camera)
+                // Z offset should be negative to be in front of harp (toward player at Z=5)
                 const jellyHomePos = new THREE.Vector3(
                     stringPos.x,
-                    stringPos.y,
-                    stringPos.z + 1.5  // 1.5 units in front of string
+                    this.waterSurfaceY,  // Use detected water surface Y
+                    stringPos.z - 1.5  // Negative Z = toward camera/player
                 );
                 // Use setHomePosition to properly set spawn/submerge location
                 jelly.setHomePosition(jellyHomePos);
                 console.log(`  Jelly ${i}: (${jellyHomePos.x.toFixed(1)}, ${jellyHomePos.y.toFixed(1)}, ${jellyHomePos.z.toFixed(1)})`);
             }
+        }
+
+        // Also update JellyManager's water surface reference
+        if (this.jellyManager) {
+            (this.jellyManager as any).updateWaterSurface(this.waterSurfaceY);
         }
     }
 
@@ -581,8 +652,10 @@ export class HarpRoom {
         this.activationController = new VortexActivationController(
             this.vortexSystem,
             this.waterMaterial!,
-            this.arenaFloor || null,
-            this.scene
+            this.platformMesh || null,  // Use the actual platform mesh, not arenaFloor!
+            this.scene,
+            this.camera,  // Pass camera so player moves with platform
+            this.vortexPosition  // Pass vortex position as target for platform ride
         );
 
         this.shellUI = new ShellUIOverlay();
@@ -596,6 +669,113 @@ export class HarpRoom {
                 this.activationController.setActivation(e.detail.progress);
             }
         });
+
+        // DEBUG: Expose test function to trigger platform ride
+        (window as any).testPlatformRide = () => {
+            console.log('[HarpRoom] 🎢 Testing platform ride...');
+            if (this.platformMesh) {
+                console.log(`   Platform found: "${this.platformMesh.name}"`);
+                console.log(`   Start position:`, this.platformMesh.position);
+            } else {
+                console.error('   ❌ No platform mesh found!');
+            }
+            if (this.activationController) {
+                // Trigger full activation
+                this.activationController.setActivation(1.0);
+                console.log('   ✅ Activation set to 1.0 - platform should move');
+            } else {
+                console.error('   ❌ No activationController found!');
+            }
+        };
+    }
+
+    /**
+     * Initialize WaterBall MLS-MPM fluid simulation system
+     * Replaces the static water plane with real-time particle-based fluid
+     */
+    private async initializeFluidSystem(): Promise<void> {
+        console.log('[HarpRoom] Initializing WaterBall fluid simulation...');
+
+        try {
+            // Check if WebGPU is available
+            const renderer = this.renderer as any;
+            if (!renderer.device) {
+                console.warn('[HarpRoom] WebGPU not available, falling back to water material');
+                this.fluidEnabled = false;
+                this.waterMaterial = new WaterMaterial();
+                if (this.arenaFloor) {
+                    this.arenaFloor.material = this.waterMaterial;
+                }
+                return;
+            }
+
+            const device = renderer.device;
+
+            // 1. Create particle physics simulator
+            this.fluidSimulator = new MLSMPMSimulator(device);
+            console.log('[HarpRoom] ✅ MLS-MPM Simulator created');
+
+            // 2. Create depth/thickness renderer
+            this.fluidDepthRenderer = new DepthThicknessRenderer(device, this.renderer);
+            console.log('[HarpRoom] ✅ Depth/Thickness Renderer created');
+
+            // 3. Create fluid surface renderer (final water visual)
+            this.fluidSurfaceRenderer = new FluidSurfaceRenderer(
+                device,
+                this.fluidDepthRenderer.getDepthTexture(),
+                this.fluidDepthRenderer.getThicknessTexture()
+            );
+            console.log('[HarpRoom] ✅ Fluid Surface Renderer created');
+
+            // 4. Create sphere constraint animator (for tunnel transformation)
+            this.sphereAnimator = new SphereConstraintAnimator(this.fluidSimulator);
+            console.log('[HarpRoom] ✅ Sphere Animator created');
+
+            // 5. Create harp-water interaction system
+            this.harpWaterInteraction = createHarpInteractionSystem(this.fluidSimulator);
+            console.log('[HarpRoom] ✅ Harp-Water Interaction created');
+
+            // 6. Create player-water interaction
+            this.playerWaterInteraction = new PlayerWaterInteraction(this.fluidSimulator, {
+                onWaterEntry: () => console.log('[Fluid] Player entered water'),
+                onWaterExit: () => console.log('[Fluid] Player exited water'),
+            });
+            console.log('[HarpRoom] ✅ Player-Water Interaction created');
+
+            // 7. Create wake effect for player movement
+            this.wakeEffect = new PlayerWakeEffect(this.scene);
+            console.log('[HarpRoom] ✅ Wake Effect created');
+
+            // 8. Set up debug views
+            setupDebugViews(
+                this.fluidSimulator,
+                this.fluidDepthRenderer,
+                this.fluidSurfaceRenderer,
+                this.sphereAnimator,
+                this.harpWaterInteraction,
+                this.playerWaterInteraction,
+                this.wakeEffect
+            );
+            console.log('[HarpRoom] ✅ Debug views available at window.debugVimana.fluid');
+
+            // 9. Apply fluid surface material to arena floor
+            // The fluid renderer outputs to a texture we use as material
+            if (this.arenaFloor && this.fluidSurfaceRenderer) {
+                const fluidMaterial = this.fluidSurfaceRenderer.getOutputMaterial();
+                this.arenaFloor.material = fluidMaterial;
+                console.log('[HarpRoom] ✅ Fluid material applied to ArenaFloor');
+            }
+
+            console.log('[HarpRoom] 🎉 WaterBall fluid system fully initialized!');
+        } catch (error) {
+            console.error('[HarpRoom] Failed to initialize fluid system:', error);
+            console.log('[HarpRoom] Falling back to water material...');
+            this.fluidEnabled = false;
+            this.waterMaterial = new WaterMaterial();
+            if (this.arenaFloor) {
+                this.arenaFloor.material = this.waterMaterial;
+            }
+        }
     }
 
     /**
@@ -893,6 +1073,46 @@ export class HarpRoom {
         if (this.waterMaterial) {
             this.waterMaterial.setTime(time);
             this.waterMaterial.setCameraPosition(this.camera.position);
+
+            // Update jelly-to-water coupling for ripples
+            if (this.jellyManager) {
+                this.waterMaterial.updateJellyPositions(this.jellyManager);
+            }
+        }
+
+        // Update WaterBall fluid simulation system
+        if (this.fluidEnabled && this.fluidSimulator) {
+            // Update player interaction (needs camera position)
+            if (this.playerWaterInteraction) {
+                this.playerWaterInteraction.update(this.camera.position, deltaTime);
+            }
+
+            // Update harp-water interaction (ripple decay)
+            if (this.harpWaterInteraction) {
+                this.harpWaterInteraction.update(deltaTime);
+            }
+
+            // Run particle physics simulation
+            this.fluidSimulator.simulate(deltaTime);
+
+            // Render depth/thickness textures
+            if (this.fluidDepthRenderer) {
+                this.fluidDepthRenderer.render(this.camera);
+            }
+
+            // Render final fluid surface to texture
+            if (this.fluidSurfaceRenderer) {
+                this.fluidSurfaceRenderer.render(this.camera, time);
+            }
+
+            // Update wake effect particles
+            if (this.wakeEffect && this.playerWaterInteraction) {
+                const playerSpeed = this.playerWaterInteraction.getPlayerSpeed();
+                if (playerSpeed > 0.1) {
+                    this.wakeEffect.spawn(this.camera.position, this.playerWaterInteraction.getPlayerMovementDirection());
+                }
+                this.wakeEffect.update(deltaTime);
+            }
         }
 
         // Update feedback manager (camera shake, highlights)
@@ -958,13 +1178,24 @@ export class HarpRoom {
     public updateDuetProgress(progress: number): void {
         this.duetProgress = Math.max(0, Math.min(1, progress));
         this.vortexSystem.updateDuetProgress(this.duetProgress);
+
+        // Update WaterBall sphere constraint animator (transforms plane to tunnel)
+        if (this.fluidEnabled && this.sphereAnimator) {
+            this.sphereAnimator.update(this.duetProgress, 0.016); // ~60fps frame time
+        }
     }
 
     /**
      * Trigger string ripple effect
      */
     public triggerStringRipple(stringIndex: number, intensity: number = 1.0): void {
+        // Trigger vortex ripple (old system)
         this.vortexSystem.triggerStringRipple(stringIndex, intensity);
+
+        // Trigger WaterBall fluid harp interaction
+        if (this.fluidEnabled && this.harpWaterInteraction) {
+            this.harpWaterInteraction.onStringPlucked(stringIndex, intensity);
+        }
     }
 
     /**

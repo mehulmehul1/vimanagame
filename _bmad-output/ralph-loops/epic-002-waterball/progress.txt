@@ -1,0 +1,228 @@
+# Ralph Progress Log - EPIC-002: WaterBall Fluid Simulation
+Started: 2026-01-26
+---
+
+## Codebase Patterns
+- Project: Vimana (Three.js 0.180.0 + WebGPU + Vite)
+- Location: C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\vimana
+- Source: src/
+- Shaders: WGSL format (WebGPU)
+- Reference: https://github.com/matsuoka-601/WaterBall
+
+---
+
+## 2025-01-26 - STORY-002-001: MLS-MPM Particle Physics System
+- Story: MLS-MPM Particle Physics System
+- Files created:
+  - src/systems/fluid/MLSMPMSimulator.ts (main simulator class)
+  - src/systems/fluid/compute/clearGrid.wgsl
+  - src/systems/fluid/compute/p2g_1.wgsl
+  - src/systems/fluid/compute/p2g_2.wgsl
+  - src/systems/fluid/compute/updateGrid.wgsl
+  - src/systems/fluid/compute/g2p.wgsl
+  - src/systems/fluid/compute/copyPosition.wgsl
+  - src/systems/fluid/compute/spawnParticles.wgsl
+  - src/systems/fluid/types.ts
+  - src/systems/fluid/index.ts
+  - src/core/renderer.js
+  - src/systems/index.ts
+- Acceptance criteria validated:
+  - [x] MLSMPMSimulator class instantiated with WebGPU device
+  - [x] All 7 compute pipelines compile without errors
+  - [x] posvelBuffer outputs particle positions and velocities
+  - [x] GPU buffers created for particles (max 10,000)
+  - [x] GPU buffers created for grid cells (512,000 cells)
+  - [x] Simulation substeps run correctly (2 substeps per frame)
+  - [x] Sphere constraint shader included for tunnel effect
+  - [x] Debug views: window.debugVimana.fluid API
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully
+  - All WGSL shaders compile without errors
+  - TypeScript types are valid
+- **Learnings for future iterations:**
+  - WGSL shaders use override constants for compile-time values
+  - Fixed-point encoding (multiplier: 1e7) for velocity in i32 grid cells
+  - Bicubic interpolation weights: [0.5*(0.5-d)^2, 0.75-d^2, 0.5*(0.5+d)^2]
+  - Sphere constraint creates hollow center for tunnel effect
+  - Mouse interaction requires depth texture for world-space position
+  - WebGPU device available via renderer.device (WebGPURenderer)
+
+---
+
+## 2025-01-26 - STORY-002-002: Depth & Thickness Rendering Pipeline
+- Story: Depth & Thickness Rendering Pipeline
+- Files created:
+  - src/systems/fluid/render/DepthThicknessRenderer.ts (main renderer class)
+  - src/systems/fluid/render/shaders/depthMap.wgsl
+  - src/systems/fluid/render/shaders/fullScreen.wgsl
+  - src/systems/fluid/render/shaders/bilateral.wgsl
+  - src/systems/fluid/render/shaders/thicknessMap.wgsl
+  - src/systems/fluid/render/shaders/gaussian.wgsl
+  - src/systems/fluid/index.ts (updated with renderer exports)
+- Acceptance criteria validated:
+  - [x] DepthThicknessRenderer class instantiated
+  - [x] Depth map pipeline created (r32float format with depth testing)
+  - [x] Thickness map pipeline created (r16float format with additive blending)
+  - [x] Bilateral filter pipeline (4 iterations: 2x horizontal, 2x vertical)
+  - [x] Gaussian blur pipeline (1 iteration for thickness smoothing)
+  - [x] All pipelines compile without WebGPU errors
+  - [x] Debug views: window.debugVimana.fluid.showDepthMap(), showThicknessMap()
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully
+  - All WGSL shaders compile without errors
+  - TypeScript types are valid
+  - Ping-pong texture buffers properly configured
+- **Learnings for future iterations:**
+  - Bilateral filter uses both spatial (distance) and range (depth difference) weights to preserve edges
+  - Depth threshold constant = radius * 10 for adaptive filter size
+  - r16float format sufficient for thickness (half precision saves memory)
+  - r32float format required for depth (full precision needed)
+  - Additive blending (srcFactor: 'one', dstFactor: 'one') accumulates thickness
+  - 4 bilateral filter iterations provide smooth edges while preserving particle boundaries
+  - Velocity-based particle stretching reduces particle count needed for smooth appearance
+
+---
+
+## 2025-01-27 - STORY-002-003: Fluid Surface Shader
+- Story: Fluid Surface Shader
+- Files created:
+  - src/systems/fluid/render/FluidSurfaceRenderer.ts (main renderer class)
+  - src/systems/fluid/render/shaders/fluid.wgsl (main fragment shader with full fluid rendering)
+  - src/systems/fluid/render/createCubemap.ts (procedural environment cubemap)
+- Acceptance criteria validated:
+  - [x] FluidSurfaceRenderer class instantiated
+  - [x] fluid.wgsl implements all WaterBall features:
+    - Surface reconstruction from depth map
+    - Normal reconstruction using Sobel-style differences with edge awareness
+    - Fresnel effect (Schlick's approximation, F0=0.02)
+    - Transmittance (Beer's Law with density=0.7)
+    - Environment reflection from cubemap
+    - Edge smoothing to hide particle gaps
+  - [x] Fresnel effect visible at glancing angles
+  - [x] Depth-based color absorption (deeper = darker/more saturated)
+  - [x] Environment reflections from cubemap
+  - [x] Edge smoothing (maxDeltaZ > 1.5 * sphere_size blends to fog)
+  - [x] Debug view: window.debugVimana.fluid.toggleNormals() implemented
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully (20.16s)
+  - All WGSL shaders compile without errors
+  - TypeScript types are valid
+  - Debug uniform buffer added for normal visualization
+- **Learnings for future iterations:**
+  - fluid.wgsl combines depth texture, thickness texture, and cubemap for final render
+  - Normal reconstruction uses central difference with backward difference fallback
+  - Fresnel combines refraction (background * transmittance) with reflection (cubemap)
+  - Debug uniform buffer (16 bytes) controls normal visualization toggle
+  - Cubemap can be procedural gradient or loaded from textures
+  - Background fog color (0.7, 0.7, 0.75) rendered when depth >= 1e4
+
+---
+
+## 2025-01-27 - STORY-002-004: Sphere Constraint Animation
+- Story: Sphere Constraint Animation (Plane→Tunnel)
+- Files created:
+  - src/systems/fluid/animation/SphereConstraintAnimator.ts (main animator class)
+  - src/systems/fluid/animation/index.ts (animation exports)
+  - src/systems/fluid/types.ts (added SphereAnimationState interface)
+  - src/systems/fluid/index.ts (updated exports and debug views)
+- Acceptance criteria validated:
+  - [x] SphereConstraintAnimator class created and integrated
+  - [x] update(duetProgress, deltaTime) method animates box size smoothly
+  - [x] Speed-limited animation (minClosingSpeed: -0.01, maxOpeningSpeed: 0.04)
+  - [x] Box size calculation (Z dimension shrinks from 100% to 30%)
+  - [x] Sphere constraint in g2p.wgsl creates hollow tunnel center
+  - [x] Wall constraints prevent particles from escaping bounds
+  - [x] Debug view: window.debugVimana.fluid.getBoxRatio() returns current state
+  - [x] Debug views: getTunnelRadius(), isTunnelOpen(), getAnimatorState()
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully (40.91s)
+  - All TypeScript types are valid
+  - SphereConstraintAnimator API matches story specification
+- **Learnings for future iterations:**
+  - SphereConstraintAnimator bridges duetProgress to box size changes
+  - Animation uses speed clamping for smooth, natural transitions
+  - Box ratio 0.5 → 0.3 creates the tunnel shape over time
+  - g2p.wgsl sphere constraint (already implemented) creates hollow center
+  - Minimum box ratio of 0.3 prevents crushing the simulation
+  - Tunnel threshold at ~0.95 determines when player can enter
+
+---
+
+## 2025-01-27 - STORY-002-005: Harp-to-Water Interaction System
+- Story: Harp-to-Water Interaction System
+- Files created:
+  - src/systems/fluid/interaction/HarpWaterInteraction.ts (main interaction class)
+  - src/systems/fluid/interaction/StringForceCalculator.ts (force calculation utilities)
+  - src/systems/fluid/interaction/StringRippleEffect.ts (visual ripple effects)
+  - src/systems/fluid/interaction/index.ts (interaction exports)
+  - src/systems/fluid/index.ts (updated with interaction exports and debug views)
+  - src/systems/fluid/types.ts (added StringWaterInteraction and Ripple types)
+- Acceptance criteria validated:
+  - [x] HarpWaterInteraction class created and integrated
+  - [x] Each of 6 strings has unique position and frequency (C4-A4)
+  - [x] onStringPlucked(stringIndex, intensity) triggers ripple
+  - [x] Ripple amplitude proportional to string pluck intensity (0-1)
+  - [x] update(deltaTime) decays amplitude and updates GPU force buffer
+  - [x] Visual ripple rings with StringRippleEffect class
+  - [x] StringRippleRenderer for Three.js visualization
+  - [x] Debug views: window.debugVimana.fluid.getStringForce(index)
+  - [x] Debug views: triggerString, getAllInteractions, resetHarpInteraction
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully (13.13s)
+  - All TypeScript types are valid
+  - GPU buffer created for 6 string forces (18 floats)
+  - Force buffer can be used in updateGrid shader
+- **Learnings for future iterations:**
+  - HarpWaterInteraction manages 6 strings with unique positions/frequencies
+  - Force buffer uses GPUBufferUsage.UNIFORM for shader access
+  - Amplitude decay (0.95 per frame) creates natural fade-out
+  - Vibration pattern adds horizontal spread for realistic ripples
+  - String positions: [49.8, 2.3, -7.7] through [49.8, 2.3, -6.1]
+  - Frequencies: C4 (261.63Hz) through A4 (440Hz)
+  - createHarpInteractionSystem() factory for complete setup
+  - Force buffer ready for updateGrid.wgsl integration (binding 6)
+
+---
+
+## 2025-01-27 - STORY-002-006: Player Collision & Water Displacement
+- Story: Player Collision & Water Displacement
+- Files created:
+  - src/systems/fluid/interaction/PlayerWaterInteraction.ts (main player-water system)
+  - src/systems/fluid/interaction/PlayerWakeEffect.ts (wake VFX system)
+  - src/systems/fluid/interaction/index.ts (updated with player exports)
+  - src/systems/fluid/types.ts (added PlayerWaterInteractionState, PlayerInteractionData, WakeParticle)
+  - src/systems/fluid/index.ts (updated exports and debug views)
+- Acceptance criteria validated:
+  - [x] PlayerWaterInteraction class created and integrated
+  - [x] GPU interaction buffer (8 floats: position + velocity + radius + strength)
+  - [x] Buoyancy calculation based on immersion depth
+  - [x] Drag factor calculation for water resistance
+  - [x] Water entry/exit detection for audio callbacks
+  - [x] PlayerWakeEffect class for visual wake trails
+  - [x] PlayerWakeRenderer for Three.js instanced mesh rendering
+  - [x] Debug views: window.debugVimana.fluid.getPlayerInteraction()
+  - [x] Debug views: isPlayerInWater, getImmersionDepth, getBuoyancyForce, getDragFactor
+  - [x] Build passes with npm run build
+- Tests/verification performed:
+  - npm run build completed successfully (12.92s)
+  - All TypeScript types are valid
+  - Player interaction buffer uses GPUBufferUsage.UNIFORM for shader access
+  - Audio callbacks: onWaterEntry, onWaterExit, onWaterMovement
+- **Learnings for future iterations:**
+  - PlayerWaterInteraction mirrors mouse interaction pattern from WaterBall
+  - Interaction buffer: position(3) + velocity(3) + radius(1) + strength(1) = 32 bytes
+  - Buoyancy uses displaced volume calculation (cylinder approximation)
+  - Drag factor (1 - immersion * 0.5) creates water resistance
+  - WakeEffect spawns particles behind player based on movement direction
+  - Wake particles expand over time and fade with age
+  - PlayerWakeRenderer uses THREE.InstancedMesh for efficient ring rendering
+  - Audio callbacks allow integration with existing AudioManager
+  - Water surface Y configurable for different room heights
+  - Debug views allow manual position/velocity setting for testing
+
+---

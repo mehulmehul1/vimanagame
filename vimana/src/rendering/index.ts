@@ -20,8 +20,20 @@ export {
   updateLoading,
 } from './createWebGPURenderer';
 
+export {
+  VisionarySplatRenderer,
+  createSplatRenderer,
+  isVisionaryAvailable,
+  getVisionaryInstallInstructions,
+} from './VisionarySplatRenderer';
+
 export type {
   PlatformInfo,
   RendererResult,
   WebGPURendererOptions,
 } from './createWebGPURenderer';
+
+export type {
+  SplatModel,
+  SplatRendererOptions,
+} from './VisionarySplatRenderer';

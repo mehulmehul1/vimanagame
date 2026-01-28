@@ -1,0 +1,68 @@
+# AUTONOMOUS EPIC-004 EXECUTION PROMPT
+# Paste this entire prompt into Claude Code
+
+---
+
+You are now executing EPIC-004: WebGPU Migration autonomously. DO NOT STOP until all 8 stories are complete.
+
+## AGENT PERSONA
+Load and embody: @C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\.claude\commands\bmad\bmgd\agents\game-dev.md
+
+## EXECUTION ORDER (Dependency-Respecting)
+
+### ROUND 1 (Parallel - No Dependencies)
+1. Story 4.1: Visionary Integration → `4-1-visionary-integration.md`
+2. Story 4.2: WebGPU Renderer Init → `4-2-webgpu-renderer-init.md`
+
+### ROUND 2 (After 4.2 - Can be Parallel)
+3. Story 4.3: Vortex Shader TSL → `4-3-vortex-shader-tsl.md`
+4. Story 4.4: Water Material TSL → `4-4-water-material-tsl.md`
+
+### ROUND 3 (After 4.4)
+5. Story 4.5: Shell SDF TSL → `4-5-shell-sdf-tsl.md`
+6. Story 4.6: Jelly Shader TSL → `4-6-jelly-shader-tsl.md`
+
+### ROUND 4 (After 4.2 + 4.4)
+7. Story 4.7: Fluid System Activation → `4-7-fluid-system-activation.md`
+
+### ROUND 5 (Final - After All Above)
+8. Story 4.8: Performance Validation → `4-8-performance-validation.md`
+
+## FOR EACH STORY:
+
+1. READ: `_bmad-output\implementation-artifacts\[artifact-name]`
+2. READ: All existing source files mentioned
+3. IMPLEMENT: Create new files, modify existing files
+4. TEST: `npm run dev` - check for compilation errors
+5. COMMIT: `git add . && git commit -m "feat: STORY-004-0XX - [Name]"` (with co-author tag)
+6. CONTINUE: Move to next story WITHOUT asking for approval
+
+## CRITICAL PAUSE POINTS (Ask user ONLY if):
+
+- Package installation needed (`npm install`)
+- Cannot resolve TypeScript errors after 3 attempts
+- Breaking public API changes needed
+- Unknown architecture decision required
+
+## NEVER PAUSE FOR:
+
+- Code style/formatting
+- Writing tests
+- Adding comments
+- Minor refactors
+- File creation
+
+## WORKING DIR
+
+`C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\vimana`
+
+## SUCCESS CONDITION
+
+- All 8 stories implemented
+- `npm run build` succeeds
+- All commits pushed
+- Performance targets met (60 FPS desktop, 30 FPS mobile)
+
+## START NOW
+
+Begin with Story 4.2 or 4.1. Execute autonomously. Report progress after each story completion.

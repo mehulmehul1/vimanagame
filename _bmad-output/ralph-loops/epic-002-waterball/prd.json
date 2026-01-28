@@ -1,0 +1,119 @@
+{
+  "project": "Vimana",
+  "epic": "EPIC-002: WaterBall Fluid Simulation System",
+  "epicFile": "../planning-artifacts/epics/EPIC-002-waterball-fluid-system.md",
+  "branchName": "ralph/epic-002-waterball",
+  "description": "Implement full MLS-MPM particle-based fluid simulation from WaterBall - replace static water with realistic fluid that responds to harp strings, transforms into sphere tunnel, and reacts to player movement.",
+  "userStories": [
+    {
+      "id": "002-001",
+      "title": "MLS-MPM Particle Physics System",
+      "storyFile": "../planning-artifacts/stories/story-001-particle-physics.md",
+      "description": "Core physics engine - 10,000 particles with 6 compute shader stages (clearGrid, p2g_1, p2g_2, updateGrid, g2p, copyPosition). 8 points.",
+      "acceptanceCriteria": [
+        "MLSMPMSimulator class instantiated with WebGPU device",
+        "All 6 compute shaders compile without errors (clearGrid.wgsl, p2g_1.wgsl, p2g_2.wgsl, updateGrid.wgsl, g2p.wgsl, copyPosition.wgsl)",
+        "10,000 particles simulate at 60fps",
+        "Particles spawn in dam-break pattern on initialization",
+        "Sphere constraint activates when uDuetProgress > 0",
+        "Debug view: window.debugVimana.fluid.getParticleCount() returns live count",
+        "Debug view: window.debugVimana.fluid.toggleWireframe() shows particle bounds"
+      ],
+      "priority": 1,
+      "passes": true,
+      "dependsOn": []
+    },
+    {
+      "id": "002-002",
+      "title": "Depth & Thickness Rendering Pipeline",
+      "storyFile": "../planning-artifacts/stories/story-002-depth-thickness.md",
+      "description": "Multi-pass rendering - depth map (r32float) + 4x bilateral filter + thickness map (r16float) + gaussian filter. 5 points.",
+      "acceptanceCriteria": [
+        "DepthThicknessRenderer class instantiated",
+        "Depth texture renders with visible particle depths (debug view)",
+        "Thickness texture accumulates particle density (debug view)",
+        "Bilateral filter produces smooth edges without blurring particle boundaries",
+        "All pipelines compile without WebGPU errors",
+        "Performance: entire pipeline completes in <8ms at 1080p",
+        "Debug views: window.debugVimana.fluid.showDepthMap(), showThicknessMap()"
+      ],
+      "priority": 2,
+      "passes": true,
+      "dependsOn": ["002-001"]
+    },
+    {
+      "id": "002-003",
+      "title": "Fluid Surface Shader",
+      "storyFile": "../planning-artifacts/stories/story-003-fluid-surface.md",
+      "description": "Final fluid shader with Fresnel, transmittance, environment reflections, normal reconstruction from depth. 3 points.",
+      "acceptanceCriteria": [
+        "FluidSurfaceRenderer class instantiated",
+        "Final render matches WaterBall visual (side-by-side comparison)",
+        "Fresnel effect visible at glancing angles",
+        "Depth-based color absorption (deeper = darker/more saturated)",
+        "Environment reflections visible on water surface",
+        "Edge smoothing hides particle gaps",
+        "Performance: <3ms per frame at 1080p",
+        "Debug view: window.debugVimana.fluid.toggleNormals()"
+      ],
+      "priority": 3,
+      "passes": true,
+      "dependsOn": ["002-002"]
+    },
+    {
+      "id": "002-004",
+      "title": "Sphere Constraint Animation",
+      "storyFile": "../planning-artifacts/stories/story-004-sphere-animation.md",
+      "description": "Animate water from flat plane to hollow sphere tunnel as uDuetProgress goes 0→1. 3 points.",
+      "acceptanceCriteria": [
+        "SphereConstraintAnimator class created and integrated",
+        "uDuetProgress change animates box size smoothly",
+        "Particles visually form sphere/tunnel shape as progress increases",
+        "Center of sphere remains hollow (player can walk through)",
+        "Animation speed feels natural (~5-10 seconds from start to finish)",
+        "No particles escape the simulation bounds during animation",
+        "Debug view: window.debugVimana.fluid.getBoxRatio() returns current state"
+      ],
+      "priority": 4,
+      "passes": true,
+      "dependsOn": ["002-001"]
+    },
+    {
+      "id": "002-005",
+      "title": "Harp-to-Water Interaction System",
+      "storyFile": "../planning-artifacts/stories/story-005-harp-interaction.md",
+      "description": "6 harp strings create unique ripple patterns - string vibrations → velocity fields → particle displacement. 5 points.",
+      "acceptanceCriteria": [
+        "HarpWaterInteraction class created and integrated",
+        "Each of 6 strings triggers unique ripple pattern in water",
+        "Ripple amplitude proportional to string pluck intensity",
+        "Ripples propagate naturally through particle system",
+        "Visual ripple rings appear at string impact points",
+        "Performance: String interaction adds <1ms per frame",
+        "Debug view: window.debugVimana.fluid.getStringForce(index)"
+      ],
+      "priority": 5,
+      "passes": true,
+      "dependsOn": ["002-001"]
+    },
+    {
+      "id": "002-006",
+      "title": "Player Collision & Water Displacement",
+      "storyFile": "../planning-artifacts/stories/story-006-player-collision.md",
+      "description": "Player body displaces fluid particles, creates wake effects, experiences buoyancy. 5 points.",
+      "acceptanceCriteria": [
+        "PlayerWaterInteraction class created and integrated",
+        "Player walking through water displaces particles visibly",
+        "Player experiences buoyancy when in water (floats upward)",
+        "Player movement creates wake trail behind them",
+        "Wake particles fade and expand naturally",
+        "Water entry/exit plays appropriate audio",
+        "Performance: Player interaction adds <0.5ms per frame",
+        "Debug view: window.debugVimana.fluid.getPlayerInteraction() returns state"
+      ],
+      "priority": 6,
+      "passes": true,
+      "dependsOn": ["002-001"]
+    }
+  ]
+}

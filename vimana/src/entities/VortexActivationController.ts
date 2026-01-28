@@ -45,6 +45,8 @@ export class VortexActivationController extends THREE.EventDispatcher {
         waterMaterial: WaterMaterial,
         platformMesh: THREE.Mesh | null,
         scene: THREE.Scene,
+        camera: THREE.Camera | null = null,
+        vortexPosition: THREE.Vector3 | null = null,
         config: Partial<VortexActivationConfig> = {}
     ) {
         super();
@@ -63,8 +65,13 @@ export class VortexActivationController extends THREE.EventDispatcher {
         this.lightingManager = new VortexLightingManager(scene);
 
         // Create platform animator if platform mesh provided
+        // Use vortex position as target (if provided), otherwise use default
         this.platformAnimator = platformMesh ?
-            new PlatformRideAnimator(platformMesh) : null;
+            new PlatformRideAnimator(
+                platformMesh,
+                camera,
+                vortexPosition ? { targetPosition: vortexPosition } : {}
+            ) : null;
     }
 
     /**

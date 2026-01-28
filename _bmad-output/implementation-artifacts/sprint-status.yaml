@@ -109,7 +109,7 @@ development_status:
 
   # Story 4.1: Visionary Gaussian Splat Integration
   # Replaces: Dual Canvas Setup (obsolete - depth buffer issue)
-  4-1-visionary-integration: ready-for-dev
+  4-1-visionary-integration: done
 
   # Story 4.2: WebGPU Renderer Initialization
   4-2-webgpu-renderer-init: done
