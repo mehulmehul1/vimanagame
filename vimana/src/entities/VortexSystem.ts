@@ -27,7 +27,7 @@ export class VortexSystem extends THREE.Group {
         // Create vortex torus mesh
         const torusGeometry = new THREE.TorusGeometry(2.0, 0.4, 32, 64);
         this.vortexMaterial = new VortexMaterial();
-        this.vortexMesh = new THREE.Mesh(torusGeometry, this.vortexMaterial);
+        this.vortexMesh = new THREE.Mesh(torusGeometry, this.vortexMaterial.getMaterial());
         // Position at local origin; Group handles world placement
         this.vortexMesh.position.set(0, 0, 0);
 
