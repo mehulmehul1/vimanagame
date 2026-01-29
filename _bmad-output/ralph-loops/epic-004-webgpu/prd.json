@@ -118,7 +118,7 @@
         "Bell-shaped pulse enhancement at top of jelly"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "dependsOn": ["004-004"]
     },
     {

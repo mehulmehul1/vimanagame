@@ -147,3 +147,38 @@ Started: 2026-01-27
   - localToWorld() for position world-space transformation
 
 ---
+
+## [2025-01-29] - Story 004-006
+- Story: Jelly Shader → TSL Migration
+- Files created:
+  - src/shaders/tsl/JellyShader.ts (TSL shader implementation)
+  - src/entities/JellyMaterial.ts (Material wrapper with WebGPU detection)
+- Files modified:
+  - src/shaders/tsl/index.ts (export JellyShader module)
+  - src/entities/JellyCreature.ts (use JellyMaterial API)
+- Acceptance criteria validated:
+  - [x] Jelly shader converted to TSL in src/shaders/tsl/JellyShader.ts
+  - [x] Organic pulsing animation using sin(time * pulseRate) * 0.5 + 0.5
+  - [x] Bioluminescent glow with teaching state enhancement
+  - [x] Per-jelly frequency variations via uniform (setPulseRate)
+  - [x] Emissive material with emissiveNode
+  - [x] Fresnel-based rim lighting effect (pow(1 - dot, 2))
+  - [x] Simplex noise displacement for organic movement
+  - [x] Bell-shaped pulse enhancement at top of jelly (smoothstep(-0.5, 0.5, position.y))
+- Tests/verification performed:
+  - TypeScript compilation successful (npm run build)
+  - JellyMaterial wrapper pattern matches VortexMaterial/WaterMaterial pattern
+  - Full backward compatibility maintained with GLSL fallback
+  - TSL material automatically selected when WebGPU is available
+  - JellyCreature API unchanged (setPulseRate, setColor, setCameraPosition, beginTeaching, submerge)
+- **Learnings for future iterations:**
+  - JellyShader.ts was already in git from a previous iteration - needed to verify current implementation
+  - Simplified simplex noise (snoise3) works well for organic movement
+  - positionNode for vertex displacement (organic pulse + noise)
+  - emissiveNode for bioluminescent glow with rim lighting
+  - transparentNode for fresnel-based alpha
+  - JellyMaterial wrapper enables seamless TSL/WebGPU or GLSL/WebGL2 selection
+  - Teaching enhancement adds warm color (vec3(0.2, 0.1, 0.0)) to glow
+  - Bell factor enhances pulse at top of jelly while bottom remains more stable
+
+---
