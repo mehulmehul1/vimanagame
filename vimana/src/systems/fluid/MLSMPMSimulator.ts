@@ -563,6 +563,24 @@ export class MLSMPMSimulator {
     }
 
     /**
+     * Simulate one frame of fluid physics
+     * Creates a command encoder and executes the compute pipeline
+     * This is the main entry point for frame-by-frame simulation
+     */
+    public simulate(deltaTime: number, substeps: number = 2): void {
+        // Create command encoder for this frame's compute work
+        const commandEncoder = this.device.createCommandEncoder({
+            label: 'MLS-MPM Simulation Encoder'
+        });
+
+        // Execute the full compute pipeline
+        this.execute(commandEncoder, substeps);
+
+        // Submit compute work to GPU queue
+        this.device.queue.submit([commandEncoder.finish()]);
+    }
+
+    /**
      * Get current simulation state
      */
     public getState(): SimulationState {
