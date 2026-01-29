@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { jellyVertexShader, jellyFragmentShader } from '../shaders';
+import { JellyMaterial } from './JellyMaterial';
 
 /**
  * JellyCreature - Procedural jellyfish that teaches the player the song
@@ -14,7 +14,7 @@ export class JellyCreature extends THREE.Mesh {
     private static readonly SUBMERGED_Y_OFFSET = -0.2; // Story spec: y = -0.2 (below water surface)
     private static readonly ARC_HEIGHT = 0.5; // Story spec: arc height offset
 
-    private material: THREE.ShaderMaterial;
+    private material: JellyMaterial;
     private spawnPosition: THREE.Vector3;
     private targetPosition: THREE.Vector3;
     private homePosition: THREE.Vector3;
@@ -41,24 +41,11 @@ export class JellyCreature extends THREE.Mesh {
         const geometry = new THREE.SphereGeometry(JellyCreature.BASE_SCALE, 64, 64);
         const pulseRate = 2.0; // Local variable - use this instead of this.pulseRate
 
-        const uniforms = {
-            uTime: { value: 0 },
-            uPulseRate: { value: pulseRate },
-            uIsTeaching: { value: 0.0 },
-            uTeachingIntensity: { value: 0.0 },
-            uBioluminescentColor: { value: new THREE.Color(0x88ccff) }, // Story spec: #88ccff (soft cyan-blue)
-            uCameraPosition: { value: new THREE.Vector3() }
-        };
+        // Use JellyMaterial wrapper (selects TSL/WebGPU or GLSL/WebGL2 automatically)
+        const material = new JellyMaterial();
+        material.setPulseRate(pulseRate);
 
-        const material = new THREE.ShaderMaterial({
-            vertexShader: jellyVertexShader,
-            fragmentShader: jellyFragmentShader,
-            uniforms: uniforms,
-            transparent: true,
-            side: THREE.DoubleSide
-        });
-
-        super(geometry, material);
+        super(geometry, material.getMaterial());
         this.material = material;
 
         this.spawnPosition = spawnPosition.clone();
@@ -137,7 +124,7 @@ export class JellyCreature extends THREE.Mesh {
         this.state = 'teaching';
         this.isTeaching = true;
         this.teachingIntensity = 1.0;
-        this.material.uniforms.uIsTeaching.value = 1.0;
+        this.material.setTeaching(true);
 
         // Intensify light during teaching
         this.jellyLight.intensity = 6;
@@ -149,14 +136,14 @@ export class JellyCreature extends THREE.Mesh {
     public submerge(): void {
         this.state = 'submerging';
         this.isTeaching = false;
-        this.material.uniforms.uIsTeaching.value = 0.0;
+        this.material.setTeaching(false);
 
         // Dim light during submersion
         this.jellyLight.intensity = 1;
     }
 
     public update(deltaTime: number, time: number): void {
-        this.material.uniforms.uTime.value = time;
+        this.material.setTime(time);
         const pulse = Math.sin(time * this.pulseRate) * 0.1 + 1.0;
 
         // Update swim physics (only during idle, not during scripted animations)
@@ -214,7 +201,7 @@ export class JellyCreature extends THREE.Mesh {
         this.scale.setScalar(JellyCreature.BASE_SCALE * teachingPulse);
 
         this.teachingIntensity = Math.max(0.5, Math.sin(this.animTime * 3) * 0.5 + 0.5);
-        this.material.uniforms.uTeachingIntensity.value = this.teachingIntensity;
+        this.material.setTeachingIntensity(this.teachingIntensity);
 
         // Animate glow sprite with teaching pulse (scaled for smaller jelly)
         const glowScale = 0.75 + this.teachingIntensity * 0.45;
@@ -251,15 +238,15 @@ export class JellyCreature extends THREE.Mesh {
 
     public setPulseRate(rate: number): void {
         this.pulseRate = rate;
-        this.material.uniforms.uPulseRate.value = rate;
+        this.material.setPulseRate(rate);
     }
 
     public setColor(color: THREE.Color): void {
-        this.material.uniforms.uBioluminescentColor.value.copy(color);
+        this.material.setColor(color);
     }
 
     public setCameraPosition(position: THREE.Vector3): void {
-        this.material.uniforms.uCameraPosition.value.copy(position);
+        this.material.setCameraPosition(position);
     }
 
     public getState(): string {
@@ -358,6 +345,6 @@ export class JellyCreature extends THREE.Mesh {
 
     public destroy(): void {
         this.geometry.dispose();
-        this.material.dispose();
+        this.material.destroy();
     }
 }
