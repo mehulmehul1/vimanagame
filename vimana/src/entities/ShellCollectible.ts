@@ -3,10 +3,20 @@
  *
  * Beautiful iridescent shell that materializes when the duet is complete.
  * Players can collect it to add to their UI inventory.
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 
 import * as THREE from 'three';
 import { shellVertexShader, shellFragmentShader } from '../shaders';
+import { ShellMaterialTSL } from '../shaders/tsl';
+
+/**
+ * Detect if WebGPU/TSL is available
+ */
+function isWebGPURenderer(): boolean {
+    return (window as any).rendererType === 'WebGPU';
+}
 
 export type ShellState = 'materializing' | 'idle' | 'collecting' | 'collected';
 
@@ -17,8 +27,125 @@ export interface ShellCollectibleConfig {
     collectDuration: number;
 }
 
+/**
+ * ShellMaterial - Wrapper that auto-selects TSL or GLSL implementation
+ */
+class ShellMaterial {
+    private material: THREE.ShaderMaterial | InstanceType<typeof ShellMaterialTSL>;
+    private isTSL: boolean;
+
+    // Uniforms object for API compatibility (GLSL mode only)
+    public uniforms: {
+        uTime: { value: number };
+        uAppearProgress: { value: number };
+        uDissolveAmount: { value: number };
+        uCameraPosition: { value: THREE.Vector3 };
+    };
+
+    constructor() {
+        this.isTSL = isWebGPURenderer();
+
+        if (this.isTSL) {
+            // Use TSL material for WebGPU
+            this.material = new ShellMaterialTSL();
+            console.log('[ShellMaterial] Using TSL (WebGPU) implementation');
+
+            // Create uniforms object for API compatibility
+            this.uniforms = {
+                uTime: { value: 0 },
+                uAppearProgress: { value: 0 },
+                uDissolveAmount: { value: 1.0 },
+                uCameraPosition: { value: new THREE.Vector3() }
+            };
+        } else {
+            // Use GLSL shader material for WebGL2 fallback
+            const uniforms = {
+                uTime: { value: 0 },
+                uAppearProgress: { value: 0 },
+                uDissolveAmount: { value: 1.0 },
+                uCameraPosition: { value: new THREE.Vector3() }
+            };
+
+            this.material = new THREE.ShaderMaterial({
+                vertexShader: shellVertexShader,
+                fragmentShader: shellFragmentShader,
+                uniforms: uniforms,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            this.uniforms = uniforms;
+            console.log('[ShellMaterial] Using GLSL (WebGL2) implementation');
+        }
+    }
+
+    // THREE.JS MATERIAL FORWARDING
+    get transparent(): boolean {
+        return this.material.transparent;
+    }
+    set transparent(value: boolean) {
+        this.material.transparent = value;
+    }
+
+    get side(): THREE.Side {
+        return this.material.side;
+    }
+    set side(value: THREE.Side) {
+        (this.material as THREE.ShaderMaterial).side = value;
+    }
+
+    get depthWrite(): boolean {
+        return this.material.depthWrite;
+    }
+    set depthWrite(value: boolean) {
+        this.material.depthWrite = value;
+    }
+
+    // PUBLIC API
+    public setTime(time: number): void {
+        if (this.isTSL) {
+            (this.material as ShellMaterialTSL).setTime(time);
+        } else {
+            this.uniforms.uTime.value = time;
+        }
+    }
+
+    public setAppearProgress(progress: number): void {
+        if (this.isTSL) {
+            (this.material as ShellMaterialTSL).setAppearProgress(progress);
+        } else {
+            this.uniforms.uAppearProgress.value = progress;
+        }
+    }
+
+    public setDissolveAmount(amount: number): void {
+        if (this.isTSL) {
+            (this.material as ShellMaterialTSL).setDissolveAmount(amount);
+        } else {
+            this.uniforms.uDissolveAmount.value = amount;
+        }
+    }
+
+    public setCameraPosition(position: THREE.Vector3): void {
+        if (this.isTSL) {
+            (this.material as ShellMaterialTSL).setCameraPosition(position);
+        } else {
+            this.uniforms.uCameraPosition.value.copy(position);
+        }
+    }
+
+    public getMaterial(): THREE.Material {
+        return this.material;
+    }
+
+    public dispose(): void {
+        this.material.dispose();
+    }
+}
+
 export class ShellCollectible extends THREE.Mesh {
-    private shellMaterial: THREE.ShaderMaterial;
+    private shellMaterial: ShellMaterial;
     private state: ShellState;
     private materializeProgress: number = 0;
     private collectProgress: number = 0;
@@ -26,7 +153,7 @@ export class ShellCollectible extends THREE.Mesh {
     private uiTargetPosition: THREE.Vector3;
     private startRotation: THREE.Euler;
 
-    // Uniforms reference for quick access
+    // Uniforms reference for quick access (backward compatibility)
     public uniforms: {
         uTime: { value: number };
         uAppearProgress: { value: number };
@@ -37,31 +164,16 @@ export class ShellCollectible extends THREE.Mesh {
     private config: ShellCollectibleConfig;
 
     constructor(scene: THREE.Scene, camera: THREE.Camera, config: Partial<ShellCollectibleConfig> = {}) {
-        // Create shader uniforms
-        const uniforms = {
-            uTime: { value: 0 },
-            uAppearProgress: { value: 0 },
-            uDissolveAmount: { value: 1.0 },
-            uCameraPosition: { value: new THREE.Vector3() }
-        };
-
-        // Shell material with procedural SDF shader
-        const material = new THREE.ShaderMaterial({
-            vertexShader: shellVertexShader,
-            fragmentShader: shellFragmentShader,
-            uniforms: uniforms,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
+        // Create shell material wrapper (auto-selects TSL/GLSL)
+        const shellMaterial = new ShellMaterial();
 
         // High-poly sphere for smooth SDF displacement
         const geometry = new THREE.SphereGeometry(1, 128, 128);
 
-        super(geometry, material);
+        super(geometry, shellMaterial.getMaterial());
 
-        this.uniforms = uniforms;
-        this.shellMaterial = material;
+        this.shellMaterial = shellMaterial;
+        this.uniforms = shellMaterial.uniforms;
         this.uiTargetPosition = new THREE.Vector3();
 
         this.config = {
@@ -85,8 +197,8 @@ export class ShellCollectible extends THREE.Mesh {
      * Update shell animation
      */
     public update(deltaTime: number, time: number, cameraPosition: THREE.Vector3): void {
-        this.uniforms.uTime.value = time;
-        this.uniforms.uCameraPosition.value.copy(cameraPosition);
+        this.shellMaterial.setTime(time);
+        this.shellMaterial.setCameraPosition(cameraPosition);
 
         switch (this.state) {
             case 'materializing':
@@ -109,15 +221,15 @@ export class ShellCollectible extends THREE.Mesh {
 
         if (this.materializeProgress >= 1.0) {
             this.materializeProgress = 1.0;
-            this.uniforms.uAppearProgress.value = 1.0;
-            this.uniforms.uDissolveAmount.value = 0.0;
+            this.shellMaterial.setAppearProgress(1.0);
+            this.shellMaterial.setDissolveAmount(0.0);
             this.state = 'idle';
             return;
         }
 
-        this.uniforms.uAppearProgress.value = this.materializeProgress;
+        this.shellMaterial.setAppearProgress(this.materializeProgress);
         // Dissolve from 1.0 to 0.0 during materialize
-        this.uniforms.uDissolveAmount.value = 1.0 - this.materializeProgress;
+        this.shellMaterial.setDissolveAmount(1.0 - this.materializeProgress);
     }
 
     /**
@@ -224,3 +336,6 @@ export class ShellCollectible extends THREE.Mesh {
         this.shellMaterial.dispose();
     }
 }
+
+// Export TSL class for advanced use cases
+export { ShellMaterialTSL } from '../shaders/tsl';

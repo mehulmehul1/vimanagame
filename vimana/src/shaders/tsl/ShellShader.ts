@@ -54,7 +54,6 @@ import {
     smoothstep,
     transformDirection,
     modelWorldMatrix,
-    localToWorld,
 } from 'three/tsl';
 
 // ============================================================================
