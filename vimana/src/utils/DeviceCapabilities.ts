@@ -27,6 +27,12 @@ export interface CapabilityInfo {
     cores: number;
     touch: boolean;
     mobile: boolean;
+    // Story 4.8: Platform detection for Visionary Gaussian splats
+    isUbuntu: boolean;
+    isMacOS: boolean;
+    isWindows: boolean;
+    visionarySupported: boolean;
+    visionaryWarning?: string;
 }
 
 export class DeviceCapabilities {
@@ -64,6 +70,9 @@ export class DeviceCapabilities {
             ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
             : 'Unknown GPU';
 
+        // Story 4.8: Platform detection for Visionary
+        const platformInfo = this.detectPlatform();
+
         return {
             tier: this.determineTier(gpu),
             gpu,
@@ -83,8 +92,45 @@ export class DeviceCapabilities {
             memory: this.estimateMemory(),
             cores: navigator.hardwareConcurrency || 4,
             touch: 'ontouchstart' in window || 'maxTouchPoints' in navigator && navigator.maxTouchPoints > 0,
-            mobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+            mobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+            isUbuntu: platformInfo.isUbuntu,
+            isMacOS: platformInfo.isMacOS,
+            isWindows: platformInfo.isWindows,
+            visionarySupported: platformInfo.visionarySupported,
+            visionaryWarning: platformInfo.visionaryWarning,
         };
+    }
+
+    /**
+     * Story 4.8: Detect platform for Visionary Gaussian splat support
+     * Ubuntu is NOT supported due to fp16 WebGPU bug
+     * macOS has limited support (M4 Max+ recommended)
+     */
+    private detectPlatform(): {
+        isUbuntu: boolean;
+        isMacOS: boolean;
+        isWindows: boolean;
+        visionarySupported: boolean;
+        visionaryWarning?: string;
+    } {
+        const userAgent = navigator.userAgent;
+        const platform = navigator.platform;
+
+        const isUbuntu = /Ubuntu/i.test(userAgent) || /Linux/i.test(platform);
+        const isMacOS = /Mac|iPod|iPhone|iPad/i.test(platform);
+        const isWindows = /Win/i.test(platform);
+
+        let visionarySupported = true;
+        let visionaryWarning: string | undefined;
+
+        if (isUbuntu) {
+            visionarySupported = false;
+            visionaryWarning = 'Visionary Gaussian splats are NOT supported on Ubuntu/Linux due to fp16 WebGPU bug.';
+        } else if (isMacOS) {
+            visionaryWarning = 'Visionary performance on macOS may be limited. M4 Max+ chip recommended.';
+        }
+
+        return { isUbuntu, isMacOS, isWindows, visionarySupported, visionaryWarning };
     }
 
     /**
@@ -135,6 +181,7 @@ export class DeviceCapabilities {
      * Get default info for systems without WebGL
      */
     private getDefaultInfo(): CapabilityInfo {
+        const platformInfo = this.detectPlatform();
         return {
             tier: 'low',
             gpu: 'Unknown',
@@ -154,7 +201,12 @@ export class DeviceCapabilities {
             memory: 4,
             cores: 4,
             touch: false,
-            mobile: false
+            mobile: false,
+            isUbuntu: platformInfo.isUbuntu,
+            isMacOS: platformInfo.isMacOS,
+            isWindows: platformInfo.isWindows,
+            visionarySupported: platformInfo.visionarySupported,
+            visionaryWarning: platformInfo.visionaryWarning,
         };
     }
 
@@ -239,6 +291,41 @@ export class DeviceCapabilities {
     }
 
     /**
+     * Story 4.8: Check if Visionary Gaussian splats are supported
+     */
+    public isVisionarySupported(): boolean {
+        return this.info.visionarySupported;
+    }
+
+    /**
+     * Story 4.8: Get Visionary warning message if any
+     */
+    public getVisionaryWarning(): string | undefined {
+        return this.info.visionaryWarning;
+    }
+
+    /**
+     * Story 4.8: Check if running on Ubuntu (not supported by Visionary)
+     */
+    public isUbuntu(): boolean {
+        return this.info.isUbuntu;
+    }
+
+    /**
+     * Story 4.8: Check if running on macOS (limited Visionary support)
+     */
+    public isMacOS(): boolean {
+        return this.info.isMacOS;
+    }
+
+    /**
+     * Story 4.8: Check if running on Windows (full Visionary support)
+     */
+    public isWindows(): boolean {
+        return this.info.isWindows;
+    }
+
+    /**
      * Log capability info (for debugging)
      */
     public logInfo(): void {
@@ -252,6 +339,12 @@ export class DeviceCapabilities {
         console.log('Mobile:', this.info.mobile);
         console.log('Touch:', this.info.touch);
         console.log('Max Texture Size:', this.info.maxTextureSize);
+        // Story 4.8: Visionary platform info
+        console.log('Platform: Ubuntu=' + this.info.isUbuntu + ', macOS=' + this.info.isMacOS + ', Windows=' + this.info.isWindows);
+        console.log('Visionary Supported:', this.info.visionarySupported);
+        if (this.info.visionaryWarning) {
+            console.warn('Visionary Warning:', this.info.visionaryWarning);
+        }
         console.groupEnd();
     }
 }
