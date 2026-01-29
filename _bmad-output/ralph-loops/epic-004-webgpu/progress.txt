@@ -81,3 +81,69 @@ Started: 2026-01-27
   - Three.js version r180.0 meets Visionary's r171.0+ requirement
 
 ---
+
+## [2025-01-29] - Story 004-004
+- Story: Water Material → TSL Migration
+- Files created:
+  - src/shaders/tsl/WaterShader.ts (TSL shader implementation)
+- Files modified:
+  - src/entities/WaterMaterial.ts (TSL/WebGPU detection and wrapper)
+  - src/shaders/tsl/index.ts (export WaterShader module)
+- Acceptance criteria validated:
+  - [x] Water shader converted to TSL using Fn() pattern in src/shaders/tsl/WaterShader.ts
+  - [x] Fresnel effect using dot(normalView, positionView.normalize())
+  - [x] pow(float(1).sub(dot(...)), float(3)) for edge intensity
+  - [x] Bioluminescent color mixing with mix()
+  - [x] 6-string frequency response with array uniforms
+  - [x] time (equivalent to timerLocal()) for animation time
+  - [x] Physical material properties: transmission, roughness, IOR
+  - [x] Jelly creature ripples preserved (6 jellies × 3 positions)
+  - [x] Sphere constraint animation for duet progress
+- Tests/verification performed:
+  - TypeScript compilation successful (npm run build)
+  - Full backward compatibility maintained with existing WaterMaterial API
+  - TSL material automatically selected when WebGPU is available
+  - GLSL fallback preserved for WebGL2
+- **Learnings for future iterations:**
+  - TSL requires manual loop unrolling - no native for loops in shader code
+  - uniform() with Float32Array for array uniforms (frequencies, velocities, positions)
+  - MeshPhysicalNodeMaterial provides physical properties (transmission, IOR, roughness)
+  - select() or If() for conditional logic in TSL
+  - positionWorld, normalWorld available globally in TSL fragment context
+  - WaterMaterial wrapper pattern (same as VortexMaterial) works well for dual TSL/GLSL support
+
+---
+
+## [2025-01-29] - Story 004-005
+- Story: Shell SDF → TSL Migration
+- Files created:
+  - src/shaders/tsl/ShellShader.ts (TSL shader implementation)
+- Files modified:
+  - src/shaders/tsl/index.ts (export ShellShader module)
+- Acceptance criteria validated:
+  - [x] Nautilus spiral SDF converted to TSL using Fn() pattern in src/shaders/tsl/ShellShader.ts
+  - [x] Iridescence effect using dot(viewDir, normal) with 5 colors
+  - [x] Simplex noise dissolve effect (snoise3 function in TSL)
+  - [x] 3-second appear animation with easing (smoothstep())
+  - [x] Easing functions in TSL (smoothstep)
+  - [x] Bobbing idle animation (sin(time * 2) * 0.05)
+  - [x] Fresnel-based edge glow (pow(1.0 - abs(dot(normal, viewDir)), 3.0))
+  - [x] Spiral pattern visualization on shell surface (atan + sin pattern)
+- Tests/verification performed:
+  - TypeScript compilation successful (npm run build)
+  - All TSL nodes properly imported and used
+  - 5-color iridescence with manual interpolation (TSL requires manual loop unrolling)
+  - ShellMaterialTSL class maintains API compatibility with original GLSL shader
+  - positionNode for vertex displacement (bobbing animation)
+  - opacityNode for dissolve + appear progress alpha
+- **Learnings for future iterations:**
+  - TSL requires manual loop unrolling - no native for loops in shader code
+  - snoise3 simplex noise uses simplified permutation for TSL compatibility
+  - Iridescence with 5 colors requires manual If() statements for color selection
+  - ShellMaterialTSL uses positionNode for bobbing animation (applied to vertices)
+  - opacityNode combines dissolve effect with appear progress
+  - smoothstep() works identically in TSL as GLSL
+  - transformDirection() required for normal world-space transformation
+  - localToWorld() for position world-space transformation
+
+---

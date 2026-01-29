@@ -60,7 +60,7 @@
         "Fresnel effect using dot() and normalize()"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "dependsOn": ["004-002"]
     },
     {
@@ -80,7 +80,7 @@
         "Sphere constraint animation for duet progress"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "dependsOn": ["004-003"]
     },
     {
@@ -99,7 +99,7 @@
         "Spiral pattern visualization on shell surface"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "dependsOn": ["004-004"]
     },
     {

@@ -7,6 +7,7 @@
  *
  * Story: 4.3 - Vortex Shader TSL Migration
  * Story: 4.4 - Water Material TSL Migration
+ * Story: 4.5 - Shell SDF TSL Migration
  * =====================================================================
  */
 
@@ -48,10 +49,30 @@ export {
     default as WaterDefault,
 } from './WaterShader';
 
+export {
+    ShellMaterialTSL,
+    snoise3,
+    shellIridescence,
+    shellSpiralPattern,
+    shellFresnel,
+    shellDissolve,
+    shellAppear,
+    shellDisplacement,
+    IRIDESCENT_COLOR_0,
+    IRIDESCENT_COLOR_1,
+    IRIDESCENT_COLOR_2,
+    IRIDESCENT_COLOR_3,
+    IRIDESCENT_COLOR_4,
+    BASE_SHELL_COLOR,
+    default as ShellDefault,
+} from './ShellShader';
+
 // Re-export for convenience
 export { VortexMaterialTSL as VortexMaterialTSL };
 export { WaterMaterialTSL as WaterMaterialTSL };
+export { ShellMaterialTSL as ShellMaterialTSL };
 
 // Type export for TypeScript
 export type { default as VortexMaterialTSLType } from './VortexShader';
 export type { default as WaterMaterialTSLType } from './WaterShader';
+export type { default as ShellMaterialTSLType } from './ShellShader';
