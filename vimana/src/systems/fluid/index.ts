@@ -4,9 +4,30 @@
  *
  * WaterBall fluid simulation system exports.
  * MLS-MPM particle physics with WebGPU compute shaders.
+ *
+ * Story 4.7: TSL Compute System Activation
+ * - TSL compute shaders for Three.js WebGPU integration
+ * - Raw WGSL compute shaders (existing MLSMPMSimulator)
  */
 
+// Raw WGSL compute shaders (existing implementation)
 export { MLSMPMSimulator, MAX_PARTICLES, MLSMPM_PARTICLE_STRUCT_SIZE } from './MLSMPMSimulator';
+
+// TSL compute shaders (Story 4.7 - Three.js WebGPU integration)
+export {
+    FluidComputeNode,
+    createFluidCompute,
+    createDesktopFluidCompute,
+    createMobileFluidCompute,
+} from './compute/FluidCompute';
+export { ParticleBuffers, createParticleBuffers } from './compute/ParticleBuffers';
+export {
+    createMLSMPMUniforms,
+    createSimpleFluidCompute,
+    updateUniforms,
+    getUniformValues,
+    DEFAULT_MLSPM_UNIFORMS,
+} from './compute/MLSMPMStages';
 export { DepthThicknessRenderer } from './render/DepthThicknessRenderer';
 export { FluidSurfaceRenderer } from './render/FluidSurfaceRenderer';
 export { createProceduralCubemap, createCubemapView } from './render/createCubemap';
