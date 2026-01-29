@@ -1,15 +1,34 @@
 import * as THREE from 'three';
 import { waterVertexShader, waterFragmentShader } from '../shaders';
+import { WaterMaterialTSL } from '../shaders/tsl';
+
+/**
+ * Detect if WebGPU/TSL is available
+ *
+ * Checks for global renderer type flag set by createWebGPURenderer
+ */
+function isWebGPURenderer(): boolean {
+    return (window as any).rendererType === 'WebGPU';
+}
 
 /**
  * EnhancedWaterMaterial - Bioluminescent water surface shader
  *
  * Responds to 6 harp strings with individual frequency tracking.
  * Creates ripple effects, caustics, and fresnel-based transparency.
+ *
+ * Automatically selects TSL (WebGPU) or GLSL (WebGL2) implementation
+ * based on the current renderer type.
+ *
+ * Story: 4.4 - Water Material TSL Migration
  */
-export class WaterMaterial extends THREE.ShaderMaterial {
+export class WaterMaterial {
+    private material: THREE.ShaderMaterial | InstanceType<typeof WaterMaterialTSL>;
+    private isTSL: boolean;
+
     private static readonly DEFAULT_COLOR = new THREE.Color(0x00ff88); // Cyan-green
 
+    // Uniforms object for API compatibility (GLSL mode only)
     public uniforms: {
         uTime: { value: number };
         uHarpFrequencies: { value: Float32Array };
@@ -33,6 +52,8 @@ export class WaterMaterial extends THREE.ShaderMaterial {
     };
 
     constructor() {
+        this.isTSL = isWebGPURenderer();
+
         // Initialize frequency arrays for 6 strings (C, D, E, F, G, A)
         const frequencies = new Float32Array(6);
         const velocities = new Float32Array(6);
@@ -42,53 +63,132 @@ export class WaterMaterial extends THREE.ShaderMaterial {
         const jellyVelocities = new Float32Array(6);     // Movement intensity
         const jellyActive = new Float32Array(6);         // Active state (0 or 1)
 
-        const uniforms = {
-            uTime: { value: 0 },
-            uHarpFrequencies: { value: frequencies },
-            uHarpVelocities: { value: velocities },
-            uDuetProgress: { value: 0 },
-            uShipPatience: { value: 1.0 },
-            uBioluminescentColor: { value: WaterMaterial.DEFAULT_COLOR.clone() },
-            uHarmonicResonance: { value: 0 },
-            uCameraPosition: { value: new THREE.Vector3() },
-            // WaterBall-inspired defaults
-            uSphereRadius: { value: 8.0 }, // Radius of sphere transformation
-            uSphereCenter: { value: new THREE.Vector3(0, 0, -5) }, // Center of sphere
-            uEnvMap: { value: null }, // Optional environment map for reflections
-            uThickness: { value: 1.0 }, // Water thickness for transmittance
-            uDensity: { value: 0.7 }, // Density for absorption (matches WaterBall)
-            uF0: { value: 0.02 }, // Fresnel base reflectance (water)
-            // Jelly creature interaction uniforms
-            uJellyPositions: { value: jellyPositions },
-            uJellyVelocities: { value: jellyVelocities },
-            uJellyActive: { value: jellyActive }
-        };
+        if (this.isTSL) {
+            // Use TSL material for WebGPU
+            this.material = new WaterMaterialTSL();
+            console.log('[WaterMaterial] Using TSL (WebGPU) implementation');
 
-        super({
-            vertexShader: waterVertexShader,
-            fragmentShader: waterFragmentShader,
-            uniforms: uniforms,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
+            // Initialize uniforms object for API compatibility
+            this.uniforms = {
+                uTime: { value: 0 },
+                uHarpFrequencies: { value: frequencies },
+                uHarpVelocities: { value: velocities },
+                uDuetProgress: { value: 0 },
+                uShipPatience: { value: 1.0 },
+                uBioluminescentColor: { value: WaterMaterial.DEFAULT_COLOR.clone() },
+                uHarmonicResonance: { value: 0 },
+                uCameraPosition: { value: new THREE.Vector3() },
+                // WaterBall-inspired defaults
+                uSphereRadius: { value: 8.0 }, // Radius of sphere transformation
+                uSphereCenter: { value: new THREE.Vector3(0, 0, -5) }, // Center of sphere
+                uEnvMap: { value: null }, // Optional environment map for reflections
+                uThickness: { value: 1.0 }, // Water thickness for transmittance
+                uDensity: { value: 0.7 }, // Density for absorption (matches WaterBall)
+                uF0: { value: 0.02 }, // Fresnel base reflectance (water)
+                // Jelly creature interaction uniforms
+                uJellyPositions: { value: jellyPositions },
+                uJellyVelocities: { value: jellyVelocities },
+                uJellyActive: { value: jellyActive }
+            };
+        } else {
+            // Use GLSL shader material for WebGL2 fallback
+            const uniforms = {
+                uTime: { value: 0 },
+                uHarpFrequencies: { value: frequencies },
+                uHarpVelocities: { value: velocities },
+                uDuetProgress: { value: 0 },
+                uShipPatience: { value: 1.0 },
+                uBioluminescentColor: { value: WaterMaterial.DEFAULT_COLOR.clone() },
+                uHarmonicResonance: { value: 0 },
+                uCameraPosition: { value: new THREE.Vector3() },
+                // WaterBall-inspired defaults
+                uSphereRadius: { value: 8.0 }, // Radius of sphere transformation
+                uSphereCenter: { value: new THREE.Vector3(0, 0, -5) }, // Center of sphere
+                uEnvMap: { value: null }, // Optional environment map for reflections
+                uThickness: { value: 1.0 }, // Water thickness for transmittance
+                uDensity: { value: 0.7 }, // Density for absorption (matches WaterBall)
+                uF0: { value: 0.02 }, // Fresnel base reflectance (water)
+                // Jelly creature interaction uniforms
+                uJellyPositions: { value: jellyPositions },
+                uJellyVelocities: { value: jellyVelocities },
+                uJellyActive: { value: jellyActive }
+            };
 
-        this.uniforms = uniforms;
+            this.material = new THREE.ShaderMaterial({
+                vertexShader: waterVertexShader,
+                fragmentShader: waterFragmentShader,
+                uniforms: uniforms,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            this.uniforms = uniforms;
+            console.log('[WaterMaterial] Using GLSL (WebGL2) implementation');
+        }
     }
+
+    // ========================================================================
+    // THREE.JS MATERIAL FORWARDING (makes WaterMaterial behave like Material)
+    // ========================================================================
+
+    /** Forward to material's transparent property */
+    get transparent(): boolean {
+        return this.material.transparent;
+    }
+    set transparent(value: boolean) {
+        this.material.transparent = value;
+    }
+
+    /** Forward to material's side property */
+    get side(): THREE.Side {
+        return this.material.side;
+    }
+    set side(value: THREE.Side) {
+        (this.material as THREE.ShaderMaterial).side = value;
+    }
+
+    /** Forward to material's depthWrite property */
+    get depthWrite(): boolean {
+        return this.material.depthWrite;
+    }
+    set depthWrite(value: boolean) {
+        this.material.depthWrite = value;
+    }
+
+    /** Forward to material's needsUpdate property */
+    get needsUpdate(): boolean {
+        return (this.material as THREE.ShaderMaterial).needsUpdate;
+    }
+    set needsUpdate(value: boolean) {
+        (this.material as THREE.ShaderMaterial).needsUpdate = value;
+    }
+
+    // ========================================================================
+    // PUBLIC API (same for both TSL and GLSL versions)
+    // ========================================================================
 
     /**
      * Update time for animation
      */
     public setTime(time: number): void {
-        this.uniforms.uTime.value = time;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setTime(time);
+        } else {
+            this.uniforms.uTime.value = time;
+        }
     }
 
     /**
      * Update harp string frequency (0-5 for strings C-A)
      */
     public setStringFrequency(index: number, frequency: number): void {
-        if (index >= 0 && index < 6) {
-            this.uniforms.uHarpFrequencies.value[index] = frequency;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setStringFrequency(index, frequency);
+        } else {
+            if (index >= 0 && index < 6) {
+                this.uniforms.uHarpFrequencies.value[index] = frequency;
+            }
         }
     }
 
@@ -96,8 +196,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Update harp string velocity for intensity modulation
      */
     public setStringVelocity(index: number, velocity: number): void {
-        if (index >= 0 && index < 6) {
-            this.uniforms.uHarpVelocities.value[index] = velocity;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setStringVelocity(index, velocity);
+        } else {
+            if (index >= 0 && index < 6) {
+                this.uniforms.uHarpVelocities.value[index] = velocity;
+            }
         }
     }
 
@@ -105,36 +209,59 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Update duet progress (0-1)
      */
     public setDuetProgress(progress: number): void {
-        this.uniforms.uDuetProgress.value = Math.max(0, Math.min(1, progress));
+        const clamped = Math.max(0, Math.min(1, progress));
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setDuetProgress(clamped);
+        } else {
+            this.uniforms.uDuetProgress.value = clamped;
+        }
     }
 
     /**
      * Update harmonic resonance intensity (0-1)
      */
     public setHarmonicResonance(resonance: number): void {
-        this.uniforms.uHarmonicResonance.value = Math.max(0, Math.min(1, resonance));
+        const clamped = Math.max(0, Math.min(1, resonance));
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setHarmonicResonance(clamped);
+        } else {
+            this.uniforms.uHarmonicResonance.value = clamped;
+        }
     }
 
     /**
      * Update ship patience teaching state
      */
     public setShipPatience(patience: number): void {
-        this.uniforms.uShipPatience.value = Math.max(0, Math.min(1, patience));
+        const clamped = Math.max(0, Math.min(1, patience));
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setShipPatience(clamped);
+        } else {
+            this.uniforms.uShipPatience.value = clamped;
+        }
     }
 
     /**
      * Update camera position for fresnel calculations
      */
     public setCameraPosition(position: THREE.Vector3): void {
-        this.uniforms.uCameraPosition.value.copy(position);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setCameraPosition(position);
+        } else {
+            this.uniforms.uCameraPosition.value.copy(position);
+        }
     }
 
     /**
      * Trigger ripple effect on a specific string
      */
     public triggerStringRipple(stringIndex: number, intensity: number = 1.0): void {
-        if (stringIndex >= 0 && stringIndex < 6) {
-            this.uniforms.uHarpVelocities.value[stringIndex] = intensity;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).triggerStringRipple(stringIndex, intensity);
+        } else {
+            if (stringIndex >= 0 && stringIndex < 6) {
+                this.uniforms.uHarpVelocities.value[stringIndex] = intensity;
+            }
         }
     }
 
@@ -142,10 +269,14 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Decay all velocities toward zero (call each frame)
      */
     public decayVelocities(deltaTime: number, decayRate: number = 2.0): void {
-        const velocities = this.uniforms.uHarpVelocities.value;
-        for (let i = 0; i < 6; i++) {
-            if (velocities[i] > 0) {
-                velocities[i] = Math.max(0, velocities[i] - decayRate * deltaTime);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).decayVelocities(deltaTime, decayRate);
+        } else {
+            const velocities = this.uniforms.uHarpVelocities.value;
+            for (let i = 0; i < 6; i++) {
+                if (velocities[i] > 0) {
+                    velocities[i] = Math.max(0, velocities[i] - decayRate * deltaTime);
+                }
             }
         }
     }
@@ -154,7 +285,7 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Cleanup method for memory management
      */
     public destroy(): void {
-        this.dispose();
+        this.material.dispose();
     }
 
     // ========== WaterBall-inspired Control Methods ==========
@@ -164,7 +295,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Higher values create larger sphere as duetProgress increases
      */
     public setSphereRadius(radius: number): void {
-        this.uniforms.uSphereRadius.value = Math.max(0.1, radius);
+        const clamped = Math.max(0.1, radius);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setSphereRadius(clamped);
+        } else {
+            this.uniforms.uSphereRadius.value = clamped;
+        }
     }
 
     /**
@@ -172,7 +308,11 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * This is the focal point around which the water forms a tunnel
      */
     public setSphereCenter(center: THREE.Vector3): void {
-        this.uniforms.uSphereCenter.value.copy(center);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setSphereCenter(center);
+        } else {
+            this.uniforms.uSphereCenter.value.copy(center);
+        }
     }
 
     /**
@@ -180,8 +320,14 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Pass null to use procedural gradient fallback
      */
     public setEnvMap(texture: THREE.Texture | null): void {
-        this.uniforms.uEnvMap.value = texture;
-        this.needsUpdate = true;
+        if (this.isTSL) {
+            // TSL uses MeshPhysicalNodeMaterial which handles envMap differently
+            // For now, we keep this for API compatibility
+            console.warn('[WaterMaterial] TSL envMap handling not yet implemented');
+        } else {
+            this.uniforms.uEnvMap.value = texture;
+            this.needsUpdate = true;
+        }
     }
 
     /**
@@ -189,7 +335,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Thicker water = more light absorption = deeper color
      */
     public setThickness(thickness: number): void {
-        this.uniforms.uThickness.value = Math.max(0.01, thickness);
+        const clamped = Math.max(0.01, thickness);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setThickness(clamped);
+        } else {
+            this.uniforms.uThickness.value = clamped;
+        }
     }
 
     /**
@@ -198,7 +349,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * WaterBall uses 0.7 as default
      */
     public setDensity(density: number): void {
-        this.uniforms.uDensity.value = Math.max(0, density);
+        const clamped = Math.max(0, density);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setDensity(clamped);
+        } else {
+            this.uniforms.uDensity.value = clamped;
+        }
     }
 
     /**
@@ -207,7 +363,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Higher = more reflective at glancing angles
      */
     public setF0(f0: number): void {
-        this.uniforms.uF0.value = Math.max(0, Math.min(1, f0));
+        const clamped = Math.max(0, Math.min(1, f0));
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setF0(clamped);
+        } else {
+            this.uniforms.uF0.value = clamped;
+        }
     }
 
     /**
@@ -215,8 +376,14 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Call this with duetProgress to smoothly transform flat water → sphere tunnel
      */
     public setSphereTransformation(progress: number, radius: number): void {
-        this.uniforms.uDuetProgress.value = Math.max(0, Math.min(1, progress));
-        this.uniforms.uSphereRadius.value = Math.max(0.1, radius);
+        const clampedProgress = Math.max(0, Math.min(1, progress));
+        const clampedRadius = Math.max(0.1, radius);
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setSphereTransformation(clampedProgress, clampedRadius);
+        } else {
+            this.uniforms.uDuetProgress.value = clampedProgress;
+            this.uniforms.uSphereRadius.value = clampedRadius;
+        }
     }
 
     // ========== Jelly Creature Interaction Methods ==========
@@ -227,11 +394,15 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * @param position World position of the jelly
      */
     public setJellyPosition(index: number, position: THREE.Vector3): void {
-        if (index >= 0 && index < 6) {
-            const arr = this.uniforms.uJellyPositions.value;
-            arr[index * 3 + 0] = position.x;
-            arr[index * 3 + 1] = position.y;
-            arr[index * 3 + 2] = position.z;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setJellyPosition(index, position);
+        } else {
+            if (index >= 0 && index < 6) {
+                const arr = this.uniforms.uJellyPositions.value;
+                arr[index * 3 + 0] = position.x;
+                arr[index * 3 + 1] = position.y;
+                arr[index * 3 + 2] = position.z;
+            }
         }
     }
 
@@ -241,8 +412,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * @param velocity Movement intensity (0-1 recommended)
      */
     public setJellyVelocity(index: number, velocity: number): void {
-        if (index >= 0 && index < 6) {
-            this.uniforms.uJellyVelocities.value[index] = velocity;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setJellyVelocity(index, velocity);
+        } else {
+            if (index >= 0 && index < 6) {
+                this.uniforms.uJellyVelocities.value[index] = velocity;
+            }
         }
     }
 
@@ -252,8 +427,12 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * @param active True if jelly is visible and should create ripples
      */
     public setJellyActive(index: number, active: boolean): void {
-        if (index >= 0 && index < 6) {
-            this.uniforms.uJellyActive.value[index] = active ? 1.0 : 0.0;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).setJellyActive(index, active);
+        } else {
+            if (index >= 0 && index < 6) {
+                this.uniforms.uJellyActive.value[index] = active ? 1.0 : 0.0;
+            }
         }
     }
 
@@ -262,25 +441,50 @@ export class WaterMaterial extends THREE.ShaderMaterial {
      * Call this each frame to sync jelly positions with water shader
      */
     public updateJellyPositions(jellyManager: any): void {
-        if (!jellyManager) return;
+        if (this.isTSL) {
+            (this.material as WaterMaterialTSL).updateJellyPositions(jellyManager);
+        } else {
+            if (!jellyManager) return;
 
-        for (let i = 0; i < 6; i++) {
-            const jelly = jellyManager.getJelly?.(i);
-            if (jelly && !jelly.isHidden?.()) {
-                // Update position
-                this.setJellyPosition(i, jelly.position);
+            for (let i = 0; i < 6; i++) {
+                const jelly = jellyManager.getJelly?.(i);
+                if (jelly && !jelly.isHidden?.()) {
+                    // Update position
+                    this.setJellyPosition(i, jelly.position);
 
-                // Calculate velocity based on state
-                const state = jelly.getState?.();
-                const isMoving = state === 'spawning' || state === 'submerging';
-                this.setJellyVelocity(i, isMoving ? 0.5 : 0.1);
+                    // Calculate velocity based on state
+                    const state = jelly.getState?.();
+                    const isMoving = state === 'spawning' || state === 'submerging';
+                    this.setJellyVelocity(i, isMoving ? 0.5 : 0.1);
 
-                // Mark as active
-                this.setJellyActive(i, true);
-            } else {
-                // Jelly is hidden
-                this.setJellyActive(i, false);
+                    // Mark as active
+                    this.setJellyActive(i, true);
+                } else {
+                    // Jelly is hidden
+                    this.setJellyActive(i, false);
+                }
             }
         }
     }
+
+    /**
+     * Get the underlying Three.js material
+     * For internal use with Three.js Mesh objects
+     */
+    public getMaterial(): THREE.Material {
+        return this.material;
+    }
+
+    /**
+     * Dispose method (alias for destroy)
+     */
+    public dispose(): void {
+        this.material.dispose();
+    }
 }
+
+/**
+ * Export the TSL class directly for advanced use cases
+ * Allows consumers to explicitly use TSL implementation
+ */
+export { WaterMaterialTSL } from '../shaders/tsl';
