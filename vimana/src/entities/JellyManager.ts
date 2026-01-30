@@ -9,6 +9,8 @@ import { JellyCreature } from './JellyCreature';
 export class JellyManager extends THREE.Group {
     private jellies: JellyCreature[] = [];
     private activeJelly: JellyCreature | null = null;
+    // STORY-HARP-101: Support multiple active jellies for phrase-first mode
+    private activeJellies: Set<JellyCreature> = new Set();
 
     // Story 1.2 spec: X offsets for 6 strings, Z is negative (toward camera)
     private static readonly JELLY_X_OFFSETS = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5];
@@ -70,6 +72,7 @@ export class JellyManager extends THREE.Group {
 
     /**
      * Spawn a jelly to demonstrate a specific string
+     * STORY-HARP-101: Now supports multiple active jellies
      */
     public spawnJelly(stringIndex: number): void {
         if (stringIndex >= 0 && stringIndex < this.jellies.length) {
@@ -77,6 +80,8 @@ export class JellyManager extends THREE.Group {
             if (jelly.isHidden()) {
                 jelly.spawn(stringIndex);
                 this.activeJelly = jelly;
+                // STORY-HARP-101: Track multiple active jellies
+                this.activeJellies.add(jelly);
             }
         }
     }
@@ -91,13 +96,34 @@ export class JellyManager extends THREE.Group {
     }
 
     /**
-     * Submerge active jelly
+     * Submerge active jelly (note-by-note mode)
+     * STORY-HARP-101: For phrase-first, use submergeAll() instead
      */
     public submergeActive(): void {
         if (this.activeJelly) {
             this.activeJelly.submerge();
+            this.activeJellies.delete(this.activeJelly);
             this.activeJelly = null;
         }
+    }
+
+    /**
+     * Submerge all active jellies (STORY-HARP-101)
+     * Used for synchronized splash turn signal
+     */
+    public submergeAll(): void {
+        for (const jelly of this.activeJellies) {
+            jelly.submerge();
+        }
+        this.activeJellies.clear();
+        this.activeJelly = null;
+    }
+
+    /**
+     * Get jelly by string index
+     */
+    public getJelly(stringIndex: number): JellyCreature | undefined {
+        return this.jellies[stringIndex];
     }
 
     /**
@@ -108,13 +134,6 @@ export class JellyManager extends THREE.Group {
             jelly.setCameraPosition(cameraPosition);
             jelly.update(deltaTime, time);
         }
-    }
-
-    /**
-     * Get jelly by string index
-     */
-    public getJelly(stringIndex: number): JellyCreature | undefined {
-        return this.jellies[stringIndex];
     }
 
     /**
@@ -134,5 +153,7 @@ export class JellyManager extends THREE.Group {
         }
         this.jellies = [];
         this.activeJelly = null;
+        // STORY-HARP-101: Clear active jellies set
+        this.activeJellies.clear();
     }
 }

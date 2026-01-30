@@ -8,6 +8,7 @@
  */
 
 import { JellyManager } from './JellyManager';
+import { JellyCreature } from './JellyCreature';
 import { HarmonyChord } from '../audio/HarmonyChord';
 import { DuetProgressTracker } from './DuetProgressTracker';
 import { FeedbackManager } from './FeedbackManager';
@@ -25,7 +26,29 @@ export enum DuetState {
     /** Playing harmony chord after correct note */
     PLAYING_HARMONY = 'PLAYING_HARMONY',
     /** All sequences complete */
-    COMPLETE = 'COMPLETE'
+    COMPLETE = 'COMPLETE',
+    /** All jellies demonstrating full phrase (STORY-HARP-101) */
+    PHRASE_DEMONSTRATION = 'PHRASE_DEMONSTRATION',
+    /** Synchronized splash turn signal (STORY-HARP-101) */
+    TURN_SIGNAL = 'TURN_SIGNAL',
+    /** Player's turn to replay phrase (STORY-HARP-101) */
+    AWAITING_PHRASE_RESPONSE = 'AWAITING_PHRASE_RESPONSE'
+}
+
+/**
+ * Teaching mode configuration (STORY-HARP-101)
+ */
+export interface TeachingModeConfig {
+    /** Active teaching mode */
+    mode: 'phrase-first' | 'note-by-note';
+    /** Show all jellies at once (phrase-first) */
+    showAllJellies: boolean;
+    /** Use synchronized splash turn signal */
+    synchronizedSplash: boolean;
+    /** Delay between jelly emergence in milliseconds */
+    jellyStaggerMs: number;
+    /** Duration each demonstration note plays */
+    demoNoteDuration: number;
 }
 
 /**
@@ -51,6 +74,10 @@ export interface DuetCallbacks {
     onDemonstrationStart?: (noteIndex: number) => void;
     /** Called when demonstration ends (jelly submerges) */
     onDemonstrationEnd?: (noteIndex: number) => void;
+    /** Called when a note is demonstrated in phrase-first mode (STORY-HARP-101) */
+    onNoteDemonstrated?: (noteIndex: number, sequenceIndex: number) => void;
+    /** Called when synchronized splash completes (STORY-HARP-102) */
+    onTurnSignalComplete?: () => void;
 }
 
 export interface PatientJellyConfig {
@@ -82,6 +109,19 @@ export class PatientJellyManager {
     private demoTimeout: number | null = null;
     private redemoTimeout: number | null = null;
     private sequenceTimeout: number | null = null;
+
+    // STORY-HARP-101: Teaching mode support
+    private teachingMode: 'phrase-first' | 'note-by-note' = 'phrase-first';
+    private teachingModeConfig: TeachingModeConfig = {
+        mode: 'phrase-first',
+        showAllJellies: true,
+        synchronizedSplash: true,
+        jellyStaggerMs: 800,
+        demoNoteDuration: 1.5
+    };
+    // Track active jellies for phrase-first mode
+    private activeJellies: Map<number, JellyCreature> = new Map();
+    private phraseTimeouts: number[] = [];
 
     constructor(
         jellyManager: JellyManager,
@@ -402,6 +442,11 @@ export class PatientJellyManager {
             clearTimeout(this.sequenceTimeout);
             this.sequenceTimeout = null;
         }
+        // STORY-HARP-101: Clear phrase timeouts
+        for (const timeoutId of this.phraseTimeouts) {
+            clearTimeout(timeoutId);
+        }
+        this.phraseTimeouts = [];
     }
 
     /**
@@ -423,7 +468,132 @@ export class PatientJellyManager {
         this.currentNoteIndex = 0;
         this.isRedemonstrating = false;
         this.progressTracker.reset();
+        // STORY-HARP-101: Clear active jellies
+        this.activeJellies.clear();
         this.jellyManager.submergeActive();
+    }
+
+    // ============================================================
+    // STORY-HARP-101: Phrase-First Teaching Mode
+    // ============================================================
+
+    /**
+     * Set teaching mode (phrase-first or note-by-note)
+     */
+    public setTeachingMode(mode: 'phrase-first' | 'note-by-note'): void {
+        this.teachingMode = mode;
+        this.teachingModeConfig.mode = mode;
+        this.teachingModeConfig.showAllJellies = (mode === 'phrase-first');
+        this.teachingModeConfig.synchronizedSplash = (mode === 'phrase-first');
+        console.log(`[PatientJellyManager] Teaching mode set to: ${mode}`);
+    }
+
+    /**
+     * Get current teaching mode
+     */
+    public getTeachingMode(): 'phrase-first' | 'note-by-note' {
+        return this.teachingMode;
+    }
+
+    /**
+     * Start phrase-first demonstration (all jellies show sequence)
+     * All jellyfish emerge sequentially to demonstrate the full phrase,
+     * then wait for the player to remember and replay the entire sequence.
+     */
+    public startPhraseFirstSequence(sequenceIndex: number): void {
+        if (this.state === DuetState.COMPLETE) return;
+        if (sequenceIndex < 0 || sequenceIndex >= TEACHING_SEQUENCES.length) return;
+
+        console.log(`[PatientJellyManager] Starting phrase-first sequence ${sequenceIndex}`);
+
+        this.state = DuetState.PHRASE_DEMONSTRATION;
+        this.currentSequence = sequenceIndex;
+        this.currentNoteIndex = 0;
+        this.isRedemonstrating = false;
+
+        // Clear any previous active jellies
+        this.activeJellies.clear();
+
+        const sequence = TEACHING_SEQUENCES[sequenceIndex];
+        const staggerMs = this.teachingModeConfig.jellyStaggerMs;
+
+        // Spawn ALL jellies for the sequence with staggered timing
+        for (let i = 0; i < sequence.length; i++) {
+            const noteIndex = sequence[i];
+
+            // Schedule each jelly's emergence
+            const timeoutId = window.setTimeout(() => {
+                // Spawn jelly at target string position
+                this.jellyManager.spawnJelly(noteIndex);
+                const jelly = this.jellyManager.getJelly(noteIndex);
+
+                if (jelly) {
+                    this.activeJellies.set(noteIndex, jelly);
+
+                    // Start teaching animation after brief delay
+                    setTimeout(() => {
+                        this.jellyManager.beginTeaching();
+                        this.harmonyChord.playDemonstrationNote(noteIndex, this.teachingModeConfig.demoNoteDuration);
+                    }, 100);
+
+                    // Trigger callback for visual indicators
+                    if (this.callbacks.onNoteDemonstrated) {
+                        this.callbacks.onNoteDemonstrated(noteIndex, i);
+                    }
+
+                    console.log(`[PatientJellyManager] Demonstrated note ${noteIndex} (#${i + 1} in phrase)`);
+                }
+            }, i * staggerMs);
+
+            this.phraseTimeouts.push(timeoutId);
+        }
+
+        // After all notes demonstrated, trigger synchronized splash (turn signal)
+        const totalDemoTime = sequence.length * staggerMs + (this.teachingModeConfig.demoNoteDuration * 1000) + 500;
+        const splashTimeoutId = window.setTimeout(() => {
+            this.triggerSynchronizedSplash(sequence);
+        }, totalDemoTime);
+
+        this.phraseTimeouts.push(splashTimeoutId);
+    }
+
+    /**
+     * Trigger synchronized splash (STORY-HARP-101 placeholder, implemented in harp-102)
+     * All jellies submerge together as the "your turn" signal
+     */
+    private triggerSynchronizedSplash(sequence: readonly number[]): void {
+        console.log('[PatientJellyManager] Triggering synchronized splash (turn signal)');
+        this.state = DuetState.TURN_SIGNAL;
+
+        // For now, simple submerge - STORY-HARP-102 will add the full effect
+        for (const noteIndex of sequence) {
+            const jelly = this.activeJellies.get(noteIndex);
+            if (jelly) {
+                jelly.submerge();
+            }
+        }
+
+        // Clear active jellies tracking
+        this.activeJellies.clear();
+
+        // Transition to awaiting phrase response after brief delay
+        setTimeout(() => {
+            this.transitionToAwaitingPhraseResponse();
+        }, 500);
+    }
+
+    /**
+     * Transition to awaiting phrase response state
+     */
+    private transitionToAwaitingPhraseResponse(): void {
+        this.state = DuetState.AWAITING_PHRASE_RESPONSE;
+        this.currentNoteIndex = 0; // Player starts from beginning of phrase
+        console.log('[PatientJellyManager] Player\'s turn - awaiting phrase response');
+
+        // Trigger callback for turn signal complete
+        if (this.callbacks.onTurnSignalComplete) {
+            this.callbacks.onTurnSignalComplete();
+        }
     }
 
     /**
