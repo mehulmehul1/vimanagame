@@ -68,8 +68,26 @@ export async function createOptimalRenderer(options = {}, canvas = null, constra
         try {
             logger.log('✨ Creating WebGPU renderer...');
 
-            // WebGPURenderer requires async initialization
-            const renderer = new WebGPURenderer(rendererOptions);
+            // Request higher compute workgroup storage for Visionary compute shaders
+            // Visionary needs 32768 bytes for its sorting pipelines (default is 16384)
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                throw new Error('Failed to get WebGPU adapter');
+            }
+
+            // Check adapter limits and request maxComputeWorkgroupStorageSize for Visionary
+            const adapterLimits = adapter.limits;
+            const requiredLimits = {
+                maxComputeWorkgroupStorageSize: Math.min(32768, adapterLimits.maxComputeWorkgroupStorageSize),
+            };
+
+            const device = await adapter.requestDevice({ requiredLimits });
+
+            // WebGPURenderer requires async initialization with custom device
+            const renderer = new WebGPURenderer({
+                ...rendererOptions,
+                device, // Use device with proper compute limits
+            });
 
             // WebGPURenderer needs to be initialized before use
             await renderer.init();

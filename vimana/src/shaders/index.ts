@@ -707,3 +707,193 @@ void main() {
     gl_FragColor = vec4(color, alpha);
 }
 `;
+
+// ============================================================================
+// UI EFFECT SHADERS (Story 4.7 - UI Effects TSL Migration)
+// ============================================================================
+
+// Summon Ring Shader
+export const summonRingVertexShader = `
+    varying vec2 vUv;
+    void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+export const summonRingFragmentShader = `
+    uniform float uTime;
+    uniform float uDuration;
+    uniform vec3 uColor;
+    varying vec2 vUv;
+
+    void main() {
+        // Distance from center (0.5, 0.5 is center)
+        vec2 center = vec2(0.5, 0.5);
+        float dist = distance(vUv, center);
+
+        // Progress (0 to 1)
+        float progress = uTime / uDuration;
+
+        // Create expanding ring
+        float ringWidth = 0.15;
+        float ringCenter = progress * 0.8;
+        float ring = 1.0 - smoothstep(ringCenter, ringCenter + ringWidth, dist);
+        ring *= smoothstep(ringCenter - ringWidth, ringCenter, dist);
+
+        // Fade out at edges
+        float alpha = ring * (1.0 - progress);
+
+        // Inner glow
+        float innerGlow = 1.0 - smoothstep(0.0, 0.3, dist);
+        innerGlow *= progress * 0.5;
+
+        vec3 finalColor = uColor * (ring + innerGlow);
+        float finalAlpha = alpha * 0.8 + innerGlow * 0.3;
+
+        gl_FragColor = vec4(finalColor, finalAlpha);
+    }
+`;
+
+// String Highlight Shader
+export const stringHighlightVertexShader = `
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+export const stringHighlightFragmentShader = `
+    uniform float uIntensity;
+    uniform vec3 uColor;
+    uniform vec3 uCameraPosition;
+    uniform float uTime;
+
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    void main() {
+        // Fresnel rim lighting
+        vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
+        float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
+
+        // Animated pulse traveling up the string
+        float pulse = sin(vUv.y * 10.0 - uTime * 5.0) * 0.5 + 0.5;
+        pulse = pow(pulse, 2.0);
+
+        // Combine effects
+        float glow = fresnel * 0.7 + pulse * 0.3;
+
+        // Apply intensity
+        vec3 color = uColor * glow * uIntensity;
+
+        // Alpha based on intensity and fresnel
+        float alpha = (fresnel * 0.5 + 0.3) * uIntensity;
+
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
+
+// Note Visualizer Shader
+export const noteVisualizerVertexShader = `
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+export const noteVisualizerFragmentShader = `
+    uniform float uIntensity;
+    uniform vec3 uColor;
+    uniform vec3 uCameraPosition;
+
+    varying vec3 vNormal;
+    varying vec3 vWorldPosition;
+    varying vec2 vUv;
+
+    void main() {
+        // Fresnel edge glow
+        vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
+        float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 2.0);
+
+        // Vertical gradient (brighter at top)
+        float verticalGrad = vUv.y;
+
+        // Combine
+        vec3 color = uColor;
+        color += vec3(1.0) * fresnel * 0.5;
+        color *= uIntensity;
+
+        float alpha = (0.3 + verticalGrad * 0.5 + fresnel * 0.2) * uIntensity;
+
+        gl_FragColor = vec4(color, alpha);
+    }
+`;
+
+// Teaching Beam Shader
+export const teachingBeamVertexShader = `
+    varying vec2 vUv;
+    varying vec3 vWorldPosition;
+    varying vec3 vNormal;
+
+    void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = worldPos.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+export const teachingBeamFragmentShader = `
+    uniform float uTime;
+    uniform float uIntensity;
+    uniform vec3 uColor;
+    uniform vec3 uCameraPosition;
+
+    varying vec2 vUv;
+    varying vec3 vWorldPosition;
+    varying vec3 vNormal;
+
+    void main() {
+        // Scrolling effect for energy flow
+        float flow = mod(vUv.y * 4.0 - uTime * 3.0, 1.0);
+        float pulse = sin(flow * 6.28) * 0.5 + 0.5;
+
+        // Fresnel edge glow
+        vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
+        float fresnel = pow(1.0 - abs(dot(viewDir, vNormal)), 2.0);
+
+        // Core beam
+        float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
+        core = pow(core, 3.0);
+
+        // Combine effects
+        float beam = core * 0.6 + fresnel * 0.4;
+        beam += pulse * 0.3;
+
+        // Color with intensity
+        vec3 color = uColor * beam * uIntensity;
+
+        // Alpha fades at ends
+        float endFade = smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
+        float alpha = beam * endFade * uIntensity;
+
+        gl_FragColor = vec4(color, alpha);
+    }
+`;

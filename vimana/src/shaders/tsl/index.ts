@@ -86,13 +86,52 @@ export {
 } from './JellyShader';
 
 // Re-export for convenience
-export { VortexMaterialTSL as VortexMaterialTSL };
-export { WaterMaterialTSL as WaterMaterialTSL };
-export { ShellMaterialTSL as ShellMaterialTSL };
-export { JellyMaterialTSL as JellyMaterialTSL };
+// Re-exports removed to avoid duplicates
 
 // Type export for TypeScript
 export type { default as VortexMaterialTSLType } from './VortexShader';
 export type { default as WaterMaterialTSLType } from './WaterShader';
 export type { default as ShellMaterialTSLType } from './ShellShader';
 export type { default as JellyMaterialTSLType } from './JellyShader';
+
+export {
+    WhiteFlashMaterialTSL,
+    uProgress as flashProgress,
+    uIntensity as flashIntensity,
+    uColor as flashColor
+} from './WhiteFlashShader';
+
+// ============================================================================
+// UI EFFECT SHADERS (Story 4.7 - UI Effects TSL Migration)
+// ============================================================================
+
+export {
+    SummonRingMaterialTSL,
+    uTime as summonTime,
+    uDuration as summonDuration,
+    uColor as summonColor
+} from './SummonRingShader';
+
+export {
+    StringHighlightMaterialTSL,
+    uTime as highlightTime,
+    uIntensity as highlightIntensity,
+    uColor as highlightColor,
+    uCameraPosition as highlightCameraPosition
+} from './StringHighlightShader';
+
+export {
+    NoteVisualizerMaterialTSL,
+    uTime as visualizerTime,
+    uColor as visualizerColor,
+    uIntensity as visualizerIntensity,
+    uCameraPosition as visualizerCameraPosition
+} from './NoteVisualizerShader';
+
+export {
+    TeachingBeamMaterialTSL,
+    uTime as beamTime,
+    uIntensity as beamIntensity,
+    uColor as beamColor,
+    uCameraPosition as beamCameraPosition
+} from './TeachingBeamShader';

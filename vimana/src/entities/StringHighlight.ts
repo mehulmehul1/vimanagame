@@ -1,10 +1,21 @@
 import * as THREE from 'three';
+import { stringHighlightVertexShader, stringHighlightFragmentShader } from '../shaders';
+import { StringHighlightMaterialTSL } from '../shaders/tsl';
+
+/**
+ * Detect if WebGPU/TSL is available
+ */
+function isWebGPURenderer(): boolean {
+    return (window as any).rendererType === 'WebGPU';
+}
 
 /**
  * StringHighlight - Manages glow effects on harp strings
  *
  * Adds glowing outlines and animations to strings during demonstration
  * to make it obvious which string the player should play.
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 export class StringHighlight extends THREE.Group {
     private highlights: Map<number, StringGlow> = new Map();
@@ -53,7 +64,6 @@ export class StringHighlight extends THREE.Group {
      * Update all highlights
      */
     public update(deltaTime: number, time: number): void {
-        // Update all active highlights
         this.highlights.forEach(glow => glow.update(deltaTime, time));
 
         // Clean up fully faded highlights
@@ -91,17 +101,31 @@ export class StringHighlight extends THREE.Group {
 
 /**
  * StringGlow - Individual string glow effect
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 class StringGlow extends THREE.Mesh {
-    private material: THREE.ShaderMaterial;
+    private material: THREE.ShaderMaterial | StringHighlightMaterialTSL;
+    private isTSL: boolean;
     private state: 'activating' | 'active' | 'deactivating' | 'inactive' = 'inactive';
     private animTime: number = 0;
     private intensity: number = 0;
+
+    // Uniforms object for API compatibility (GLSL mode only)
+    public uniforms: {
+        uTime: { value: number };
+        uIntensity: { value: number };
+        uColor: { value: THREE.Color };
+        uCameraPosition: { value: THREE.Vector3 };
+    };
 
     constructor(position: THREE.Vector3) {
         // Vertical capsule/cylinder for string glow
         const geometry = new THREE.CapsuleGeometry(0.08, 2, 8, 16);
 
+        const isTSL = isWebGPURenderer();
+
+        // Initialize uniforms for GLSL mode
         const uniforms = {
             uTime: { value: 0 },
             uIntensity: { value: 0 },
@@ -109,64 +133,29 @@ class StringGlow extends THREE.Mesh {
             uCameraPosition: { value: new THREE.Vector3() }
         };
 
-        const vertexShader = `
-            varying vec3 vNormal;
-            varying vec3 vWorldPosition;
-            varying vec2 vUv;
+        let material: THREE.ShaderMaterial | StringHighlightMaterialTSL;
 
-            void main() {
-                vNormal = normalize(normalMatrix * normal);
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPosition = worldPos.xyz;
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `;
+        if (isTSL) {
+            material = new StringHighlightMaterialTSL();
+            console.log('[StringHighlight] Using TSL (WebGPU) implementation');
+        } else {
+            material = new THREE.ShaderMaterial({
+                vertexShader: stringHighlightVertexShader,
+                fragmentShader: stringHighlightFragmentShader,
+                uniforms: uniforms,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+            console.log('[StringHighlight] Using GLSL (WebGL2) implementation');
+        }
 
-        const fragmentShader = `
-            uniform float uIntensity;
-            uniform vec3 uColor;
-            uniform vec3 uCameraPosition;
-            uniform float uTime;
-
-            varying vec3 vNormal;
-            varying vec3 vWorldPosition;
-            varying vec2 vUv;
-
-            void main() {
-                // Fresnel rim lighting
-                vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
-                float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
-
-                // Animated pulse traveling up the string
-                float pulse = sin(vUv.y * 10.0 - uTime * 5.0) * 0.5 + 0.5;
-                pulse = pow(pulse, 2.0);
-
-                // Combine effects
-                float glow = fresnel * 0.7 + pulse * 0.3;
-
-                // Apply intensity
-                vec3 color = uColor * glow * uIntensity;
-
-                // Alpha based on intensity and fresnel
-                float alpha = (fresnel * 0.5 + 0.3) * uIntensity;
-
-                gl_FragColor = vec4(color, alpha);
-            }
-        `;
-
-        const material = new THREE.ShaderMaterial({
-            vertexShader,
-            fragmentShader,
-            uniforms,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide
-        });
-
+        // MUST call super() before accessing 'this'
         super(geometry, material);
         this.material = material;
+        this.isTSL = isTSL;
+        this.uniforms = uniforms;
 
         this.position.copy(position);
         this.visible = false;
@@ -190,8 +179,7 @@ class StringGlow extends THREE.Mesh {
     }
 
     public update(deltaTime: number, time: number): void {
-        this.material.uniforms.uTime.value = time;
-        // Camera position would be set by parent
+        this.setTime(time);
 
         const fadeSpeed = 4.0;
 
@@ -204,7 +192,6 @@ class StringGlow extends THREE.Mesh {
                 break;
 
             case 'active':
-                // Pulse intensity slightly while active
                 this.intensity = 0.8 + Math.sin(time * 3) * 0.2;
                 break;
 
@@ -217,7 +204,7 @@ class StringGlow extends THREE.Mesh {
                 break;
         }
 
-        this.material.uniforms.uIntensity.value = this.intensity;
+        this.setIntensity(this.intensity);
     }
 
     public isActive(): boolean {
@@ -229,7 +216,27 @@ class StringGlow extends THREE.Mesh {
     }
 
     public setCameraPosition(position: THREE.Vector3): void {
-        this.material.uniforms.uCameraPosition.value.copy(position);
+        if (this.isTSL) {
+            (this.material as StringHighlightMaterialTSL).setCameraPosition(position);
+        } else {
+            this.uniforms.uCameraPosition.value.copy(position);
+        }
+    }
+
+    private setTime(time: number): void {
+        if (this.isTSL) {
+            (this.material as StringHighlightMaterialTSL).setTime(time);
+        } else {
+            this.uniforms.uTime.value = time;
+        }
+    }
+
+    private setIntensity(value: number): void {
+        if (this.isTSL) {
+            (this.material as StringHighlightMaterialTSL).setIntensity(value);
+        } else {
+            this.uniforms.uIntensity.value = value;
+        }
     }
 
     public destroy(): void {

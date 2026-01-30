@@ -1,10 +1,21 @@
 import * as THREE from 'three';
+import { noteVisualizerVertexShader, noteVisualizerFragmentShader } from '../shaders';
+import { NoteVisualizerMaterialTSL } from '../shaders/tsl';
+
+/**
+ * Detect if WebGPU/TSL is available
+ */
+function isWebGPURenderer(): boolean {
+    return (window as any).rendererType === 'WebGPU';
+}
 
 /**
  * NoteVisualizer - Visual representation of notes being played
  *
  * Shows vertical bars above each harp string when notes are demonstrated
  * or played. Height represents frequency, color represents note.
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 export class NoteVisualizer extends THREE.Group {
     private bars: VisualizerBar[] = [];
@@ -47,7 +58,6 @@ export class NoteVisualizer extends THREE.Group {
     private updateBarPositions(): void {
         for (let i = 0; i < this.bars.length && i < this.stringPositions.length; i++) {
             const pos = this.stringPositions[i];
-            // Position bar above string
             this.bars[i].updatePosition(
                 new THREE.Vector3(pos.x, pos.y + 1.5, pos.z)
             );
@@ -101,9 +111,12 @@ export class NoteVisualizer extends THREE.Group {
 
 /**
  * VisualizerBar - Individual note visualization bar
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 class VisualizerBar extends THREE.Mesh {
-    private material: THREE.ShaderMaterial;
+    private material: THREE.ShaderMaterial | NoteVisualizerMaterialTSL;
+    private isTSL: boolean;
     private baseHeight: number = 1.0;
     private currentHeight: number = 0;
     private state: 'idle' | 'rising' | 'holding' | 'falling' = 'idle';
@@ -111,13 +124,23 @@ class VisualizerBar extends THREE.Mesh {
     private holdDuration: number = 0.5;
     private color: THREE.Color;
 
+    // Uniforms object for API compatibility (GLSL mode only)
+    public uniforms: {
+        uTime: { value: number };
+        uColor: { value: THREE.Color };
+        uIntensity: { value: number };
+        uCameraPosition: { value: THREE.Vector3 };
+    };
+
     constructor(color: number) {
         // Box geometry for bar
         const geometry = new THREE.BoxGeometry(0.15, 1, 0.15);
         geometry.translate(0, 0.5, 0); // Pivot at bottom
 
         const noteColor = new THREE.Color(color);
+        const isTSL = isWebGPURenderer();
 
+        // Initialize uniforms for GLSL mode
         const uniforms = {
             uTime: { value: 0 },
             uColor: { value: noteColor },
@@ -125,59 +148,29 @@ class VisualizerBar extends THREE.Mesh {
             uCameraPosition: { value: new THREE.Vector3() }
         };
 
-        const vertexShader = `
-            varying vec3 vNormal;
-            varying vec3 vWorldPosition;
-            varying vec2 vUv;
+        let material: THREE.ShaderMaterial | NoteVisualizerMaterialTSL;
 
-            void main() {
-                vNormal = normalize(normalMatrix * normal);
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPosition = worldPos.xyz;
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `;
+        if (isTSL) {
+            material = new NoteVisualizerMaterialTSL();
+            (material as NoteVisualizerMaterialTSL).setColor(noteColor);
+            console.log('[NoteVisualizer] Using TSL (WebGPU) implementation');
+        } else {
+            material = new THREE.ShaderMaterial({
+                vertexShader: noteVisualizerVertexShader,
+                fragmentShader: noteVisualizerFragmentShader,
+                uniforms: uniforms,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            console.log('[NoteVisualizer] Using GLSL (WebGL2) implementation');
+        }
 
-        const fragmentShader = `
-            uniform float uIntensity;
-            uniform vec3 uColor;
-            uniform vec3 uCameraPosition;
-
-            varying vec3 vNormal;
-            varying vec3 vWorldPosition;
-            varying vec2 vUv;
-
-            void main() {
-                // Fresnel edge glow
-                vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
-                float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 2.0);
-
-                // Vertical gradient (brighter at top)
-                float verticalGrad = vUv.y;
-
-                // Combine
-                vec3 color = uColor;
-                color += vec3(1.0) * fresnel * 0.5;
-                color *= uIntensity;
-
-                float alpha = (0.3 + verticalGrad * 0.5 + fresnel * 0.2) * uIntensity;
-
-                gl_FragColor = vec4(color, alpha);
-            }
-        `;
-
-        const material = new THREE.ShaderMaterial({
-            vertexShader,
-            fragmentShader,
-            uniforms,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
-
+        // MUST call super() before accessing 'this'
         super(geometry, material);
         this.material = material;
+        this.isTSL = isTSL;
+        this.uniforms = uniforms;
         this.color = noteColor;
 
         this.scale.y = 0;
@@ -202,7 +195,7 @@ class VisualizerBar extends THREE.Mesh {
     }
 
     public update(deltaTime: number, time: number): void {
-        this.material.uniforms.uTime.value = time;
+        this.setTime(time);
 
         const riseSpeed = 4.0;
         const fallSpeed = 3.0;
@@ -213,7 +206,7 @@ class VisualizerBar extends THREE.Mesh {
                     this.baseHeight,
                     this.currentHeight + deltaTime * riseSpeed * 2
                 );
-                this.material.uniforms.uIntensity.value = Math.min(1, this.currentHeight / this.baseHeight);
+                this.setIntensity(Math.min(1, this.currentHeight / this.baseHeight));
 
                 if (this.currentHeight >= this.baseHeight) {
                     this.state = 'holding';
@@ -223,9 +216,8 @@ class VisualizerBar extends THREE.Mesh {
 
             case 'holding':
                 this.animTime += deltaTime;
-                // Subtle pulse while holding
                 const pulse = Math.sin(time * 8) * 0.1 + 0.9;
-                this.material.uniforms.uIntensity.value = pulse;
+                this.setIntensity(pulse);
 
                 if (this.animTime >= this.holdDuration) {
                     this.state = 'falling';
@@ -235,7 +227,7 @@ class VisualizerBar extends THREE.Mesh {
 
             case 'falling':
                 this.currentHeight = Math.max(0, this.currentHeight - deltaTime * fallSpeed);
-                this.material.uniforms.uIntensity.value = this.currentHeight / this.baseHeight;
+                this.setIntensity(this.currentHeight / this.baseHeight);
 
                 if (this.currentHeight <= 0) {
                     this.state = 'idle';
@@ -249,7 +241,27 @@ class VisualizerBar extends THREE.Mesh {
     }
 
     public setCameraPosition(position: THREE.Vector3): void {
-        this.material.uniforms.uCameraPosition.value.copy(position);
+        if (this.isTSL) {
+            (this.material as NoteVisualizerMaterialTSL).setCameraPosition(position);
+        } else {
+            this.uniforms.uCameraPosition.value.copy(position);
+        }
+    }
+
+    private setTime(time: number): void {
+        if (this.isTSL) {
+            (this.material as NoteVisualizerMaterialTSL).setTime(time);
+        } else {
+            this.uniforms.uTime.value = time;
+        }
+    }
+
+    private setIntensity(value: number): void {
+        if (this.isTSL) {
+            (this.material as NoteVisualizerMaterialTSL).setIntensity(value);
+        } else {
+            this.uniforms.uIntensity.value = value;
+        }
     }
 
     public destroy(): void {

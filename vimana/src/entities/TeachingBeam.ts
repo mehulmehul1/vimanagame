@@ -1,4 +1,13 @@
 import * as THREE from 'three';
+import { teachingBeamVertexShader, teachingBeamFragmentShader } from '../shaders';
+import { TeachingBeamMaterialTSL } from '../shaders/tsl';
+
+/**
+ * Detect if WebGPU/TSL is available
+ */
+function isWebGPURenderer(): boolean {
+    return (window as any).rendererType === 'WebGPU';
+}
 
 /**
  * TeachingBeam - Visual beam connecting jelly to target string
@@ -6,9 +15,12 @@ import * as THREE from 'three';
  * Creates a glowing energy beam that shows players which string
  * the jelly is demonstrating. Uses a scrolling texture for
  * animated flow effect.
+ *
+ * Auto-selects TSL (WebGPU) or GLSL (WebGL2) implementation.
  */
 export class TeachingBeam extends THREE.Mesh {
-    private material: THREE.ShaderMaterial;
+    private material: THREE.ShaderMaterial | TeachingBeamMaterialTSL;
+    private isTSL: boolean;
     private animTime: number = 0;
     private intensity: number = 0;
     private targetIntensity: number = 0;
@@ -16,62 +28,21 @@ export class TeachingBeam extends THREE.Mesh {
     private stringPosition: THREE.Vector3;
     private isActive: boolean = false;
 
+    // Uniforms object for API compatibility (GLSL mode only)
+    public uniforms: {
+        uTime: { value: number };
+        uIntensity: { value: number };
+        uColor: { value: THREE.Color };
+        uCameraPosition: { value: THREE.Vector3 };
+    };
+
     constructor() {
         // Cylinder geometry (will be stretched and oriented)
         const geometry = new THREE.CylinderGeometry(0.08, 0.08, 1, 16, 1, true);
 
-        const vertexShader = `
-            varying vec2 vUv;
-            varying vec3 vWorldPosition;
-            varying vec3 vNormal;
+        const isTSL = isWebGPURenderer();
 
-            void main() {
-                vUv = uv;
-                vNormal = normalize(normalMatrix * normal);
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPosition = worldPos.xyz;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-        `;
-
-        const fragmentShader = `
-            uniform float uTime;
-            uniform float uIntensity;
-            uniform vec3 uColor;
-            uniform vec3 uCameraPosition;
-
-            varying vec2 vUv;
-            varying vec3 vWorldPosition;
-            varying vec3 vNormal;
-
-            void main() {
-                // Scrolling effect for energy flow
-                float flow = mod(vUv.y * 4.0 - uTime * 3.0, 1.0);
-                float pulse = sin(flow * 6.28) * 0.5 + 0.5;
-
-                // Fresnel edge glow
-                vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
-                float fresnel = pow(1.0 - abs(dot(viewDir, vNormal)), 2.0);
-
-                // Core beam
-                float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
-                core = pow(core, 3.0);
-
-                // Combine effects
-                float beam = core * 0.6 + fresnel * 0.4;
-                beam += pulse * 0.3;
-
-                // Color with intensity
-                vec3 color = uColor * beam * uIntensity;
-
-                // Alpha fades at ends
-                float endFade = smoothstep(0.0, 0.1, vUv.y) * smoothstep(1.0, 0.9, vUv.y);
-                float alpha = beam * endFade * uIntensity;
-
-                gl_FragColor = vec4(color, alpha);
-            }
-        `;
-
+        // Initialize uniforms for GLSL mode
         const uniforms = {
             uTime: { value: 0 },
             uIntensity: { value: 0 },
@@ -79,22 +50,32 @@ export class TeachingBeam extends THREE.Mesh {
             uCameraPosition: { value: new THREE.Vector3() }
         };
 
-        const material = new THREE.ShaderMaterial({
-            vertexShader,
-            fragmentShader,
-            uniforms,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending
-        });
+        let material: THREE.ShaderMaterial | TeachingBeamMaterialTSL;
 
+        if (isTSL) {
+            material = new TeachingBeamMaterialTSL();
+            console.log('[TeachingBeam] Using TSL (WebGPU) implementation');
+        } else {
+            material = new THREE.ShaderMaterial({
+                vertexShader: teachingBeamVertexShader,
+                fragmentShader: teachingBeamFragmentShader,
+                uniforms: uniforms,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            console.log('[TeachingBeam] Using GLSL (WebGL2) implementation');
+        }
+
+        // MUST call super() before accessing 'this'
         super(geometry, material);
-        this.material = material;
 
+        this.material = material;
+        this.isTSL = isTSL;
+        this.uniforms = uniforms;
         this.jellyPosition = new THREE.Vector3();
         this.stringPosition = new THREE.Vector3();
-
         this.visible = false;
     }
 
@@ -123,12 +104,12 @@ export class TeachingBeam extends THREE.Mesh {
      */
     public update(deltaTime: number, time: number, cameraPos: THREE.Vector3): void {
         // Update time uniform for scrolling effect
-        this.material.uniforms.uTime.value = time;
-        this.material.uniforms.uCameraPosition.value.copy(cameraPos);
+        this.setTime(time);
+        this.setCameraPosition(cameraPos);
 
         // Smooth intensity transition
         this.intensity += (this.targetIntensity - this.intensity) * deltaTime * 5;
-        this.material.uniforms.uIntensity.value = this.intensity;
+        this.setIntensity(this.intensity);
 
         // Hide when intensity is near zero
         if (this.intensity < 0.01 && !this.isActive) {
@@ -166,7 +147,11 @@ export class TeachingBeam extends THREE.Mesh {
      */
     public setColor(color: THREE.Color | number): void {
         const colorObj = typeof color === 'number' ? new THREE.Color(color) : color;
-        this.material.uniforms.uColor.value.copy(colorObj);
+        if (this.isTSL) {
+            (this.material as TeachingBeamMaterialTSL).setColor(colorObj);
+        } else {
+            this.uniforms.uColor.value.copy(colorObj);
+        }
     }
 
     /**
@@ -174,6 +159,30 @@ export class TeachingBeam extends THREE.Mesh {
      */
     public isVisible(): boolean {
         return this.intensity > 0.1;
+    }
+
+    private setTime(value: number): void {
+        if (this.isTSL) {
+            (this.material as TeachingBeamMaterialTSL).setTime(value);
+        } else {
+            this.uniforms.uTime.value = value;
+        }
+    }
+
+    private setIntensity(value: number): void {
+        if (this.isTSL) {
+            (this.material as TeachingBeamMaterialTSL).setIntensity(value);
+        } else {
+            this.uniforms.uIntensity.value = value;
+        }
+    }
+
+    private setCameraPosition(position: THREE.Vector3): void {
+        if (this.isTSL) {
+            (this.material as TeachingBeamMaterialTSL).setCameraPosition(position);
+        } else {
+            this.uniforms.uCameraPosition.value.copy(position);
+        }
     }
 
     /**
