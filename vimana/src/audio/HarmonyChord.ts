@@ -58,14 +58,18 @@ export class HarmonyChord {
                 return;
             }
             this.audioContext = new AudioClass();
+            if (!this.audioContext) return;
+
             this.masterGain = this.audioContext.createGain();
-            this.masterGain.gain.value = this.config.masterVolume;
-            this.masterGain.connect(this.audioContext.destination);
+            if (this.masterGain) {
+                this.masterGain.gain.value = this.config.masterVolume;
+                this.masterGain.connect(this.audioContext.destination);
+            }
             this.isInitialized = true;
             console.log('[HarmonyChord] AudioContext created, state:', this.audioContext.state);
         }
 
-        if (this.audioContext.state === 'suspended') {
+        if (this.audioContext && this.audioContext.state === 'suspended') {
             console.log('[HarmonyChord] Resuming suspended AudioContext...');
             await this.audioContext.resume();
             console.log('[HarmonyChord] AudioContext resumed, state:', this.audioContext.state);
@@ -201,6 +205,44 @@ export class HarmonyChord {
     }
 
     /**
+     * Play individual note confirmation (subtle feedback)
+     * Used during phrase-first response phase
+     *
+     * @param noteIndex The note index (0-5)
+     */
+    public async playNoteConfirmation(noteIndex: number): Promise<void> {
+        console.log('[HarmonyChord] playNoteConfirmation:', noteIndex);
+
+        if (!this.config.enabled) return;
+
+        await this.ensureResumed();
+        if (!this.audioContext || !this.masterGain) return;
+
+        const noteName = ['C', 'D', 'E', 'F', 'G', 'A'][noteIndex] as NoteName;
+        const freq = NOTE_FREQUENCIES[noteName];
+
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+
+        // Higher harmonic for subtle confirmation feel
+        osc.frequency.value = freq * 2.0;
+        osc.type = 'sine';
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        const now = this.audioContext.currentTime;
+        const duration = 0.15; // Short duration
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(this.config.harmonyVolume * 0.5, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+
+    /**
      * Play single demonstration note (DEPRECATED - use playDemonstrationNote)
      * Used when jelly demonstrates which note to play
      *
@@ -268,6 +310,68 @@ export class HarmonyChord {
      */
     public getConfig(): Readonly<HarmonyConfig> {
         return { ...this.config };
+    }
+
+    /**
+     * Play splash sound for synchronized landing (STORY-HARP-102)
+     * Single unified splash sound, not multiple overlapping splashes
+     */
+    public async playSplashSound(): Promise<void> {
+        console.log('[HarmonyChord] Playing unified splash sound');
+
+        if (!this.config.enabled) return;
+
+        await this.ensureResumed();
+        if (!this.audioContext || !this.masterGain) return;
+
+        const now = this.audioContext.currentTime;
+        const duration = 0.8; // 800ms splash duration
+
+        // Create pink noise buffer for splash sound
+        const splashBuffer = this.createSplashBuffer(duration);
+
+        // Create source for the splash
+        const source = this.audioContext.createBufferSource();
+        source.buffer = splashBuffer;
+
+        // Create gain node for envelope
+        const gainNode = this.audioContext.createGain();
+
+        // Connect: source -> gain -> master
+        source.connect(gainNode);
+        gainNode.connect(this.masterGain);
+
+        // Envelope: quick attack, exponential decay
+        const attackTime = 0.05;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + attackTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+        // Start and stop
+        source.start(now);
+        source.stop(now + duration);
+    }
+
+    /**
+     * Generate splash sound buffer (STORY-HARP-102)
+     * Pink noise with exponential envelope for water splash effect
+     */
+    private createSplashBuffer(duration: number): AudioBuffer {
+        const sampleRate = this.audioContext!.sampleRate;
+        const buffer = this.audioContext!.createBuffer(1, sampleRate * duration, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // Generate pink noise-like sound with exponential decay
+        for (let i = 0; i < data.length; i++) {
+            const t = i / sampleRate;
+            // Envelope: quick attack, exponential decay
+            const envelope = Math.exp(-t * 5);
+            // Noise with lowpass characteristic (water-like)
+            const noise = (Math.random() * 2 - 1) * envelope * 0.3;
+            data[i] = noise;
+        }
+
+        return buffer;
     }
 
     /**

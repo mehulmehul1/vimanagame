@@ -31,6 +31,19 @@ export class DuetProgressTracker {
     }
 
     /**
+     * Mark a full sequence (3 notes) as completed
+     */
+    public markSequenceComplete(sequenceIndex: number): void {
+        const targetNotes = (sequenceIndex + 1) * 3;
+        this.notesCompleted = Math.max(this.notesCompleted, targetNotes);
+        this.notesCompleted = Math.min(this.notesCompleted, DuetProgressTracker.TOTAL_NOTES);
+
+        if (this.notesCompleted >= DuetProgressTracker.TOTAL_NOTES) {
+            this.isFullyComplete = true;
+        }
+    }
+
+    /**
      * Record an attempt (wrong or right)
      * For analytics only—never affects gameplay
      */

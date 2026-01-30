@@ -48,7 +48,7 @@ class CharacterController {
     renderer,
     inputManager,
     sfxManager = null,
-    sparkRenderer = null,
+    splatRenderer = null,
     idleHelper = null,
     initialRotation = null
   ) {
@@ -57,7 +57,8 @@ class CharacterController {
     this.renderer = renderer;
     this.inputManager = inputManager;
     this.sfxManager = sfxManager;
-    this.sparkRenderer = sparkRenderer;
+    this.splatRenderer = splatRenderer;
+    this.sparkRenderer = splatRenderer; // Alias for backward compatibility if needed internally
     this.idleHelper = idleHelper;
     this.logger = new Logger("CharacterController", true);
 
@@ -2087,7 +2088,7 @@ class CharacterController {
       }
     }
 
-    if (!this.sparkRenderer || !this.dofEnabled) return;
+    if ((!this.sparkRenderer && !this.splatRenderer) || !this.dofEnabled) return;
 
     if (!this.dofTransitioning) return;
 
@@ -2118,12 +2119,23 @@ class CharacterController {
     this.currentApertureSize =
       startApertureSize + (this.targetApertureSize - startApertureSize) * eased;
 
-    // Update spark renderer
+    // Update spark/splat renderer
     const apertureAngle =
       2 *
       Math.atan((0.5 * this.currentApertureSize) / this.currentFocalDistance);
-    this.sparkRenderer.apertureAngle = apertureAngle;
-    this.sparkRenderer.focalDistance = this.currentFocalDistance;
+    
+    // Update using splatRenderer shim properties
+    if (this.splatRenderer) {
+      if (typeof this.splatRenderer.apertureAngle !== 'undefined') {
+        this.splatRenderer.apertureAngle = apertureAngle;
+      }
+      if (typeof this.splatRenderer.focalDistance !== 'undefined') {
+        this.splatRenderer.focalDistance = this.currentFocalDistance;
+      }
+    } else if (this.sparkRenderer) {
+      this.sparkRenderer.apertureAngle = apertureAngle;
+      this.sparkRenderer.focalDistance = this.currentFocalDistance;
+    }
 
     // Check if transition is complete
     if (t >= 1.0) {
@@ -2458,7 +2470,7 @@ class CharacterController {
             const wasZoomActive = this.lookAtZoomActive;
 
             // Reset DOF if it was active
-            if (this.sparkRenderer && this.lookAtDofActive) {
+            if ((this.sparkRenderer || this.splatRenderer) && this.lookAtDofActive) {
               this.targetFocalDistance = this.baseFocalDistance;
               this.targetApertureSize = this.baseApertureSize;
               this.lookAtDofActive = false;

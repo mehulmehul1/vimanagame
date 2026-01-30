@@ -137,7 +137,8 @@
         "Sphere constraint animation integrated with compute"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
+      "notes": "TSL compute system created with FluidComputeNode, ParticleBuffers, MLSMPMStages. Integrates with Three.js WebGPU renderer.compute() API. Existing MLSMPMSimulator with raw WGSL remains for comparison.",
       "dependsOn": ["004-002", "004-004"]
     },
     {
@@ -157,7 +158,8 @@
         "Platform capability detection (Ubuntu not supported)"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
+      "notes": "PerformanceHUD created for frame time breakdown and FPS display. QualityManager for adaptive quality settings. DeviceCapabilities updated with Visionary platform detection (Ubuntu not supported, macOS limited, Windows full support).",
       "dependsOn": ["004-007"]
     }
   ]

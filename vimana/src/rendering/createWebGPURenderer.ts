@@ -308,6 +308,9 @@ export async function createWebGPURenderer(
       const renderer = new WebGPURenderer({
         alpha: mergedOptions.alpha,
         antialias: mergedOptions.antialias,
+        requiredLimits: {
+          maxComputeWorkgroupStorageSize: 32768, // Request higher limit for Visionary compute shaders
+        },
       });
 
       // WebGPURenderer requires async initialization

@@ -6,7 +6,7 @@
  */
 
 import * as THREE from 'three';
-import { SparkRenderer } from '@sparkjsdev/spark';
+import { createSplatRenderer } from './rendering/VisionarySplatRenderer.ts';
 import { createOptimalRenderer, logRendererInfo, RendererCapabilities } from './core/renderer.js';
 import PhysicsManager from '@engine/physicsManager.js';
 import CharacterController from '@engine/characterController.js';
@@ -36,7 +36,7 @@ class VimanaGame {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.spark = null;
+    this.splatRenderer = null; // Visionary-only renderer (no SparkJS fallback)
 
     // Managers
     this.gameManager = null;
@@ -94,13 +94,11 @@ class VimanaGame {
 
     // Create renderer (WebGPU with WebGL2 fallback)
     // Phase 1: Switch to WebGPURenderer when available, fall back to WebGL2
-    // NOTE: SparkRenderer requires WebGL2, so we pass requiresWebGL: true
-    // Once we migrate Gaussian splats to WebGPU, we can remove this constraint
-    // REVERTED: WebGPU incompatible with existing GLSL shaders - using WebGL2
+    // Visionary Integration: Using WebGPU for advanced rendering
     this.renderer = await createOptimalRenderer(
       { alpha: true, antialias: false },
       null, // no existing canvas yet
-      { requiresWebGL: true } // SparkRenderer is WebGL-only
+      // { requiresWebGL: true } // Constraint removed to enable WebGPU
     );
     this.renderer.setSize(initialSize.width, initialSize.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -137,17 +135,13 @@ class VimanaGame {
     const platformInfo = detectPlatform(this.gameManager);
     logger.log(`✅ Platform: Mobile=${platformInfo?.isMobile}`);
 
-    // Create SparkRenderer for Gaussian splats
-    this.spark = new SparkRenderer({
-      renderer: this.renderer,
+    // Create VisionarySplatRenderer for Gaussian splats
+    this.splatRenderer = await createSplatRenderer(this.renderer, this.scene, {
       apertureAngle: 2 * Math.atan(0.005),
       focalDistance: 6.0,
-      maxStdDev: Math.sqrt(6),
-      minAlpha: 0.00033,
+      renderOrder: 9998
     });
-    this.spark.renderOrder = 9998;
-    this.scene.add(this.spark);
-    logger.log('✅ SparkRenderer created');
+    logger.log('✅ VisionarySplatRenderer created');
 
     // Create physics manager
     this.physicsManager = new PhysicsManager();
@@ -156,7 +150,7 @@ class VimanaGame {
     // Create scene manager (without gameManager to avoid loading shadow's assets)
     this.sceneManager = new SceneManager(this.scene, {
       renderer: this.renderer,
-      sparkRenderer: this.spark,
+      splatRenderer: this.splatRenderer,
     });
     window.sceneManager = this.sceneManager;
 
@@ -205,7 +199,7 @@ class VimanaGame {
       this.renderer,
       this.inputManager,
       null,  // sfxManager
-      this.spark,
+      this.splatRenderer,
       null,  // animationManager
       spawnRot
     );
@@ -237,7 +231,6 @@ class VimanaGame {
       null
     );
     this.colliderManager.setCamera(this.camera);
-    this.colliderManager.setSparkRenderer(this.spark);
     window.colliderManager = this.colliderManager;
     this.sceneManager.setColliderManager(this.colliderManager);
     logger.log('✅ ColliderManager initialized');
@@ -288,7 +281,7 @@ class VimanaGame {
     await this.loadVimanaScene();
 
     // Initialize HarpRoom mechanics (pass gameManager for state integration)
-    this.harpRoom = new HarpRoom(this.scene, this.camera, this.renderer, this.gameManager);
+    this.harpRoom = new HarpRoom(this.scene, this.camera, this.renderer, this.gameManager, this.splatRenderer);
 
     // Find the loaded music room object to pass to initialize
     // GLB root is named "Scene Collection", not "Scene"
@@ -420,8 +413,8 @@ class VimanaGame {
       logger.log(`✅ Camera rotation set to: ${JSON.stringify(this._spawnRotation)}`);
     }
 
-    // Position spark renderer at spawn position
-    this.spark.position.set(this._spawnPosition.x, this._spawnPosition.y, this._spawnPosition.z);
+    // Visionary renderer handles its own positioning - no need to set position
+    // (SparkJS fallback removed - using Visionary-only)
 
     // Check for debug wireframe mode via URL parameter (reuse urlParams from above)
     this.debugWireframe = urlParams.get('debugWireframe') === 'true';
@@ -1042,10 +1035,7 @@ class VimanaGame {
           this.lightManager.updateLensFlares?.(dt);
         }
 
-        // Sync spark renderer to camera position (avoiding WASM translation() call)
-        if (this.character && this.camera && this.spark) {
-          this.spark.position.copy(this.camera.position);
-        }
+        // Visionary renderer handles its own positioning - no sync needed (SparkJS removed)
 
         // Update Harp Room logic
         if (this.harpRoom) {

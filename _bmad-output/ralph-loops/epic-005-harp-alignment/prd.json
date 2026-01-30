@@ -1,0 +1,93 @@
+{
+  "epic": "EPIC-005: Harp Minigame Design Alignment",
+  "description": "Implement phrase-first teaching mode to align harp minigame with original design specification",
+  "status": "in-progress",
+  "startDate": "2026-01-29",
+  "stories": [
+    {
+      "id": "harp-101",
+      "title": "Phrase-First Teaching Mode",
+      "description": "All jellyfish demonstrate full sequence before player responds",
+      "points": 5,
+      "priority": 1,
+      "passes": true,
+      "dependsOn": [],
+      "artifact": "story-harp-101-phrase-first-teaching.md",
+      "acceptanceCriteria": [
+        "New DuetState values added (PHRASE_DEMONSTRATION, TURN_SIGNAL, AWAITING_PHRASE_RESPONSE)",
+        "startPhraseFirstSequence() spawns all jellies for current sequence",
+        "Jellies emerge with 800ms stagger for visual clarity",
+        "Each jelly plays its demonstration note during emergence",
+        "setTeachingMode() switches between phrase-first and note-by-note",
+        "Existing note-by-note mode remains functional",
+        "No memory leaks from multiple active jellies"
+      ]
+    },
+    {
+      "id": "harp-102",
+      "title": "Synchronized Splash System",
+      "description": "All jellyfish splash down together as turn signal",
+      "points": 2,
+      "priority": 2,
+      "passes": true,
+      "dependsOn": [
+        "harp-101"
+      ],
+      "artifact": "story-harp-102-synchronized-splash.md",
+      "acceptanceCriteria": [
+        "All jellies submerge simultaneously (not one-by-one)",
+        "Submerge animation completes in ~500ms",
+        "Single unified splash sound plays",
+        "Visual ripple effect appears at all jelly positions",
+        "State transitions to AWAITING_PHRASE_RESPONSE after splash",
+        "Total turn signal duration is ~1 second",
+        "Callback fires for UI/story integration"
+      ]
+    },
+    {
+      "id": "harp-103",
+      "title": "Phrase Response Handling",
+      "description": "Player repeats full sequence from memory",
+      "points": 3,
+      "priority": 3,
+      "passes": true,
+      "dependsOn": [
+        "harp-101"
+      ],
+      "artifact": "story-harp-103-phrase-response.md",
+      "acceptanceCriteria": [
+        "handlePlayerInput() routes to correct handler based on state",
+        "Correct notes in sequence advance currentNoteIndex",
+        "Wrong note triggers redemonstration of full phrase",
+        "Completing full phrase triggers onSequenceComplete",
+        "All 3 sequences complete triggers onDuetComplete",
+        "Note-by-note mode remains functional",
+        "Console logging shows progression through phrase"
+      ]
+    },
+    {
+      "id": "harp-104",
+      "title": "Visual Sequence Indicators",
+      "description": "Numbered labels (①, ②, ③) show sequence order",
+      "points": 2,
+      "priority": 4,
+      "passes": true,
+      "dependsOn": [
+        "harp-101"
+      ],
+      "artifact": "story-harp-104-visual-indicators.md",
+      "acceptanceCriteria": [
+        "Circled numbers (①, ②, ③) appear above jellies",
+        "Numbers correspond to sequence order (1st, 2nd, 3rd)",
+        "Labels bounce in when jellyfish emerges",
+        "Labels fade out when player's turn begins",
+        "Labels always face camera (billboarding)",
+        "Multiple labels visible simultaneously",
+        "hideAll() clears all labels cleanly"
+      ]
+    }
+  ],
+  "totalPoints": 12,
+  "designReference": "vimana_harp_minigame_design.md",
+  "sprintChangeProposal": "sprint-change-proposal-harp-2026-01-29.md"
+}

@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d": "^0.19.3",
+    "visionary-core": "file:./visionary-lib",
     "@sparkjsdev/spark": "^0.1.10",
     "howler": "^2.2.4",
     "three": "^0.180.0",

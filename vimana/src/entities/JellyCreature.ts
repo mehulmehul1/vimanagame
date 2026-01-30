@@ -216,12 +216,12 @@ export class JellyCreature extends THREE.Mesh {
 
     private updateSubmerging(deltaTime: number): void {
         this.animTime += deltaTime;
-        const duration = 1.5; // Story spec: 1.5 seconds submerge
+        const duration = 0.5; // STORY-HARP-102: Fast submerge for turn signal
         const t = Math.min(this.animTime / duration, 1.0);
 
         const scale = 1.0 - t;
         this.scale.setScalar(JellyCreature.BASE_SCALE * scale);
-        this.position.lerp(this.homePosition, t * 2);
+        this.position.lerp(this.homePosition, t);
 
         // Fade out light and glow
         this.jellyLight.intensity = 1.0 - t;

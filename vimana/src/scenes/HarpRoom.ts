@@ -13,9 +13,10 @@ import { WhiteFlashEnding } from '../entities/WhiteFlashEnding';
 import { SummonRing } from '../entities/SummonRing';
 import { TeachingBeam } from '../entities/TeachingBeam';
 import { StringHighlight } from '../entities/StringHighlight';
-import { JellyLabelManager } from '../entities/JellyLabel';
+import { JellyLabelManager } from '../entities/JellyLabelManager';
 import { NoteVisualizer } from '../entities/NoteVisualizer';
 import { HarpCameraController, HarpInteractionState } from '../entities/HarpCameraController';
+import { SynchronizedSplashEffect } from '../entities/SynchronizedSplashEffect';
 
 // WaterBall fluid simulation system
 import { MLSMPMSimulator } from '../systems/fluid';
@@ -53,6 +54,7 @@ export class HarpRoom {
     private harpWaterInteraction?: HarpWaterInteraction;
     private playerWaterInteraction?: PlayerWaterInteraction;
     private wakeEffect?: PlayerWakeEffect;
+    private renderUniformBuffer?: GPUBuffer;
     private fluidEnabled: boolean = false;  // DISABLED: WebGPU incompatible with existing GLSL shaders
 
     private feedbackManager?: FeedbackManager;
@@ -70,6 +72,7 @@ export class HarpRoom {
     private jellyLabels?: JellyLabelManager;
     private noteVisualizer?: NoteVisualizer;
     private cameraController?: HarpCameraController;
+    private splashEffect?: SynchronizedSplashEffect;
 
     // String positions cache (for visual effects)
     private stringPositions: THREE.Vector3[] = [];
@@ -83,6 +86,7 @@ export class HarpRoom {
 
     // Game state management
     private gameManager?: any; // GameManager from shadowczar engine
+    private splatRenderer?: any; // VisionarySplatRenderer
 
     // Visual click feedback
     private clickMarker?: THREE.Mesh;
@@ -94,11 +98,12 @@ export class HarpRoom {
     // Callbacks
     private onCompleteCallback?: () => void;
 
-    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: any, gameManager?: any) {
+    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: any, gameManager?: any, splatRenderer?: any) {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
         this.gameManager = gameManager;
+        this.splatRenderer = splatRenderer;
         this.clock = new THREE.Clock();
 
         // Create vortex system
@@ -580,6 +585,10 @@ export class HarpRoom {
             this.scene.add(ring);
         }
 
+        // Create synchronized splash effect
+        this.splashEffect = new SynchronizedSplashEffect();
+        this.scene.add(this.splashEffect);
+
         // Create camera controller for harp interaction
         this.cameraController = new HarpCameraController(this.camera);
         this.cameraController.setHarpPosition(this.harpPosition);
@@ -633,9 +642,39 @@ export class HarpRoom {
                 onDemonstrationEnd: (noteIndex) => {
                     console.log(`[HarpRoom] Demonstration end for note ${noteIndex}`);
                     this.onDemonstrationEnd(noteIndex);
+                },
+                onNoteDemonstrated: (noteIndex, seqIdx) => {
+                    const jelly = this.jellyManager?.getJelly(noteIndex);
+                    if (jelly && this.jellyLabels) {
+                        this.jellyLabels.showSequenceLabel(noteIndex, seqIdx, jelly.position);
+                    }
+                },
+                onTurnSignalComplete: () => {
+                    console.log('[HarpRoom] Turn signal complete - player can respond now');
+                    // Hide all sequence indicators when player's turn starts
+                    this.jellyLabels?.hideAll();
+                },
+                onSynchronizedSplash: (indices) => {
+                    console.log('[HarpRoom] Synchronized splash for indices:', indices);
+                    if (this.splashEffect) {
+                        const positions = indices.map(idx => this.stringPositions[idx]);
+                        // Move ripples forward slightly like jellies (Z offset matches updateJellyPositions)
+                        const splashPositions = positions.map(pos => {
+                            const p = pos.clone();
+                            p.z -= 1.5;
+                            p.y = this.waterSurfaceY;
+                            return p;
+                        });
+                        this.splashEffect.trigger(splashPositions);
+                    }
                 }
             }
         );
+
+
+        // STORY-HARP-101: Set teaching mode
+        this.patientJellyManager.setTeachingMode('phrase-first');
+
 
         // Start the teaching sequence!
         console.log('[HarpRoom] Starting duet teaching sequence...');
@@ -704,35 +743,55 @@ export class HarpRoom {
                 this.fluidEnabled = false;
                 this.waterMaterial = new WaterMaterial();
                 if (this.arenaFloor) {
-                    this.arenaFloor.material = this.waterMaterial;
+                    this.arenaFloor.material = this.waterMaterial.getMaterial();
                 }
                 return;
             }
 
             const device = renderer.device;
 
+            // 0. Create render uniform buffer
+            this.renderUniformBuffer = device.createBuffer({
+                label: 'Fluid Render Uniforms',
+                size: 256, // Sufficient for view/proj matrices
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+
             // 1. Create particle physics simulator
-            this.fluidSimulator = new MLSMPMSimulator(device);
+            this.fluidSimulator = new MLSMPMSimulator({
+                device,
+                renderUniformBuffer: this.renderUniformBuffer
+            });
             console.log('[HarpRoom] ✅ MLS-MPM Simulator created');
 
             // 2. Create depth/thickness renderer
-            this.fluidDepthRenderer = new DepthThicknessRenderer(device, this.renderer);
+            this.fluidDepthRenderer = new DepthThicknessRenderer({
+                device,
+                canvas: this.renderer.domElement,
+                posvelBuffer: this.fluidSimulator.posvelBuffer,
+                renderUniformBuffer: this.renderUniformBuffer
+            });
             console.log('[HarpRoom] ✅ Depth/Thickness Renderer created');
 
             // 3. Create fluid surface renderer (final water visual)
-            this.fluidSurfaceRenderer = new FluidSurfaceRenderer(
+            this.fluidSurfaceRenderer = new FluidSurfaceRenderer({
                 device,
-                this.fluidDepthRenderer.getDepthTexture(),
-                this.fluidDepthRenderer.getThicknessTexture()
-            );
+                canvas: this.renderer.domElement,
+                renderUniformBuffer: this.renderUniformBuffer,
+                depthTextureView: this.fluidDepthRenderer.getDepthTextureView(),
+                thicknessTextureView: this.fluidDepthRenderer.getThicknessTextureView()
+            });
             console.log('[HarpRoom] ✅ Fluid Surface Renderer created');
 
             // 4. Create sphere constraint animator (for tunnel transformation)
-            this.sphereAnimator = new SphereConstraintAnimator(this.fluidSimulator);
+            this.sphereAnimator = new SphereConstraintAnimator({
+                simulator: this.fluidSimulator,
+                initBoxSize: [52, 52, 52] as any // Use default from simulator
+            });
             console.log('[HarpRoom] ✅ Sphere Animator created');
 
             // 5. Create harp-water interaction system
-            this.harpWaterInteraction = createHarpInteractionSystem(this.fluidSimulator);
+            this.harpWaterInteraction = createHarpInteractionSystem(device);
             console.log('[HarpRoom] ✅ Harp-Water Interaction created');
 
             // 6. Create player-water interaction
@@ -743,10 +802,11 @@ export class HarpRoom {
             console.log('[HarpRoom] ✅ Player-Water Interaction created');
 
             // 7. Create wake effect for player movement
-            this.wakeEffect = new PlayerWakeEffect(this.scene);
+            this.wakeEffect = new PlayerWakeEffect({});
             console.log('[HarpRoom] ✅ Wake Effect created');
 
             // 8. Set up debug views
+            // Note: setupDebugViews might need updates, but leaving as is for now if it accepts these types
             setupDebugViews(
                 this.fluidSimulator,
                 this.fluidDepthRenderer,
@@ -759,11 +819,12 @@ export class HarpRoom {
             console.log('[HarpRoom] ✅ Debug views available at window.debugVimana.fluid');
 
             // 9. Apply fluid surface material to arena floor
-            // The fluid renderer outputs to a texture we use as material
+            // Note: FluidSurfaceRenderer renders to screen/texture, not directly as material.
+            // Disabling direct material assignment for now to prevent errors.
             if (this.arenaFloor && this.fluidSurfaceRenderer) {
-                const fluidMaterial = this.fluidSurfaceRenderer.getOutputMaterial();
-                this.arenaFloor.material = fluidMaterial;
-                console.log('[HarpRoom] ✅ Fluid material applied to ArenaFloor');
+                // this.arenaFloor.material = ...; // Not supported by current renderer
+                this.arenaFloor.visible = false; // Hide floor, fluid will render on top
+                console.log('[HarpRoom] ✅ ArenaFloor hidden (Fluid Surface Renderer handles visualization)');
             }
 
             console.log('[HarpRoom] 🎉 WaterBall fluid system fully initialized!');
@@ -773,7 +834,7 @@ export class HarpRoom {
             this.fluidEnabled = false;
             this.waterMaterial = new WaterMaterial();
             if (this.arenaFloor) {
-                this.arenaFloor.material = this.waterMaterial;
+                this.arenaFloor.material = this.waterMaterial.getMaterial();
             }
         }
     }
@@ -1095,23 +1156,43 @@ export class HarpRoom {
             // Run particle physics simulation
             this.fluidSimulator.simulate(deltaTime);
 
+            // Render fluid phases
+            // Note: This requires a command encoder. We'll attempt to use the device queue if possible
+            // or we need to hook into the renderer's command encoder.
+            // For now, we'll try to create a one-off encoder which is not ideal but valid.
+            const commandEncoder = (this.renderer as any).device.createCommandEncoder();
+
             // Render depth/thickness textures
             if (this.fluidDepthRenderer) {
-                this.fluidDepthRenderer.render(this.camera);
+                this.fluidDepthRenderer.execute(commandEncoder, this.fluidSimulator.numParticles);
             }
 
             // Render final fluid surface to texture
+            // Warning: FluidSurfaceRenderer.execute requires a view to render TO.
+            // We usually render to the screen via context.getCurrentTexture().createView()
+            // But doing this here might conflict with Three.js rendering.
+            // We need a proper hook. For now, skipping execution to avoid crash/conflict
+            // until we integrate with Visionary/Three.js render loop properly.
+            /*
             if (this.fluidSurfaceRenderer) {
-                this.fluidSurfaceRenderer.render(this.camera, time);
+                 const context = (this.renderer.domElement as any).getContext('webgpu');
+                 if (context) {
+                    this.fluidSurfaceRenderer.execute(commandEncoder, context.getCurrentTexture().createView());
+                 }
             }
+            */
+
+            // Submit commands
+            (this.renderer as any).device.queue.submit([commandEncoder.finish()]);
 
             // Update wake effect particles
             if (this.wakeEffect && this.playerWaterInteraction) {
-                const playerSpeed = this.playerWaterInteraction.getPlayerSpeed();
-                if (playerSpeed > 0.1) {
-                    this.wakeEffect.spawn(this.camera.position, this.playerWaterInteraction.getPlayerMovementDirection());
-                }
-                this.wakeEffect.update(deltaTime);
+                this.wakeEffect.update(
+                    deltaTime,
+                    this.camera.position as any, // vec3 type mismatch shim
+                    this.playerWaterInteraction.getPlayerMovementDirection() as any, // vec3 shim
+                    this.playerWaterInteraction.isInWater()
+                );
             }
         }
 
@@ -1123,6 +1204,11 @@ export class HarpRoom {
         // Update jelly manager
         if (this.jellyManager) {
             this.jellyManager.update(deltaTime, time, this.camera.position);
+        }
+
+        // Update splash effects
+        if (this.splashEffect) {
+            this.splashEffect.update(deltaTime);
         }
 
         // NEW: Update visual enhancement systems
@@ -1165,6 +1251,11 @@ export class HarpRoom {
 
         // Render
         this.renderer.render(this.scene, this.camera);
+
+        // Visionary specific splat rendering (must happen after main scene render for depth)
+        if (this.splatRenderer) {
+            this.splatRenderer.render(this.camera);
+        }
 
         // Check for completion
         if (this.vortexSystem.isFullyActivated() && this.onCompleteCallback) {

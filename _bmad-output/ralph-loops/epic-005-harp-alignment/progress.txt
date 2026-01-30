@@ -1,0 +1,39 @@
+# Ralph Progress Log - EPIC-005: Harp Minigame Design Alignment
+Started: 2026-01-29
+---
+
+## Codebase Patterns
+- Project: Vimana (Three.js + WebGPU + TSL)
+- Location: C:\Users\mehul\OneDrive\Desktop\Studio\PROJECTS\shadowczarengine\vimana
+- Source: src/
+- Harp Room: src/scenes/HarpRoom.ts
+- Jelly Manager: src/entities/JellyManager.ts
+- Teaching Logic: src/entities/PatientJellyManager.ts
+- Audio: src/audio/HarmonyChord.ts
+
+## Design Philosophy
+"The ship teaches you, it doesn't test you."
+- No failure states - only patient redemonstration
+- Gentle feedback (shake, discord, highlight)
+- Synchronized splash = TURN SIGNAL
+- Number indicators (①, ②, ③) show sequence order
+- Note-by-note mode preserved as fallback
+
+## Current Implementation vs Design
+**Current**: Note-by-note teaching (one jelly at a time)
+**Design**: Phrase-first teaching (all jellies, then player responds)
+**Solution**: Add phrase-first mode, keep note-by-note as fallback
+
+## Execution Order (Dependencies)
+1. harp-101: Phrase-First Teaching Mode (no dependencies) - START HERE
+2. harp-102: Synchronized Splash (depends on harp-101)
+3. harp-103: Phrase Response Handling (depends on harp-101)
+4. harp-104: Visual Sequence Indicators (depends on harp-101)
+
+---
+
+## Implementation Log
+- [x] 2026-01-30: STORY-HARP-101 - Phrase-First Teaching Mode implemented and verified.
+- [x] 2026-01-30: STORY-HARP-102 - Synchronized Splash System implemented and verified.
+- [x] 2026-01-30: STORY-HARP-103 - Phrase Response Handling implemented and verified.
+- [x] 2026-01-30: STORY-HARP-104 - Visual Sequence Indicators implemented and verified.

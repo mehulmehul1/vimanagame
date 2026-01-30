@@ -24,7 +24,6 @@ export {
   VisionarySplatRenderer,
   createSplatRenderer,
   isVisionaryAvailable,
-  getVisionaryInstallInstructions,
 } from './VisionarySplatRenderer';
 
 export type {
@@ -34,6 +33,6 @@ export type {
 } from './createWebGPURenderer';
 
 export type {
-  SplatModel,
+  SplatEntry,
   SplatRendererOptions,
 } from './VisionarySplatRenderer';

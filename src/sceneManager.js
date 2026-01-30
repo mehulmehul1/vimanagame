@@ -46,7 +46,8 @@ class SceneManager {
   constructor(scene, options = {}) {
     this.scene = scene;
     this.renderer = options.renderer || null; // For contact shadows
-    this.sparkRenderer = options.sparkRenderer || null; // For environment mapping
+    this.splatRenderer = options.splatRenderer || null; // For Gaussian splats (WebGPU/Visionary)
+    this.sparkRenderer = options.sparkRenderer || null; // Legacy ref for environment mapping
     this.gizmoManager = options.gizmoManager || null; // For debug positioning
     this.loadingScreen = options.loadingScreen || null; // For progress tracking
     this.physicsManager = options.physicsManager || null; // For creating physics colliders
@@ -289,61 +290,47 @@ class SceneManager {
     // Treat undefined preload as false (deferred)
     const shouldPreload = objectData.preload === true;
     const shouldTrackProgress = shouldPreload && this.loadingScreen;
-    if (shouldTrackProgress) {
-      this.loadingScreen.registerTask(`splat_${id}`);
+    // Use VisionarySplatRenderer to load the model
+    // Resolve position if it's a function
+    const resolvedPosition = typeof position === "function" ? position(this.gameManager) : position;
+    const pos = resolvedPosition ? new THREE.Vector3(resolvedPosition.x, resolvedPosition.y, resolvedPosition.z) : new THREE.Vector3(0, 0, 0);
+    
+    // Convert rotation to Euler if needed
+    let rot = new THREE.Euler(0, 0, 0);
+    if (rotation) {
+      rot = new THREE.Euler(rotation.x, rotation.y, rotation.z);
     }
 
-    const splatMesh = new SplatMesh({
-      url: path,
-      editable: false, // Don't apply SplatEdit operations to scene splats (only fog)
-      onProgress: (progress) => {
-        // Progress is a number between 0 and 1
-        if (shouldTrackProgress) {
-          this.loadingScreen.updateTask(`splat_${id}`, progress);
-        }
-      },
-    });
-
-    // Set quaternion if provided
-    if (quaternion) {
-      splatMesh.quaternion.set(
-        quaternion.x,
-        quaternion.y,
-        quaternion.z,
-        quaternion.w
-      );
-    } else if (rotation) {
-      splatMesh.rotation.set(rotation.x, rotation.y, rotation.z);
-    }
-
-    // Set position (support functions for dynamic positioning)
-    if (position) {
-      const resolvedPosition =
-        typeof position === "function" ? position(this.gameManager) : position;
-      splatMesh.position.set(
-        resolvedPosition.x,
-        resolvedPosition.y,
-        resolvedPosition.z
-      );
-    }
-
-    // Set scale
+    // Convert scale
+    let scl = new THREE.Vector3(1, 1, 1);
     if (scale) {
       if (typeof scale === "object" && "x" in scale) {
-        splatMesh.scale.set(scale.x, scale.y, scale.z);
+        scl.set(scale.x, scale.y, scale.z);
       } else if (typeof scale === "number") {
-        splatMesh.scale.setScalar(scale);
+        scl.setScalar(scale);
       }
     }
 
-    if (!skipAddToScene) {
-      this.scene.add(splatMesh);
+    const splatMesh = await this.splatRenderer.loadSplat(
+      path,
+      pos,
+      rot,
+      scl
+    );
+
+    if (splatMesh && quaternion) {
+       splatMesh.quaternion.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
     }
 
-    // Wait for initialization - this is the primary indicator that the asset is ready
-    // The initialized promise only resolves when the asset is fully downloaded and processed
-    // This ensures the browser has fully loaded the asset into memory before we continue
-    await splatMesh.initialized;
+    if (!splatMesh) {
+       this.logger.error(`Failed to load splat mesh for "${id}"`);
+       return null;
+    }
+
+    if (shouldTrackProgress) {
+        // Since loadSplat is already awaited, we just complete it
+        this.loadingScreen.completeTask(`splat_${id}`);
+    }
 
     // Mark as complete only if tracking progress
     if (shouldTrackProgress) {
@@ -931,11 +918,19 @@ class SceneManager {
         );
 
         // Defer environment map rendering to avoid "Only one sort at a time" error
-        // Wait for next animation frame to ensure SparkRenderer isn't busy with main render
+        // Wait for next animation frame to ensure renderer isn't busy with main render
         const renderPromise = new Promise((resolve, reject) => {
           requestAnimationFrame(async () => {
             try {
-              const envMapTexture = await this.sparkRenderer.renderEnvMap({
+              // Use splatRenderer (or fallback to sparkRenderer if splatRenderer is missing)
+              const renderer = this.splatRenderer || this.sparkRenderer;
+              if (!renderer) {
+                  this.logger.warn(`No renderer available for EnvMap generation for "${id}"`);
+                  resolve(null);
+                  return;
+              }
+              
+              const envMapTexture = await renderer.renderEnvMap({
                 scene: this.scene,
                 worldCenter: worldCenter,
                 hideObjects: hideObjects,

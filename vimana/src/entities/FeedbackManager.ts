@@ -160,6 +160,19 @@ export class FeedbackManager {
     }
 
     /**
+     * Trigger celebration for completing a sequence
+     */
+    public triggerSequenceComplete(sequenceIndex: number): void {
+        // Multi-shake celebration
+        if (this.config.enableCameraShake) {
+            this.cameraFeedback.shakeSubtle();
+            setTimeout(() => this.cameraFeedback.shakeSubtle(), 500);
+        }
+
+        // Highlight all strings briefly? No, just the last one is enough or none
+    }
+
+    /**
      * Highlight a specific string with glow animation
      *
      * @param stringIndex The string index to highlight (0-5)
@@ -168,9 +181,11 @@ export class FeedbackManager {
         const stringMesh = this.stringMeshes[stringIndex];
         if (!stringMesh) return;
 
+        const material = stringMesh.material as any;
+
         // Store original emissive if not already stored
-        if (!this.hasOriginalEmissive && stringMesh.material.emissive) {
-            this.originalEmissive.copy(stringMesh.material.emissive);
+        if (!this.hasOriginalEmissive && material.emissive) {
+            this.originalEmissive.copy(material.emissive);
             this.hasOriginalEmissive = true;
         }
 
@@ -201,7 +216,7 @@ export class FeedbackManager {
         if (this.highlightAnimation && this.highlightAnimation.active && this.highlightedString) {
             const elapsed = (performance.now() - this.highlightAnimation.startTime) / 1000;
             const config = this.highlightAnimation.config;
-            const material = this.highlightedString.material;
+            const material = this.highlightedString.material as any;
 
             if (material.emissive) {
                 if (elapsed < config.pulseDuration) {
@@ -227,11 +242,14 @@ export class FeedbackManager {
      * End current highlight animation
      */
     private endHighlight(): void {
-        if (this.highlightedString && this.highlightedString.material.emissive) {
-            if (this.hasOriginalEmissive) {
-                this.highlightedString.material.emissive.copy(this.originalEmissive);
-            } else {
-                this.highlightedString.material.emissive.set(0, 0, 0);
+        if (this.highlightedString) {
+            const material = this.highlightedString.material as any;
+            if (material.emissive) {
+                if (this.hasOriginalEmissive) {
+                    material.emissive.copy(this.originalEmissive);
+                } else {
+                    material.emissive.set(0, 0, 0);
+                }
             }
         }
 

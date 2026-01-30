@@ -137,9 +137,41 @@ development_status:
   # Epic 4 Retrospective
   epic-4-retrospective: optional
 
+  # ========================================
+  # EPIC 5: Harp Minigame Design Alignment
+  # ========================================
+  # Course Correction 2026-01-29: Phrase-first teaching mode to align with design
+  epic-5: in-progress
+
+  # Story HARP-101: Phrase-First Teaching Mode
+  harp-101-phrase-first: ready-for-dev
+
+  # Story HARP-102: Synchronized Splash System
+  harp-102-synchronized-splash: ready-for-dev
+
+  # Story HARP-103: Phrase Response Handling
+  harp-103-phrase-response: ready-for-dev
+
+  # Story HARP-104: Visual Sequence Indicators
+  harp-104-visual-indicators: ready-for-dev
+
+  # Epic 5 Retrospective
+  epic-5-retrospective: optional
+
 # ========================================
 # COURSE CORRECTION LOG
 # ========================================
+# 2026-01-29: EPIC 5 created - Harp Minigame Design Alignment
+#   - NEW: EPIC 5 for harp phrase-first teaching mode
+#   - Story HARP-101: Phrase-First Teaching Mode (5 pts)
+#   - Story HARP-102: Synchronized Splash System (2 pts)
+#   - Story HARP-103: Phrase Response Handling (3 pts)
+#   - Story HARP-104: Visual Sequence Indicators (2 pts)
+#   - Reason: Implementation differs from design doc (note-by-note vs phrase-first)
+#   - Solution: Add phrase-first mode as enhancement, keep note-by-note as fallback
+#   - Reference: sprint-change-proposal-harp-2026-01-29.md
+#   - Status: All stories ready-for-dev
+#
 # 2026-01-27: EPIC 4 architecture revised
 #   - OBSOLETE: Story 4.1 (Dual Canvas Setup) → archived to obsolete/
 #   - OBSOLETE: Story 4.7 (Splat Overlay Adapter) → never created, removed from plan
@@ -149,4 +181,4 @@ development_status:
 #   - Solution: Visionary platform provides proper occlusion via single WebGPU context
 #   - Reference: sprint-change-proposal-2026-01-27.md
 #
-# ALL STORIES FOR EPIC 4 NOW READY FOR DEVELOPMENT
+# ALL STORIES FOR EPIC 4 AND EPIC 5 NOW READY FOR DEVELOPMENT

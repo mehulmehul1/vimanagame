@@ -48,7 +48,11 @@
       "Bash(bash:*)",
       "Skill(bmad:bmgd:workflows:gdd)",
       "Bash(node scripts/generateGameState.js:*)",
-      "Bash(bun install)"
+      "Bash(bun install)",
+      "Bash(npm run dev:*)",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

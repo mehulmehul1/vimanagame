@@ -78,6 +78,8 @@ export interface DuetCallbacks {
     onNoteDemonstrated?: (noteIndex: number, sequenceIndex: number) => void;
     /** Called when synchronized splash completes (STORY-HARP-102) */
     onTurnSignalComplete?: () => void;
+    /** Called when synchronized splash triggers (STORY-HARP-102) */
+    onSynchronizedSplash?: (positions: number[]) => void;
 }
 
 export interface PatientJellyConfig {
@@ -156,7 +158,11 @@ export class PatientJellyManager {
         this.currentNoteIndex = 0;
         this.isRedemonstrating = false;
 
-        this.demonstrateCurrentNote();
+        if (this.teachingMode === 'phrase-first') {
+            this.startPhraseFirstSequence(sequenceIndex);
+        } else {
+            this.demonstrateCurrentNote();
+        }
     }
 
     /**
@@ -216,29 +222,73 @@ export class PatientJellyManager {
 
     /**
      * Handle player input (harp string played)
+     * Works for both phrase-first and note-by-note modes
      */
     public handlePlayerInput(playedNoteIndex: number): void {
         // Log for debugging
         console.log(`[PatientJellyManager] handlePlayerInput: note=${playedNoteIndex}, state=${this.state}`);
 
-        // Allow input during DEMONSTRATING (player can play along!)
-        // Only ignore if COMPLETE
+        // Ignore if complete
         if (this.state === DuetState.COMPLETE) {
             console.log('[PatientJellyManager] Ignoring input - duet complete');
             return;
         }
 
-        // If playing during demonstration, skip to AWAITING_INPUT immediately
+        // PHRASE-FIRST MODE: Validate against current expected note in sequence
+        if (this.state === DuetState.AWAITING_PHRASE_RESPONSE) {
+            this.handlePhraseFirstInput(playedNoteIndex);
+            return;
+        }
+
+        // NOTE-BY-NOTE MODE: Existing logic
+        if (this.state === DuetState.AWAITING_INPUT) {
+            this.handleNoteByNoteInput(playedNoteIndex);
+            return;
+        }
+
+        // Allow playing during PHRASE_DEMONSTRATION (skip to player's turn)
+        if (this.state === DuetState.PHRASE_DEMONSTRATION) {
+            console.log('[PatientJellyManager] Player played during phrase demo, ending demo');
+            this.endDemonstrationEarly();
+            this.state = DuetState.AWAITING_PHRASE_RESPONSE;
+            this.currentNoteIndex = 0;
+            this.handlePhraseFirstInput(playedNoteIndex);
+            return;
+        }
+
+        // Allow playing during single note demonstration
         if (this.state === DuetState.DEMONSTRATING) {
             console.log('[PatientJellyManager] Player played during demo, skipping to input phase');
-            // Clear the demo timeout
             if (this.demoTimeout) {
                 clearTimeout(this.demoTimeout);
                 this.demoTimeout = null;
             }
             this.transitionToAwaitingInput();
+            this.handleNoteByNoteInput(playedNoteIndex);
         }
+    }
 
+    /**
+     * Handle input during phrase-first response phase
+     */
+    private handlePhraseFirstInput(playedNoteIndex: number): void {
+        this.progressTracker.recordAttempt();
+
+        const targetNote = TEACHING_SEQUENCES[this.currentSequence][this.currentNoteIndex];
+
+        console.log(`[Phrase-First] Expecting note ${targetNote}, played ${playedNoteIndex} (${this.currentNoteIndex + 1}/${TEACHING_SEQUENCES[this.currentSequence].length})`);
+
+        if (playedNoteIndex === targetNote) {
+            this.handleCorrectNoteInPhrase();
+        } else {
+            this.handleWrongNoteInPhrase(targetNote, playedNoteIndex);
+        }
+    }
+
+    /**
+     * Handle input during note-by-note phase (legacy logic)
+     */
+    private handleNoteByNoteInput(playedNoteIndex: number): void {
         this.progressTracker.recordAttempt();
 
         const targetNote = TEACHING_SEQUENCES[this.currentSequence][this.currentNoteIndex];
@@ -248,6 +298,101 @@ export class PatientJellyManager {
         } else {
             this.handleWrongNote(targetNote, playedNoteIndex);
         }
+    }
+
+    /**
+     * Handle correct note within phrase response
+     */
+    private handleCorrectNoteInPhrase(): void {
+        const targetNote = TEACHING_SEQUENCES[this.currentSequence][this.currentNoteIndex];
+
+        // Play individual note confirmation (subtle feedback)
+        this.harmonyChord.playNoteConfirmation(targetNote);
+
+        // Trigger visual feedback
+        this.feedbackManager.triggerCorrectNote(targetNote);
+
+        // Callback
+        if (this.callbacks.onNoteComplete) {
+            this.callbacks.onNoteComplete(this.currentSequence, this.currentNoteIndex);
+        }
+
+        // Advance to next note in phrase
+        this.currentNoteIndex++;
+        const currentSequence = TEACHING_SEQUENCES[this.currentSequence];
+
+        if (this.currentNoteIndex >= currentSequence.length) {
+            // Whole phrase completed correctly!
+            this.completePhrase();
+        } else {
+            console.log(`[Phrase-First] Correct! ${this.currentNoteIndex}/${currentSequence.length} complete. Next note expected.`);
+        }
+    }
+
+    /**
+     * Handle wrong note during phrase response
+     */
+    private handleWrongNoteInPhrase(targetNote: number, playedNote: number): void {
+        console.log(`[Phrase-First] Wrong note! Expected ${targetNote}, played ${playedNote}`);
+
+        // Gentle feedback (shake + discordant + highlight)
+        this.feedbackManager.triggerWrongNote(targetNote);
+
+        // Callback
+        if (this.callbacks.onWrongNote) {
+            this.callbacks.onWrongNote(targetNote, playedNote);
+        }
+
+        // IMPORTANT: Patient teaching - redemonstrate the full phrase
+        // No punishment, no progress lost - gentle retry
+        setTimeout(() => {
+            console.log('[Phrase-First] Redemonstrating phrase...');
+            this.startPhraseFirstSequence(this.currentSequence);
+        }, this.config.wrongNoteDelay * 1000);
+    }
+
+    /**
+     * Phrase completed successfully
+     */
+    private completePhrase(): void {
+        console.log(`[Phrase-First] Sequence ${this.currentSequence} complete!`);
+
+        // Play full harmony chord (ship joins in)
+        this.harmonyChord.playCompletionChord();
+
+        // Mark progress
+        this.progressTracker.markSequenceComplete(this.currentSequence);
+
+        // Trigger visual celebration
+        this.feedbackManager.triggerSequenceComplete(this.currentSequence);
+
+        // Callback
+        if (this.callbacks.onSequenceComplete) {
+            this.callbacks.onSequenceComplete(this.currentSequence);
+        }
+
+        // Move to next sequence or complete duet
+        if (this.currentSequence >= TEACHING_SEQUENCES.length - 1) {
+            this.completeDuet();
+        } else {
+            // Delay before starting next sequence
+            setTimeout(() => {
+                this.currentSequence++;
+                this.startSequence(this.currentSequence);
+            }, this.config.sequenceDelay * 1000);
+        }
+    }
+
+    /**
+     * Helper to end a phrase demonstration early
+     */
+    private endDemonstrationEarly(): void {
+        // Clear all phrase timeouts
+        this.phraseTimeouts.forEach(id => clearTimeout(id));
+        this.phraseTimeouts = [];
+
+        // Stop all active jellies
+        this.jellyManager.submergeActive();
     }
 
     /**
@@ -558,28 +703,38 @@ export class PatientJellyManager {
     }
 
     /**
-     * Trigger synchronized splash (STORY-HARP-101 placeholder, implemented in harp-102)
+     * Trigger synchronized splash (STORY-HARP-102)
      * All jellies submerge together as the "your turn" signal
+     *
+     * This is the TURN SIGNAL that clearly communicates:
+     * "The Vimana's phrase is complete. Your turn."
      */
     private triggerSynchronizedSplash(sequence: readonly number[]): void {
         console.log('[PatientJellyManager] Triggering synchronized splash (turn signal)');
         this.state = DuetState.TURN_SIGNAL;
 
-        // For now, simple submerge - STORY-HARP-102 will add the full effect
-        for (const noteIndex of sequence) {
-            const jelly = this.activeJellies.get(noteIndex);
-            if (jelly) {
-                jelly.submerge();
-            }
-        }
+        // STORY-HARP-102: Submerge all active jellies simultaneously
+        // Use JellyManager.submergeAll() for synchronized descent
+        this.jellyManager.submergeAll();
 
         // Clear active jellies tracking
         this.activeJellies.clear();
 
-        // Transition to awaiting phrase response after brief delay
-        setTimeout(() => {
+        // STORY-HARP-102: Play unified splash sound (single sound, not multiple)
+        this.harmonyChord.playSplashSound();
+
+        // Trigger visual splash effect callback
+        if (this.callbacks.onSynchronizedSplash) {
+            this.callbacks.onSynchronizedSplash([...sequence]);
+        }
+
+        // Transition to awaiting player response after splash animation
+        const SPLASH_DURATION = 1000; // 1 second for splash animation
+        const splashTimeoutId = window.setTimeout(() => {
             this.transitionToAwaitingPhraseResponse();
-        }, 500);
+        }, SPLASH_DURATION);
+
+        this.phraseTimeouts.push(splashTimeoutId);
     }
 
     /**
