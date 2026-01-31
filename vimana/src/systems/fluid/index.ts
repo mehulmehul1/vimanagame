@@ -32,6 +32,10 @@ export { DepthThicknessRenderer } from './render/DepthThicknessRenderer';
 export { FluidSurfaceRenderer } from './render/FluidSurfaceRenderer';
 export { createProceduralCubemap, createCubemapView } from './render/createCubemap';
 export { SphereConstraintAnimator } from './animation/SphereConstraintAnimator';
+
+// Hybrid renderer - Three.js Points for fluid particles (avoids WebGPU render conflicts)
+export { FluidParticlesRenderer } from './FluidParticlesRenderer';
+
 export * from './types';
 
 // Harp-water interaction exports

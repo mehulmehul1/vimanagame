@@ -6,7 +6,24 @@
  * Manages coupling between harp strings, player, and fluid simulation.
  */
 
-// Harp-to-water interaction
+// Import for local use
+import {
+    HarpWaterInteraction,
+    STRING_POSITIONS,
+    STRING_FREQUENCIES,
+    DEFAULT_HARP_CONFIG,
+    type StringWaterInteraction,
+} from './HarpWaterInteraction';
+
+import {
+    StringRippleEffect,
+    StringRippleRenderer,
+    DEFAULT_RIPPLE_CONFIG,
+    type Ripple,
+    type RippleConfig,
+} from './StringRippleEffect';
+
+// Re-export for external use
 export {
     HarpWaterInteraction,
     STRING_POSITIONS,
@@ -68,9 +85,7 @@ export function createHarpInteractionSystem(
         ripple?: Partial<typeof import('./StringRippleEffect').DEFAULT_RIPPLE_CONFIG>;
     }
 ) {
-    const { HarpWaterInteraction } = require('./HarpWaterInteraction');
-    const { StringRippleEffect } = require('./StringRippleEffect');
-
+    // Import classes directly (already exported above)
     const harpInteraction = new HarpWaterInteraction(device, config?.harp);
     const rippleEffect = new StringRippleEffect(config?.ripple);
 

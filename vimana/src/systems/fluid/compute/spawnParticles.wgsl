@@ -15,9 +15,10 @@ struct Particle {
 
 // Simple hash function for deterministic randomness
 fn hash(n: u32) -> u32 {
-    n = (n * 747796405u + 2891336453u) % 4294967296u;
-    n = ((n >> ((n >> 28u) + 4u)) * 277803737u) % 4294967296u;
-    return n;
+    var h = n;
+    h = h * 747796405u + 2891336453u;
+    h = ((h >> ((h >> 28u) + 4u)) * 277803737u);
+    return h;
 }
 
 fn rand(n: u32) -> f32 {

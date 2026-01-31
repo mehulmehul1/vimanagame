@@ -92,6 +92,11 @@ export class MLSMPMSimulator {
     public mouseInfoUniformBuffer: GPUBuffer;
     public sphereRadiusBuffer: GPUBuffer;
 
+    // Placeholder resources for optional bindings
+    private placeholderRenderUniformBuffer: GPUBuffer;
+    private placeholderDepthTexture: GPUTexture;
+    private placeholderDepthTextureView: GPUTextureView;
+
     // Compute pipelines
     private clearGridPipeline: GPUComputePipeline;
     private spawnParticlesPipeline: GPUComputePipeline;
@@ -140,13 +145,13 @@ export class MLSMPMSimulator {
             throw new Error(`gridCount (${this.gridCount}) exceeds maxGridCount (${maxGridCount})`);
         }
 
-        // Initialize mouse info
-        this.mouseInfoValues = new ArrayBuffer(32);
+        // Initialize mouse info - must match WGSL MouseInfo struct (56 bytes)
+        this.mouseInfoValues = new ArrayBuffer(56);
         this.mouseInfoViews = {
             screenSize: new Float32Array(this.mouseInfoValues, 0, 2),
-            mouseCoord: new Float32Array(this.mouseInfoValues, 8, 2),
-            mouseVel: new Float32Array(this.mouseInfoValues, 16, 2),
-            mouseRadius: new Float32Array(this.mouseInfoValues, 24, 1),
+            mouseCoord: new Float32Array(this.mouseInfoValues, 16, 2),  // After padding0
+            mouseVel: new Float32Array(this.mouseInfoValues, 32, 2),    // After padding1
+            mouseRadius: new Float32Array(this.mouseInfoValues, 48, 1), // After padding2
         };
 
         if (canvas) {
@@ -236,6 +241,21 @@ export class MLSMPMSimulator {
         this.device.queue.writeBuffer(this.numParticlesBuffer, 0, new Uint32Array([0]));
         this.device.queue.writeBuffer(this.sphereRadiusBuffer, 0, new Float32Array([this.sphereRadius]));
         this.device.queue.writeBuffer(this.mouseInfoUniformBuffer, 0, this.mouseInfoValues);
+
+        // Create placeholder resources for optional updateGrid bindings
+        this.placeholderRenderUniformBuffer = this.device.createBuffer({
+            label: 'Placeholder Render Uniform Buffer',
+            size: 272, // Match actual RenderUniforms size
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        this.placeholderDepthTexture = this.device.createTexture({
+            label: 'Placeholder Depth Texture',
+            size: { width: 1, height: 1 },
+            format: 'r32float',
+            usage: GPUTextureUsage.TEXTURE_BINDING,
+        });
+        this.placeholderDepthTextureView = this.placeholderDepthTexture.createView();
     }
 
     private createPipelines(): void {
@@ -370,25 +390,17 @@ export class MLSMPMSimulator {
             ],
         });
 
-        // Update grid bind group
-        const updateGridEntries: GPUBindGroupEntry[] = [
-            { binding: 0, resource: { buffer: this.cellBuffer } },
-            { binding: 1, resource: { buffer: this.realBoxSizeBuffer } },
-            { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
-            { binding: 5, resource: { buffer: this.mouseInfoUniformBuffer } },
-        ];
-
-        // Optional: render uniforms and depth texture for mouse interaction
-        if (renderUniformBuffer) {
-            updateGridEntries.push({ binding: 3, resource: { buffer: renderUniformBuffer } });
-        }
-        if (depthTextureView) {
-            updateGridEntries.push({ binding: 4, resource: depthTextureView });
-        }
-
+        // Update grid bind group - must have all bindings 0-5 in order
         this.updateGridBindGroup = this.device.createBindGroup({
             layout: this.updateGridPipeline.getBindGroupLayout(0),
-            entries: updateGridEntries,
+            entries: [
+                { binding: 0, resource: { buffer: this.cellBuffer } },
+                { binding: 1, resource: { buffer: this.realBoxSizeBuffer } },
+                { binding: 2, resource: { buffer: this.initBoxSizeBuffer } },
+                { binding: 3, resource: { buffer: renderUniformBuffer ?? this.placeholderRenderUniformBuffer } },
+                { binding: 4, resource: depthTextureView ?? this.placeholderDepthTextureView },
+                { binding: 5, resource: { buffer: this.mouseInfoUniformBuffer } },
+            ],
         });
 
         // G2P bind group

@@ -74,14 +74,14 @@ export class FluidSurfaceRenderer {
             mipmapFilter: 'linear',
         });
 
-        // Create debug uniform buffer (16 bytes: show_normals f32 + padding vec3f)
+        // Create debug uniform buffer (32 bytes minimum for WebGPU binding requirements)
         this.debugUniformBuffer = device.createBuffer({
             label: 'Debug Uniform Buffer',
-            size: 16,
+            size: 32,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        // Initialize with show_normals = 0
-        this.device.queue.writeBuffer(this.debugUniformBuffer, 0, new Float32Array([0, 0, 0, 0]));
+        // Initialize with show_normals = 0 (8 floats to fill 32 bytes)
+        this.device.queue.writeBuffer(this.debugUniformBuffer, 0, new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]));
 
         // Create pipeline
         this.createPipeline(canvas.width, canvas.height);

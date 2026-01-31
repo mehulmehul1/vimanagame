@@ -36,7 +36,7 @@ export default defineConfig({
     },
     dedupe: ['three'],
   },
-  assetsInclude: ['**/*.wasm', '**/*.wgsl'],
+  assetsInclude: ['**/*.wasm'],
   worker: {
     format: 'es',
   },

@@ -3,9 +3,24 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import mkcert from "vite-plugin-mkcert";
 
+// Plugin to load .wgsl files as raw strings
+function wgsl() {
+  return {
+    name: 'wgsl',
+    transform(code, id) {
+      if (id.endsWith('.wgsl')) {
+        return {
+          code: `export default ${JSON.stringify(code)};`,
+          map: null,
+        };
+      }
+    },
+  };
+}
+
 export default defineConfig({
   base: "/",
-  plugins: [wasm(), topLevelAwait(), mkcert()],
+  plugins: [wasm(), topLevelAwait(), mkcert(), wgsl()],
   server: {
     https: true,
     host: true,
