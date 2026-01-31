@@ -124,11 +124,22 @@ class EditorManager {
             this.orbitControls.maxPolarAngle = Math.PI; // Allow full vertical rotation
             console.log('EditorManager: OrbitControls initialized');
 
-            // Initialize Spark.js (optional, may fail if not supported)
+            // Initialize Spark.js
             try {
-                // Note: SparkRenderer API may vary - adjust constructor as needed
-                // this.sparkRenderer = new SparkRenderer(this.renderer);
-                console.log('EditorManager: Spark.js initialization skipped (to be integrated when needed)');
+                // Initialize SparkRenderer with standard parameters
+                this.sparkRenderer = new SparkRenderer({
+                    renderer: this.renderer,
+                    apertureAngle: 0,
+                    focalDistance: 10,
+                    maxStdDev: 2.82, // Default desktop value
+                    minAlpha: 0.00033,
+                });
+
+                // Gaussian Splats render should be depth-aware
+                this.sparkRenderer.renderOrder = 9998;
+                this.scene.add(this.sparkRenderer);
+
+                console.log('EditorManager: Spark.js initialized successfully');
             } catch (sparkError) {
                 console.warn('EditorManager: Spark.js initialization failed:', sparkError);
                 this.sparkRenderer = null;
@@ -199,8 +210,11 @@ class EditorManager {
             }
 
             // Update Spark.js if available
-            if (this.sparkRenderer && this.isPlaying) {
-                // Spark.js handles its own rendering during play mode
+            // In the Editor, we want to render splats even when not in "play" mode
+            // unless we explicitly want to hide them for performance.
+            if (this.sparkRenderer) {
+                // Normal frame update for three.js scene + splats
+                this.renderer.render(this.scene, this.camera);
             } else {
                 // Standard Three.js rendering
                 this.renderer.render(this.scene, this.camera);

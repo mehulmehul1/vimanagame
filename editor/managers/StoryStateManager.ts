@@ -1,11 +1,10 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import type {
   StoryData,
   StoryState,
   Transition,
   StoryAction,
-} from '../types/story.js';
+} from '../types/story';
+import { loadStoryData, saveStoryData } from '../utils/storyDataIO';
 
 /**
  * StoryStateManager - Central data manager for story editing
@@ -34,8 +33,8 @@ class StoryDataManager {
   }
 
   async load(filePath: string): Promise<StoryData> {
-    const content = await fs.promises.readFile(filePath, 'utf-8');
-    this.data = JSON.parse(content);
+    const data = await loadStoryData(filePath);
+    this.data = data;
     this.filePath = filePath;
     this.notifyListeners();
     return this.data;
@@ -46,9 +45,9 @@ class StoryDataManager {
     if (!targetPath) {
       throw new Error('No file path specified');
     }
-    const dir = path.dirname(targetPath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(targetPath, JSON.stringify(this.data, null, 2), 'utf-8');
+    // Browser-safe filename extraction
+    const filename = targetPath.split('/').pop() || 'storyData.json';
+    await saveStoryData(this.data, filename);
     this.filePath = targetPath;
   }
 

@@ -46,9 +46,9 @@ export const sceneObjects = [
       currentState: GAME_STATES.MUSIC_ROOM,
     },
 
-    // Optional: Environment map for reflections
-    envMapCenter: { x: 0, y: 1, z: 0 },
-    envMapRadius: 15,
+    // Optional: Environment map for reflections (DISABLED to debug brightness)
+    // envMapCenter: { x: 0, y: 1, z: 0 },
+    // envMapRadius: 15,
   },
 ];
 

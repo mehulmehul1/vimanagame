@@ -1,0 +1,315 @@
+=== MUSICTROOM.GLB MESH ANALYSIS ===
+
+Loading GLB from: D:\Personal\Vimaan\Engine\vimana\public\assets\models\musicroom.glb
+
+GLB Version: 2
+Total Length: 47054028 bytes
+
+Mesh #1: model.002
+  Node: model
+  Vertices: 15366
+  Triangles: 19898
+  Primitives: 1
+  Material: model.002
+  Double Sided: true
+---
+Mesh #2: model.003
+  Node: model.002
+  Vertices: 15366
+  Triangles: 19898
+  Primitives: 1
+  Material: model.003
+  Double Sided: true
+---
+Mesh #3: Cylinder.002
+  Node: ArenaWall.001
+  Vertices: 384
+  Triangles: 256
+  Primitives: 1
+  Material: Stone.001
+  Double Sided: true
+---
+Mesh #4: Cylinder.005
+  Node: ArenaFloor
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: Stone.001
+  Double Sided: true
+---
+Mesh #5: Cube
+  Node: Platform
+  Vertices: 232
+  Triangles: 144
+  Primitives: 1
+---
+Mesh #6: Cylinder.017
+  Node: Pillar_1
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: PillarStone
+  Double Sided: true
+---
+Mesh #7: Torus
+  Node: Vortex_gate
+  Vertices: 2304
+  Triangles: 1152
+  Primitives: 1
+---
+Mesh #8: Sphere
+  Node: Dome
+  Vertices: 1595
+  Triangles: 829
+  Primitives: 1
+---
+Mesh #9: Torus.001
+  Node: Window 1
+  Vertices: 4600
+  Triangles: 2300
+  Primitives: 1
+---
+Mesh #10: Torus.002
+  Node: Window 2
+  Vertices: 4600
+  Triangles: 2300
+  Primitives: 1
+---
+Mesh #11: Torus.003
+  Node: Window 3
+  Vertices: 4600
+  Triangles: 2300
+  Primitives: 1
+---
+Mesh #12: Torus.004
+  Node: Gate_Plug
+  Vertices: 4600
+  Triangles: 2300
+  Primitives: 1
+---
+Mesh #13: Cylinder.025
+  Node: Pillar_1.001
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: PillarStone
+  Double Sided: true
+---
+Mesh #14: Cylinder.026
+  Node: Pillar_1.002
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: PillarStone
+  Double Sided: true
+---
+Mesh #15: Cylinder.027
+  Node: Pillar_1.003
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: PillarStone
+  Double Sided: true
+---
+Mesh #16: Cylinder.028
+  Node: Pillar_1.004
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+  Material: PillarStone
+  Double Sided: true
+---
+Mesh #17: BeachMesh
+  Node: Beach
+  Vertices: 624
+  Triangles: 600
+  Primitives: 1
+  Material: Sand.001
+  Double Sided: true
+---
+Mesh #18: Cylinder.001
+  Node: Harp_stand_basic
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #19: Cylinder.003
+  Node: String 1
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #20: Cylinder.006
+  Node: String 2
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #21: Cylinder.007
+  Node: String 3
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #22: Cylinder.008
+  Node: String 4
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #23: Cylinder.009
+  Node: String 5
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #24: Cylinder.010
+  Node: String 6
+  Vertices: 192
+  Triangles: 124
+  Primitives: 1
+---
+Mesh #25: Cube.002
+  Node: Harp Plate
+  Vertices: 24
+  Triangles: 12
+  Primitives: 1
+---
+Mesh #26: model
+  Node: Harp_pillar_shaded
+  Vertices: 301937
+  Triangles: 499914
+  Primitives: 1
+  Material: model
+  Double Sided: true
+---
+Mesh #27: model.001
+  Node: model.001
+  Vertices: 301937
+  Triangles: 499914
+  Primitives: 1
+  Material: model.001
+  Double Sided: true
+---
+Mesh #28: TunnelPath
+  Node: Tunnel
+  Vertices: 3168
+  Triangles: 5910
+  Primitives: 1
+---
+Mesh #29: Cube.003
+  Node: spawn _room
+  Vertices: 36
+  Triangles: 18
+  Primitives: 1
+---
+
+=== TOTAL MESHES: 29 ===
+
+
+=== SCENE HIERARCHY ===
+MeshNode: model
+MeshNode: model.002
+MeshNode: ArenaWall.001
+MeshNode: ArenaFloor
+MeshNode: Platform
+MeshNode: Pillar_1
+MeshNode: Vortex_gate
+MeshNode: Dome
+MeshNode: Window 1
+MeshNode: Window 2
+MeshNode: Window 3
+MeshNode: Gate_Plug
+Node: Point.011
+Node: Point.012
+Node: Point.013
+Node: Point.014
+Node: Point.015
+Node: Point.016
+Node: Point.017
+Node: Point.018
+Node: Point.019
+Node: Point.020
+Node: Point.021
+MeshNode: Pillar_1.001
+MeshNode: Pillar_1.002
+MeshNode: Pillar_1.003
+MeshNode: Pillar_1.004
+MeshNode: Beach
+MeshNode: Harp_stand_basic
+MeshNode: String 1
+MeshNode: String 2
+MeshNode: String 3
+MeshNode: String 4
+MeshNode: String 5
+MeshNode: String 6
+MeshNode: Harp Plate
+MeshNode: Harp_pillar_shaded
+MeshNode: model.001
+Node: Point_light_stage
+MeshNode: Tunnel
+MeshNode: spawn _room
+
+=== LIGHT ANALYSIS ===
+Found 12 lights:
+
+Light #0: Point.011
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #1: Point.012
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #2: Point.013
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #3: Point.014
+  Type: directional
+  Intensity: 14821.056228637695 (This is the raw value)
+  Color: 1,1,1
+---
+Light #4: Point.015
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #5: Point.016
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #6: Point.017
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #7: Point.018
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #8: Point.019
+  Type: point
+  Intensity: 1179.4221803153068 (This is the raw value)
+  Color: 1,1,1
+---
+Light #9: Point.020
+  Type: point
+  Intensity: 108702.82613176452 (This is the raw value)
+  Color: 1,1,1
+---
+Light #10: Point.021
+  Type: point
+  Intensity: 108702.82613176452 (This is the raw value)
+  Color: 1,1,1
+---
+Light #11: Sun
+  Type: point
+  Intensity: 14672.707006836996 (This is the raw value)
+  Color: 1,1,1
+---

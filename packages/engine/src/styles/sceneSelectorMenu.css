@@ -1,0 +1,249 @@
+/* Scene Selector Menu Styles - Debug/Development Tool */
+
+.scene-selector-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* z-index managed by UIManager (DEBUG layer = 9000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.scene-selector-menu.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scene-selector-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.scene-selector-container {
+  position: relative;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  border: 2px solid #555;
+  border-radius: 16px;
+  padding: 30px;
+  min-width: 550px;
+  max-width: 700px;
+  max-height: 80vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.scene-selector-menu.hidden .scene-selector-container {
+  transform: translateY(-20px);
+}
+
+.scene-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.scene-selector-title {
+  margin: 0;
+  font-family: "LePorsche", Arial, sans-serif;
+  font-size: 28px;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.current-state-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Voltaire", Arial, sans-serif;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.current-state-label {
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.current-state-value {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.scene-selector-content {
+  overflow-y: auto;
+  padding-right: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #555 #2a2a2a;
+}
+
+.scene-selector-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scene-selector-content::-webkit-scrollbar-track {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+.scene-selector-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.scene-selector-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+.scene-selector-info {
+  background: rgba(76, 175, 80, 0.1);
+  border: 1px solid #4caf50;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.scene-selector-info p {
+  margin: 0 0 8px 0;
+  font-family: "Voltaire", Arial, sans-serif;
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+.scene-selector-info p:last-child {
+  margin-bottom: 0;
+}
+
+.scene-selector-tip {
+  color: #888;
+  font-size: 13px !important;
+}
+
+.scene-selector-tip kbd {
+  background: #444;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #fff;
+}
+
+/* Category sections */
+.scene-category {
+  margin-bottom: 24px;
+}
+
+.scene-category:last-child {
+  margin-bottom: 0;
+}
+
+.category-title {
+  margin: 0 0 12px 0;
+  font-family: "LePorsche", Arial, sans-serif;
+  font-size: 16px;
+  color: #888;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.scene-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.scene-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #333;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  font-family: "Voltaire", Arial, sans-serif;
+}
+
+.scene-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #555;
+  transform: translateX(4px);
+}
+
+.scene-item:active {
+  transform: translateX(2px) scale(0.98);
+}
+
+.scene-item.current-state {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: #4caf50;
+}
+
+.scene-item.current-state .scene-name {
+  color: #4caf50;
+}
+
+.scene-item.current-state .scene-value {
+  color: #4caf50;
+}
+
+.scene-name {
+  color: #ddd;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+
+.scene-value {
+  color: #666;
+  font-size: 12px;
+  font-family: monospace;
+  transition: color 0.2s ease;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+  .scene-selector-container {
+    min-width: 90%;
+    max-width: 90%;
+    max-height: 85vh;
+    padding: 20px;
+  }
+
+  .scene-selector-title {
+    font-size: 22px;
+  }
+
+  .scene-list {
+    grid-template-columns: 1fr;
+  }
+
+  .current-state-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

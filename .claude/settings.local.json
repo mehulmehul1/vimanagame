@@ -50,5 +50,9 @@
       "Bash(node scripts/generateGameState.js:*)",
       "Bash(bun install)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "agentvibes",
+    "pinterest"
+  ]
 }

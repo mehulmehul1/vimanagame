@@ -1,6 +1,11 @@
 {
   "name": "spark",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "vimana",
+    "editor"
+  ],
   "version": "0.0.0",
   "type": "module",
   "scripts": {

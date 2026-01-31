@@ -75,7 +75,7 @@ export interface SceneDataFormat {
  * - Writes editor state to sceneData.js format
  * - Preserves existing format exactly (game runtime depends on it)
  *
- * CRITICAL: Do not modify the src/ directory - this is editor-only code
+ * CRITICAL: Do not modify the packages/engine/src/ directory - this is editor-only code
  */
 class DataManager {
     // Singleton instance
@@ -83,7 +83,7 @@ class DataManager {
 
     // Scene data cache
     private sceneData: SceneDataFormat = {};
-    private sceneDataFilePath: string = '../src/data/sceneData.js';
+    private sceneDataFilePath: string = '../packages/engine/src/sceneData.js';
 
     // Event listeners
     private eventListeners: Map<string, Set<Function>> = new Map();

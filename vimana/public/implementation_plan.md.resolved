@@ -1,0 +1,40 @@
+# Strategic Plan: Running Engine & Game Separately
+
+To keep things simple, think of the **Engine** as the "Motor" and the **Game** as the "Car Body." 
+
+## 1. How you "Run" them
+Since an Engine doesn't have a "Play" button on its own (it needs a game to show what it can do), you run them using these separate commands:
+
+### To Run the Game (The Car)
+> `cd vimana` then `npm run dev`
+This opens the game. It "reaches inside" the Engine folder to get the physics and graphics. 
+
+### To Run the Editor (The Workshop)
+> `cd editor` then `npm run dev`
+This opens your world-builder tool. It uses the **same Engine** as the game, so what you see in the Editor is exactly what you get in the Game.
+
+### To "Run" the Engine (The Motor State)
+The Engine doesn't "run" a window. Instead, you work on its files in `packages/engine`. 
+*   **The Magic:** Because they are linked, if you change a "piston" in the Engine folder, any car (Game or Editor) using that engine will instantly update while it's running!
+
+## 2. Updated AI Instructions (Step-by-Step)
+
+### Step A: Setup the "Main Box"
+1. Update the **main** `package.json` to tell the computer we have three separate zones: Engine, Game, and Editor.
+
+### Step B: Create the Engine Room
+1. Move all the logic files from the root into `packages/engine/src`.
+2. Give the Engine its own "Identity Tag" (`package.json`).
+
+### Step C: Plug the Game into the Engine
+1. Go into the `vimana` settings.
+2. Tell it: "Stop looking in the root for the engine; look in the new `packages/engine` room."
+
+### Step D: Plug the Editor into the Engine
+1. Go into the `editor` settings.
+2. Link it to the same `packages/engine` room.
+
+## 3. The "Black Box" (Privacy)
+When you want to upload the game online, we use a **"Build" command**. 
+*   It takes your Engine code and "freezes" it into a single file that players can use but can't read. 
+*   This way, your game folder stays small and your engine secrets stay safe.

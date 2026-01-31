@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { StoryState, Transition, TriggerType, PlayerPosition, StateContent, ZoneInfo } from '../types/story';
+import type { StoryState, Transition, TriggerType, PlayerPosition, StateContent, ZoneInfo } from '../types/story';
 import './StateInspector.css';
 
 interface StateInspectorProps {

@@ -18,7 +18,7 @@ import type {
   StoryState,
   Transition,
   Act,
-} from '../types/story.js';
+} from '../types/story';
 
 interface ValidationResult {
   valid: boolean;

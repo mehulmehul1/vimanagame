@@ -80,14 +80,14 @@ class VimanaGame {
 
     // Create Three.js scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+    this.scene.background = new THREE.Color(0x000000); // BLACK background (was Sky Blue) to debug brightness
 
     // Create camera
     this.camera = new THREE.PerspectiveCamera(60, initialSize.width / initialSize.height, 0.01, 100);
     this.camera.position.set(0, 1, 0);  // Move back a bit to see the scene
     this.scene.add(this.camera);  // Add camera to scene (required for camera children to render)
 
-    // Add minimal ambient light so unlit areas aren't pitch black
+    // Add minimal ambient light
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
     this.scene.add(ambientLight);
 
@@ -96,7 +96,7 @@ class VimanaGame {
     this.renderer.setSize(initialSize.width, initialSize.height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.5;  // Reduced from 1.0 to fix washed-out appearance
+    this.renderer.toneMappingExposure = 0.8;  // Slightly reduced exposure
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -126,17 +126,17 @@ class VimanaGame {
     const platformInfo = detectPlatform(this.gameManager);
     logger.log(`✅ Platform: Mobile=${platformInfo?.isMobile}`);
 
-    // Create SparkRenderer for Gaussian splats
-    this.spark = new SparkRenderer({
-      renderer: this.renderer,
-      apertureAngle: 2 * Math.atan(0.005),
-      focalDistance: 6.0,
-      maxStdDev: Math.sqrt(6),
-      minAlpha: 0.00033,
-    });
-    this.spark.renderOrder = 9998;
-    this.scene.add(this.spark);
-    logger.log('✅ SparkRenderer created');
+    // Create SparkRenderer for Gaussian splats --> DISABLED to debug brightness
+    // this.spark = new SparkRenderer({
+    //   renderer: this.renderer,
+    //   apertureAngle: 2 * Math.atan(0.005),
+    //   focalDistance: 6.0,
+    //   maxStdDev: Math.sqrt(6),
+    //   minAlpha: 0.00033,
+    // });
+    // this.spark.renderOrder = 9998;
+    // this.scene.add(this.spark);
+    // logger.log('✅ SparkRenderer created');
 
     // Create physics manager
     this.physicsManager = new PhysicsManager();
@@ -145,7 +145,7 @@ class VimanaGame {
     // Create scene manager (without gameManager to avoid loading shadow's assets)
     this.sceneManager = new SceneManager(this.scene, {
       renderer: this.renderer,
-      sparkRenderer: this.spark,
+      sparkRenderer: null, // this.spark passed as null
     });
     window.sceneManager = this.sceneManager;
 
@@ -352,24 +352,40 @@ class VimanaGame {
         this.scene.traverse((obj) => {
           if (obj.isLight) {
             const originalIntensity = obj.intensity;
-            // Scale different light types appropriately
-            if (obj.type === 'PointLight') {
-              obj.intensity = originalIntensity * 0.01; // Scale to 1%
-            } else if (obj.type === 'DirectionalLight') {
-              obj.intensity = originalIntensity * 0.0001; // Scale to 0.01%
-            } else if (obj.type === 'SpotLight') {
-              obj.intensity = originalIntensity * 0.01; // Scale to 1%
+
+            // For PointLights, usually 'decay' is the issue imported from Blender
+            // Blender exports physical lights (decay=2), which fade very fast.
+            // We force decay=1 (Linear) for better coverage in game environments.
+            if (obj.intensity > 10000) {
+              // "Nuclear" Lights (e.g., 108k) -> Scale to ~10
+              logger.log(`  ☢️ Crushing High Intensity Light "${obj.name}": ${obj.intensity} -> ${obj.intensity * 0.0001}`);
+              obj.intensity *= 0.0001;
+            } else {
+              // "Normal" Lights (e.g., 1k) -> Scale to ~1
+              obj.intensity *= 0.001;
             }
+
+            if (obj.type === 'PointLight') {
+              obj.decay = 1;
+              // Ensure distance is reasonable if it's 0 (infinite)
+              if (obj.distance === 0) obj.distance = 1000;
+            }
+
             scaledLightCount++;
-            logger.log(`  💡 Scaled ${obj.type} "${obj.name || '(unnamed)'}": ${originalIntensity.toFixed(2)} → ${obj.intensity.toFixed(2)}`);
+            // logger.log removed to avoid spam, using specific log above
           }
         });
         logger.log(`✅ Scaled ${scaledLightCount} GLB lights to Three.js values`);
+        // Miner Mode REMOVED - restoring standard rendering
+        // logger.log('🔦 Miner Headlight Attached');
 
         // Log what was loaded
         this.scene.traverse((obj) => {
           if (obj.isMesh) {
-            logger.log(`  - Mesh: ${obj.name || '(unnamed)'}`);
+            logger.log(`  - Mesh: ${obj.name || '(unnamed)'} | Orig Mat: ${obj.material?.type}`);
+
+            // FORCE OVERRIDE REMOVED - Using original materials
+            // obj.material = debugMaterial;
           }
         });
       } catch (err) {
@@ -410,7 +426,9 @@ class VimanaGame {
     }
 
     // Position spark renderer at spawn position
-    this.spark.position.set(this._spawnPosition.x, this._spawnPosition.y, this._spawnPosition.z);
+    if (this.spark) {
+      this.spark.position.set(this._spawnPosition.x, this._spawnPosition.y, this._spawnPosition.z);
+    }
 
     // Check for debug wireframe mode via URL parameter (reuse urlParams from above)
     this.debugWireframe = urlParams.get('debugWireframe') === 'true';
@@ -608,7 +626,7 @@ class VimanaGame {
 
     console.log('[main.js] Setting up interaction listeners...');
     window.addEventListener('mousedown', handleInteraction);
-    
+
     // Also allow interaction via Space/Enter if looking at strings
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' || e.code === 'Enter') {

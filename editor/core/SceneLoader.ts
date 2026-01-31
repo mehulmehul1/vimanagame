@@ -21,6 +21,8 @@ export interface SceneObjectData {
         useContainer?: boolean;
         visible?: boolean;
         physicsCollider?: boolean;
+        triggerColliders?: boolean;
+        shadowBlocker?: boolean;
         debugMaterial?: boolean;
         envMap?: {
             metalness?: number;
@@ -110,9 +112,9 @@ class SceneLoader {
     }
 
     /**
-     * Load a single scene object from sceneData
-     */
-    public async loadSceneObject(objectData: SceneObjectData): Promise<THREE.Object3D | null> {
+    * Load a single scene object from sceneData
+    */
+    public async loadSceneObject(objectData: SceneObjectData, options: { showDebugColliders?: boolean } = {}): Promise<THREE.Object3D | null> {
         const scene = this.editorManager.scene;
 
         console.log(`SceneLoader: Loading object ${objectData.id} of type ${objectData.type}`);
@@ -164,7 +166,7 @@ class SceneLoader {
                 object3D.userData.objectData = objectData;
 
                 // Apply options (visibility, debug material, etc.)
-                this.applyOptions(object3D, objectData);
+                this.applyOptions(object3D, objectData, options);
 
                 // Add to scene
                 scene.add(object3D);
@@ -309,18 +311,27 @@ class SceneLoader {
     }
 
     /**
-     * Apply object options (visibility, debug material, etc.)
-     */
-    private applyOptions(object: THREE.Object3D, objectData: SceneObjectData): void {
+    * Apply object options (visibility, debug material, etc.)
+    */
+    private applyOptions(object: THREE.Object3D, objectData: SceneObjectData, debugOptions: { showDebugColliders?: boolean } = {}): void {
         if (!objectData.options) return;
 
         // Visibility
         if (objectData.options.visible === false) {
-            object.visible = false;
+            // Force visibility if it's a collider and we want to see them
+            if (debugOptions.showDebugColliders && (objectData.options.physicsCollider || objectData.options.triggerColliders)) {
+                object.visible = true;
+            } else {
+                object.visible = false;
+            }
         }
 
         // Debug material (wireframe)
-        if (objectData.options.debugMaterial) {
+        // If showDebugColliders is on, force wireframe for anything that's a collider or shadow blocker
+        const forceDebug = debugOptions.showDebugColliders &&
+            (objectData.options.physicsCollider || objectData.options.triggerColliders || objectData.options.shadowBlocker);
+
+        if (objectData.options.debugMaterial || forceDebug) {
             object.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                     if (Array.isArray(child.material)) {
@@ -349,6 +360,36 @@ class SceneLoader {
                 }
             });
         }
+
+        // Shadow blocker (special material)
+        if (objectData.options.shadowBlocker) {
+            this._applyShadowBlockerMaterial(objectData.id, object, debugOptions.showDebugColliders);
+        }
+    }
+
+    /**
+    * Apply shadow blocker material (depth-only, no color) to block contact shadows
+    */
+    private _applyShadowBlockerMaterial(_id: string, object: THREE.Object3D, showDebug: boolean = false): void {
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            wireframe: true,
+            transparent: true,
+            opacity: showDebug ? 0.5 : 0.0,
+            depthWrite: true,
+            side: THREE.DoubleSide
+        });
+
+        object.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+                child.material = material;
+                child.renderOrder = 9998.1;
+            }
+        });
+
+        // Always visible in Editor context if we want to see it, 
+        // otherwise it just does its depth magic silently
+        object.visible = showDebug || !object.userData.objectData?.options?.visible === false;
     }
 
     /**

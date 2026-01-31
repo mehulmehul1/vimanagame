@@ -25,9 +25,12 @@ export default defineConfig({
       '@/data': resolve(__dirname, './data'),
       '@/utils': resolve(__dirname, './utils'),
       '@/styles': resolve(__dirname, './styles'),
-      // Alias to parent src directory for game data access
-      '@game-src': resolve(__dirname, '../src')
-    }
+      // Alias to parent engine directory
+      '@engine': resolve(__dirname, '../packages/engine/src'),
+      // Alias to game assets in vimana/public
+      '/game-assets': resolve(__dirname, '../vimana/public/assets')
+    },
+    dedupe: ['three']
   },
   server: {
     port: 3001,
@@ -41,11 +44,10 @@ export default defineConfig({
     fs: {
       strict: false,
       allow: [
-        // Allow accessing parent directory files for game assets
+        // Allow accessing parent directory files for game assets and engine node_modules
         resolve(__dirname, '..'),
-        resolve(__dirname, '../src'),
-        resolve(__dirname, '../public'),
-        resolve(__dirname, '../splats')
+        // Explicitly allow vimana assets
+        resolve(__dirname, '../vimana/public')
       ]
     }
   },

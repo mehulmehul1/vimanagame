@@ -1,1 +1,28 @@
-{"mcpServers":{"agentvibes":{"command":"npx","args":["-y","--package=agentvibes","agentvibes-mcp-server"],"disabled":true,"alwaysAllow":[]},"pinterest":{"command":"npx","args":["-y","pinterest-mcp-server"],"env":{"MCP_PINTEREST_DOWNLOAD_DIR":"C:\\Users\\mehul\\OneDrive\\Desktop\\Studio\\PROJECTS\\shadowczarengine\\pinterest-downloads"}}}}
+{
+    "mcpServers": {
+        "agentvibes": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "--package=agentvibes",
+                "agentvibes-mcp-server"
+            ],
+            "disabled": true,
+            "alwaysAllow": []
+        },
+        "pinterest": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "pinterest-mcp-server"
+            ],
+            "env": {
+                "MCP_PINTEREST_DOWNLOAD_DIR": "C:\\Users\\mehul\\OneDrive\\Desktop\\Studio\\PROJECTS\\shadowczarengine\\pinterest-downloads"
+            }
+        }
+    }
+}

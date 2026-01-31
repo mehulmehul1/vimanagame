@@ -4,7 +4,7 @@ import EditorManager from '../core/EditorManager';
 import type { SceneObjectData } from '../core/SceneLoader';
 // Import scene data from parent directory
 // @ts-ignore - Import from parent game src
-import { sceneObjects as gameSceneObjects } from '@game-src/sceneData.js';
+import { sceneObjects as gameSceneObjects } from '@engine/sceneData.js';
 
 interface LoadShadowCzarSceneProps {
     // No props needed currently
@@ -26,6 +26,7 @@ const LoadShadowCzarScene: React.FC<LoadShadowCzarSceneProps> = () => {
     const [sceneLoaded, setSceneLoaded] = useState(false);
     const [splatsVisible, setSplatsVisible] = useState(true);
     const [splatCount, setSplatCount] = useState(0);
+    const [showColliders, setShowColliders] = useState(false);
 
     // Track loaded splat objects for show/hide functionality
     const splatObjects = useRef<any[]>([]);
@@ -104,7 +105,7 @@ const LoadShadowCzarScene: React.FC<LoadShadowCzarSceneProps> = () => {
             for (const [id, objectData] of preloadObjects) {
                 try {
                     console.log(`LoadShadowCzarScene: Loading ${id} (${objectData.type})`);
-                    const loadedObject = await sceneLoader.loadSceneObject(objectData);
+                    const loadedObject = await sceneLoader.loadSceneObject(objectData, { showDebugColliders: showColliders });
 
                     // Track splat objects for show/hide functionality
                     if (objectData.type === 'splat' && loadedObject) {
@@ -164,6 +165,17 @@ const LoadShadowCzarScene: React.FC<LoadShadowCzarSceneProps> = () => {
         console.log(`LoadShadowCzarScene: ${newVisibility ? 'Showing' : 'Hiding'} ${splatObjects.current.length} splats`);
     };
 
+    /**
+     * Toggle collider visibility
+     */
+    const toggleColliders = () => {
+        const nextShowColliders = !showColliders;
+        setShowColliders(nextShowColliders);
+        // We'll need to re-load or update existing objects to show colliders
+        // For simplicity, let's suggest re-loading the scene
+        console.log(`LoadShadowCzarScene: Colliders visibility toggled to: ${nextShowColliders}`);
+    };
+
     return (
         <div className="load-scene-container">
             <button
@@ -192,6 +204,14 @@ const LoadShadowCzarScene: React.FC<LoadShadowCzarSceneProps> = () => {
                     {splatsVisible ? '🌐 Hide Splats' : '👁️ Show Splats'}
                 </button>
             )}
+
+            <button
+                className={`collider-toggle-button ${showColliders ? 'active' : ''}`}
+                onClick={toggleColliders}
+                title="Force visibility of hidden colliders and shadow blockers"
+            >
+                {showColliders ? '🟢 Colliders Visible' : '⚪ Show Colliders'}
+            </button>
 
             {isLoading && (
                 <span className="load-progress">

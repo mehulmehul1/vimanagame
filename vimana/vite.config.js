@@ -17,7 +17,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@engine': path.resolve(__dirname, '../src'),
+      '@engine': path.resolve(__dirname, '../packages/engine/src'),
     },
     dedupe: ['three'],
   },

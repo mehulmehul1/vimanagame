@@ -1,0 +1,66 @@
+/* Dialog Caption Styles */
+#dialog-caption {
+  position: fixed;
+  bottom: 6.5%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  color: white;
+  padding: 20px 40px;
+  font-family: "PXCountryTypewriter", Arial, sans-serif;
+  font-size: clamp(18px, 3vw, 28px);
+  max-width: 90%;
+  margin: 0 auto;
+  text-align: center;
+  z-index: 1000;
+  pointer-events: none;
+  line-height: 1.4;
+  box-sizing: border-box;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.7);
+}
+
+#dialog-caption:empty {
+  display: none;
+}
+
+/* Dialog Choice Options - Centered */
+@keyframes slideUpFadeInCentered {
+  from {
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.dialog-choices-container {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  right: auto !important;
+  animation: slideUpFadeInCentered 0.4s ease-out !important;
+}
+
+/* Mobile: anchor caption to top instead of bottom */
+@media (max-width: 600px) {
+  #dialog-caption {
+    top: 6.5%;
+    bottom: auto;
+    padding: 15px 0px;
+    font-size: clamp(24px, 5vw, 36px);
+  }
+
+  /* When mobile button is visible during cursor gameplay, position captions below it */
+  /* After CURSOR/CURSOR_FINAL states, captions return to top */
+  body.cursor-gameplay:has(#space-bar-hint.mobile-button) #dialog-caption {
+    top: calc(5% + 80px);
+    max-width: 90%;
+    left: 0;
+    right: 0;
+    padding: 15px 40px;
+  }
+}

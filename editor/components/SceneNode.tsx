@@ -16,7 +16,7 @@
 import React, { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
-import { StoryState, StateContent } from '../types/story';
+import type { StoryState, StateContent } from '../types/story';
 import './SceneNode.css';
 
 export interface SceneNodeData {
